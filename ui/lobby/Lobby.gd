@@ -10,36 +10,32 @@ extends Control
 ## own UI never waits on an echo that may not arrive over a stub or a lossy
 ## transport — applies the same Dictionary through _apply_data(): from_dict(),
 ## then sanitize() so a value that arrived out of its spec 1.9 range is
-## clamped rather than trusted ("Tests first").
-## flag stops that inbound apply from re-triggering another outbound publish.
+## clamped rather than trusted. A flag stops that inbound apply from re-triggering
+## another outbound publish.
 ##
 ## **Host-only editing.** Net.is_host() is true on the host and offline
-## (autoload/Net.gd's docstring), so gating on it alone is exactly the "M2
+## (autoload/Net.gd's docstring), so gating on it alone is exactly the hot-seat-still-works
 ## hot-seat still works" rule this project uses everywhere else. A client's
 ## controls are disabled; only its own Ready checkbox stays live.
 ##
 ## Connects to Events and Net only — no node paths into game/main/Main.gd. Start
-## is a signal for whoever owns scene-building (the integrator's Main) to
-## react to; this script never calls Match.start_match() itself, on the host
-## or ("Must NOT") on a client.
+## is a signal for whoever owns scene-building (Main) to react to; this script never
+## calls Match.start_match() itself, on the host or on a client.
 
 ## Emitted when the host presses Start with every peer ready. `config` is the
 ## sanitized MatchConfig the lobby is currently showing.
 signal start_requested(config: MatchConfig)
 
-## Emitted when the player presses the header's Back pill (
-## redo #3, mockup 11's top-right "< Back"). Whoever owns scene transitions
-## (game/main/Main.gd) is the only listener this package expects; see this file's
-## own header docstring, "no node paths into game/main/Main.gd" -- a signal keeps
-## that boundary intact instead of calling a scene-tree path directly.
+## Emitted when the player presses the header's Back pill. Whoever owns scene
+## transitions (game/main/Main.gd) is the only listener; a signal keeps the "no node
+## paths into game/main/Main.gd" boundary intact instead of calling a scene-tree path.
 signal back_requested
 
 @export var default_config: MatchConfig = preload("res://config/match/match_defaults.tres")
 
-## redo: same layered-pastel tunable set ui/menus/MainMenu.gd draws
-## its visual style from (config/ui/MenuVisualTuning.gd), so the Lobby matches
-## the Main Menu's look with zero magic numbers here (CLAUDE.md "No magic
-## numbers").
+## The layered-pastel tunable set ui/menus/MainMenu.gd draws its visual style from
+## (config/ui/MenuVisualTuning.gd), so the Lobby matches the Main Menu's look with zero
+## magic numbers here (CLAUDE.md "No magic numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
 ## the settings column is composed of ui/components (UiSection, UiRow, UiToggle,
@@ -51,12 +47,12 @@ const CARD_PLAYERS: String = "PlayersCard"
 const ROW_LABEL_META: StringName = &"row_label"
 const STACK_GROUP: StringName = &"lobby_stack"
 
-## E1: sizes and spacings new to the lobby rework (section
-## spacing, seat colour box, row height, advanced indent); also handed to the
-## players panel. Never touches the MenuVisualTuning look above.
+## Sizes and spacings new to the lobby (section spacing, seat colour box, row height,
+## advanced indent); also handed to the players panel. Never touches the
+## MenuVisualTuning look above.
 @export var layout_tuning: LobbyLayoutTuning = preload("res://config/ui/lobby_layout_tuning.tres")
 
-## PL1b: the lobby-data key of the seat table (LobbySeats: humans + bots
+## The lobby-data key of the seat table (LobbySeats: humans + bots
 ## with colour / team / difficulty), next to "roster". Published by _publish_lobby_data,
 ## read by _apply_data, and carried across the results screen's republish
 ## (ResultsScreen.LOBBY_SEATS_KEY points here).
@@ -64,14 +60,13 @@ const SEATS_KEY: String = "seats"
 ## Height counts this many times the sideways distance when a hop picks the stop across panels.
 const SPATIAL_HEIGHT_WEIGHT: float = 4.0
 
-## DECISION (ui/lobby/Lobby.gd, M6 A4): MatchConfig.enabled_specials already means
+## DECISION (ui/lobby/Lobby.gd): MatchConfig.enabled_specials already means
 ## "empty = every special enabled" (config/match/MatchConfig.gd's own doc comment),
 ## so unchecking every %SpecialsChecklist box can't publish an empty array --
 ## that would mean the opposite of what the host asked for. This sentinel id
 ## published as the sole entry instead means "spawn nothing"; it isn't a
-## MatchConfig constant (this package doesn't own config/match/MatchConfig.gd) and
-## autoload/match/MatchGifts.gd can't import a ui/ script, so its
-## _ensure_special_drawer_installed() carries the identical literal with a
+## MatchConfig constant and autoload/match/MatchGifts.gd can't import a ui/ script, so
+## its _ensure_special_drawer_installed() carries the identical literal with a
 ## matching DECISION comment pointing back here.
 const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 
@@ -85,7 +80,7 @@ const ALL_DISABLED_SENTINEL: StringName = &"__none__"
 static var QOL_SHARED: QolExperiments = preload("res://config/match/qol_experiments.tres")
 
 ## DECISION (ui/lobby/Lobby.gd): same `Variant` test seam as ui/menus/MainMenu.gd and
-## ui/hud/HUD.gd's match_provider. (E1): the players panel reads the
+## ui/hud/HUD.gd's match_provider. The players panel reads the
 ## same seam (peer ids/info for the roster, local peer id for the "you" subtitle),
 ## so a swap here is forwarded to it -- tests assign this after _ready().
 var net_provider: Variant = null:
@@ -95,8 +90,8 @@ var net_provider: Variant = null:
 			_players_panel.net_provider = value
 
 ## %MapThumbnail is the (hidden) pictogram of the one map; it lives under %HiddenSources.
-## the disc size is the one visible map control, six steps into
-## config/match/disc_size_tuning.tres (tiny 50% .. enormous 175%). a UiSegmentMeter whose
+## The disc size is the one visible map control, six steps into
+## config/match/disc_size_tuning.tres (tiny 50% .. enormous 175%): a UiSegmentMeter whose
 ## value is the step + 1 (cells lit), never 0 (see _disc_size_step()).
 @onready var _disc_size_meter: UiSegmentMeter = %DiscSizeMeter
 ## the settings column; _scroll_settings_to_top() resets it when the lobby opens.
@@ -104,16 +99,16 @@ var net_provider: Variant = null:
 @onready var _help_line: UiHelpLine = %HelpLine
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
-## S1b: the Players/AI steppers, the default-difficulty dropdown and the
-## segmented Teams control left the settings card -- seats, bots and teams are managed in
-## the players panel (section 2 of the lobby layout).
+## The Players/AI steppers, the default-difficulty dropdown and the
+## segmented Teams control left the settings card (seats, bots and teams are
+## managed in the players panel). They live on as hidden
 ## sources of truth under %HiddenSources (the pattern the map combo already uses): every
 ## read and write of `.value` / `.selected`, the host-only gating, the bot clamp and
 ## the round trip are unchanged, and the panel drives them (_on_teams_toggled,
 ## _set_bot_count). They are never focus stops.
-## DECISION (ui/lobby/Lobby.gd, PL1b): with the panel's Teams toggle and "+ Add bot" button now
-## the only way to change them (PL1b), they are no longer a temporary fallback but the
-## state holders chosen for the lobby rework:
+## DECISION (ui/lobby/Lobby.gd): with the panel's Teams toggle and "+ Add bot" button now
+## the only way to change them, they are no longer a temporary fallback but the
+## state holders chosen for the lobby:
 ## _apply_data() / _clamp_ai_count_to_seats() and every existing lobby test read and
 ## write them, so removing them would rewrite the whole config round trip (and
 ## tests/unit/ui/test_lobby.gd's 31 references) for no player-visible change.
@@ -159,13 +154,13 @@ var _special_frequency_value: int = 0
 @onready var _turn_based_check: UiToggle = %TurnBasedCheck
 ## host-only toggle for MatchConfig.allow_mid_match_join.
 @onready var _mid_join_check: UiToggle = %MidJoinCheck
-## S1b: the per-gift checklist is the GIFTS section's Advanced block, a grid of
+## The per-gift checklist is the GIFTS section's Advanced block, a grid of
 ## UiChipToggles built by _build_specials_checklist().
 @onready var _specials_checklist: GridContainer = %SpecialsChecklist
 @onready var _experiments_checklist: GridContainer = %ExperimentsChecklist
 ## the Experiments chips, in QolExperiments.with_toggles()
-## argument order (timer pause, backlog, goal radius, gift slot). (S1b):
-## they are the EXPERIMENTS section's Advanced block (plan D2). Host-editable,
+## argument order (timer pause, backlog, goal radius, gift slot). They are the
+## EXPERIMENTS section's Advanced block. Host-editable,
 ## read-only for a client (_settings_controls).
 @onready var _qol_timer_pause_check: UiChipToggle = %QolTimerPauseCheck
 @onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
@@ -181,7 +176,7 @@ var _special_frequency_value: int = 0
 	_qol_gift_after_next_check,
 ]
 
-## S1a/S1b: the settings column is a stack of UiSections: GAME (mode, disc size,
+## The settings column is a stack of UiSections: GAME (mode, disc size,
 ## time of day, weather; Advanced: gravity, tilt, holes, turn-based, mid-match join), ROUND (round
 ## length / match timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
 ## (on/off, frequency; Advanced: the per-gift checklist) and EXPERIMENTS (the opt-in
@@ -194,11 +189,11 @@ var _special_frequency_value: int = 0
 ## Goal flags apply only to the modes MatchConfig.mode_uses_goal_flags() names.
 @onready var _goal_flag_col: Control = %GoalFlagCol
 
-## E1: the right-hand roster (title row, header text, seat rows)
-## lives in ui/lobby/LobbyPlayersPanel.gd; this script keeps only the hooks
+## The right-hand roster (title row, header text, seat rows) lives in
+## ui/lobby/LobbyPlayersPanel.gd; this script keeps only the hooks
 ## (_publish_lobby_data/_apply_data/_on_roster_changed/_on_start_pressed/
 ## _update_host_only_state) that feed it. %PlayerList and %PlayerCountLabel are
-## its own unique names now, so they resolve through %PlayersPanel.
+## the panel's own unique names, so they resolve through %PlayersPanel.
 @onready var _players_panel: LobbyPlayersPanel = %PlayersPanel
 @onready var _ready_check: CheckButton = %ReadyCheck
 @onready var _start_button: Button = %StartButton
@@ -220,8 +215,8 @@ var _special_frequency_value: int = 0
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const ALL_READY_TEXT: String = "ALL READY"
 const READY_COUNT_FORMAT: String = "%d OF %d READY"
-## review r1, item 13: mockup 11's bottom-left "Waiting for
-## players * X of Y ready" pill, updated every time the players panel rebuilds its rows (_on_roster_rendered()).
+## The bottom-left "Waiting for players * X of Y ready" pill, updated every time the
+## players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: UiStatusBadge = %WaitingStatusPill
 
 ## Every control the round trip governs, so enabling/disabling them for a
@@ -239,9 +234,9 @@ var _special_ids: Array[StringName] = []
 ## controls, so the value-changed signals that causes fire without
 ## re-publishing what was just received (an infinite echo).
 var _applying_remote_data: bool = false
-## U1: the time-of-day dropdown. Index == MatchConfig.SkyThemeMode
+## The time-of-day dropdown. Index == MatchConfig.SkyThemeMode
 ## (DAY, NIGHT, RANDOM, CYCLE, DAWN), so the stored ints and the wire format are
-## unchanged; DAY is relabelled "Sunset" because it is now the day/night cycle
+## stable; DAY is labelled "Sunset" because it is the day/night cycle
 ## locked at a sunset time, not a separate painted sky.
 ## the help-line key the round-length row is explained under in Domination
 ## (any other mode uses the row's own name); the sentences live in config/ui/option_help_table.tres.
@@ -249,7 +244,7 @@ const ROUND_HELP_KEY_DOMINATION: String = "RoundTimerDominationCol"
 const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
 ## the timer sliders' value text. DECISION: the leftmost stop of a
 ## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
-## (Elimination used to read "No limit"); every other value reads "<n> min".
+## (Elimination reads "Off" too); every other value reads "<n> min".
 const TIMER_OFF_TEXT: String = "Off"
 const TIMER_VALUE_FORMAT: String = "%d min"
 ## a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
@@ -264,7 +259,7 @@ const FREQUENCY_READOUT_FORMAT: String = "%d"
 ## The step a player-picked gravity snaps to.
 const GRAVITY_SNAP: float = MatchConfig.GRAVITY_STEP
 const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
-## S1a: the one-line section summaries shown on each UiSection header.
+## The one-line section summaries shown on each UiSection header.
 const SUMMARY_SEPARATOR: String = " · "
 const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
 const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f"
@@ -272,7 +267,7 @@ const SUMMARY_GOAL_FLAGS_FORMAT: String = "%d goal flags"
 const SUMMARY_GOAL_FLAG_FORMAT: String = "%d goal flag"
 const SUMMARY_GIFTS_ON_FORMAT: String = "On%sfrequency %d"
 ## Appended to the GIFTS summary while some (not all) gifts are switched off in its Advanced
-## block -- the at-a-glance count the old "Specials: n/m" chip showed.
+## block -- the at-a-glance count of enabled gifts.
 const SUMMARY_GIFT_COUNT_FORMAT: String = "%d/%d gifts"
 const SUMMARY_GIFTS_OFF: String = "Off"
 const SUMMARY_EXPERIMENTS_FORMAT: String = "%d on"
@@ -368,14 +363,12 @@ func _ready() -> void:
 	# before anything else can look at them (a cached lobby snapshot is from before the match).
 	_show_live_roster()
 	_sync_ready_toggle_from_net()
-	# review r1, item 12: Net.host_game() populates its own
-	# HOST_PEER_ID roster entry directly and only emits net_mode_changed, not
-	# net_roster_changed / a lobby-data publish -- so a Lobby scene opened
-	# straight after hosting never received the host's own row until a second
-	# peer actually joined and triggered _on_peer_joined()'s republish. This
-	# host-only kick (a no-op for a client, whose _republish_roster_if_host()
-	# guard is already false) draws the host's own row on the very first frame
-	# instead of leaving the Players card at "0 / N" until someone else connects.
+	# Net.host_game() populates its own HOST_PEER_ID roster entry directly and only emits
+	# net_mode_changed, not net_roster_changed / a lobby-data publish, so a Lobby scene
+	# opened straight after hosting would not see the host's own row until a second peer
+	# joined and triggered _on_peer_joined()'s republish. This host-only kick (a no-op for
+	# a client, whose _republish_roster_if_host() guard is already false) draws the host's
+	# own row on the very first frame.
 	_republish_roster_if_host()
 	# Every dynamic row already exists before the chain is built (_build_specials_checklist()).
 	_apply_visual_style()
@@ -415,11 +408,10 @@ func _process(_delta: float) -> void:
 	_update_host_only_state()
 
 
-## E1: hands the players panel everything it renders from (the
-## Lobby's own tunables, the per-slot palette, the net seam) and connects its
-## signals -- the narrow Lobby <-> panel contract documented in
-## ui/lobby/LobbyPlayersPanel.gd. Runs before the first _apply_data() so even the
-## first rows are built from the Lobby's own resources.
+## Hands the players panel everything it renders from (the Lobby's own tunables, the
+## per-slot palette, the net seam) and connects its signals -- the narrow Lobby <->
+## panel contract documented in ui/lobby/LobbyPlayersPanel.gd. Runs before the first
+## _apply_data() so even the first rows are built from the Lobby's own resources.
 func _configure_players_panel() -> void:
 	_players_card.custom_minimum_size.x = float(layout_tuning.players_card_min_width_px)
 	_players_panel.net_provider = net_provider
@@ -500,7 +492,7 @@ func _prepare_rows() -> void:
 
 ## The title row: STACKFALL eyebrow, LOBBY and the status badge on the left, Back on the right, all
 ## centred on one line (UiTitleRow.add_trailing's rule), so the wordmark sits on the card's left edge
-## and no item floats above or below the others ("Stackfall not aligned top-left").
+## and no item floats above or below the others.
 func _arrange_header() -> void:
 	_header_row.move_child(_header_eyebrow, 0)
 	_header_row.move_child(_status_badge, _header_row.label.get_index() + 1)
@@ -523,7 +515,7 @@ func _expose(node: Node, unique_name: String) -> void:
 	node.unique_name_in_owner = true
 
 
-## DECISION (reversing the earlier decision):
+## DECISION: the visible option rows
 ## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
 ## LobbySeatRow is a UiCycler too; only its team pill is a popup UiDropdown.
 ## %TeamModeOption is a hidden sources of truth that nobody
@@ -535,16 +527,11 @@ func _populate_options() -> void:
 	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
 	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
-	# Territory v2 added HoleMode.OFF
-	# appended after TEMPORARY/PERMANENT) as the optional no-overlap mode.
-	# "Off" must still be the option list's third item, at the same index as
-	# the enum value, or OptionButton.selected = 2 on a 2-item list is
-	# silently ignored and a config asking for OFF is stuck on the old holes
-	# (found by package A). MatchConfig.hole_mode's own default
-	# reverted to TEMPORARY (SPEC.md's evidence
-	# audit); the lobby shows whatever config/match/match_defaults.tres stores
-	# (_ready()'s _apply_data(default_config.to_dict())), so no lobby-side
-	# default needs to move separately.
+	# "Off" must still be the option list's third item, at the same index as the enum
+	# value, or OptionButton.selected = 2 on a 2-item list is silently ignored and a
+	# config asking for OFF is stuck on the old holes. The lobby shows whatever
+	# config/match/match_defaults.tres stores (_ready()'s
+	# _apply_data(default_config.to_dict())), so no lobby-side default needs to move.
 	_fill_cycle(_hole_mode_option, ["Temporary", "Permanent", "Off"])
 	# order must match MatchConfig.WeatherMode.
 	# Labels come from the enum names, so a new weather type needs no edit here.
@@ -552,7 +539,7 @@ func _populate_options() -> void:
 	for weather_index: int in range(weather_labels.size()):
 		_weather_option.add_item(weather_labels[weather_index] as String)
 	# order must match MatchConfig.SkyThemeMode.
-	# U1: the DAY entry is the cycle locked at sunset, so it
+	# The DAY entry is the cycle locked at sunset, so it
 	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
 	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
 	# order must match MatchConfig.GameMode. Reserved modes are
@@ -614,8 +601,8 @@ func _fill_cycle(selector: UiCycler, labels: Array) -> void:
 
 
 ## Enabled-specials checklist:
-## config/gifts/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials(),
-## ), in id order (the same sorted, deterministic order every peer's own load produces, so the
+## config/gifts/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials()),
+## in id order (the same sorted, deterministic order every peer's own load produces, so the
 ## checklist never shows two peers a differently-ordered list). Checked =
 ## enabled, mirroring MatchConfig.enabled_specials's own "empty = all enabled"
 ## default (every box starts checked here; _apply_data() below is the only
@@ -659,11 +646,11 @@ func _build_specials_checklist() -> void:
 ## (rebuilt by the players panel on every roster change) enter the chain through
 ## the panel's focus_entries().
 ##
-## S1a/S1b: ONE closed loop in visual order. Each UiSection
+## ONE closed loop in visual order. Each UiSection
 ## contributes its main controls, its Advanced chip and (when open) its
 ## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
 ## (chip opens its checks) -- then the players panel's entries and the footer. The
-## Advanced rules popup and its separate loop are gone. _visible_chain() drops whatever a
+## _visible_chain() drops whatever a
 ## collapsed block or a mode hides, so there is never an invisible focus stop; every
 ## section toggle and mode change rewires.
 func _wire_focus_chain() -> void:
@@ -685,7 +672,7 @@ func _wire_focus_chain() -> void:
 	var experiments_advanced: Array[Control] = []
 	experiments_advanced.append_array(_qol_checks)
 	chain.append_array(_section_chain(_experiments_section, [_experiments_check], experiments_advanced))
-	# E1: the players panel's own focusable controls sit between the
+	# The players panel's own focusable controls sit between the
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
 	_settings_stops = chain.duplicate()
@@ -726,7 +713,7 @@ func _rewire_focus() -> void:
 	_schedule_spatial_rewire()
 
 
-## L3: the loop above is vertical list order; this pass overrides the neighbours
+## The loop above is vertical list order; this pass overrides the neighbours
 ## that must follow the DRAWN layout, from the real global rects: the gift / experiment chip grids
 ## move in 2D, the players panel's rows move by column (down from a colour diamond = the diamond
 ## below, the last row = Add bot, up reverses) and the settings column <-> players panel hops are
@@ -881,7 +868,7 @@ var _settings_stops: Array[Control] = []
 var _spatial_pending: bool = false
 
 
-## S1a: a control is a focus stop only while it and every ancestor up to
+## A control is a focus stop only while it and every ancestor up to
 ## this screen are visible -- a collapsed section or Advanced block, a hidden
 ## conditional column (the Reach the Sky toggle outside its mode, the timer column
 ## the mode does not use, goal flags in a mode without them) and the hidden
@@ -918,8 +905,8 @@ func _wire_loop(chain: Array[Control]) -> void:
 		current.focus_mode = Control.FOCUS_ALL
 
 
-## down from Add bot reached Back, so players backed out of the
-## lobby by accident: Back is NOT a stop of the vertical loop. It is reached deliberately: left from
+## Back is NOT a stop of the vertical loop (a down from Add bot reaching it made players
+## back out of the lobby by accident). It is reached deliberately: left from
 ## the loop's last stop (Start for the host, Ready for a client) or B / Esc. From Back, up / down /
 ## left / right return to the top of the settings column, so nothing wraps into it.
 func _wire_back_button(chain: Array[Control]) -> void:
@@ -955,7 +942,7 @@ func _connect_control_signals() -> void:
 	_game_mode_option.item_selected.connect(_refresh_sky_controls)
 	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
-	# .9b: a seat-count edit can shrink the room left for bots, so
+	# A seat-count edit can shrink the room left for bots, so
 	# this recomputes %AiCountSpin's own max_value on every host edit too, not
 	# only on a roster event (_on_roster_changed already covers "a human
 	# joined/left"; this covers "the host changed the seat count").
@@ -976,7 +963,7 @@ func _connect_control_signals() -> void:
 		qol_check.toggled.connect(_on_toggled)
 
 
-## assets-audio package: UI button press/hover has no Events signal of its
+## UI button press/hover has no Events signal of its
 ## own (it isn't gameplay), so this calls Sfx directly -- the one named
 ## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 ## Scoped to actual buttons, not every settings control, so dragging a
@@ -997,10 +984,10 @@ func _on_sound_button_hovered() -> void:
 	Sfx.play(AudioConfig.EVENT_HOVER)
 
 
-## redo: mirrors ui/menus/MainMenu.gd's _apply_visual_style() -- the
+## Mirrors ui/menus/MainMenu.gd's _apply_visual_style(): the
 ## same cream-card + pastel-pill language, built entirely from ui/theme/
 ## MenuStyleFactory.gd's StyleBoxFlat helpers on top of the shared
-## ui/theme/stackfall_theme.tres Theme (no image assets, per the brief).
+## ui/theme/stackfall_theme.tres Theme (no image assets).
 ##
 ## DECISION (ui/lobby/Lobby.gd): mockup 11 shows each column as a
 ## front card with two peeking mint/apricot "shadow" cards behind it, the
@@ -1011,19 +998,15 @@ func _on_sound_button_hovered() -> void:
 ## a CenterContainer would collapse back down to minimum size -- so this
 ## keeps a single flat cream PanelContainer card per column (no doubled
 ## shadow cards) rather than risk breaking that fill layout within the
-## remaining verification budget. Reported as a known simplification versus
-## the mockup in the handback.
+## remaining verification budget (a known simplification versus the mockup).
 ##
-## DECISION (ui/lobby/Lobby.gd + ui/lobby/Lobby.tscn redo #3): the redo #2
-## DECISION directly above this one shipped without a Back button, reasoning
-## a decorative button with no listener was worse than none. The redo #3
-## brief now explicitly requires one, so %BackButton emits back_requested
-## (this file's new signal, just above start_requested) instead of calling
-## into game/main/Main.gd directly -- keeping this file's own "no node paths into
+## DECISION (ui/lobby/Lobby.gd): the header has a real Back pill, since a decorative button
+## with no listener would be worse than none. %BackButton emits back_requested (the signal just above start_requested)
+## instead of calling into game/main/Main.gd directly -- keeping this file's own "no node paths into
 ## game/main/Main.gd" rule intact while giving Main.gd something to connect to.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	# Hierarchy (UI_COMPONENTS_PLAN section 4): the card heading, then sections one section_gap apart,
+	# Hierarchy: the card heading, then sections one section_gap apart,
 	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
 	_settings_column.add_theme_constant_override("separation", arcade.section_gap_px)
 	# each section header carries its UiArtTable symbol.
@@ -1049,15 +1032,13 @@ func _apply_visual_style() -> void:
 	_update_status_badge()
 
 
-## Gamepad/keyboard shortcuts and back-out (S1b; the Advanced rules popup is
-## gone):
+## Gamepad/keyboard shortcuts and back-out:
 ## - lobby_quick_advanced (Y) opens/closes the Advanced block of the section holding focus
 ##   (the first section with one when focus is elsewhere or in a section without one);
 ## - lobby_add_bot (X) adds a bot (host, a seat free); Start / Enter (lobby_confirm) starts or toggles Ready;
 ## - ui_cancel (Esc / gamepad B) backs out of the lobby, same as %BackButton. (An open
 ##   OptionButton popup consumes its own ui_cancel before this runs.)
-## fix: B used to do nothing here unless the popup was open, the reported
-## "B never goes back in any menu" gap.
+## B backs out even when no popup is open.
 func _unhandled_input(event: InputEvent) -> void:
 	if _options_menu != null:
 		return
@@ -1133,10 +1114,10 @@ func toggle_focused_advanced() -> void:
 		target.toggle_advanced()
 
 
-## S1a/S1b: the one-line summary on each section header, read straight off
+## The one-line summary on each section header, read straight off
 ## the same controls _config_from_controls() reads (and the timer value labels). Called
 ## from _apply_data(), i.e. after every lobby-data apply, so a host edit and a remote
-## update both refresh it. Replaces the old Advanced rules bar's live chips.
+## update both refresh it.
 func _update_section_summaries() -> void:
 	_game_section.set_summary(SUMMARY_SEPARATOR.join([
 		_cycle_text(_game_mode_option), _disc_size_text(),
@@ -1272,8 +1253,7 @@ func _on_value_changed(_value: float) -> void:
 	_on_setting_changed()
 
 
-## The team-aggregation toggle exists only for Reach the Sky.
-## a host picked a mode. Moving between timer families (classic
+## A host picked a mode. The team-aggregation toggle exists only for Reach the Sky. Moving between timer families (classic
 ## <-> timed, Elimination <-> CTF/Sky) resets the control to the new mode's
 ## default; CTF <-> Reach the Sky keeps the chosen length.
 func _on_game_mode_picked(index: int) -> void:
@@ -1349,7 +1329,7 @@ func _on_toggled(_pressed: bool) -> void:
 	_on_setting_changed()
 
 
-## / .60: a master switch that is off hides what it governs and focus skips it
+## A master switch that is off hides what it governs and focus skips it:
 ## _visible_chain drops hidden stops: gifts off -> the Frequency row and the GIFTS Advanced bar;
 ## experiments off -> the EXPERIMENTS Advanced bar. Turning it back on restores the bar closed; the
 ## chip selections themselves are untouched. Runs on a local toggle and after a remote apply.
@@ -1369,7 +1349,6 @@ func _set_advanced_available(section: UiSection, available: bool) -> void:
 
 
 ## The one place a host's edit turns into a publish
-## "Tests first": "every setting round-trips through ... Net.set_lobby_data").
 func _on_setting_changed() -> void:
 	if _applying_remote_data:
 		return
@@ -1382,7 +1361,7 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 	config.sanitize()
 	var data: Dictionary = config.to_dict()
 	data["roster"] = _players_panel.build_roster(config)
-	# E1: the seat table (per-seat colour/team/difficulty) is
+	# The seat table (per-seat colour/team/difficulty) is
 	# lobby data next to the roster, not a MatchConfig field; an empty table writes no
 	# key, so a lobby without one publishes the exact dict it always did.
 	var seats: Dictionary = _players_panel.seats_data()
@@ -1399,13 +1378,13 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 
 func _config_from_controls() -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	# DECISION (ui/lobby/Lobby.gd, M3a integration): MatchConfig.hot_seat defaults to
+	# DECISION (ui/lobby/Lobby.gd): MatchConfig.hot_seat defaults to
 	# true (config/match/match_defaults.tres and MatchConfig.new() alike), which
 	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
 	# _tick_feed and friends). The lobby is reachable only for networked play —
 	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/main/HotSeat.tscn
-	# screen builds must run the real-time per-player-timer branch instead.
+	# game/main/HotSeat.tscn — so lobby-built matches must run the real-time
+	# per-player-timer branch instead.
 	config.hot_seat = false
 	# there is one map; the disc size is the choice.
 	config.disc_size_step = _disc_size_step()
@@ -1497,27 +1476,14 @@ func _apply_data(data: Dictionary) -> void:
 	_apply_count += 1
 	var config: MatchConfig = MatchConfig.from_dict(data)
 	config.sanitize()
-	# DECISION (ui/lobby/Lobby.gd root cause): this screen is
-	# reachable only for networked play (see _config_from_controls()'s own
-	# matching DECISION), but that hot_seat=false override only ever ran
-	# through _config_from_controls() -- reached the *first* time only when a
-	# host actually touched a setting control. _ready()'s own first call
-	# below feeds this function config/match/match_defaults.tres's dict verbatim,
-	# whose hot_seat is true (M2's own default resource), so a host who never
-	# touched a slider before pressing Start sent hot_seat=true into
-	# Match.start_match(): Match then ran strict single-active-slot turn
-	# alternation across every slot, including the ones player_count left
-	# unowned. Windowed repro (host + client, default settings, Start with no
-	# edits): the HUD's turn banner cycled "Player 2's turn" -> "Player 3's
-	# turn" on *both* instances (Match's own _active_slot advancing on every
-	# auto-drop, not a per-slot real-time timer), and the host's own clicks
-	# were refused REASON_NOT_YOUR_TURN because PlayerController's networked
-	# _acting_slot() (Net.local_slot(), always 0 for the host) rarely lined
-	# up with Match's one shared _active_slot -- read by the owner as "player
-	# 2, 3, 4 place; player 1 is skipped". Forcing it false on every apply,
-	# not just the controls' own publish, closes the gap for the implicit
-	# initial default and for any (malformed or stale) config a client might
-	# ever receive over the wire.
+	# DECISION (ui/lobby/Lobby.gd): this screen is reachable only for networked play (see
+	# _config_from_controls()'s DECISION), but the hot_seat=false override only ran through
+	# _config_from_controls(), i.e. once a host touched a control. _ready()'s first call feeds
+	# this function config/match/match_defaults.tres's dict verbatim (hot_seat true), so a host
+	# who pressed Start without editing anything started a strict single-active-slot
+	# alternation match: the turn banner cycled and the host's clicks were refused with
+	# REASON_NOT_YOUR_TURN. Forcing it false on every apply also covers any malformed or
+	# stale config a client might receive over the wire.
 	config.hot_seat = false
 	_last_config = config
 	_bot_names = config.bot_names.duplicate()
@@ -1568,13 +1534,13 @@ func _apply_data(data: Dictionary) -> void:
 	_applying_remote_data = false
 	_refresh_master_toggles()
 	_update_section_summaries()
-	# .9b: re-bound %AiCountSpin's max after every value assignment
-	# above (player_count and ai_count both just moved, possibly from a wire
-	# value that predates this clamp) -- see _clamp_ai_count_to_seats()'s own
-	# header for why this can't just live in _mirror_player_count_to_peers().
+	# Re-bound %AiCountSpin's max after every value assignment above (player_count and
+	# ai_count both just moved, possibly from a wire value that predates this clamp); see
+	# _clamp_ai_count_to_seats()'s header for why this can't live in
+	# _mirror_player_count_to_peers().
 	_clamp_ai_count_to_seats()
 
-	# E1: the panel gets the applied config, the dict's roster (null
+	# The panel gets the applied config, the dict's roster (null
 	# when it carried none: the rows stay) and its seat table ({} when absent or not a
 	# Dictionary off the wire).
 	var seats_variant: Variant = data.get(SEATS_KEY, {})
@@ -1617,18 +1583,18 @@ func _on_lobby_data_changed(data: Dictionary) -> void:
 	_apply_data(data)
 
 
-## E1: the panel's seat table changed (colour, team pick, bot
+## The panel's seat table changed (colour, team pick, bot
 ## difficulty). Republishes like any other host edit, so the dict carries
 ## _players_panel.seats_data(); a client's edit travels as an intent instead.
 func _on_seats_changed() -> void:
 	_on_setting_changed()
 
 
-## The Teams toggle. DECISION (ui/lobby/Lobby.gd, E1, plan D8): the toggle writes only
+## The Teams toggle. DECISION (ui/lobby/Lobby.gd): the toggle writes only
 ## OFF or TEAMS_4 ("on, up to 4 teams") into the hidden %TeamModeOption, the
 ## source of truth for config.team_mode; older TEAMS_2/3 data stays valid when it
 ## arrives. Host only: a client's controls are read-only.
-## PL1b: the panel's Teams toggle emits teams_toggled (it re-seeded its team picks first);
+## The panel's Teams toggle emits teams_toggled (it re-seeded its team picks first);
 ## %TeamModeOption stays hidden-but-functional (see the %HiddenSources DECISION above), so
 ## lobby data carrying a team_mode round-trips unchanged.
 func _on_teams_toggled(enabled: bool) -> void:
@@ -1656,7 +1622,7 @@ func _on_remove_bot_requested(ordinal: int) -> void:
 
 
 ## Add/remove bot through the hidden spins, so the existing clamps and the one
-## publish path stay the only rules. DECISION (ui/lobby/Lobby.gd, E1, plan D6): the seat
+## publish path stay the only rules. DECISION (ui/lobby/Lobby.gd): the seat
 ## count follows humans + bots (never below the 2-seat minimum), the same rule
 ## _mirror_player_count_to_peers() applies on every roster event; a request that
 ## would exceed the seat cap does nothing. The seat spin moves first when growing
@@ -1709,11 +1675,11 @@ func _is_host_session() -> bool:
 ## trip, and it is the single source of truth for "what does the list show
 ## right now" (net_lobby_data_changed's own embedded roster only matters for
 ## the late-joiner snapshot _apply_data() already handles).
-## E1: the rows themselves are the players panel's
+## The rows themselves are the players panel's
 ## (on_roster_changed); the spin mirror and the bot clamp stay here.
 func _on_roster_changed(roster: Array[Dictionary]) -> void:
 	_mirror_player_count_to_peers(roster.size())
-	# .9b: a human joining/leaving changes how many seats are left
+	# A human joining/leaving changes how many seats are left
 	# for bots even when the host never touches %PlayerCountSpin itself (e.g.
 	# player_count already sits above the connected-peer count to leave bot
 	# headroom) -- _mirror_player_count_to_peers() above only republishes the
@@ -1741,24 +1707,20 @@ func _republish_roster_if_host() -> void:
 		_publish_lobby_data(republish)
 
 
-## player_count above the number of connected peers leaves a
+## A player_count above the number of connected peers leaves a
 ## slot nobody holds (see MatchConfig.clamp_to_connected_peers()'s matching
 ## DECISION); _on_start_pressed() below is the authoritative clamp (it runs
 ## even if a roster event was somehow missed), so this is display-only —
 ## keeping the spin from ever *showing* a count the match is about to
 ## override the moment Start is pressed.
 ##
-## DECISION (ui/lobby/Lobby.gd.9b): this used to force
-## `_player_count_spin.value = peer_count` outright ("Bots don't exist until
-## M5, so ... the spin simply tracks the peer count exactly" -- true when it
-## was written, false now that M5 shipped ai_count). Left as-is, every human
-## join/leave would silently erase any seat headroom a host had set aside
-## for bots (seats == humans exactly => 0 room left), directly breaking the
-## owner's "I can add bots up to the player limit" expectation. Mirrors
-## MatchConfig.clamp_to_connected_peers()'s own "humans outrank bots, but an
-## existing bot count is preserved if there's room" rule instead: the seat
-## count only ever grows to admit every connected human, and shrinks no
-## further than the greater of the peer count or (peers + existing bots).
+## DECISION (ui/lobby/Lobby.gd): the seat count mirrors
+## MatchConfig.clamp_to_connected_peers()'s own "humans outrank bots, but an existing
+## bot count is preserved if there's room" rule: it only ever grows to admit every
+## connected human, and shrinks no further than the greater of the peer count or
+## (peers + existing bots). Forcing it to the peer count outright would erase any seat
+## headroom a host had set aside for bots (seats == humans => 0 room left) on every
+## join/leave.
 func _mirror_player_count_to_peers(peer_count: int) -> void:
 	if net_provider == null or not bool(net_provider.is_host()):
 		return
@@ -1768,8 +1730,7 @@ func _mirror_player_count_to_peers(peer_count: int) -> void:
 		_player_count_spin.value = target
 
 
-## .9b: ("I can add bots up to the player limit")
-## found the bot count could silently exceed the number of empty seats --
+## Without a bound, the bot count could silently exceed the number of empty seats --
 ## nothing stopped ai_count + connected humans from exceeding player_count.
 ## Recomputes %AiCountSpin's own max_value from the current seat count minus
 ## the connected-peer count; Range.set_max() re-clamps a current value above
@@ -1791,8 +1752,8 @@ func _clamp_ai_count_to_seats() -> void:
 
 ## the Ready toggle is a VIEW of Net's per-peer ready flag, never a second copy
 ## of it. Net owns the flag (host: set_peer_ready(); client: the host's roster) and the rule that
-## clears it when the session returns to the lobby (Net.set_match_in_progress(false), replacing
-## the lobby-entry reset added here); this only reads it -- on entry and on every
+## clears it when the session returns to the lobby (Net.set_match_in_progress(false));
+## this only reads it -- on entry and on every
 ## roster refresh, host and client alike -- and draws it with set_pressed_no_signal(), so a view
 ## update is neither a press (no cue) nor a write back into Net (no echo).
 ## DECISION: the flag read is Net's own peer_info() of the local peer, not the roster payload, so
@@ -1830,7 +1791,7 @@ func _on_ready_toggled(pressed: bool) -> void:
 func _on_start_pressed() -> void:
 	if net_provider == null or not bool(net_provider.is_host()) or not bool(net_provider.all_peers_ready()):
 		return
-	# E1, P1 review F4: the Start button is already disabled while
+	# The Start button is already disabled while
 	# the panel names a blocker, but the X shortcut and a direct call skip the
 	# button -- so the gate is rechecked here.
 	if _players_panel.start_blocker() != "":
@@ -1858,10 +1819,10 @@ func _on_start_pressed() -> void:
 	# how many peers are actually connected, so the clamp runs here and
 	# Match.start_match() is left exactly as it was.
 	config.clamp_to_connected_peers(net_provider.peer_ids().size())
-	# E1, P1 review F1: the panel resolves/flattens its seat picks
+	# The panel resolves/flattens its seat picks
 	# into the start config only AFTER the clamp above -- MatchConfig.sanitize()
 	# silently drops team arrays whose length differs from player_count, and the
-	# clamp is what settles player_count/ai_count. PL1b: it reconciles the seat table with
+	# clamp is what settles player_count/ai_count. It reconciles the seat table with
 	# Net's CURRENT slot map first (slots move on a lobby leave/kick) and returns the reason
 	# when the seats cannot become match slots; the config is then untouched and nothing
 	# starts.
@@ -1896,7 +1857,7 @@ func _update_host_only_state() -> void:
 	for control: Control in _settings_controls:
 		_set_control_editable(control, is_host)
 	_players_panel.set_editable(is_host)
-	# E1, P1 review F4: a start blocker (e.g. teams on and every
+	# A start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when
 	# nothing blocks.
 	var start_blocker: String = _players_panel.start_blocker() if is_host else ""
@@ -1911,7 +1872,7 @@ func _update_host_only_state() -> void:
 	_invite_friends_button.visible = is_host and net_provider != null and bool(net_provider.is_steam_session())
 	if _join_code_row != null:
 		_join_code_row.refresh(net_provider, is_host)
-	# S1a: Start and Invite Friends are focus stops only while shown, so
+	# Start and Invite Friends are focus stops only while shown, so
 	# the loop is rewired when their visibility flips (a role or transport change), not
 	# every frame.
 	if (
@@ -1949,7 +1910,7 @@ func _set_control_editable(control: Control, editable: bool) -> void:
 		(control as BaseButton).disabled = not editable
 
 
-## Header badge (redo, mockup 11's top-right "Hosting * LAN"
+## Header badge (mockup 11's top-right "Hosting * LAN"
 ## pill): reads the same net_provider calls _update_host_only_state() above
 ## already gates on, so it never assumes a transport (CLAUDE.md
 ## "Multiplayer"). Runs every _update_host_only_state() call (once per

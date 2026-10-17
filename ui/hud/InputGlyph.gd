@@ -1,6 +1,6 @@
 class_name InputGlyph
 extends Control
-## Icon glyph for a single InputEvent (polish pass). ui/menus/KeyRebindRow.gd builds one
+## Icon glyph for a single InputEvent. ui/menus/KeyRebindRow.gd builds one
 ## of these per bound event of the active device family (autoload/Settings.gd's
 ## own active_input_device()); set_event() is the single seam every consumer uses.
 ##
@@ -15,7 +15,7 @@ extends Control
 ## Pad family for legends and face symbols (AUTO follows the connected pad, Xbox when none).
 @export var pad_style: PadStyle = PadStyle.AUTO
 
-## Requirement: "Glyph height consistent (~32 px at 1080p)".
+## Glyph height stays consistent (~32 px at 1080p).
 const GLYPH_HEIGHT_PX: float = 32.0
 const SHAPE_WIDTH_PX: float = 32.0
 const MOUSE_WIDTH_PX: float = 22.0
@@ -269,8 +269,8 @@ static func signature_for_action(action: StringName) -> String:
 	return "|".join(parts)
 
 
-## Renders a plain "+N" overflow badge instead of a real event -- Requirement: "max
-## two glyphs per row, extra bindings hidden behind '+1'".
+## Renders a plain "+N" overflow badge instead of a real event (max two glyphs per
+## row, extra bindings hidden behind "+1").
 func set_overflow_count(count: int) -> void:
 	_kind = Kind.GENERIC
 	_text = "+%d" % count

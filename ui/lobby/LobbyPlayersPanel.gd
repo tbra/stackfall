@@ -1,19 +1,17 @@
 class_name LobbyPlayersPanel
 extends VBoxContainer
-## The lobby's right-hand roster (packages E1 + PL1a, docs/
-## the lobby layout's "Right panel"):
+## The lobby's right-hand roster (docs/ lobby layout, "Right panel"): a
 ## "N players · M bots · K/S seats" header, and one LobbySeatRow per seat (the humans
-## from the roster in slot order, then one row per bot). Extracted 1:1 from ui/lobby/Lobby.gd
-## in E1 so the seat-row package could grow it without touching the Lobby again.
+## from the roster in slot order, then one row per bot).
 ##
-## **PL1a: the seat table.** The panel owns the lobby's seat table (core/rules/
+## **The seat table.** The panel owns the lobby's seat table (core/rules/
 ## LobbySeats: colour, team pick, bot difficulty per seat). It reconciles the table
 ## with the live roster and config on every apply / roster change / host publish,
 ## draws every row from it, and applies the HOST's edits (colour click, team click,
 ## bot difficulty, remove bot) through LobbySeats, then redraws and emits
 ## [signal seats_changed] (or [signal remove_bot_requested]).
 ##
-## **PL1b: header controls, self-edit, Start.** The header carries the host's "Teams"
+## **Header controls, self-edit, Start.** The header carries the host's "Teams"
 ## toggle and "+ Add bot" button ([signal teams_toggled], [signal add_bot_requested];
 ## a client sees the toggle read-only and no Add button). A CLIENT edits only its OWN
 ## row's colour and team: the click is sent as
@@ -35,7 +33,7 @@ extends VBoxContainer
 ## what the player asked for through signals; the Lobby turns that into a config
 ## edit and republishes.
 ##
-## **The hook contract (Lobby <-> panel; PL1 must not need to edit the Lobby):**
+## **The hook contract (Lobby <-> panel; the Lobby needs no edit to add a seat feature):**
 ## - [method apply]`(config, roster, seats)` -- once per lobby-data apply. `roster` is
 ##   the dict's `"roster"` value or null when the dict carried none (rows stay),
 ##   `seats` is its `"seats"` table or `{}`.
@@ -47,12 +45,12 @@ extends VBoxContainer
 ##   publish's own config and the live peers FIRST, so the table that follows it in
 ##   `_publish_lobby_data` is already current.
 ## - [method finalize_start_config]`(config) -> String` -- Start: called AFTER the Lobby
-##   clamped [method MatchConfig.clamp_to_connected_peers] (P1 review F1: sanitize drops
+##   clamped [method MatchConfig.clamp_to_connected_peers] (sanitize drops
 ##   team arrays whose length differs from player_count, so flattening must see the
 ##   clamped count); resolves teams freshly each Start. Returns "" or the reason Start
 ##   must not go ahead (the config is then untouched).
 ## - [method start_blocker] -- non-empty reason disables Start and is shown as the
-##   Start button's tooltip and under the rows (F4).
+##   Start button's tooltip and under the rows.
 ## - [method set_editable] -- host/client gate, pushed by the Lobby every frame (rows
 ##   are only redrawn when it changes).
 ## - [method focus_entries] + [signal focus_entries_changed] -- controls the Lobby
@@ -64,15 +62,14 @@ extends VBoxContainer
 ##   emits second; the Lobby republishes (host only), so [method seats_data] already
 ##   carries the change.
 
-# DECISION (ui/lobby/LobbyPlayersPanel.gd, E1): these signals are the contract the
-# seat-row packages (PL1a/PL1b) emit from this class; E1 installed them and the
-# Lobby's connections.
+# DECISION (ui/lobby/LobbyPlayersPanel.gd): these signals are the contract the
+# seat rows emit from this class; the Lobby connects to them.
 ## The seat table changed (colour, team pick or bot difficulty): republish.
 signal seats_changed
-## The host flipped the Teams toggle (PL1b). The panel has already re-seeded its team
+## The host flipped the Teams toggle. The panel has already re-seeded its team
 ## picks (1, 2, 1, 2, ... when switched on); the Lobby writes team_mode and republishes.
 signal teams_toggled(enabled: bool)
-## The host pressed "+ Add bot" (PL1b); the Lobby grows ai_count by one and republishes.
+## The host pressed "+ Add bot"; the Lobby grows ai_count by one and republishes.
 signal add_bot_requested
 ## The host removed the bot at [param ordinal] (0 = the first bot row). The panel has
 ## already dropped it from its own table.
@@ -85,7 +82,7 @@ signal roster_rendered(ready_count: int, row_count: int)
 
 ## Difficulty labels for the synthetic bot roster entries [method bot_roster_entries]
 ## builds, in MatchConfig.AiDifficulty enum order (EASY, NORMAL, HARD) -- the same order
-## the Lobby fills %AiDifficultyOption with (P4).
+## the Lobby fills %AiDifficultyOption with.
 const TEAMS_LABEL: String = "TEAMS"
 const _AI_DIFFICULTY_LABELS: Array[String] = LobbySeatRow.DIFFICULTY_LABELS
 
@@ -172,7 +169,7 @@ func _ready() -> void:
 
 # --- Hooks the Lobby calls -----------------------------------------------------
 
-## Styling that used to live in the Lobby's _apply_visual_style().
+## Styling of the panel's own header.
 func apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	# the roster count is a `dust` caption (components.md PlayerSlot header), not a title.
@@ -233,21 +230,19 @@ func build_roster(config: MatchConfig) -> Array[Dictionary]:
 	return roster
 
 
-## One synthetic row
-## from player_count - ai_count to player_count - 1 -- the same formula
-## autoload/match/MatchLifecycle.gd's _build_slots() uses for
+## One synthetic row from player_count - ai_count to player_count - 1 -- the same
+## formula autoload/match/MatchLifecycle.gd's _build_slots() uses for
 ## PlayerSlot.is_bot, so the lobby preview and the real match slots never
 ## disagree about which ids are bots. A bot has no connected peer behind it
 ## to ready up, so ready is always true; Net.all_peers_ready() only ever
 ## iterates real peers (its own header), so this can never let an unready
 ## human's Start gate open.
 ##
-## Split out of the roster build (.9b) so a render can re-derive "how
-## many bots exist right now" from the config alone, instead of trusting an
-## incoming roster's own bot rows -- a live Events.net_roster_changed payload
-## (autoload/Net.gd's _broadcast_roster()) never includes them, only a host's own
-## outbound publish does.
-## PL1a: each bot's difficulty is its own seat's (the table, else config.ai_difficulty).
+## Split out of the roster build so a render can re-derive "how many bots exist
+## right now" from the config alone, instead of trusting an incoming roster's own bot
+## rows -- a live Events.net_roster_changed payload (autoload/Net.gd's
+## _broadcast_roster()) never includes them, only a host's own outbound publish does.
+## Each bot's difficulty is its own seat's (the table, else config.ai_difficulty).
 func bot_roster_entries(config: MatchConfig) -> Array[Dictionary]:
 	var bots: Array[Dictionary] = []
 	var bot_start: int = config.player_count - config.ai_count
@@ -288,7 +283,7 @@ func seats_data() -> Dictionary:
 ## LAST, so nothing after it can change player_count and drop the per-slot arrays.
 ## Returns "" on success; otherwise the reason (the config is untouched and the Lobby
 ## does not start). Random picks resolve afresh on every call.
-## DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): the team shuffle's base seed is the
+## DECISION (ui/lobby/LobbyPlayersPanel.gd): the team shuffle's base seed is the
 ## match seed when the lobby has one, else a host randi() (LobbySeats.resolve_seed; the
 ## result rides in slot_team_ids / team_numbers, so no peer ever re-resolves it).
 func finalize_start_config(config_to_start: MatchConfig) -> String:
@@ -412,9 +407,9 @@ func _reconcile_current() -> void:
 
 ## The host-publish counterpart of _reconcile_current(): `config` is the one about to
 ## be published (the panel's own `_config` is the previous one).
-## DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1a): while the old %AiDifficultyOption is
+## DECISION (ui/lobby/LobbyPlayersPanel.gd): while the old %AiDifficultyOption is
 ## still in the Lobby, a CHANGE of config.ai_difficulty sets every bot to it (the
-## dropdown's pre-rework meaning); each bot's own dropdown then refines one bot.
+## dropdown's earlier meaning); each bot's own dropdown then refines one bot.
 ## Without a change the bots keep their own, and the value is only the default of new
 ## bots.
 func _sync_seats(config: MatchConfig, human_entries: Array[Dictionary]) -> void:
@@ -491,13 +486,13 @@ func _on_remove_requested(key: int) -> void:
 	remove_bot_requested.emit(LobbySeats.bot_ordinal(key))
 
 
-# --- Header controls, client self-edit, Start (PL1b) ----------------------------------
+# --- Header controls, client self-edit, Start ----------------------------------
 
 ## True while seat edits are welcome: this is the host's lobby, Start has not gone
 ## through, and no match is running. Net refuses mid-match requests itself; the lobby
 ## re-checks because the stretch between Start's flatten and Net's match flag (the
 ## loading overlay's pre-start frames) belongs to this screen, not to Net.
-## DECISION (ui/lobby/LobbyPlayersPanel.gd, PL1b): `match_in_progress` is asked only when
+## DECISION (ui/lobby/LobbyPlayersPanel.gd): `match_in_progress` is asked only when
 ## the provider has it (the real Net does; the FakeNet test double does not).
 func _lobby_open() -> bool:
 	if not _is_editable or _start_committed or net_provider == null:
@@ -510,8 +505,8 @@ func _is_own_seat(key: int) -> bool:
 	return net_provider != null and key > LobbySeats.KEY_NONE and key == int(net_provider.local_peer_id())
 
 
-## The Teams toggle. Switching ON re-seeds every pick (1, 2, 1, 2, ... in seat order,
-## plan section 2); OFF keeps the picks hidden. The table changes first, then the Lobby
+## The Teams toggle. Switching ON re-seeds every pick (1, 2, 1, 2, ... in seat order);
+## OFF keeps the picks hidden. The table changes first, then the Lobby
 ## is asked to write team_mode (OFF or TEAMS_4: "on, up to 4 teams") and republish.
 func _on_teams_toggle_toggled(pressed: bool) -> void:
 	if not _lobby_open():
@@ -614,28 +609,21 @@ func _live_table(config: MatchConfig, slot_map: Dictionary) -> Dictionary:
 
 # --- Rendering -------------------------------------------------------------------
 
-## DECISION (ui/lobby/Lobby.gd.9b): -- "the right panel
-## lists 'players+bots'/'players', I can add bots up to the player limit" --
-## traced to two different roster payload shapes landing here: Net's own
-## live roster events (autoload/Net.gd's _broadcast_roster(), reached via
-## on_roster_changed()) never include bot rows (Net has no concept of
-## ai_count), while a full lobby-data apply's own roster does. Whichever
-## happened to run last decided whether the header (and the row list) showed
-## bots at all, even though ai_count itself hadn't changed -- read by the owner as
-## an inconsistent, confusing count. The stored human entries now only ever supply
-## the human rows (bot rows inside a roster are dropped); the seat table is the single
-## source of truth for the bot rows actually drawn, on every call path alike.
+## DECISION (ui/lobby/LobbyPlayersPanel.gd): Net's live roster events
+## (autoload/Net.gd's _broadcast_roster(), reached via on_roster_changed()) never include
+## bot rows (Net has no concept of ai_count), while a full lobby-data apply's roster does;
+## whichever ran last would decide whether the header and row list showed bots at all.
+## So the stored human entries only supply the human rows (bot rows inside a roster are
+## dropped); the seat table is the single source of truth for the bot rows drawn.
 func _render() -> void:
 	var bot_total: int = LobbySeats.bot_count(_seats)
 
-	# "3 players * 2 bots * 5/8 seats" (or, with no bots, "3 players * 3/8
-	# seats") -- unambiguous about how many of each are seated, unlike the
-	# old bare "roster.size() / seats" this replaces.
-	# DECISION (ui/lobby/LobbyPlayersPanel.gd, E1): the seat count is the applied
-	# config's player_count; the Lobby used to read its %PlayerCountSpin, which
-	# _apply_data() writes from that same sanitized value (and every host edit
-	# republishes), so the two agree whenever the Lobby is shown.
-	# the player/bot count controls are gone, so the denominator is always the maximum.
+	# "3 players * 2 bots * 5/8 seats" (or, with no bots, "3 players * 3/8 seats"):
+	# unambiguous about how many of each are seated.
+	# DECISION (ui/lobby/LobbyPlayersPanel.gd): the seat count is the applied
+	# config's player_count (the Lobby writes its spin from that same sanitized value and
+	# every host edit republishes), so the two agree whenever the Lobby is shown. The
+	# denominator is always the maximum.
 	var seat_count: int = MatchConfig.PLAYER_COUNT_MAX
 	# the label clips (never widens the card); no tooltip (inline help only).
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
@@ -834,7 +822,7 @@ func set_row_style(style: int) -> void:
 		_render()
 
 
-## DECISION (ui/lobby/Lobby.gd.9b): "3 players" (plural handled),
+## DECISION (ui/lobby/LobbyPlayersPanel.gd): "3 players" (plural handled),
 ## "2 bots" only appended when there are any (a 0-bot lobby doesn't need to
 ## announce that), then the seat fraction against [param seats] -- how many seats
 ## this lobby is configured for, not a hardcoded MatchConfig.PLAYER_COUNT_MAX.
@@ -846,10 +834,10 @@ static func format_roster_header(humans: int, bots: int, seats: int) -> String:
 	return "%d %s · %d %s · %d/%d seats" % [humans, human_word, bots, bot_word, humans + bots, seats]
 
 
-## review r2, item 4: one white pill row per roster entry -- a
+## One white pill row per roster entry: a
 ## colour box in the seat's colour, bold name, a small muted subtitle ("Host · you" /
-## "LAN · <ping> ms"), and a Ready (mint)/Not ready (peach) badge on the right.
-## PL1a adds the per-seat controls (see LobbySeatRow).
+## "LAN · <ping> ms"), and a Ready (mint)/Not ready (peach) badge on the right, plus
+## the per-seat controls (see LobbySeatRow).
 func _build_human_row(entry: Dictionary) -> LobbySeatRow:
 	var peer_id: int = int(entry.get(LobbySeats.FIELD_PEER_ID, -1))
 	var key: int = LobbySeats.KEY_NONE
