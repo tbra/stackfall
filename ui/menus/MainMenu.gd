@@ -2,40 +2,27 @@ class_name MainMenu
 extends Control
 ## The game's front door (spec 2.6 "LAN discovery").
 ##
-##  Hot-seat is unlisted — this
-## menu offers only Host, Join (LAN list or direct IP), Sandbox (docs/
-## spec 1.2), Tutorial,
-## spec 1.2) and Quit. Hot-seat is reachable solely through the `--hot-seat`
-## command-line flag, which `Net.apply_command_line()` / `game/main/Main.gd`
-## handle before this scene is even shown.
+## The menu offers Host, Join (LAN list or direct IP), Sandbox (spec 1.2), Tutorial, Options and
+## Quit. Hot-seat is unlisted: it is reachable only through the `--hot-seat` command-line flag,
+## which `Net.apply_command_line()` / `game/main/Main.gd` handle before this scene is shown.
 ##
-## Connects to Events and calls Net directly, the same "no deep node paths"
-## convention ui/hud/HUD.gd uses; it does not know about ui/lobby/Lobby.gd or
-## game/main/Main.gd. Whoever owns scene switching (the integrator's Main) listens
-## for Events.net_mode_changed to know when to move on.
+## Connects to Events and calls Net directly, the same "no deep node paths" convention
+## ui/hud/HUD.gd uses; it does not know about ui/lobby/Lobby.gd or game/main/Main.gd. Whoever
+## owns scene switching listens for Events.net_mode_changed to know when to move on.
 
-## DECISION (ui/menus/MainMenu.gd): `Variant` test seam, the same reason
-## game/player/PlayerController.gd and ui/hud/HUD.gd have one — GUT cannot double a
-## plain autoload, and Net is still P1's stub while this lands. Defaults to
-## the real Net autoload; tests overwrite it with a FakeNet after
-## add_child().
+## DECISION: `Variant` test seam, the same reason game/player/PlayerController.gd and
+## ui/hud/HUD.gd have one: GUT cannot double a plain autoload. Defaults to the real Net autoload;
+## tests overwrite it with a FakeNet after add_child().
 var net_provider: Variant = null
 
-## game/main/Main.gd instantiates this scene directly
-## (`_show_main_menu()`) and connects to this signal the same way it connects
-## to ui/lobby/Lobby.gd's own `start_requested` -- a direct child-signal connection,
-## not the Events bus, since Main already owns this node's lifetime and this
-## menu "does not know about ... game/main/Main.gd" (this file's own header
-## comment above). Sandbox is still unlisted in the sense that spec 2.6 never
-## asked for it in the Host/Join/Quit set this header describes, but the
-## Main Menu is the one entry point spec 1.2 gives it (unlike hot-seat, which
-## stays command-line only).
+## game/main/Main.gd instantiates this scene (`_show_main_menu()`) and connects to this signal
+## directly, like ui/lobby/Lobby.gd's `start_requested`, not through the Events bus, since Main
+## already owns this node's lifetime. Sandbox is the one entry point spec 1.2 gives it (unlike
+## hot-seat, which stays command-line only).
 signal sandbox_requested
 
-## %TutorialButton's own signal, the same direct
-## child-signal convention sandbox_requested above uses -- game/main/Main.gd's
-## start_tutorial_from_menu() connects to this in _show_main_menu(),
-## mirroring its own start_sandbox_from_menu() hookup.
+## %TutorialButton's own signal, a direct child-signal connection like sandbox_requested above;
+## game/main/Main.gd's start_tutorial_from_menu() connects in _show_main_menu().
 signal tutorial_requested
 signal bots_requested(player_name: String)
 
@@ -58,19 +45,15 @@ const HOST_STEAM_TEXT: String = "Host on Steam"
 const HOST_DIALOG_QUESTION: String = "How should friends connect?"
 const HOST_STEAM_UNAVAILABLE: String = "Steam is unavailable; host locally instead."
 
-## OptionsMenu.tscn is instanced/freed directly by
-## this menu (ui/menus/OptionsMenu.gd's own header: "self-contained ... MainMenu
-## instances this scene directly"), not routed through game/main/Main.gd -- the
-## same reason sandbox_requested/tutorial_requested above are direct
-## child-signal emits rather than an Events bus post, except this signal never
-## even needs to leave MainMenu: _on_options_pressed()/_on_options_closed()
-## below are both handlers and emitter in one file.
+## OptionsMenu.tscn is instanced/freed directly by this menu (it is self-contained), not routed
+## through game/main/Main.gd; this signal never needs to leave MainMenu, since
+## _on_options_pressed()/_on_options_closed() are both handlers and emitter.
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 
 ## Well/list/compact-page sizes and the menu render budget (config/ui/menu_visual_tuning.tres);
 ## colours and block recipes come from ArcadeVisualTuning through MenuStyleFactory.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
-## UI reskin P1: left column, scrim and lockup geometry.
+## Left column, scrim and lockup geometry.
 @export var layout: MainMenuTuning = preload("res://config/ui/main_menu_tuning.tres")
 
 @onready var _name_row: UiField = %NameField
@@ -80,9 +63,8 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn
 @onready var _play_local_button: Button = %PlayLocalButton
 @onready var _bots_button: Button = %BotsButton
 @onready var _back_button: Button = %BackButton
-## the debug-only entry. A corner overlay on the menu root (not
-## a child of the card's containers), so showing or hiding it can never move
-## any other control; %GiftDemoButton lives on the Debug page.
+## The debug-only entry. A corner overlay on the menu root (not a child of the card's containers),
+## so showing or hiding it can never move any other control; %GiftDemoButton lives on the Debug page.
 @onready var _debug_button: Button = %DebugButton
 @onready var _gift_demo_button: Button = %GiftDemoButton
 @onready var _tower_topple_button: Button = %TowerToppleButton
@@ -109,9 +91,7 @@ var _syncing_tabs: bool = false
 @onready var _center: CenterContainer = %Center
 @onready var _game_list: ItemList = %GameList
 @onready var _refresh_button: Button = %RefreshButton
-## review r1, item 5: the sunken "well" card wrapping the
-## header row + %GameList + %DirectRow -- one sunken panel instead of a
-## standalone tall Refresh button and separator lines.
+## The sunken "well" card wrapping the header row + %GameList + %DirectRow.
 @onready var _lan_games_well: UiWell = %LanGamesWell
 @onready var _direct_ip_field: UiField = %DirectIpField
 @onready var _direct_ip_edit: LineEdit = _direct_ip_field.edit
@@ -122,39 +102,31 @@ var _syncing_tabs: bool = false
 @onready var _front_card: MarginContainer = %Panel
 @onready var _title: TextureRect = %Title
 @onready var _join_label: UiText = %JoinLabel
-## mockup 10's bottom-right controller hint is a pill, not a
-## bare Label -- %GamepadHintPill wraps the existing %GamepadHintBar Label in
+## The bottom-right controller hint is a pill: %GamepadHintPill wraps the %GamepadHintBar Label in
 ## a PanelContainer so it reads as a chip instead of floating text.
 @onready var _gamepad_hint_pill: UiWell = %GamepadHintPill
 @onready var _hint_row: InputPromptFlow = %GamepadHintRow
 
-## The Steam section vs. the
-## (spec 2.6: "Hide the online menu entries and show a notice").
+## The Steam section vs. a disabled Host Online pill (spec 2.6: "Hide the online menu entries and
+## show a notice").
 @onready var _steam_section: VBoxContainer = %SteamSection
 @onready var _host_online_button: Button = %HostOnlineButton
-## the sunken "well" card wrapping the Steam header row +
-## %SteamLobbyList -- same one-sunken-panel treatment as %LanGamesWell
-## (review r1, item 5), replacing the old standalone tall
-## "Refresh" button + bare sunken %SteamLobbyList.
+## The sunken "well" card wrapping the Steam header row + %SteamLobbyList, the same treatment as
+## %LanGamesWell.
 @onready var _steam_games_well: UiWell = %SteamGamesWell
 @onready var _steam_lobby_list: ItemList = %SteamLobbyList
 @onready var _refresh_steam_button: Button = %RefreshSteamButton
 @onready var _empty_state_label: Label = %EmptyStateLabel
-## "No lobbies yet" inside the Steam well while
-## _steam_lobbies is empty, mirroring %EmptyStateLabel's own role for
-## %GameList (_rebuild_game_list()'s own "blank white box" fix).
+## "No lobbies yet" inside the Steam well while _steam_lobbies is empty, like %EmptyStateLabel
+## for %GameList.
 @onready var _steam_empty_state_label: Label = %SteamEmptyStateLabel
 
 var _games: Array[Dictionary] = []
 var _steam_lobbies: Array[Dictionary] = []
 
-## Seconds until the next automatic refresh_lobby_list() poll while the Steam
-## section is visible ("Steam's request_lobby_list() is
-## pull-based ... call it on a config.steam_lobby_list_refresh_s timer"). A
-## plain accumulator rather than a Timer node, since it only needs to run
-## while _steam_section is visible and reads its interval from
-## net_provider.config, which a Timer node's `wait_time` can't do without its
-## own extra wiring code anyway.
+## Seconds until the next automatic refresh_lobby_list() poll while the Steam section is visible
+## (request_lobby_list() is pull-based). A plain accumulator rather than a Timer node because the
+## interval comes from net_provider.config.
 var _steam_refresh_countdown_s: float = 0.0
 
 const TAB_LAN: StringName = &"lan"
@@ -179,11 +151,8 @@ var _host_steam_choice: Button = null
 ## built only while debug mode is on (see _build_watch_bots_dialog()).
 var _watch_bots_dialog: UiDialog = null
 
-## The live OptionsMenu.tscn instance while it's open, or null. Tracked here
-## (rather than letting OptionsMenu free itself on `closed`) so
-## _on_options_closed() can both queue_free() it and restore focus in one
-## place, the same "one owner frees what it opened" convention
-## _on_quit_pressed() implicitly follows via get_tree().quit().
+## The live OptionsMenu.tscn instance while it's open, or null. Tracked here so
+## _on_options_closed() can both queue_free() it and restore focus in one place.
 var _options_menu: OptionsMenu = null
 ## the built-once Options window, hidden between opens (see OptionsMenu.present()).
 var _options_cache: OptionsMenu = null
@@ -297,9 +266,8 @@ func _exit_tree() -> void:
 
 # --- Button handlers ---------------------------------------------------------
 
-## assets-audio package: UI button press/hover has no Events signal of its
-## own (it isn't gameplay), so this calls Sfx directly -- the one named
-## exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
+## UI button press/hover has no Events signal of its own (it isn't gameplay), so this calls Sfx
+## directly: the one named exception to "Sfx listens, nothing calls it" (autoload/Sfx.gd's header).
 func _connect_click_and_hover_sounds() -> void:
 	var buttons: Array[BaseButton] = [
 		_host_button, _join_button, _join_lan_tab_button, _join_steam_tab_button, _play_local_button, _sandbox_button, _tutorial_button,
@@ -475,9 +443,8 @@ func _on_watch_bots_confirmed(options: RefCounted) -> void:
 		watch_bots_requested.emit(options)
 
 
-## Back (button, Esc or gamepad B) returns to the home page with focus on the
-## button that opened the page just left, so the controller never loses its
-## place.
+## Back (button, Esc or gamepad B) returns to the home page with focus on the button that opened
+## the page just left, so the controller never loses its place.
 func _on_back_pressed() -> void:
 	var opener: Control = _host_button
 	match _page:
@@ -498,9 +465,9 @@ func _on_bots_pressed() -> void:
 	bots_requested.emit(bot_host_name)
 
 
-## seam: shows/hides the debug entry on a live menu (the answer
-## is otherwise read once from DebugMode.is_enabled() in _ready()). Turning it
-## off while the Debug page is open returns to the home page.
+## Test seam: shows/hides the debug entry on a live menu (otherwise read once from
+## DebugMode.is_enabled() in _ready()). Turning it off while the Debug page is open returns to the
+## home page.
 func set_debug_entry_enabled(enabled: bool) -> void:
 	_debug_entry_enabled = enabled
 	_set_page(PAGE_HOME if _page == PAGE_DEBUG and not enabled else _page)
@@ -510,10 +477,9 @@ func set_debug_entry_enabled(enabled: bool) -> void:
 ## choices stay together on Play local; the front page is a short navigation
 ## screen that also fits smaller viewports.
 ##
-## /36: the name field only belongs to the pages that host or
-## join (Home, Join) -- Play local and Debug hide it, so Vs bots (the first
-## Play local option) is what takes focus there. The debug corner pill is an
-## overlay outside every container, so toggling it moves nothing else.
+## The name field only belongs to the pages that host or join (Home, Join); Play local and Debug
+## hide it, so Vs bots (the first Play local option) takes focus there. The debug corner pill is
+## an overlay outside every container, so toggling it moves nothing else.
 func _set_page(page: int, focus_target: Control = null) -> void:
 	_page = page
 	var join_page: bool = page == PAGE_JOIN
@@ -579,13 +545,10 @@ func _steam_available() -> bool:
 
 # --- Controller / keyboard focus ----------------------------------------------
 #
-# /39: every neighbour is wired here, per page, from the controls
-# that are actually usable right now. The scene file carries no focus_neighbor_*
-# paths any more (the stale ones pointed at controls that are hidden on the
-# page in question, and Godot then hops through them to nowhere -- Tutorial's
-# "right" went to the hidden Options button). Controls that can do nothing
-# (a disabled Steam button, an empty list) are made FOCUS_NONE and left out of
-# the chain, so the pad can no longer land on a control that does nothing.
+# Every neighbour is wired here, per page, from the controls that are actually usable right now.
+# The scene file carries no focus_neighbor_* paths: a stale one pointing at a control hidden on
+# the page makes Godot hop through it to nowhere. Controls that can do nothing (a disabled Steam
+# button, an empty list) are FOCUS_NONE and left out of the chain.
 
 ## Every control this menu wires, so a page change can clear stale neighbours.
 func _wired_controls() -> Array[Control]:
@@ -716,10 +679,8 @@ func _on_tutorial_pressed() -> void:
 	tutorial_requested.emit()
 
 
-## hides %Center
-## rather than this whole MainMenu, so the background stays visible behind
-## OptionsMenu's own semi-transparent %Background -- matches OptionsMenu.tscn
-## being authored as an overlay, not a full scene swap.
+## Hides %Center rather than this whole MainMenu, so the background stays visible behind
+## OptionsMenu's semi-transparent %Background (it is authored as an overlay).
 func _on_options_pressed() -> void:
 	if _options_menu != null:
 		return
@@ -820,8 +781,8 @@ func _join(address: String, port: int) -> void:
 		_show_status("Could not join: %s" % error_string(err))
 
 
-## components.md ServerRow: three pulsing cells under the "Searching for
-## games..." line. They are a child of the label, so they show and hide with it.
+## Three pulsing cells under the "Searching for games..." line. They are a child of the label, so
+## they show and hide with it.
 ## DECISION: SEARCH_CELLS_GAP_PX below the label's centre line is a layout offset, one line of the
 ## caption text, not a tunable.
 const SEARCH_CELLS_GAP_PX: float = 22.0
@@ -851,9 +812,8 @@ func _rebuild_game_list() -> void:
 			int(game.get("port", 0)),
 		]
 		_game_list.add_item(label)
-	# review r1, item 5: "Searching for games..." inside the
-	# well instead of a blank white box while LAN discovery has found nothing
-	# yet.
+	# "Searching for games..." inside the well instead of a blank box while LAN discovery has found
+	# nothing yet.
 	_empty_state_label.visible = _games.is_empty()
 	# an empty list does nothing, so it leaves the focus chain.
 	_wire_focus()
@@ -869,8 +829,7 @@ func _rebuild_steam_lobby_list() -> void:
 			str(lobby.get("map", "")),
 		]
 		_steam_lobby_list.add_item(label)
-	# "No lobbies yet" inside the well instead of a blank
-	# white box, the same _rebuild_game_list() fix for %GameList.
+	# "No lobbies yet" inside the well instead of a blank box.
 	_steam_empty_state_label.visible = _steam_lobbies.is_empty()
 	_wire_focus()
 
@@ -878,13 +837,10 @@ func _rebuild_steam_lobby_list() -> void:
 ## Toggles the Steam section vs. a disabled Host Online pill (spec 2.6: "Hide
 ## the online menu entries and show a notice"). Reads net_provider directly
 ## rather than taking a bool parameter, so a test can mutate a FakeNet's
-## `steam_available_value` and re-call this the same way test_lobby.gd
-## re-calls `_update_host_only_state()` after mutating its fake.
+## `steam_available_value` and re-call this.
 ##
-## review r1, item 4: the old permanent "Steam not
-## available - hidden. Host/join over LAN or direct IP below." paragraph is
-## gone -- the host dialog's text carries that explanation only when Steam is
-## unavailable (no tooltips), instead of a standing block of card-width text.
+## The host dialog's text carries the Steam-unavailable explanation, not a standing block of
+## card-width text.
 func _apply_steam_availability() -> void:
 	var available: bool = net_provider != null and bool(net_provider.steam_available())
 	if not available:
@@ -901,8 +857,7 @@ func _apply_steam_availability() -> void:
 		_steam_refresh_countdown_s = float(net_provider.config.steam_lobby_list_refresh_s)
 
 
-## the name field shows the saved name every time a menu is
-## built (a rebuilt menu used to reset it to "Player"), and every edit is saved
+## The name field shows the saved name every time a menu is built, and every edit is saved
 ## straight away, so it also survives restarts and the Host/Join page switches.
 func _init_name_field() -> void:
 	_name_edit.max_length = int(net_provider.config.max_player_name_length)

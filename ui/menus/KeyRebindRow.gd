@@ -1,43 +1,30 @@
 class_name KeyRebindRow
 extends Button
-## One row per rebindable
-## dynamically by ui/menus/OptionsMenu.gd's _build_rebind_rows() (one instance of
-## this scene per OptionsMenu.REBINDABLE_ACTIONS entry). Shows the action's
-## current binding(s) as InputGlyph icons (InputMap.action_get_events(),
-## which already reflects any Settings key override -- Settings.
-## _apply_key_overrides() writes straight onto the InputMap, see
-## autoload/Settings.gd's own doc) and captures the next InputEventKey/
-## InputEventMouseButton/InputEventJoypadButton while "listening".
+## One row of the Options key-rebinding list, built by ui/menus/OptionsMenu.gd (one per
+## OptionsMenu.REBINDABLE_ACTIONS entry). Shows the action's current binding(s) as InputGlyph
+## icons (InputMap.action_get_events(), which already reflects Settings key overrides) and
+## captures the next InputEventKey/InputEventMouseButton/InputEventJoypadButton while "listening".
 ##
-## polish pass ("Remove the per-row 'Rebind' buttons.
-## The whole row is the focusable/clickable target"): this scene's own root
-## is now the Button (extends Button, not HBoxContainer) -- a click or
-## Space/Enter anywhere on the row starts listening, exactly like the old
-## dedicated RebindButton did, and the shared stackfall_theme.tres focus ring
-## still highlights the whole row on gamepad/keyboard focus for free (Button
-## already owns that). %Content (an HBoxContainer laid out full-rect inside
-## this Button, mouse_filter = IGNORE on every nested container so a click
-## anywhere in it falls through to this Button) holds the actual row visuals.
+## The row itself is the Button, so a click or Space/Enter anywhere on it starts listening and the
+## shared theme focus ring highlights the whole row. %Content (an HBoxContainer inside this Button,
+## mouse_filter = IGNORE on every nested container so clicks fall through to the Button) holds the
+## row visuals.
 
 signal rebind_captured(action: StringName, event: InputEvent)
 
-## Requirement: "max two glyphs per row, extra bindings hidden behind '+1'".
+## At most two glyphs per row; extra bindings collapse into a "+N" glyph.
 const MAX_GLYPHS: int = 2
 
 const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
 
-## UI reskin P2: the BindingRow listening prompt, shown in rim in place of the
-## glyphs. The gamepad page asks for a button.
+## The listening prompt, shown in rim in place of the glyphs. The gamepad page asks for a button.
 const LISTENING_TEXT_KEYBOARD: String = "PRESS A KEY\u2026"
 const LISTENING_TEXT_GAMEPAD: String = "PRESS A BUTTON\u2026"
 const LISTENING_LABEL_NAME: String = "ListeningLabel"
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 
-## Friendly, player-facing action names ("Friendly action names and
-## grouping ... human labels"). Deliberately only covers
-## OptionsMenu.REBINDABLE_ACTIONS -- anything missing here falls back to
-## _display_name()'s old auto-titlecase, so a future rebindable action never
-## goes unlabeled just because nobody updated this dictionary yet.
+## Player-facing action names. Only covers OptionsMenu.REBINDABLE_ACTIONS; anything missing here
+## falls back to _display_name()'s auto-titlecase so a new rebindable action is never unlabeled.
 const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"ghost_place": "Place block",
 	&"use_gift_slot": "Activate gift",
@@ -72,12 +59,11 @@ const DISPLAY_NAMES: Dictionary[StringName, String] = {
 	&"chat_open": "Chat",
 }
 
-## The gamepad page lists only
-## the pad's real controls. The pad rotates with B (rotate_snap, a 90 degree tap) and with
-## RT held + left stick (rotate_drag_pad, free rotation), so those two have their own rows
-## ("Rotate 90 deg", "Free rotate (hold)") and the keyboard rows that used to show them as
-## stand-ins (Rotate left/right, Free rotation mode, Free rotate (drag)) are hidden on the
-## pad page (PAD_NOT_APPLICABLE). An action's glyphs are always its own pad events.
+## The gamepad page lists only the pad's real controls. The pad rotates with B (rotate_snap, a
+## 90 degree tap) and with RT held + left stick (rotate_drag_pad, free rotation), so those two have
+## their own rows and the keyboard stand-in rows (Rotate left/right, Free rotation mode, Free
+## rotate (drag)) are hidden on the pad page (PAD_NOT_APPLICABLE). An action's glyphs are always
+## its own pad events.
 
 ## Pad-only actions: they have no mouse/keyboard binding (tools/bootstrap_project.gd), so
 ## their rows exist on the gamepad page only.
@@ -96,10 +82,8 @@ const PAD_ONLY_ACTIONS: Array[StringName] = [&"rotate_snap", &"rotate_drag_pad"]
 ## and zoom in/out (the pad zooms with LT + left stick). "Orbit camera" (right
 ## stick) stays as the one camera row a pad player may want to read.
 ##
-## Also hidden on the pad page
-## only ever showed a stand-in (Rotate left/right, Free rotation mode, Free rotate (drag)) and
-## Orbit camera (the right stick always orbits and is not rebindable). "Orbit camera" stays on
-## the mouse/keyboard page (right mouse button).
+## Also hidden on the pad page: Orbit camera (the right stick always orbits and is not
+## rebindable). It stays on the mouse/keyboard page (right mouse button).
 const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"lock_vertical",
 	&"rotate_yaw_ccw", &"rotate_yaw_cw", &"rotation_mode", &"rotate_drag",
@@ -111,18 +95,14 @@ const PAD_NOT_APPLICABLE: Array[StringName] = [
 	&"chat_open",
 ]
 
-## Rows hidden on both pages while CameraTuning.snap_enabled is false
-## (follow-up).
+## Rows hidden on both pages while CameraTuning.snap_enabled is false.
 const SNAP_ACTIONS: Array[StringName] = [&"camera_snap_home", &"camera_snap_goal"]
 
 ## Read for snap_enabled only (a const Resource would be a private copy in GDScript).
 @export var camera_tuning: CameraTuning = preload("res://config/player/camera_tuning.tres")
 
-## Reused only for the row's own subtle hover/pressed highlight -- a calm
-## list row, not another coral pill button (ui/theme/MenuStyleFactory.gd's
-## own pill/chip styles are for actual buttons; this row keeps the shared
-## Theme's default "focus" stylebox untouched so gamepad/keyboard focus still
-## reads exactly like every other focusable Control in the project).
+## Reused only for the row's own subtle hover/pressed highlight; the shared Theme's default
+## "focus" stylebox is left untouched so focus reads like every other Control.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
 @onready var _action_label: Label = %ActionLabel
@@ -136,10 +116,8 @@ var _idle_s: float = 0.0
 var _blocked_axes: Dictionary[int, bool] = {}
 
 
-## "default to only showing mouse/keyboard, switch to
-## showing only gamepad options on gamepad input": live-refreshes this row's
-## glyphs whenever the player's last-used device changes, without the
-## OptionsMenu that built this row needing to rebuild the whole list.
+## Live-refreshes this row's glyphs whenever the player's last-used device changes, so
+## OptionsMenu need not rebuild the whole list.
 func _ready() -> void:
 	%Content.minimum_size_changed.connect(_sync_content_minimum_size)
 	_sync_content_minimum_size()
@@ -208,36 +186,26 @@ func setup(action: StringName) -> void:
 	_refresh_glyphs()
 
 
-## Test seam (tests/unit/ui/test_options_menu.gd): whether this row is currently
-## armed to capture the next input.
+## Test seam: whether this row is currently armed to capture the next input.
 func is_listening() -> bool:
 	return _listening
 
 
-## Test seam: the Control a synthetic `pressed.emit()` (or a real click)
-## should target to start listening. The row itself IS the Button now (no
-## separate child RebindButton) -- kept under its old name so
-## tests/unit/ui/test_key_rebind_row.gd's own real-Viewport click tests keep
-## working unchanged; it still targets exactly the clickable/focusable
-## Control this row is built from.
+## Test seam: the Control a synthetic `pressed.emit()` (or a real click) targets to start
+## listening. The row itself is the Button, so this is the row.
 func rebind_button() -> Button:
 	return self
 
 
-## Public refresh seam: ui/menus/OptionsMenu.gd's own Reset-to-defaults action
-## changes the InputMap out from under every already-built row at once, so
-## it calls this on each one afterward rather than rebuilding the whole list.
+## Public refresh seam: OptionsMenu's Reset-to-defaults changes the InputMap under every built
+## row, so it calls this on each instead of rebuilding the list.
 func refresh() -> void:
 	_refresh_glyphs()
 
 
-## Drops keyboard focus from this row (
-## feedback/playtest.md: "no option to actually remap the ones that are
-## mapped") -- while this row stays focused, Godot's own GUI layer treats
-## Space/Enter as *this Button's* activate accelerator and arrows/Tab as
-## focus navigation, so a still-focused row is a second, independent path
-## (besides _input() below) by which those keys could be swallowed before
-## this row ever sees them.
+## Drops keyboard focus from this row: while focused, Godot's GUI layer treats Space/Enter as
+## this Button's accelerator and arrows/Tab as focus navigation, a second path (besides _input()
+## below) by which those keys could be swallowed before the row sees them.
 func _on_pressed() -> void:
 	_listening = true
 	_idle_s = 0.0
@@ -255,10 +223,8 @@ func _collect_blocked_axes() -> void:
 				_blocked_axes[axis] = true
 
 
-## "activating it enters 'press a key/button…' state shown in the
-## glyph slot" -- replaces the glyph row with one placeholder InputGlyph
-## rather than a separate text label, so the listening state lives in
-## exactly the same visual slot the real bindings occupy.
+## Replaces the glyph row with one placeholder InputGlyph, so the listening state lives in the
+## same visual slot the real bindings occupy.
 func _show_listening_glyph() -> void:
 	_clear_glyphs()
 	var prompt: Label = Label.new()
@@ -272,38 +238,24 @@ func _show_listening_glyph() -> void:
 	_glyph_row.add_child(prompt)
 
 
-## Captures the very next real input while listening -- InputEventKey,
-## InputEventMouseButton or InputEventJoypadButton (the rebinding rule
-## C2's own list) or, since an InputEventJoypadMotion past
+## Captures the very next real input while listening: InputEventKey, InputEventMouseButton,
+## InputEventJoypadButton, or an InputEventJoypadMotion past
 ## OptionsVisualTuning.rebind_axis_threshold (triggers and stick directions, stored as axis +
 ## sign; _handle_motion). Pad B binds instead of cancelling.
 ##
-## Captured in Node._input() rather than Node._unhandled_input() (feedback/playtest.md: "no option to actually remap
-## the ones that are mapped"). Godot's own input pipeline runs, in order,
-## Node._input() -> Control GUI dispatch (focus navigation, button
-## accelerators, mouse_filter consumption) -> Node._unhandled_input(); as
-## _unhandled_input(), this method only ever saw whatever the GUI layer left
-## over, which for a full-screen options panel is close to nothing: a mouse
-## click anywhere on the panel's own mouse_filter=STOP background was
-## consumed by the GUI layer before it could reach here, and Space/Enter/
-## arrows/Tab were consumed by the still-focused row's own GUI
-## accelerator/focus-navigation handling instead (see _on_pressed()'s
-## release_focus() call above, which closes that second path). Moving the
-## capture to _input() runs it *before* any of that GUI processing, so a
-## listening row now sees the raw event first regardless of what sits under
-## the pointer or which control has focus.
+## Captured in Node._input(), which runs before Control GUI dispatch and Node._unhandled_input().
+## Afterwards the GUI layer would have consumed a click on the panel's mouse_filter=STOP background and
+## Space/Enter/arrows/Tab on the still-focused row (see _on_pressed()'s release_focus()), so a
+## listening row would never see them.
 ##
-## ui_cancel cancels the capture instead of binding Escape/gamepad B onto the
-## action -- caught here, before OptionsMenu's own _unhandled_input() back-out
-## handler, because _input() is delivered to every node in the tree (deepest
-## first) before Godot even starts the GUI/_unhandled_input phases that
-## OptionsMenu's own handler relies on, so a listening row always sees
-## ui_cancel first.
+## ui_cancel cancels the capture instead of binding Escape/gamepad B onto the action. It is caught
+## here because _input() reaches every node before OptionsMenu's _unhandled_input() back-out
+## handler, so a listening row always sees ui_cancel first.
 func _input(event: InputEvent) -> void:
 	if not _listening:
 		return
-	# The idle timer is NOT reset here: stick drift or mouse motion must not postpone the cancel
-	# (review note); every event that matters ends listening by capturing or cancelling.
+	# The idle timer is NOT reset here: stick drift or mouse motion must not postpone the cancel;
+	# every event that matters ends listening by capturing or cancelling.
 	if event is InputEventJoypadButton:
 		# B (ui_cancel's pad button) is a valid binding while listening;
 		# the pad player cancels with the idle timeout, Esc or a mouse click.
@@ -331,8 +283,8 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Idle timeout for a listening row, so a pad player who armed a row
-## by accident is not stuck now that B binds rather than cancels.
+## Idle timeout for a listening row, so a pad player who armed a row by accident is not stuck
+## (B binds rather than cancels).
 func _process(delta: float) -> void:
 	if not _listening:
 		return
@@ -375,11 +327,9 @@ func _cancel_listening() -> void:
 	_restore_focus()
 
 
-## _on_pressed() drops focus for the duration of a capture; once
-## the capture ends the row takes it back, so a keyboard/gamepad player keeps
-## navigating (and the enclosing FocusScrollContainer keeps following) from the
-## row they just remapped instead of landing on no focus at all until the next
-## mouse click. Only when nothing else has taken focus in the meantime.
+## _on_pressed() drops focus for the duration of a capture; once the capture ends the row takes it
+## back, so keyboard/gamepad navigation continues from the remapped row. Only when nothing else
+## has taken focus in the meantime.
 func _restore_focus() -> void:
 	if is_visible_in_tree() and get_viewport().gui_get_focus_owner() == null:
 		grab_focus()
@@ -391,17 +341,11 @@ func _clear_glyphs() -> void:
 		child.queue_free()
 
 
-## rebuilds %GlyphRow from only the events of the active
-## device family (autoload/Settings.gd's own active_input_device()) -- the
-## "only showing mouse/keyboard, switch to showing only gamepad" behavior the
-## user asked for. on the gamepad page an action without its
-## own pad event shows no glyph, an action with no pad function at all
-## (PAD_NOT_APPLICABLE) hides the row on the pad page and a pad-only action
-## (PAD_ONLY_ACTIONS) hides it on the mouse/keyboard page. Any
-## other row with no binding for the active family is left visible with an
-## empty glyph row -- still a real, rebindable row for that device.
-## "max two glyphs per row, extra bindings hidden behind '+1'" -- a
-## third InputGlyph shows "+N" instead of a third real icon.
+## Rebuilds %GlyphRow from only the events of the active device family (Settings
+## active_input_device()). On the gamepad page an action without its own pad event shows no glyph,
+## a PAD_NOT_APPLICABLE action hides the row, and a PAD_ONLY_ACTIONS action is hidden on the
+## mouse/keyboard page. Any other row with no binding for the active family stays visible with an
+## empty glyph row, still rebindable. A third glyph shows "+N" instead of a real icon.
 func _refresh_glyphs() -> void:
 	_clear_glyphs()
 	visible = is_available_on_active_device()
@@ -447,11 +391,8 @@ static func events_of_family(action: StringName, gamepad: bool) -> Array[InputEv
 	return InputGlyph.events_of_family(action, gamepad)
 
 
-## Friendly label for `action` ("Friendly action names ... human
-## labels") -- falls back to the old cosmetic auto-titlecase
-## ("ghost_move_left" -> "Ghost Move Left") for anything DISPLAY_NAMES
-## doesn't cover, so a fresh action added to REBINDABLE_ACTIONS never shows
-## up blank just because nobody updated DISPLAY_NAMES yet.
+## Friendly label for `action`; falls back to auto-titlecase ("ghost_move_left" -> "Ghost Move
+## Left") for anything DISPLAY_NAMES does not cover.
 func _display_name(action: StringName) -> String:
 	if DISPLAY_NAMES.has(action):
 		return DISPLAY_NAMES[action]

@@ -1,10 +1,7 @@
 class_name MenuStyleFactory
-## Main menu / lobby reskin:
-## builds the varied pastel pill buttons, sunken "well" panels and offset
-## shadow cards the pastel mockups show, entirely from StyleBoxFlat -- no image
-## assets (hard constraint in the brief). Every color/size it draws from comes
-## from config/ui/MenuVisualTuning.gd (CLAUDE.md "No magic numbers"); this file
-## only assembles StyleBoxFlat objects, it owns no tunables of its own.
+## Builds the varied pastel pill buttons, sunken "well" panels and offset
+## shadow cards from StyleBoxFlat alone (no image assets). Every color/size it draws from
+## comes from config/ui/MenuVisualTuning.gd; this file only assembles StyleBoxFlat objects.
 ##
 ## ui/theme/stackfall_theme.tres already gives every Button/LineEdit/OptionButton
 ## a shared coral/cream base style and a dark-outline focus ring; this factory
@@ -150,9 +147,8 @@ static func _linear_channel(channel: float) -> float:
 	return pow((channel + SRGB_GAMMA_OFFSET) / SRGB_GAMMA_SCALE, SRGB_GAMMA_EXPONENT)
 
 
-## review r1, item 5: a borderless white list panel for a
-## server/lobby row list that already sits inside its own well card
-## (ui/menus/MainMenu.tscn's %LanGamesWell) -- avoids stacking two sunken borders.
+## A borderless white list panel for a server/lobby row list that already sits inside its own
+## well card (ui/menus/MainMenu.tscn's %LanGamesWell), avoiding two stacked sunken borders.
 static func make_flat_list(tuning: MenuVisualTuning) -> StyleBoxFlat:
 	var box: StyleBoxFlat = StyleBoxFlat.new()
 	box.bg_color = arcade_tuning().disc_700_color

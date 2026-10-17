@@ -1,91 +1,57 @@
 class_name PauseMenu
 extends CanvasLayer
-## (M7 P42, : "there's no pause menu, I can't
-## abandon a game and go back to the main menu or quit the game").
-## Instantiated once by game/main/Main.gd (kept alive for the whole session, unlike
-## ui/menus/OptionsMenu.gd which MainMenu/this menu build and free on demand) so it
-## is always listening for the pause_menu action, whatever screen is up.
-## Self-contained the same way ui/menus/OptionsMenu.gd's own header documents: only
-## ever emits signals or reads Events -- never reaches into game/main/Main.gd's
-## node tree.
+## In-game pause overlay: abandon a game and go back to the main menu (or lobby).
+## Instantiated once by game/main/Main.gd and kept alive for the whole session (unlike
+## ui/menus/OptionsMenu.gd, which is built and freed on demand), so it is always listening for the
+## pause_menu action. Self-contained: it only emits signals or reads Events, and never reaches into
+## game/main/Main.gd's node tree.
 ##
-## Physics/simulation is never paused (CLAUDE.md's host-authority model: only
-## the host runs physics, and every other player keeps playing in an online
-## match) -- opening this overlay only suppresses the *local* player's own
-## input (Events.pause_menu_opened/closed; game/player/PlayerController.gd is the
-## one listener today, the same "gate input, don't touch the scene tree"
-## contract ui/debug/TuningPanel.gd's own F4 toggle already established) and
-## releases the mouse so the overlay's own buttons are reachable.
+## Physics/simulation is never paused (host authority: only the host runs physics, and every
+## other player keeps playing in an online match). Opening this overlay only suppresses the *local*
+## player's own input (Events.pause_menu_opened/closed; game/player/PlayerController.gd listens)
+## and releases the mouse so the overlay's own buttons are reachable.
 ##
-## DECISION (ui/menus/PauseMenu.gd, requirement: "In-game pause menu
-## doesn't match the rest of the menu graphically, also remove quit game as
-## an option"): restyled to the same cream-card/pastel-pill/airy-spacing look
-## ui/menus/MainMenu.gd and ui/lobby/Lobby.gd already use (ui/theme/stackfall_theme.tres,
-## ui/theme/MenuStyleFactory.gd, config/MenuVisualTuning) -- this file only
-## consumes those, it owns none of them (they belong to other packages). The
-## Quit game button, its confirmation path and the quit_callable test seam
-## are gone outright: with Quit removed, the shared "which destructive action
-## is pending" selector this class used to need (one ConfirmationDialog fed
-## by a Leave-or-Quit choice) collapses to a single path, so the dialog now
-## exists solely to confirm Leave match.
+## DECISION: restyled to the shared cream-card/pastel-pill look of MainMenu and Lobby (stackfall_theme.tres, MenuStyleFactory, MenuVisualTuning), which this file only consumes. There is no Quit game entry: one ConfirmationDialog serves the two destructive entries, Leave match and Return to lobby (host only, between Options and Leave); `_pending_action` says which one a confirm answers.
 ##
-## "return to lobby option from pause menu":
-## that one dialog now serves two destructive entries, Leave match and Return to
-## lobby (host only, between Options and Leave); `_pending_action` says which one
-## a confirm answers. Which entries a session gets is decided by game/main/Main.gd
-## through `context_provider`, so this menu still never names Net or Match.
+## Which entries a session gets is decided by game/main/Main.gd through `context_provider`, so this
+## menu never names Net or Match.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 
-## M7 P7 look: every pastel pill/well/card color this menu's
-## restyle draws from, so none of the styling in _apply_visual_style() below
-## is a magic number (CLAUDE.md "No magic numbers"). Owned by another
-## package (config/ui/MenuVisualTuning.gd) -- this file only reads it, the same
-## way ui/menus/MainMenu.gd and ui/lobby/Lobby.gd already do.
+## Every pastel pill/well/card color this menu's restyle draws from, so none of the styling in
+## _apply_visual_style() is a magic number. Read only, like MainMenu and Lobby.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## game/main/Main.gd sets this true for the duration of ui/menus/Tutorial.gd's own scene
-## (start_tutorial_from_menu()/_on_tutorial_finished()). DECISION (ui/
-## PauseMenu.gd, minor ambiguity): Tutorial already has its own ui_cancel ->
-## _end_tutorial() handler (ui/menus/Tutorial.gd's own doc comment), and this menu
-## and Tutorial are unrelated siblings under Main -- their _unhandled_input
-## dispatch order relative to each other is not documented or relied on
-## anywhere else in this codebase (unlike Options nested inside this menu,
-## where Godot's deepest-node-first delivery is an established, documented
-## guarantee -- see ui/menus/OptionsMenu.gd's own _unhandled_input() doc comment).
-## Rather than risk a double-toggle race on the shared Escape/Start key, this
-## menu simply never opens while Tutorial owns the scene; Tutorial's own
-## Escape-to-quit keeps working unmodified.
+## game/main/Main.gd sets this true for the duration of ui/menus/Tutorial.gd's scene. DECISION
+## (minor ambiguity): Tutorial has its own ui_cancel -> _end_tutorial() handler, and the two are
+## unrelated siblings under Main whose _unhandled_input order is not relied on, so this menu never
+## opens while Tutorial owns the scene instead of risking a double-toggle on the shared Escape/Start
+## key. (Options nested inside this menu is different: Godot's deepest-node-first delivery is
+## documented.)
 var suppressed: bool = false
 
-## the menu is a CanvasLayer (was a plain Control at layer 0),
-## so it and the Options menu it hosts draw above ui/hud/HUD.gd (CanvasLayer 1)
-## and swallow mouse clicks that used to fall through to HUD controls.
+## The menu is a CanvasLayer, so it and the Options menu it hosts draw above ui/hud/HUD.gd
+## (CanvasLayer 1) and swallow mouse clicks that would fall through to HUD controls.
 ## DECISION: 100 leaves room for debug overlays below and stays a script
 ## export rather than a tuning resource (a draw-order constant, not a tunable).
 const OVERLAY_LAYER: int = 100
 
-## Emitted once Leave match is confirmed. game/main/Main.gd is the one listener:
-## online, it calls Net.leave() (which already tears the match world down and
-## returns to the main menu via its own _on_net_mode_changed()); offline
-## (sandbox/hot-seat), it aborts the match and shows the main menu directly.
-## PauseMenu itself never touches Net/Match -- see game/main/Main.gd's own
-## _on_pause_leave_requested() DECISION comment for why that split lives
-## there, not here.
+## Emitted once Leave match is confirmed. game/main/Main.gd is the one listener: online, it calls
+## Net.leave() (which tears the match world down and returns to the main menu); offline
+## (sandbox/hot-seat), it aborts the match and shows the main menu directly. PauseMenu itself
+## never touches Net/Match.
 signal leave_match_requested
 
-## "return to lobby option from
-## pause menu": emitted once Return to lobby is confirmed (or at once when no
-## match is in progress, so nothing is lost). game/main/Main.gd is the one listener;
-## it re-checks that this peer is the host before ending the match for everyone.
+## Emitted once Return to lobby is confirmed (or at once when no match is in progress, so nothing
+## is lost). game/main/Main.gd is the one listener; it re-checks that this peer is the host before
+## ending the match for everyone.
 signal return_to_lobby_requested
 
-## . What the Return to lobby entry shows, decided by whoever owns
-## the session (game/main/Main.gd), never by this menu: HIDDEN where no lobby exists
-## to return to (offline sandbox/hot-seat -- Leave match already goes to the main
-## menu there), ENABLED for the host (a hosted session always has a lobby, local
-## vs-bots included), DISABLED for a client.
+## What the Return to lobby entry shows, decided by whoever owns the session (game/main/Main.gd),
+## never by this menu: HIDDEN where no lobby exists to return to (offline sandbox/hot-seat; Leave
+## match already goes to the main menu there), ENABLED for the host (a hosted session always has a
+## lobby, local vs-bots included), DISABLED for a client.
 enum ReturnEntry { HIDDEN, ENABLED, DISABLED }
 
 ## Which destructive action the shared confirmation dialog is currently asking
@@ -104,13 +70,10 @@ const CONFIRM_ACTION_ID: StringName = &"confirm"
 const LEAVE_CONFIRM_TEXT: String = "Leave this match and return to the main menu?"
 const LEAVE_CONFIRM_OK_TEXT: String = "Leave match"
 
-## () -> Dictionary, read each time the menu opens (and by the
-## confirm step). {"return_entry": ReturnEntry, "match_in_progress": bool}.
-## game/main/Main.gd assigns it; with none set the entry stays hidden (the scene's
-## default, so the pre-existing 3-button focus ring is untouched) and a press
-## never asks for confirmation, so a bare menu (every pre-existing test) behaves
-## exactly as before. A seam rather than reading Net/Match here: this menu stays
-## decoupled from both (see the header).
+## () -> Dictionary, read each time the menu opens (and by the confirm step).
+## {"return_entry": ReturnEntry, "match_in_progress": bool}. game/main/Main.gd assigns it; with
+## none set the entry stays hidden and a press never asks for confirmation. A seam rather than
+## reading Net/Match here, so this menu stays decoupled from both.
 var context_provider: Callable = Callable()
 
 var _froze_tree: bool = false
@@ -158,7 +121,7 @@ func _ready() -> void:
 	_wire_focus_chain()
 
 
-## UI reskin P2: the Stackfall Arcade Dialog -- a centred 340 px disc-800 plate on a
+## The Stackfall Arcade Dialog: a centred 340 px disc-800 plate on a
 ## disc-900 scrim, a centred uppercase heading, stacked full-width blocks. Resume is the one primary
 ## (flare face, ink label); Options and Return to lobby are secondary disc-600 blocks; Leave match is
 ## a secondary block with a flare label (destructive, always followed by a confirm). Look only.
@@ -168,7 +131,7 @@ func _apply_visual_style() -> void:
 	scrim.a = arcade.scrim_alpha
 	($Root/Background as ColorRect).color = scrim
 	_panel.custom_minimum_size.x = float(OPTIONS_TUNING.dialog_width_px)
-	# C4c: the plate is a UiPanel (no heading, the centred UiText title is the heading), the blocks
+	# the plate is a UiPanel (no heading, the centred UiText title is the heading), the blocks
 	# are UiBlockButtons (Resume primary, the rest secondary). Leave match is the DANGER look
 	# (a secondary block with an alert label).
 	_leave_button.variant = UiBlockButton.Look.DANGER
@@ -176,15 +139,11 @@ func _apply_visual_style() -> void:
 	# (apply_ink covers both), so no per-node icon overrides here.
 
 
-## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this
-## overlay open/closed; ui_cancel closes it while open, matching every other
-## menu's back gesture (OptionsMenu.gd's and Tutorial.gd's own doc comments).
-## Suppressed entirely while Tutorial owns the scene (see `suppressed` above)
-## or while Options is open as a child (Options's own _unhandled_input already
-## consumes ui_cancel first via Godot's deepest-node-first delivery -- this
-## guard only matters for a *second* pause_menu press, e.g. gamepad Start
-## again, while Options is up; simplest reasonable behavior is "do nothing,
-## use Options's own Back button/ui_cancel to get back here first").
+## pause_menu (Esc/gamepad Start, tools/bootstrap_project.gd) toggles this overlay open/closed;
+## ui_cancel closes it while open, matching every other menu's back gesture. Suppressed entirely
+## while Tutorial owns the scene (see `suppressed`) or while Options is open as a child: Options's
+## own _unhandled_input already consumes ui_cancel first (deepest-node-first delivery), so this
+## guard only matters for a second pause_menu press, which does nothing.
 func _unhandled_input(event: InputEvent) -> void:
 	if suppressed or _options_menu != null:
 		return
@@ -249,23 +208,18 @@ func _close() -> void:
 	Events.pause_menu_closed.emit()
 
 
-## fix round 2 (orchestrator review finding 3): game/main/Main.gd's
-## own suppress-on-menu/lobby hooks (see `suppressed`'s own doc above) call
-## this, unconditionally, every time they make this menu inert -- a match can
-## end some way other than this menu's own Leave button (the host
-## disconnecting, Net dropping to OFFLINE outright) while this overlay happens
-## to be open, and Events.pause_menu_closed must still reach
-## game/player/PlayerController.gd so its input re-enables (harmless there too: no
-## PlayerController instance exists once the match world is gone). Idempotent
-## -- a no-op when already closed -- so callers never need to check `visible`
-## themselves first.
+## game/main/Main.gd's suppress-on-menu/lobby hooks (see `suppressed`) call this, unconditionally,
+## every time they make this menu inert: a match can end some way other than this menu's own Leave
+## button (the host disconnecting, Net dropping to OFFLINE) while this overlay is open, and
+## Events.pause_menu_closed must still reach game/player/PlayerController.gd so its input
+## re-enables. Idempotent: a no-op when already closed, so callers never check `visible` first.
 func force_close() -> void:
 	if visible:
 		_close()
 
 
-## (pause menu open when the round ended left the
-## results unusable). DECISION: the menu closes itself when results arrive, so it
+## A pause menu left open when the round ends would leave the
+## results unusable. DECISION: the menu closes itself when results arrive, so it
 ## never covers the results screen and Events.pause_menu_closed fires once;
 ## ui/menus/ResultsScreen.gd then claims cursor and focus.
 func _on_match_results_ready(_results: Dictionary) -> void:
@@ -276,9 +230,8 @@ func _on_resume_pressed() -> void:
 	_close()
 
 
-## Same overlay-over-background technique ui/menus/MainMenu.gd's own
-## _on_options_pressed()/_on_options_closed() already use: hide this menu's
-## own %Center rather than this whole Control, so Options's semi-transparent
+## Same overlay-over-background technique as MainMenu's _on_options_pressed()/_on_options_closed():
+## hide this menu's own %Center rather than this whole Control, so Options's semi-transparent
 ## background still shows the pause overlay's own Background behind it.
 func _on_options_pressed() -> void:
 	if _options_menu != null:
@@ -312,7 +265,7 @@ func _on_leave_pressed() -> void:
 	_ask_confirmation(PendingAction.LEAVE, LEAVE_CONFIRM_TITLE, LEAVE_CONFIRM_TEXT, LEAVE_CONFIRM_OK_TEXT, _leave_button)
 
 
-## . A match in progress asks first (it ends for everyone); with
+## A match in progress asks first (it ends for everyone); with
 ## none running (the results screen is up) there is nothing to lose, so it goes
 ## straight through. A disabled entry (client) is inert even if something calls
 ## this directly.
@@ -392,11 +345,9 @@ func refresh_return_entry() -> void:
 	_wire_focus_chain()
 
 
-## Gamepad/keyboard navigability, the same runtime get_path_to() chaining
-## ui/menus/OptionsMenu.gd's own _wire_focus_chain() doc comment explains (there,
-## because rebind rows are built dynamically; here, simply to keep one single
-## computation style for "chain every focusable control top to bottom, wrap
-## around" rather than authoring focus_neighbor_* by hand in the .tscn).
+## Gamepad/keyboard navigability: the same runtime get_path_to() chaining as
+## ui/menus/OptionsMenu.gd's _wire_focus_chain(), kept as one computation style rather than
+## authoring focus_neighbor_* by hand in the .tscn.
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [_resume_button, _options_button]
 	if _return_button.visible and not _return_button.disabled:

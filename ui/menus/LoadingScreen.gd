@@ -1,31 +1,18 @@
 class_name LoadingScreen
 extends Control
+## Emitted when the readiness wait times out; Main returns to the lobby.
 signal readiness_timed_out
-## loading finished on this instance and the ready prompt is shown
-## (ui_accept: Enter or gamepad A sends the ready intent). The "Ready?" + glyph prompt
-## and per-player ready list are driven by accepts_ready_input(), the lifecycle's gate
-## sets and Events.loading_ready_changed / loading_gate_opened. no
-## loading text/bar, status line, button, timer or minimum display time.
+## Emitted when loading finished on this instance and the ready prompt is shown.
 signal ready_prompt_opened
-## ("When a game round starts it
-## centers around the center goal beacon for a little while before actually
-## starting, let's add a proper loading screen instead.").
+## Overlay shown from the pending announcement until the match is visible. It covers the
+## window in which start_match() fires LOBBY -> LOADING -> COUNTDOWN synchronously (no yield, which
+## net/MatchNet.gd's replication contract relies on): the wall-clock time goes to Main's
+## _build_match_world() plus first-touch shader/pipeline compile, and without the overlay the
+## camera stays frozen on the idle centre beacon (CameraRig's default target) for that time.
 ##
-## Spec 2.4's state machine has a real LOADING state between LOBBY and
-## COUNTDOWN, but autoload/match/MatchLifecycle.gd's start_match() fires
-## LOBBY -> LOADING and LOADING -> COUNTDOWN synchronously, back to back, with
-## no yield in between (that file's own doc: "this function runs
-## synchronously start-to-finish, with no yield in between" -- load-bearing
-## for net/MatchNet.gd's replication contract, so it is not touched here).
-## What actually takes wall-clock time inside that instant is game/main/Main.gd's
-## own _build_match_world() (field rebuild, flags, territory overlay upload,
-## HotSeat/camera wiring) plus whatever first-touch shader/pipeline compile
-## the freshly-rebuilt field and blocks trigger on the next rendered frame.
-## Until now nothing covered that window, so whatever the camera already
-## happened to be pointed at (game/player/CameraRig.gd's default _target is
-## Vector3.ZERO -- the disk's centre, where the goal beacon sits -- until a
-## PlayerController claims it) stayed on screen, frozen, for however long that
-## took: the "idle centre beacon" the owner describes.
+## Once loading finished on this instance the ready prompt shows (ui_accept: Enter or gamepad A
+## sends the ready intent); the "Ready?" + glyph prompt and per-player ready list are driven by
+## accepts_ready_input() and Events.loading_ready_changed / loading_gate_opened.
 ##
 ## Shown at the pending announcement, then given match details at LOADING.
 ## Main releases it after world build, the first applied territory result,
@@ -37,9 +24,8 @@ signal ready_prompt_opened
 ## (Net does). Null means the real Net autoload.
 var name_provider: Variant = null
 
-## L3: the overlay's content sits on its own CanvasLayer so it covers
-## the HUD (CanvasLayer 1) and its countdown digit. DECISION: layer, not hiding the
-## HUD -- ui/hud/HUD.gd and game/main/Main.gd stay untouched and the countdown simply is not
+## The overlay's content sits on its own CanvasLayer so it covers the HUD (CanvasLayer 1) and its
+## countdown digit. DECISION: layer, not hiding the HUD -- the countdown simply is not
 ## visible until the fade starts, which only happens once the gate has opened. A
 ## CanvasLayer neither follows this Control's visibility nor its modulate, so the
 ## root's visibility is mirrored onto the layer and the fade tweens Content.
@@ -56,7 +42,7 @@ var name_provider: Variant = null
 @onready var _map_label: Label = %MapLabel
 ## the map pictogram above the name (UiArtTable); hidden without a config.
 @onready var _map_icon: TextureRect = %MapIcon
-## L2 (ready prompt + player ready list; presentation only).
+## Ready prompt and player ready list (presentation only).
 @onready var _player_list: VBoxContainer = %PlayerList
 @onready var _ready_box: VBoxContainer = %ReadyBox
 @onready var _prompt_content: VBoxContainer = %PromptContent
@@ -75,8 +61,7 @@ const TEXTURE_RELEASE_FRAMES: int = 3
 ## DisplayServer.get_name() of a --headless run, which renders with the dummy rasterizer.
 const HEADLESS_DISPLAY: String = "headless"
 
-## the loading bar is gone; the stage fraction is only kept for
-## progress() (game/main/Main.gd still reports it).
+## Stage fraction, kept only for progress() (game/main/Main.gd still reports it).
 var _progress: float = 0.0
 var _is_fading: bool = false
 var _fade_tween: Tween = null
@@ -97,8 +82,7 @@ var _warm_viewport: SubViewport = null
 ## long this overlay has been up for the minimum display time.
 var _ready_gate_armed: bool = false
 var _ready_input_enabled: bool = false
-## L2: the local player pressed ready on this overlay (the host's
-## echo can lag behind by a round trip). One press is ever sent.
+## The local player pressed ready on this overlay (the host's echo can lag a round trip). One press is ever sent.
 var _local_pressed: bool = false
 ## ready_prompt_opened fired for this match (it fires when the prompt first shows).
 var _prompt_announced: bool = false
@@ -145,12 +129,9 @@ func _ready() -> void:
 	_refresh_ready_ui()
 
 
-## Called by game/main/Main.gd right as the LOBBY -> LOADING transition fires,
-## before the (still fully synchronous) world build below it runs. `slots`
-## is whatever Main's own helper collected from Match this same frame --
-## MatchLifecycle._build_slots() already ran before LOADING was emitted (see
-## that file's start_match() doc), so every slot's display_name/is_bot is
-## already final for this match.
+## Called by game/main/Main.gd right as the LOBBY -> LOADING transition fires, before the
+## synchronous world build runs. `slots` is what Main collected from Match this frame, so every
+## slot's display_name/is_bot is already final.
 func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_pending = false
 	_loading_elapsed_s = 0.0
@@ -165,10 +146,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_fading = false
 	# only the LOADING-state call arms (show_pending() runs in the
 	# lobby state and is a no-op here), and never headless.
-	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's own
-	# _authority()._lifecycle) because autoload/Match.gd is not in this package's
-	# files; a Match.arm_loading_ready_gate()/loading_gate_blocking() forward is a
-	# trivial follow-up.
+	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's _authority()._lifecycle) rather than through a Match forward.
 	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
 	_refresh_map_icon(config)
@@ -235,9 +213,8 @@ func is_pending() -> bool:
 	return _is_pending
 
 
-## (ready gate, L1 API for the L2 prompt). True from the moment
-## loading finished on this instance until the overlay is fading, but only while the
-## gate is actually blocking AND the host waits for the local peer (L3, review: a
+## True from the moment loading finished on this instance until the overlay is fading, but only
+## while the gate is actually blocking AND the host waits for the local peer (a
 ## spectator, a mid-match joiner or a client of an ungated host has nothing to
 ## press, so no prompt and no ready input): ui_accept is then a ready press. The
 ## press goes through press_ready() / Net.
@@ -258,7 +235,7 @@ func ready_gate_armed() -> bool:
 
 
 ## Sends the ready intent (host-validated, idempotent). A no-op until loading has
-## finished here, so nobody can ready before their own world is built. L2: only the
+## finished here, so nobody can ready before their own world is built. Only the
 ## first press is sent (a held A, Enter then a click, ... never re-sends the RPC);
 ## returns whether this call sent the intent.
 func press_ready() -> bool:
@@ -301,19 +278,7 @@ func _process(delta: float) -> void:
 
 ## Called once game/main/Main.gd has passed every readiness stage.
 ##
-## DECISION (ui/menus/LoadingScreen.gd): holds the overlay up for
-## `tuning.warmup_frames` more rendered frames before starting the actual
-## fade, rather than hiding on this same synchronous call. MatchLifecycle
-## emits LOADING and COUNTDOWN back to back with no yield (see this class's
-## own header doc), so hiding synchronously here would flip visible back to
-## false before the engine ever presents a frame with it on -- shown and
-## hidden within one logical frame is the same as never shown at all, exactly
-## the bug this package exists to fix. A handful of held frames costs nothing
-## against the 3 s countdown and gives the renderer a couple of real frames
-## with the new field/blocks already built but still covered, so whatever
-## first-touch shader/pipeline compile they trigger (the brief's own "shader/
-## pipeline warm-up" case) happens behind the overlay instead of visibly
-## stalling the first uncovered frame.
+## DECISION: hold the overlay up for `tuning.warmup_frames` more rendered frames before fading, not hide synchronously: MatchLifecycle emits LOADING and COUNTDOWN back to back with no yield, so an immediate hide would never present a frame with the overlay on. The held frames cost nothing against the countdown and let first-touch shader/pipeline compile happen behind the overlay.
 func fade_out() -> void:
 	if _is_fading or not visible:
 		return
@@ -336,9 +301,8 @@ func fade_out() -> void:
 	_is_fading = false
 	_finish_backdrop_fade()
 	_drain_backdrop_orphans()
-	# the plate is only needed while the screen is up; drop the
-	# texture so the 1920x1080 art leaves memory once the match is visible. The next
-	# show_for_match() re-requests it (threaded) because the shown path is cleared.
+	# the plate is only needed while the screen is up; drop it so the 1920x1080 art leaves memory
+	# (the next show_for_match() re-requests it because the shown path is cleared).
 	_clear_backdrop()
 	_backdrop_session_path = ""
 	if _warm_viewport != null:
@@ -398,12 +362,11 @@ func cancel() -> void:
 		_warm_viewport = null
 
 
-## (G10; Events.match_scope_reset). ROOT CAUSE: show_for_match() rebuilds
-## the player rows, but nothing took them down when the overlay faded out, so every
-## finished match left its swatch/name/mark rows in the hidden PlayerList until the next
-## show. Main emits the reset while the overlay is UP for the new match too (LOADING
-## shows it, then builds the world, which resets), and those rows must survive that
-## one, so only a hidden overlay is cleared (a cancelled load clears in cancel()).
+## Clears the player rows when the overlay is hidden (Events.match_scope_reset): show_for_match()
+## rebuilds them and nothing else took them down, so finished matches left rows in the hidden
+## PlayerList. Main also emits the reset while the overlay is UP for the new match (LOADING shows
+## it, then the world build resets), and those rows must survive, so only a hidden overlay is
+## cleared (a cancelled load clears in cancel()).
 func _on_match_scope_reset() -> void:
 	if not visible:
 		clear_player_rows()
@@ -424,8 +387,7 @@ func _refresh_map_icon(config: MatchConfig) -> void:
 	_map_icon.custom_minimum_size = Vector2.ONE * float(art.loading_map_icon_px)
 
 
-## the ready screen's title should just be the game mode: the card
-## title is the resolved game mode's display name only; the map pictogram stays beside it.
+## The card title is the resolved game mode's display name only; the map pictogram stays beside it.
 func _map_display_name(config: MatchConfig) -> String:
 	if config == null:
 		return ""
@@ -524,9 +486,9 @@ func _poll_backdrop(animate: bool) -> void:
 	_show_backdrop(ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D, animate)
 
 
-## . ROOT CAUSE of the flaky dummy-renderer 'Parameter "t" is null'
-## texture_storage.h:85: Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
-## without a lock (RD/GLES3 use a thread-safe owning handle), and RenderingServer allocates a
+## Headless loads on the main thread: Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
+## without a lock ('Parameter "t" is null', texture_storage.h:85; RD/GLES3 use a thread-safe owning
+## handle), and RenderingServer allocates a
 ## texture's RID on the calling thread. A plate decoded on a loader thread allocated its RID
 ## while the main thread created or freed textures; both threads took the same slot and one
 ## texture lost it. A sequential load has no second thread, so headless (the dummy
@@ -604,11 +566,10 @@ func _exit_tree() -> void:
 	_backdrop_orphans = PackedStringArray()
 
 
-## holds the last reference to a just-fetched plate for a few frames so the
-## RenderingServer commands its loader thread queued drain before the texture is freed.
-## (a main-thread free flushes that queue first in 4.7.2, so this was not the
-## cause of the 'Parameter "t" is null' flake; see threaded_texture_loads_safe(). Kept as a
-## cheap guard.) A static coroutine: it outlives the node that called it.
+## Holds the last reference to a just-fetched plate for a few frames so the RenderingServer
+## commands its loader thread queued drain before the texture is freed. A cheap guard (a
+## main-thread free flushes that queue first). A static coroutine: it outlives the node that
+## called it.
 static func release_later(resource: Resource) -> void:
 	if resource == null:
 		return
@@ -619,7 +580,7 @@ static func release_later(resource: Resource) -> void:
 		await tree.process_frame
 
 
-# --- L3: the overlay's own CanvasLayer ------------------------------
+# --- the overlay's own CanvasLayer ------------------------------
 
 ## The layer follows this node's visibility in the tree (a hidden parent, cancel(),
 ## a test or Main setting `visible` directly).
@@ -634,7 +595,7 @@ func _set_opacity(alpha: float) -> void:
 	_content.modulate.a = alpha
 
 
-# --- L2: ready prompt, status line, player ready list ------------
+# --- ready prompt, status line, player ready list ------------
 
 ## Colours come from the menu palette (the card is the same cream pill card as the
 ## rest of the menus); sizes and wording from LoadingScreenTuning.
@@ -700,7 +661,7 @@ func _rebuild_ready_rows(slots: Array[PlayerSlot]) -> void:
 		name_label.add_theme_font_size_override("font_size", tuning.loading_name_font_size_px)
 		name_label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# the four-cell bar "makes no sense": the lobby's Ready / Not ready pill.
+		# the lobby's Ready / Not ready pill, not a progress bar.
 		var mark: UiStatusBadge = _make_ready_mark(slot_item.is_bot)
 		mark.visible = _ready_gate_armed
 		row.add_child(marker)
@@ -735,8 +696,7 @@ func _pill_size() -> Vector2:
 ## Re-derives everything the ready gate shows from the host's state (the lifecycle
 ## mirrors it on clients) and the local press. Cheap; runs every frame while armed
 ## and on every ready/gate/device signal. Nothing here decides anything: the host
-## still owns the gate. only the player list (name + tick/ring) and
-## the "Ready?" + device glyph prompt remain.
+## still owns the gate.
 func _refresh_ready_ui() -> void:
 	_player_list.visible = not _ready_rows.is_empty()
 	if not _ready_gate_armed:

@@ -1,6 +1,6 @@
 class_name ScoreTable
 extends RefCounted
-## the stats table shared by ui/menus/ResultsScreen.gd (end of round)
+## The stats table shared by ui/menus/ResultsScreen.gd (end of round)
 ## and ui/hud/ScoreboardOverlay.gd (hold-to-show, live round). Extracted from the
 ## results screen unchanged so both render the same columns from the same
 ## payload shape (autoload/match/MatchStats.gd: results/live payload).
@@ -37,10 +37,10 @@ static func populate(
 		rows_list.add_child(build_data_row(row, show_team, tuning, team_numbers, results, match_provider, show_mode_stat))
 
 
-## the Team column exists only when the match played in teams
+## The Team column exists only when the match played in teams
 ## (payload winner_kind == team); in free-for-all every slot is its own team.
-## the mode column (CTF points, Reach the Sky team best) exists only
-## for modes that have a score of their own; the old "Peak %" column is gone.
+## The mode column (CTF points, Reach the Sky team best) exists only
+## for modes that have a score of their own.
 static func columns(show_team: bool, show_mode_stat: bool = false) -> Array[int]:
 	var columns: Array[int] = [Column.PLAYER]
 	if show_team:
@@ -121,7 +121,7 @@ static func build_data_row(
 	var territory_text: String = "%d%%" % int(round(ResultsPayload.float_of(row, ResultsPayload.KEY_TERRITORY_SHARE) * 100.0))
 
 	var tier_text: String = bot_difficulty_label(row, match_provider)
-	# DECISION (orchestrator): one "Gifts" column showing gifts
+	# DECISION: one "Gifts" column showing gifts
 	# USED (specials_used); gifts_claimed stays in the stats payload untouched.
 	var cell_text_by_column: Dictionary = {
 		Column.PLAYER: ResultsScreen.row_name_text(row) if tier_text.is_empty() else ResultsPayload.string_of(row, ResultsPayload.KEY_NAME),
