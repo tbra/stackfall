@@ -1,26 +1,19 @@
 class_name Tutorial
 extends Node
-## Spec 1.2 "Tutorial":
-## match built the same way Sandbox.gd and HotSeat.gd already are (one
-## PlayerController + GhostPreview + HUD subtree, wired the same way, driving
-## the one slot config.player_count = 1 gives it -- game/main/Main.gd's own
-## start_tutorial_from_menu()), plus a five-step scripted sequence
-## (config/match/TutorialConfig.gd) that teaches placing, rotating, territory,
-## specials/throwing and the camera in order.
+## Spec 1.2 "Tutorial": a one-slot match built the same way Sandbox.gd and HotSeat.gd are (one
+## PlayerController + GhostPreview + HUD subtree, wired the same way, driving the one slot
+## config.player_count = 1 gives it; game/main/Main.gd's start_tutorial_from_menu()), plus a
+## five-step scripted sequence (config/match/TutorialConfig.gd) that teaches placing, rotating,
+## territory, specials/throwing and the camera in order.
 ##
-## Does not know about game/main/Main.gd (the same "no deep node paths"/decoupling
-## convention ui/menus/MainMenu.gd's own header describes for sandbox_requested):
-## it only ever emits `finished`, once, when the last step completes or the
-## player cancels (ui_cancel) -- game/main/Main.gd's start_tutorial_from_menu() is
-## the one thing that adds this node, connects to that signal, and frees it
-## again.
+## Does not know about game/main/Main.gd: it only emits `finished`, once, when the last step
+## completes or the player cancels (pause_menu). start_tutorial_from_menu() adds this node, connects
+## to that signal, and frees it again.
 ##
-## Each step's own completion condition is checked only while that step is
-## the *current* one (`_current_step()`), so an event that would complete a
-## later step firing early (nothing does this today, but Events.block_placed/
-## special_consumed/territory_share_changed are global bus signals, not
-## scoped to "the step that is listening") can never skip or repeat a step --
-## see the tutorial test list.
+## Each step's completion condition is checked only while that step is the *current* one
+## (`_current_step()`), because Events.block_placed/special_consumed/territory_share_changed are
+## global bus signals not scoped to the listening step; an event that would complete a later step
+## can then never skip or repeat a step.
 
 signal finished
 
@@ -32,53 +25,42 @@ signal finished
 @onready var _prompt_label: InputPromptFlow = %PromptLabel
 @onready var _prompt_panel: PanelContainer = %PromptLabel.get_parent().get_parent() as PanelContainer
 @onready var _step_label: Label = %StepLabel
-## Stackfall Arcade: the tip banner's look comes from these tokens.
+## The tip banner's look comes from these tokens.
 @export var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
 
-## -1 before the first _begin_step() call (never observed once _ready() has
-## run); otherwise an index into tutorial_config.steps.
+## -1 before the first _begin_step() call; otherwise an index into tutorial_config.steps.
 var _step_index: int = -1
-## True from the moment _end_tutorial() has run once (step 5 completing, or
-## ui_cancel) -- guards _process()/every Events handler below so a second
-## trigger (there should never be one, but see this class's own doc comment
-## on why each handler is defensive) can never call Match.abort_match() or
+## True from the moment _end_tutorial() has run once (step 5 completing, or pause_menu): guards
+## _process()/every Events handler below so a second trigger can never call Match.abort_match() or
 ## emit `finished` twice.
 var _finished: bool = false
 
-## Step "rotating"'s poll baseline: GhostPreview.orientation_index at the
-## moment that step began (config/match/TutorialConfig.gd's own plan doc: "no
-## Events signal exists for a purely local ghost manipulation -- rotation
-## never reaches the host until release").
+## Step "rotating"'s poll baseline: GhostPreview.orientation_index at the moment that step began
+## (no Events signal exists for a purely local ghost manipulation: rotation never reaches the host
+## until release).
 var _rotation_baseline: int = 0
 
-## Step "camera"'s cumulative hold, seconds of camera_orbit/camera_pan_*
-## observed while that step is active. Never decays on release (this class's
-## own DECISION below) -- a tester need not hold one single continuous input.
+## Step "camera"'s cumulative hold, seconds of camera_orbit/camera_pan_* observed while that step
+## is active. Never decays on release, so a tester need not hold one single continuous input.
 var _camera_hold_elapsed_s: float = 0.0
 
-## tools/bootstrap_project.gd's own camera actions (both keyboard and
-## gamepad-bound there already -- CLAUDE.md's "every action needs both" is
-## satisfied at the Input Map, not by anything in this file).
+## tools/bootstrap_project.gd's camera actions (already bound on keyboard and gamepad).
 const CAMERA_ACTIONS: Array[StringName] = [
 	&"camera_orbit", &"camera_pan_left", &"camera_pan_right", &"camera_pan_forward", &"camera_pan_back",
 ]
 
-## config/match/TutorialConfig.gd's own Step.completion_signal values this class
-## understands. Kept as constants here (not on TutorialConfig, which is pure
-## data) so a step's .tres entry and the code path that answers it can never
-## drift under a typo -- an unrecognized completion_signal simply never
-## matches any of these and that step never completes, rather than silently
-## treating a typo as "always complete".
+## config/match/TutorialConfig.gd's Step.completion_signal values this class understands. Kept as
+## constants here (not on TutorialConfig, which is pure data) so a step's .tres entry and the code
+## path that answers it cannot drift under a typo; an unrecognized completion_signal never matches,
+## so that step never completes rather than silently counting as "always complete".
 const SIGNAL_BLOCK_PLACED: StringName = &"block_placed"
 const SIGNAL_ORIENTATION_CHANGED: StringName = &"orientation_changed"
 const SIGNAL_TERRITORY_CLAIMED: StringName = &"territory_claimed"
 const SIGNAL_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const SIGNAL_CAMERA_MOVED: StringName = &"camera_moved"
 
-## game/main/Main.gd's own _build_tutorial_config() always sets
-## config.player_count = 1 -- there is only ever one tutorial participant, so
-## every Match call below that needs a slot id uses this rather than a second
-## "which slot is this" field to drift out of step with it.
+## game/main/Main.gd's _build_tutorial_config() always sets config.player_count = 1, so there is
+## only ever one tutorial participant and every Match call below that needs a slot id uses this.
 const TUTORIAL_SLOT: int = 0
 
 
@@ -87,9 +69,8 @@ func _ready() -> void:
 	Events.block_placed.connect(_on_block_placed)
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.special_consumed.connect(_on_special_consumed)
-	# Same reasoning as HotSeat.gd/Sandbox.gd's own
-	# _ready() -- a silent no-op headless, so every test that builds this
-	# scene without a display keeps working.
+	# Same as HotSeat.gd/Sandbox.gd's _ready(): a silent no-op headless, so every test that builds
+	# this scene without a display keeps working.
 	_controller.enable_mouse_capture()
 	_style_tip_banner()
 	Settings.hud_scale_changed.connect(_on_hud_scale_changed)
@@ -103,9 +84,8 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
 
 
-## Stackfall Arcade TipBanner: a HUD plate with a rim step block
-## ("1/5") and the sentence in cream, centred directly under the timer ring and never over it,
-## at most tip_max_width_px wide.
+## A HUD plate with a rim step block ("1/5") and the sentence in cream, centred directly under the
+## timer ring and never over it, at most tip_max_width_px wide.
 func _style_tip_banner() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var theme: Theme = preload("res://ui/theme/stackfall_theme.tres")
@@ -170,22 +150,11 @@ func _process(delta: float) -> void:
 				_advance()
 
 
-## fix: this used to read ui_cancel (Escape / gamepad B), but
-## gave ui_cancel a gamepad B binding to fix menu back
-## navigation project-wide -- and gamepad B is also rotate_snap (and
-## camera_snap_goal)'s own button during actual gameplay (tools/
-## bootstrap_project.gd), which this tutorial's own PlayerController is live
-## for. Reading ui_cancel here would have ended the tutorial every time a
-## gamepad player tried to snap-rotate their held block, exactly the "ui_cancel
-## must not do anything else in-game" regression the flagged.
-##
-## pause_menu (Escape / gamepad Start) is the fix: it's already bound on both
-## devices (tools/bootstrap_project.gd), doesn't collide with any gameplay
-## action, and this class's own header + ui/menus/PauseMenu.gd's `suppressed` doc
-## comment both already establish that the real PauseMenu never opens while
-## Tutorial owns the scene -- so Escape/Start is otherwise unclaimed input
-## here, free to reuse as this scene's own quit gesture instead of adding a
-## third action for the same two physical buttons.
+## pause_menu (Escape / gamepad Start) is the quit gesture, not ui_cancel: gamepad B is also
+## rotate_snap (and camera_snap_goal)'s button during gameplay (tools/bootstrap_project.gd), so
+## reading ui_cancel would end the tutorial whenever a gamepad player snap-rotates. pause_menu is
+## bound on both devices, collides with no gameplay action, and the real PauseMenu never opens
+## while Tutorial owns the scene (see its `suppressed`), so the input is otherwise unclaimed.
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"pause_menu"):
 		_end_tutorial()
@@ -221,9 +190,8 @@ func _begin_step(index: int) -> void:
 		Match.debug_queue_special(TUTORIAL_SLOT, tutorial_config.demo_special_id)
 
 
-## Every completion handler below funnels here: advances exactly once per
-## call, and step 5 completing ends the tutorial the same way ui_cancel does
-## ("step 5 completion ends the tutorial").
+## Every completion handler below funnels here: advances exactly once per call, and step 5
+## completing ends the tutorial the same way pause_menu does.
 func _advance() -> void:
 	if _step_index + 1 >= tutorial_config.steps.size():
 		_end_tutorial()
@@ -231,12 +199,10 @@ func _advance() -> void:
 	_begin_step(_step_index + 1)
 
 
-## The one place this class ends the match: step 5 completing (_advance()
-## above) and ui_cancel (_unhandled_input() above) both reach this, so
-## Match.abort_match() and `finished` can never be skipped for one path or
-## double-fired for the other. game/main/Main.gd's start_tutorial_from_menu() is
-## the one thing connected to `finished`; it frees this node and shows the
-## Main Menu again once this returns.
+## The one place this class ends the match: step 5 completing (_advance()) and pause_menu
+## (_unhandled_input()) both reach this, so Match.abort_match() and `finished` can never be skipped
+## for one path or double-fired for the other. game/main/Main.gd's start_tutorial_from_menu() is
+## connected to `finished`; it frees this node and shows the Main Menu again.
 func _end_tutorial() -> void:
 	if _finished:
 		return
@@ -246,10 +212,9 @@ func _end_tutorial() -> void:
 
 
 func _on_turn_changed(slot_id: int) -> void:
-	# item 4 / game/sandbox/Sandbox.gd's own matching _on_turn_changed()
-	# doc comment: the one-time "a controller is now bound to a real slot"
-	# moment, so the first frame looks from the tutorial slot's home flag
-	# toward the disk centre instead of the generic yaw = 0 default.
+	# The one-time "a controller is now bound to a real slot" moment (like Sandbox.gd's
+	# _on_turn_changed()): the first frame looks from the tutorial slot's home flag toward the disk
+	# centre instead of the generic yaw = 0 default.
 	_controller.set_home_position(Match.default_ghost_origin(slot_id))
 
 

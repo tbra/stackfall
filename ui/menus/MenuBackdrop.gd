@@ -1,7 +1,6 @@
 class_name MenuBackdrop
 extends Control
-## Main menu / lobby reskin:
-## the flat "paper-cut" background: a banded sky, a layered concentric sun,
+## The flat "paper-cut" background: a banded sky, a layered concentric sun,
 ## pill-shaped cloud strata and apricot/mint ground bands, all drawn with _draw()
 ## so no image asset is needed. Sits full-rect behind everything else.
 ##
@@ -10,18 +9,15 @@ extends Control
 ## script holds no tunables of its own, only the drawing routine.
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
-## UI reskin P1: false keeps only the render-budget holding below and draws
+## False keeps only the render-budget holding below and draws
 ## nothing, for screens whose backdrop is not drawn here (the main menu shows a static image node).
-## The lobby keeps the paper-cut art until its own package.
 @export var draw_art: bool = true
 
 
-## ("main menu uses 95% of my gpu"). Root cause: the
-## match world (Field disc, Skybox, SSR, shadows, glow, reflection probe, disc
-## mirror: ~400k prims) kept rendering uncapped, at monitor refresh, behind this
-## full-screen opaque backdrop. Menu/lobby screens now hold a render budget: the
-## root viewport skips 3D and Engine.max_fps is capped. Reference counted
-## because the lobby is added before the menu's queue_free() runs.
+## Menu/lobby screens hold a render budget: the match world (Field disc, Skybox, SSR, shadows,
+## glow, reflection probe, disc mirror: ~400k prims) would otherwise keep rendering uncapped behind
+## the full-screen opaque backdrop. The root viewport skips 3D and Engine.max_fps is capped.
+## Reference counted because the lobby is added before the menu's queue_free() runs.
 static var _budget_holders: int = 0
 static var _saved_max_fps: int = 0
 static var _saved_disable_3d: bool = false
@@ -32,10 +28,9 @@ static var _saved_disable_3d: bool = false
 static var _match_cap: int = -1
 static var _menu_cap: int = 0
 
-## (the menu is a picture). Measured at menu, options and
-## lobby: root disable_3d was already true (no 3D pass), but 12 world scripts (Skybox, birds,
-## Field, BlockRegistry, CameraRig, CloudShadows, HorizonIslands, ...) kept running _process behind
-## it. DECISION: while a menu holds the budget the world nodes Main registers go
+## The menu is a picture. Root disable_3d is already true there (no 3D pass), but world scripts
+## (Skybox, birds, Field, BlockRegistry, CameraRig, CloudShadows, HorizonIslands, ...) would keep
+## running _process behind it. DECISION: while a menu holds the budget the world nodes Main registers go
 ## PROCESS_MODE_DISABLED (gated by the same menu_disable_world_3d switch) and get their previous
 ## mode back on the last release. Restoration happens when the menu leaves the tree, i.e. at the
 ## end of the frame in which Main frees it, before the match world is next processed.
@@ -202,9 +197,7 @@ func _draw_sky(size: Vector2) -> void:
 
 ## Draws the sun as [member MenuVisualTuning.backdrop_sun_ring_count] concentric
 ## filled circles, largest (the pale halo) first, smallest (the orange core)
-## last, lerping through 3 stops -- halo -> ring -> core -- instead of
-## alternating 2 flat colors (review r1, item 7: "orange core, peach rings,
-## pale halo, not yellow").
+## last, lerping through 3 stops (halo -> ring -> core) instead of alternating 2 flat colors.
 func _draw_sun(size: Vector2) -> void:
 	var ring_count: int = tuning.backdrop_sun_ring_count
 	if ring_count <= 0:
@@ -245,10 +238,8 @@ func _draw_clouds(size: Vector2) -> void:
 		)
 		var pill: StyleBoxFlat = StyleBoxFlat.new()
 		pill.bg_color = tuning.backdrop_cloud_color
-		# DECISION (review finding #4): cloud_height * 0.5 is pure geometry (a
-		# fully-rounded pill's corner radius is half its own height, by
-		# definition of "pill shape"), not an independent tunable, so it stays
-		# a literal here rather than becoming a MenuVisualTuning export. Same
+		# DECISION: cloud_height * 0.5 is pure geometry (a fully-rounded pill's corner radius is half
+		# its own height), not an independent tunable, so it stays a literal here. Same
 		# for the two `* 0.5` centering terms above (rect.x, cloud_width).
 		pill.set_corner_radius_all(int(cloud_height * 0.5))
 		pill.shadow_color = Color(0.22, 0.32, 0.36, 0.16)

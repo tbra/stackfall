@@ -1,55 +1,38 @@
 class_name ResultsScreen
 extends Control
-## ("the win screen always says 'Team x wins!'
-## even when not playing in teams, let's add a proper win screen with stats
-## and options to replay, go back to lobby and change some settings").
+## The end-of-match win screen with stats and options to replay or go back to the lobby.
 ##
 ## Shown once per match end, driven entirely by Events.match_results_ready
-## (autoload/match/MatchStats.gd's own header documents the payload shape:
-## winner_kind/winner_id/winner_name/match_duration/rows). Self-contained the
-## same way PauseMenu.gd and OptionsMenu.gd are: it never reaches into
-## game/main/Main.gd's node tree, only Events and the two `Variant` provider seams
-## below (ui/hud/HUD.gd's own match_provider/ui/lobby/Lobby.gd's own net_provider
-## precedent) -- so game/main/Main.gd's own edit is a one-line instantiate/hide,
-## exactly the brief's "no other Main.gd changes".
+## (autoload/match/MatchStats.gd's header documents the payload shape:
+## winner_kind/winner_id/winner_name/match_duration/rows). Self-contained like PauseMenu and
+## OptionsMenu: it never reaches into game/main/Main.gd's node tree, only Events and the `Variant`
+## provider seams below.
 ##
-## **The reported bug** was ui/hud/HUD.gd's %WinnerLabel always printing
-## "Team %d wins!" (HUD.show_winner()), even in free-for-all where every slot
-## is its own team. That label is already forced invisible on `main`
-## (game/main/Main.gd's HUD wiring); this screen reads `winner_name` from the
-## payload instead of formatting its own -- MatchStats._winner_name() already
-## picks a player's own display_name in FFA and "Team %d" in team mode, so the
-## fix lives in reading the payload's own field rather than in a second
-## ad hoc format string.
+## It reads `winner_name` from the payload instead of formatting its own "Team %d wins!" (which is
+## wrong in free-for-all): MatchStats._winner_name() already picks a player's display_name in FFA and
+## "Team %d" in team mode.
 ##
 ## **Host-only actions.** Replay/Back to lobby call net/MatchNet.gd's
 ## request_replay()/request_return_to_lobby() directly (both already handle
 ## the local-host-vs-remote-RPC split themselves, spec 2.6 "the host checks
 ## every intent"); on a client both buttons are disabled with a "waiting for
 ## host" hint instead.
-##
-## the quick Settings panel ("get rid of the quick
-## settings option") is gone; Play again / Back to lobby are the only actions.
 
-## Test seams (Variant, not a static type): ui/hud/HUD.gd's own match_provider and
-## ui/lobby/Lobby.gd's own net_provider precedent -- defaulted to the real
-## autoloads in _ready(), replaceable with a fake object in a GUT test so no
-## test needs a real Match/Net/MatchNet session running.
+## Test seams (Variant, not a static type): defaulted to the real autoloads in _ready(),
+## replaceable with a fake object in a GUT test so no test needs a real Match/Net/MatchNet session.
 var match_provider: Variant = null
 var net_provider: Variant = null
 var match_net_provider: Variant = null
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## The last results payload shown, kept for _apply_visual_style()-independent
-## re-reads (none today, but mirrors ui/lobby/Lobby.gd's own "keep the last applied
-## data" habit) and so a test can inspect exactly what was rendered.
+## The last results payload shown, so a test can inspect exactly what was rendered.
 var last_results: Dictionary = {}
 
 @onready var _mode_title: UiText = %ModeTitle
 @onready var _headline: UiText = %Headline
-## mode scores sit in their own small label; they used to be
-## appended to the 28pt headline and spilled over the table header.
+## Mode scores sit in their own small label, not the headline, so they cannot spill over the
+## table header.
 @onready var _mode_outcome: UiText = %ModeOutcome
 @onready var _rows_list: VBoxContainer = %RowsList
 @onready var _waiting_hint: UiText = %WaitingHint
@@ -94,21 +77,17 @@ func _on_match_results_ready(results: Dictionary) -> void:
 	show_results(results)
 
 
-## A new match state (a Replay restart or a Back-to-lobby, on host or on a
-## mirroring client) must always take this overlay down -- it only belongs
-## on top of State.END. Idempotent: hiding an already-hidden Control is a
-## no-op.
+## A new match state (a Replay restart or a Back-to-lobby, on host or on a mirroring client) must
+## always take this overlay down: it only belongs on top of State.END. Idempotent.
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	if to_state != Match.State.END:
 		hide()
 
 
-## (G9; Events.match_scope_reset runs this). ROOT CAUSE: the screen is a
-## persistent Main child that only ever replaced its stats rows when the NEXT results
-## arrived, so after Replay / Back to lobby / Leave the previous match's table (header
-## row, one row per player) stayed in the hidden tree and `last_results` kept its
-## payload -- a new match did not look like a fresh launch. Drops the rows and the
-## payload; the overlay itself is hidden by _on_match_state_changed() already.
+## Events.match_scope_reset runs this. The screen is a persistent Main child that only replaced its
+## stats rows when the NEXT results arrived, so after Replay / Back to lobby / Leave the previous
+## match's table stayed in the hidden tree and `last_results` kept its payload. Drops the rows and
+## the payload; the overlay itself is hidden by _on_match_state_changed() already.
 func clear_results() -> void:
 	last_results = {}
 	for child: Node in _rows_list.get_children():
@@ -116,14 +95,12 @@ func clear_results() -> void:
 		child.queue_free()
 
 
-## (pause menu open when the round ended, then
-## the results could not be used after unpausing). ROOT CAUSE: PlayerController
-## re-captures the mouse on Events.pause_menu_closed, and the focused Resume
-## button vanished with the menu, so nothing on this screen had focus or a
-## usable cursor. DECISION: PauseMenu now closes itself when results arrive, and
-## this screen re-asserts cursor + focus whenever a pause menu closes while it is
-## up. Deferred so it runs after every other pause_menu_closed listener
-## (PlayerController's capture) whatever their connection order.
+## A pause menu open when the round ended left the results unusable after unpausing: PlayerController
+## re-captures the mouse on Events.pause_menu_closed, and the focused Resume button vanished with the
+## menu, so nothing here had focus or a usable cursor. DECISION: PauseMenu closes itself when results
+## arrive, and this screen re-asserts cursor + focus whenever a pause menu closes while it is up.
+## Deferred so it runs after every other pause_menu_closed listener (PlayerController's capture)
+## whatever their connection order.
 func _on_pause_menu_closed() -> void:
 	if visible:
 		_claim_input.call_deferred()
@@ -139,11 +116,8 @@ func _claim_input() -> void:
 		_lobby_button.grab_focus()
 
 
-## Public entry point (also the one GUT tests drive directly, the same
-## "call the handler, don't fake the signal" style tests/unit/ui/test_pause_menu.gd
-## uses for _unhandled_input()) -- populates the headline and stats table,
-## applies the host/client button gate, shows the screen and releases the
-## mouse.
+## Public entry point (also the one GUT tests drive directly) -- populates the headline and stats
+## table, applies the host/client button gate, shows the screen and releases the mouse.
 func show_results(results: Dictionary) -> void:
 	last_results = results
 	_mode_title.text = mode_title(results).to_upper()
@@ -158,13 +132,10 @@ func show_results(results: Dictionary) -> void:
 	_claim_input()
 
 
-## The reported defect's fix: read the payload's own winner_name (a player's
-## display_name in FFA, "Team %d" in team mode -- MatchStats._winner_name())
-## rather than formatting a second "Team %d wins!" string here that would
-## repeat HUD.gd's bug. winner_id < 0 or an empty winner_name (never produced
-## by the engine today, but the payload is untrusted input on a client -- see
-## MatchStats.validate_results_payload()) reads as a draw instead of crashing
-## on a blank headline.
+## Reads the payload's own winner_name (a player's display_name in FFA, "Team %d" in team mode;
+## MatchStats._winner_name()) rather than formatting a second "Team %d wins!" string here.
+## winner_id < 0 or an empty winner_name reads as a draw instead of crashing on a blank headline (the
+## payload is untrusted input on a client, see MatchStats.validate_results_payload()).
 func _headline_text(results: Dictionary) -> String:
 	var winner_id: int = ResultsPayload.winner_id(results)
 	var winner_name: String = ResultsPayload.winner_name(results)
@@ -176,8 +147,7 @@ func _headline_text(results: Dictionary) -> String:
 
 
 ## Every winning id: mode.winners when a mode payload lists it (a CTF tie is a
-## shared win), else just winner_id. Empty when nobody won. 
-## a Domination match that ended early (home elimination) has an empty
+## Empty when nobody won. A Domination match that ended early (home elimination) has an empty
 ## winners list, so it falls back to the finish winner_id the same way.
 static func winner_ids(results: Dictionary) -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()
@@ -228,9 +198,8 @@ static func mode_outcome_text(results: Dictionary, team_numbers: PackedInt32Arra
 		elif domination:
 			value_text = "%d%%" % int(round(float(scores[team]) * 100.0))
 		parts.append("%s: %s" % [player_label(results, team) if ffa else PlayerNames.team_label(team_number_in(team_numbers, team)), value_text])
-	# the mode name is the card header (mode_title()); Elimination's
-	# alive/out text and "out first to last" order are gone (the Status column and
-	# row order say it), so only modes with a score of their own keep this line.
+	# the mode name is the card header (mode_title()); only modes with a score of their own keep this
+	# line (the Status column and row order already say who is alive/out).
 	if elimination:
 		return ""
 	return ", ".join(parts)
@@ -269,10 +238,9 @@ static func row_name_text(row: Dictionary, difficulty_label: String = "") -> Str
 	return name_text
 
 
-## Lobby rework: the label number of dense team `team_id` --
-## `team_numbers` (MatchConfig.team_numbers of a host-resolved lobby) maps it to
-## the number the team had in the lobby; empty or short (older configs, FFA, an
-## unresolved TEAMS_N) falls back to team id + 1, the old numbering.
+## The label number of dense team `team_id`: `team_numbers` (MatchConfig.team_numbers of a
+## host-resolved lobby) maps it to the number the team had in the lobby; empty or short (FFA, an
+## unresolved TEAMS_N) falls back to team id + 1.
 static func team_number_in(team_numbers: PackedInt32Array, team_id: int) -> int:
 	if team_id >= 0 and team_id < team_numbers.size():
 		return team_numbers[team_id]
@@ -394,14 +362,13 @@ func _current_config() -> MatchConfig:
 
 # --- Visual style + focus chain -------------------------------------------------
 
-## Stackfall Arcade:
-## scrim, the mode as a rim kicker, the outcome in Bungee, PLAY AGAIN as the one flare block.
+## Scrim, the mode as a rim kicker, the outcome in Bungee, PLAY AGAIN as the one flare block.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	var look: ResultsTableTuning = ScoreTable.table_tuning()
 	var scrim: ColorRect = $Background as ColorRect
 	scrim.color = Color(arcade.disc_950_color, arcade.scrim_alpha)
-	# C4c: the plate is a UiPanel, the texts UiText roles (kicker = BODY in rim, banner = TITLE,
+	# the plate is a UiPanel, the texts UiText roles (kicker = BODY in rim, banner = TITLE,
 	# outcome = BODY, hint = BODY in dust) and the actions UiBlockButtons (PLAY AGAIN primary).
 	(%Layout as UiStack).gap_px = look.card_gap_px
 	(_rows_list as UiStack).gap_px = look.row_gap_px
@@ -411,8 +378,8 @@ func _apply_visual_style() -> void:
 	_waiting_hint.tint = arcade.dust_color
 
 
-## Gamepad/keyboard navigability -- same runtime get_path_to() chaining
-## ui/menus/PauseMenu.gd's own _wire_focus_chain() doc comment explains.
+## Gamepad/keyboard navigability: the same runtime get_path_to() chaining as
+## ui/menus/PauseMenu.gd's _wire_focus_chain().
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [_replay_button, _lobby_button]
 	for i: int in range(chain.size()):
@@ -421,10 +388,8 @@ func _wire_focus_chain() -> void:
 		var next: Control = chain[(i + 1) % chain.size()]
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
-		# "can't move left/right even though the buttons are laid
-		# out horizontally": the two buttons sit side by side in ButtonsRow, so left /
-		# right walk the same wrapped chain. Without these the focus trap below pinned
-		# both sides to the button itself.
+		# the two buttons sit side by side in ButtonsRow, so left / right walk the same wrapped
+		# chain; without these the focus trap below pinned both sides to the button itself.
 		current.focus_neighbor_left = current.get_path_to(prev)
 		current.focus_neighbor_right = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL

@@ -11,30 +11,14 @@ extends Control
 ## documents): MainMenu instances this scene directly and listens for
 ## `closed` to hide it again, rather than routing through Main.
 ##
-## "too big and crammed ... the controls section where
-## you have to scroll both horizontally and vertically": category tabs replace
-## the single ever-growing scrolling panel (now a horizontal
-## UiTabs strip, Game / Graphics / Controls, and the pages are built from the
-## ui/components rows), and the Controls page shows only the active input device's
-## bindings (ui/menus/KeyRebindRow.gd's own glyph row, autoload/Settings.gd's
-## active_input_device()) so a row never needs more than one short glyph
-## strip's worth of horizontal space.
+## Category tabs (a horizontal UiTabs strip, Game / Graphics / Controls) split the pages, which are
+## built from the ui/components rows; the Controls page shows only the active input device's
+## bindings (KeyRebindRow's glyph row, Settings.active_input_device()) so a row never needs more
+## than one short glyph strip of horizontal space.
 
 signal closed
 
-## DECISION (ui/menus/OptionsMenu.gd): a `Variant` test seam, the same reason
-## ui/menus/MainMenu.gd's net_provider and ui/debug/TuningPanel.gd's net_provider exist --
-## GUT cannot double a plain autoload. Unlike those two, the reason here isn't
-## "Net is still a stub": Settings.set_key_override() writes straight onto the
-## real, process-global InputMap (autoload/Settings.gd's own doc), so a test
-## that rebinds an action through the *real* Settings autoload would leak that
-## InputMap change into every other test file sharing this process. Defaults
-## to the real Settings autoload; tests overwrite it after add_child() with a
-## fresh `Settings.new()` pointed at a temp config path (tests/unit/
-## test_settings.gd's own convention) so preset/volume/music-dir assertions
-## stay isolated -- the KeyRebindRow capture path is exercised directly in
-## isolation instead (see tests/unit/ui/test_options_menu.gd), and any test that
-## does go through a live rebind restores the InputMap afterward.
+## DECISION: a `Variant` test seam, like ui/menus/MainMenu.gd's and ui/debug/TuningPanel.gd's net_provider: GUT cannot double a plain autoload, and Settings.set_key_override() writes onto the process-global InputMap, so a test rebinding through the real Settings would leak into other test files. Defaults to the real Settings autoload; tests overwrite it after add_child() with a fresh `Settings.new()` on a temp config path, and any test going through a live rebind restores the InputMap afterward.
 var settings_provider: Variant = null
 
 ## Ordered so the OptionButton's item index always maps back to a preset id
@@ -42,12 +26,12 @@ var settings_provider: Variant = null
 ## presets/*.tres: high, low, medium) would scramble the intended quality
 ## ladder, so this is a literal list, the same way Settings.DEFAULT_PRESET_ID
 ## is a literal "medium" rather than a directory scan.
-## review: the shared camera tuning the game uses, so F4 edits and .tres changes show here.
+## The shared camera tuning the game uses, so F4 edits and .tres changes show here.
 const _SHARED_CAMERA_TUNING: CameraTuning = preload("res://config/player/camera_tuning.tres")
 const PRESET_IDS: Array[StringName] = GraphicsSettingsTab.PRESET_IDS
 const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 
-## DECISION (ui/menus/OptionsMenu.gd): an explicit
+## DECISION: an explicit
 ## allow-list, not "every InputMap action minus a deny-list" -- so a future
 ## debug hotkey (tools/bootstrap_project.gd's own _actions()) never silently
 ## becomes player-rebindable just by existing. Excludes every debug-only/
@@ -57,22 +41,9 @@ const PRESET_LABELS: Array[String] = GraphicsSettingsTab.PRESET_LABELS
 ## not by a separate Input Map action -- rebinding it alone would desync that
 ## pairing).
 ##
-## DECISION (feedback/playtest.md: "many of
-## them not mapped to anything"): also excludes ghost_move_left/right/
-## forward/back and camera_look_left/right/up/down. Those 8 actions are
-## gamepad-axis-only by design (tools/bootstrap_project.gd's own DECISION
-## comments; game/player/PlayerController.gd:824 and game/player/CameraRig.gd read them via
-## Input.get_action_strength() purely for a connected stick -- mouse+keyboard
-## ghost movement/look reads raw mouse motion directly instead, which cannot
-## be bound to an Input Map action at all, spec 1.3). Listing them here showed
-## a K+M player a Rebind button and a raw "Joypad Motion on Axis N ..." string
-## with nothing to actually remap for their device -- exactly the reported
-## "not mapped to anything" rows. Removing them here is a display-only change
-## (a minor ambiguity per CLAUDE.md: no gameplay rule or [ORIGINAL]
-## binding changes); the gamepad bindings themselves are untouched.
+## DECISION: also excludes ghost_move_left/right/forward/back and camera_look_left/right/up/down. Those 8 actions are gamepad-axis-only by design (tools/bootstrap_project.gd DECISION comments): PlayerController and CameraRig read them via Input.get_action_strength() purely for a connected stick, while mouse+keyboard ghost movement/look reads raw mouse motion, which cannot be bound to an Input Map action (spec 1.3). Listing them showed K+M players a raw "Joypad Motion on Axis N" string with nothing to remap. Display-only; the gamepad bindings are untouched.
 ##
-## rotate_snap
-## rotate_drag_pad (RT held + left stick) are now listed too, as the gamepad page's own
+## rotate_snap and rotate_drag_pad (RT held + left stick) are listed as the gamepad page's
 ## "Rotate 90 deg" / "Free rotate (hold)" rows; they carry no keyboard binding, so
 ## ui/menus/KeyRebindRow.gd PAD_ONLY_ACTIONS hides them on the mouse/keyboard page.
 const REBINDABLE_ACTIONS: Array[StringName] = [
@@ -90,14 +61,9 @@ const REBINDABLE_ACTIONS: Array[StringName] = [
 	&"chat_open",
 ]
 
-## polish pass ("Friendly action names and grouping:
-## section headers ... Keep action order sensible"): the Controls list is
-## built from this grouping rather than REBINDABLE_ACTIONS' own flat order --
-## each entry is one section header + the actions shown under it, in build
-## order. Deliberately covers exactly REBINDABLE_ACTIONS' own action set (see
-## test_options_menu.gd's own test_sections_cover_every_rebindable_action_
-## exactly_once) so a future rebindable action can't silently go missing from
-## every section, or end up listed twice.
+## The Controls list is built from this grouping (a section header plus the actions under it, in
+## build order) rather than REBINDABLE_ACTIONS' flat order. It covers exactly REBINDABLE_ACTIONS'
+## action set (test_options_menu.gd pins this) so no action goes missing or is listed twice.
 const SECTIONS: Array[Dictionary] = [
 	{
 		"name": "Placement",
@@ -126,8 +92,8 @@ const SECTIONS: Array[Dictionary] = [
 	},
 ]
 
-## the category tabs. the first one reads "Game" (it was
-## "Settings"); ids, node names and every stored settings key are unchanged.
+## The category tabs. The first one reads "Game"; ids, node names and every stored settings key
+## keep the older "settings" naming.
 const TAB_GAME: StringName = &"game"
 const TAB_GRAPHICS: StringName = &"graphics"
 const TAB_CONTROLS: StringName = &"controls"
@@ -156,7 +122,7 @@ const ROW_RUMBLE_INTENSITY: String = "Rumble intensity"
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
 
-## UI reskin P2: sizes specific to the Options/Pause/rebinding screens; every
+## Sizes specific to the Options/Pause/rebinding screens; every
 ## colour and radius comes from ArcadeVisualTuning through MenuStyleFactory.arcade_tuning().
 const OPTIONS_TUNING: OptionsVisualTuning = preload("res://config/ui/options_visual_tuning.tres")
 const ON_WORD: String = "ON"
@@ -166,29 +132,14 @@ const THEME_VARIATION_DISPLAY: StringName = &"DisplayLabel"
 const THEME_VARIATION_CAPTION: StringName = &"CaptionLabel"
 const THEME_VARIATION_FIELD: StringName = &"FieldLabel"
 
-## DECISION (polish pass, time-budgeted worker package): the
-## owner's brief also asks to "combine paired actions on one row where
-## natural (e.g. 'Raise / lower block — Wheel')". Deferred for this package
-## (not implemented) -- merging two Input Map actions into a single
-## rebindable row is a real structural change to KeyRebindRow's own
-## one-action-per-row contract (which two events belong to which half of a
-## capture, how Reset-to-defaults and device-filtering apply per sub-action)
-## and didn't fit the 40-minute budget alongside the rest of this package.
-## Every paired action still gets its own clearly labeled row in the same
-## section (e.g. Placement's "Raise block" / "Lower block" sit adjacently) --
-## a real, disclosed scope reduction, not a silent drop.
+## DECISION: paired actions (e.g. Raise / Lower block) are not combined on one rebindable row: merging two Input Map actions breaks KeyRebindRow's one-action-per-row contract (capture halves, Reset-to-defaults, device filtering). Each paired action keeps its own labeled row, adjacent in the same section.
 
-## reused only for the two tab buttons' pastel pill styling
-## (ui/theme/MenuStyleFactory.gd, config/ui/menu_visual_tuning.tres already
-## shipped by the just-merged main menu/lobby reskin) -- everything else on
-## this menu keeps the shared stackfall_theme.tres Button/OptionButton look.
+## Reused only for the two tab buttons' pastel pill styling (ui/theme/MenuStyleFactory.gd);
+## everything else on this menu keeps the shared stackfall_theme.tres Button/OptionButton look.
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## Footer device hint text ("show a device hint in the footer ...
-## matching the active device") and the Controls page's own device caption --
-## plain literals rather than a config/*.tres Resource, since these are
-## display-only strings, not gameplay/physics tuning (CLAUDE.md's
-## no-magic-numbers rule targets those).
+## Footer device hint text and the Controls page's device caption: plain literals, since they are
+## display-only strings, not tuning.
 ## InputPromptFlow templates -- `{action}` renders the bound
 ## action's glyph for the active device, so no key or button name is typed here.
 const FOOTER_HINT_KEYBOARD_MOUSE: String = "{ui_accept} Select   {ui_cancel} Back"
@@ -196,14 +147,7 @@ const FOOTER_HINT_GAMEPAD: String = "{ui_accept} Select   {ui_cancel} Back   {me
 const CONTROLS_LABEL_KEYBOARD_MOUSE: String = "Showing keyboard & mouse bindings"
 const CONTROLS_LABEL_GAMEPAD: String = "Showing gamepad bindings"
 
-## DECISION (ui/menus/OptionsMenu.gd): the volume/rumble/move-speed sliders' own
-## range/step are scene-level widget configuration, not a "magic number" a
-## config/*.tres Resource needs to own -- CLAUDE.md's no-magic-numbers rule
-## targets gameplay/physics tuning that changes game feel; a UI slider's own
-## bounds don't (Settings.gd itself owns each field's real default and
-## clamps it to a generic safety floor -- see Settings.set_mouse_move_speed_
-## scale()'s own DECISION). : 0-100% for every volume/rumble
-## slider, 50%-200% for the move-speed sliders (default 100%).
+## DECISION: the volume/rumble/move-speed sliders' range/step are scene-level widget configuration, not tuning that changes game feel (Settings.gd owns each field's real default and clamp): 0-100% for every volume/rumble slider, 50%-200% for the move-speed sliders (default 100%).
 ## the Game / Controls meters are UiSegmentMeters (cells, not a continuous slider).
 ## DECISION: volume and rumble use 20 cells (5% per cell), the move-speed scale 15 cells (0.1x per cell,
 ## so 100% sits exactly on a cell); the UI-scale meter has one cell per UiScaleTuning step. The readout
@@ -217,7 +161,7 @@ const MAX_RUMBLE_STRENGTH: float = 1.0
 const MIN_MOVE_SPEED_SCALE: float = 0.5
 const MAX_MOVE_SPEED_SCALE: float = 2.0
 
-## DECISION (ui/menus/OptionsMenu.gd): which speaker icon a mute button shows for a
+## DECISION: which speaker icon a mute button shows for a
 ## given (unmuted, > 0%) volume -- a UI-feel threshold, not a design tunable,
 ## the same reasoning MIN_VOLUME_PERCENT above and Settings.gd's own
 ## MOUSE_MOTION_DEVICE_THRESHOLD_PX already give for a plain script const.
@@ -229,8 +173,7 @@ const SPEAKER_LOW_ICON: Texture2D = preload("res://assets/ui/icons/speaker_low.s
 const SPEAKER_MID_ICON: Texture2D = preload("res://assets/ui/icons/speaker_mid.svg")
 const SPEAKER_HIGH_ICON: Texture2D = preload("res://assets/ui/icons/speaker_high.svg")
 
-## Correction: "Mouse speed"/"Stick
-## speed" labels for the single device-aware MoveSpeedRow on the Controls tab
+## "Mouse speed"/"Stick speed" labels for the single device-aware MoveSpeedRow on the Controls tab
 ## (see _refresh_move_speed_row()).
 ## Help-line key of the Mouse / Stick speed row (text in config/ui/option_help_table.tres).
 const MOVE_SPEED_HELP_KEY: String = "MoveSpeedSlider"
@@ -593,14 +536,10 @@ func _refresh_row_bands() -> void:
 		shown += 1
 
 
-## Correction: one device-aware row on
-## the Controls tab rebinds itself to whichever scale the active device
-## actually drives -- "Mouse speed" / Settings.mouse_move_speed_scale() on
-## keyboard/mouse, "Stick speed" / Settings.stick_move_speed_scale() on
-## gamepad -- rather than two rows toggling visibility (DECISION,
-## ui/menus/OptionsMenu.gd). Reusing the same Slider node for both means whichever
-## control had focus keeps it across a live device switch for free -- no
-## separate focus-transfer step needed, since the node itself never changes.
+## One device-aware row on the Controls tab rebinds itself to whichever scale the active device
+## drives ("Mouse speed" / Settings.mouse_move_speed_scale() on keyboard/mouse, "Stick speed" /
+## Settings.stick_move_speed_scale() on gamepad) rather than two rows toggling visibility. Reusing
+## the same Slider node keeps focus across a live device switch.
 func _refresh_move_speed_row() -> void:
 	var gamepad: bool = Settings.active_input_device() == Settings.DEVICE_GAMEPAD
 	_move_speed_label.text = MOVE_SPEED_LABEL_STICK if gamepad else MOVE_SPEED_LABEL_MOUSE
@@ -636,7 +575,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## M7 P4: reads Settings.WINDOW_MODE_IDS/window_mode_label()
+## Reads Settings.WINDOW_MODE_IDS/window_mode_label()
 ## directly (a fixed, script-level constant/lookup, not per-provider state)
 ## rather than duplicating PRESET_LABELS' own hand-written parallel-array
 ## pattern -- the ids and their display order already live in one place.
@@ -787,12 +726,9 @@ func _on_camera_shake_toggled(enabled: bool) -> void:
 
 # --- Rumble --------------------------------------------------------------------
 
-## "an on/off toggle ... slider disabled/greyed when rumble is off" and
-## "Nudge a short test rumble ... when the toggle turned on". Rumble.
-## trigger_test_pulse() itself is a no-op unless Settings.rumble_enabled() is
-## already true and a gamepad is the active device, so this call is safe to
-## make unconditionally on every toggle (it only ever buzzes on the "turned
-## on, gamepad present" case the brief asks for).
+## Rumble toggle: the intensity slider is disabled while rumble is off, and turning it on nudges a
+## test pulse. Rumble.trigger_test_pulse() is a no-op unless Settings.rumble_enabled() is true and a
+## gamepad is the active device, so calling it unconditionally is safe.
 func _on_rumble_enabled_toggled(enabled: bool) -> void:
 	settings_provider.set_rumble_enabled(enabled)
 	_refresh_rumble_strength_enabled()
@@ -852,7 +788,7 @@ func _on_move_speed_changed(value: float) -> void:
 		settings_provider.set_mouse_move_speed_scale(value)
 
 
-## M7 P4: unlike every other setter this menu calls,
+## Unlike every other setter this menu calls,
 ## Settings.set_window_mode() already applies the change itself (its own doc
 ## comment: "applies it immediately via apply_window_mode()") -- calling
 ## apply_window_mode() again here would just be a redundant, no-observable-
@@ -868,13 +804,10 @@ func _on_back_pressed() -> void:
 	closed.emit()
 
 
-## "Add one 'Reset to defaults' action in the footer" -- now also
-## resets every audio channel, rumble, and the mouse/stick move-speed scales
-## this package adds ("reset by the Reset button"). Reloads the
-## InputMap straight from project.godot (Settings.reset_key_overrides()),
-## then tells every already-built row to redraw its own glyphs from that
-## fresh InputMap state -- cheaper than _build_rebind_rows() rebuilding the
-## whole list, and preserves whichever row currently has focus.
+## Reset to defaults in the footer: also resets every audio channel, rumble and the move-speed
+## scales. Reloads the InputMap from project.godot (Settings.reset_key_overrides()), then tells
+## every built row to redraw its glyphs: cheaper than rebuilding the list, and it preserves the
+## focused row.
 func _on_reset_pressed() -> void:
 	settings_provider.reset_key_overrides()
 	settings_provider.reset_audio_settings()
@@ -898,12 +831,8 @@ func _build_section_header(name: String) -> Label:
 	return header
 
 
-## Requirement: "Group rows under section headers (Audio,
-## Controller/Controls feel) matching existing style" -- the Settings tab's
-## AudioSectionHeader/RumbleSectionHeader are static .tscn Labels (unlike the
-## Controls tab's dynamically-built SECTIONS headers above), so this applies
-## the exact same muted small-caption look to an existing node instead of
-## building a fresh one.
+## Group rows under section headers: the Settings tab's AudioSectionHeader/RumbleSectionHeader are
+## static .tscn Labels, so this applies the same muted small-caption look to an existing node.
 func _style_section_header(header: Label) -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	header.text = header.text.to_upper()
@@ -940,23 +869,15 @@ func _build_rebind_rows() -> void:
 	_refresh_row_bands()
 
 
-## Gamepad/keyboard navigability ("fully
-## navigable with gamepad and keyboard"): chains every focusable control top
-## to bottom, in the same visual order the Settings tab actually lays rows
-## out in (orchestrator review correction) -- PresetOption -> WindowModeOption
-## -> CameraShakeCheck -> Master/Music/SFX mute+volume -> Rumble
-## toggle+intensity -> MoveSpeedSlider (Controls tab) -> each rebind row (a
-## row IS its own Button now polish pass -- no separate child
-## RebindButton) in section/build order -> ResetButton -> BackButton -> back
-## up to PresetOption. Computed at runtime (control.get_path_to()) rather than
-## static NodePaths in the .tscn, the same reason ui/menus/MainMenu.gd's own
-## _apply_steam_availability() does this for its Steam-availability toggle:
-## the rebind rows are built dynamically and don't exist yet when the scene
-## file is authored.
+## Chains every focusable control top to bottom in the visual order the Settings tab lays rows
+## out: PresetOption -> WindowModeOption -> CameraShakeCheck -> Master/Music/SFX mute+volume ->
+## Rumble toggle+intensity -> MoveSpeedSlider (Controls tab) -> each rebind row (the row is its own
+## Button) in section/build order -> ResetButton -> BackButton -> back up to PresetOption.
+## Computed at runtime (control.get_path_to()) rather than static NodePaths in the .tscn, because
+## the rebind rows are built dynamically.
 ##
 ## DECISION: the tab strip is horizontal above the pages, so the tabs are not in
 ## this chain; _wire_tab_focus() links the visible page's first control and the tabs both ways.
-## (Before this the tabs were a left column reached by the engine's automatic ui_left resolution.)
 func _wire_focus_chain() -> void:
 	var chain: Array[Control] = [
 		_window_mode_option, _ui_scale_slider, _hud_scale_slider, _minimap_size_option, _camera_shake_check, _adaptive_quality_check, _fov_slider,
@@ -983,7 +904,7 @@ func _wire_focus_chain() -> void:
 		current.focus_neighbor_top = current.get_path_to(prev)
 		current.focus_neighbor_bottom = current.get_path_to(next)
 		current.focus_mode = Control.FOCUS_ALL
-	#/.51: the footer pair is a row, so ui_left / ui_right swap between them.
+	# the footer pair is a row, so ui_left / ui_right swap between them.
 	_reset_button.focus_neighbor_right = _reset_button.get_path_to(_back_button)
 	_back_button.focus_neighbor_left = _back_button.get_path_to(_reset_button)
 	_reset_button.focus_neighbor_left = _reset_button.get_path_to(_back_button)
