@@ -3,9 +3,9 @@ extends RefCounted
 ## One seat in a match: who they are, which team they are on, where their home
 ## flag stands (spec 1.5, 1.9).
 ##
-## M2 fills these from MatchConfig in hot-seat; M3a fills `peer_id` from the
-## MultiplayerAPI and M5 sets `is_bot`. Nothing here assumes a transport or a
-## scene tree (CLAUDE.md).
+## Filled from MatchConfig; `peer_id` comes from the MultiplayerAPI and `is_bot`
+## from the AI seat count. Nothing here assumes a transport or a scene tree
+## (CLAUDE.md).
 
 var slot_id: int = -1
 ## Free-for-all gives every slot its own team, so rule code never branches on
@@ -19,7 +19,7 @@ var home_position: Vector2 = Vector2.ZERO
 ## True for the player sitting at this PC. In hot-seat every slot is local.
 var is_local: bool = true
 var is_bot: bool = false
-## MultiplayerAPI peer id, or 0 in hot-seat. Set in M3a.
+## MultiplayerAPI peer id, or 0 in hot-seat.
 var peer_id: int = 0
 ## False once the home flag has left the disk; its home circle stops existing
 ## (spec 1.5: "It always exists while the flag is on the disk").
@@ -45,8 +45,7 @@ func _init(
 ## counter-clockwise from there, so a 2-player match puts the two players
 ## opposite each other.
 ## Delegates to MapDef so the rules and the flag props placed by Field read
-## from one source of truth (P3's integration request); the formula used to be
-## duplicated here.
+## from one source of truth.
 static func home_position_for(slot_id: int, slot_count: int, map_def: MapDef) -> Vector2:
 	if slot_count <= 0:
 		return Vector2.ZERO

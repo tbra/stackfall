@@ -1,19 +1,19 @@
 class_name TimerPause
 extends RefCounted
-## Pure rule for QoL experiment 1: when a slot's block timer
+## Pure rule for the QolExperiments timer pause: when a slot's block timer
 ## should be frozen. Two causes: a special triggered (pauses everyone for
 ## pause_event_s) and a big topple (a slot with at least topple_moving_blocks_min
 ## own blocks above topple_speed_threshold_mps, plus pause_tail_s afterwards).
 ## No scene-tree access: the caller feeds in per-slot moving-block counts.
 ##
-## Stall guard (QoL Q0): a cause that keeps refreshing itself
+## Stall guard: a cause that keeps refreshing itself
 ## (specials chaining up to max_chain_depth, a long avalanche) must not freeze a
 ## slot's cadence forever. Once a slot has been continuously RAW-paused for
 ## QolExperiments.pause_max_s it latches "exhausted": is_paused() reports false
 ## (the block timer runs) until the raw cause has fully cleared for that slot,
 ## then the slot re-arms and the next cause pauses it again for a fresh window.
-## Deterministic and per slot; it advances only inside update(), so the host
-## tick (MatchFeed._tick_qol_pause) drives it with no consumer change.
+## Deterministic and per slot; it advances only inside update(), which the host
+## tick (MatchFeed._tick_qol_pause) calls.
 
 var _qol: QolExperiments = null
 var _slot_left: PackedFloat32Array = PackedFloat32Array()

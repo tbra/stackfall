@@ -1,6 +1,6 @@
 class_name MatchPhase
 extends RefCounted
-## Pure match-phase rules (spec 2.4), moved from autoload/Match.gd (D4).
+## Pure match-phase rules (spec 2.4).
 ## MatchAutoload keeps `const State = MatchPhase.State` and one-line forwarding statics.
 
 ## Spec 2.4's states.

@@ -3,14 +3,11 @@ extends RefCounted
 ## Whether a thrown special's release point lands inside the throwing
 ## player's own territory (spec 1.6: "release point inside own territory").
 ##
-## Delegates the actual point test to PlacementRules.validate_point()
-## (core/rules/PlacementRules.gd:268-283, the v2 single-raycast point check)
-## rather than re-deriving raster.team_at()/is_contested() itself -- one
-## source of truth for what "your own territory" means at a point
-## A throw uses the exact
-## same raycast-then-point-test MatchPlacement.request_place() already runs;
-## only the reason a bad point is refused with differs (see reason_for()
-## below).
+## Delegates the actual point test to PlacementRules.validate_point() rather than
+## re-deriving raster.team_at()/is_contested() itself: one source of truth for what
+## "your own territory" means at a point. A throw uses the exact same
+## raycast-then-point-test MatchPlacement.request_place() runs; only the reason a
+## bad point is refused with differs (see reason_for() below).
 ##
 ## Pure logic: no scene tree (CLAUDE.md). Static, like PlacementRules, so the
 ## host calls it without keeping an instance around.
@@ -24,17 +21,17 @@ const REASON_NOT_A_SPECIAL: StringName = &"not_a_special"
 
 ## Spec 1.6 gives a throw a single "outside your own territory" release-point
 ## failure, not PlacementRules' several distinguishable reasons (contested,
-## hole, off-disk, goal zone) -- reason_for() below maps the territory outcomes
-## (outside territory, contested) to this constant and, since 
-## reports hole / off-disk / goal zone by their own reasons. Aliased to PlacementRules'
+## hole, off-disk, goal zone). reason_for() below maps the territory outcomes
+## (outside territory, contested) to this constant and reports hole / off-disk /
+## goal zone by their own reasons. Aliased to PlacementRules'
 ## own constant (not a new StringName literal) so MatchNet/HUD code that
 ## already switches on PlacementRules.REASON_OUTSIDE_TERRITORY recognizes a
 ## throw's refusal without a second case.
 const REASON_OUTSIDE_TERRITORY: StringName = PlacementRules.REASON_OUTSIDE_TERRITORY
 
 
-## Spec 1.6's release-point check for a throw: exactly PlacementRules' v2
-## point check, reused rather than re-derived so a throw and a placement can
+## Spec 1.6's release-point check for a throw: exactly PlacementRules' point
+## check, reused rather than re-derived so a throw and a placement can
 ## never disagree about what "your own territory" means at a given point.
 ## `point` is disk-local (x, z), already converted by the caller, exactly
 ## like PlacementRules.validate_point()'s own contract.
@@ -44,11 +41,12 @@ static func validate_release_point(
 	return PlacementRules.validate_point(point, raster, team_id)
 
 
-## only the territory outcomes (OUTSIDE_TERRITORY, CONTESTED) collapse into
-## REASON_OUTSIDE_TERRITORY (spec 1.6). A cursor over a pit/hole, past the rim or in a goal zone
-## reports its real reason (hole / off_disk / goal_zone) -- e.g. the volcano crater at a home
-## whose column has no floor used to be mislabelled "outside_territory" although a held gift
-## waives territory. REASON_NOT_A_SPECIAL is never produced here.
+## The refusal reason for a throw's release point. Only the territory outcomes
+## (OUTSIDE_TERRITORY, CONTESTED) collapse into REASON_OUTSIDE_TERRITORY (spec 1.6).
+## A cursor over a pit/hole, past the rim or in a goal zone reports its real reason
+## (hole / off_disk / goal_zone), e.g. the volcano crater at a home whose column has
+## no floor, because a held gift waives territory. REASON_NOT_A_SPECIAL is never
+## produced here.
 static func reason_for(result: PlacementRules.Result) -> StringName:
 	match result:
 		PlacementRules.Result.VALID:

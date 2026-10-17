@@ -9,7 +9,6 @@ extends RefCounted
 ## readers are pure UI/rule helpers that should not depend on an autoload-side
 ## script, and core/ has no scene-tree dependence (unit-testable). MatchStats
 ## stays the builder.
-## The wire format and every string value are unchanged.
 ##
 ## Shape: {winner_kind, winner_id, winner_name, match_duration, rows[, mode][, live]};
 ## each row {slot_id, name, team_id, is_bot, blocks_placed, blocks_lost,
@@ -50,7 +49,7 @@ const WINNER_KIND_TEAM: String = "team"
 const NOT_ELIMINATED: float = -1.0
 
 
-# --- Typed accessors (defaults mirror what the readers always used) ----------
+# --- Typed accessors -------------------------------------------------------------
 
 static func int_of(dict: Dictionary, key: String, default: int = 0) -> int:
 	return int(dict.get(key, default))
@@ -164,7 +163,7 @@ static func validate(raw: Variant) -> Dictionary:
 
 
 ## The results "mode" block: mode_id a known GameMode, scores a bounded array of
-## finite numbers, every other key a scalar (ModeObjective owns the shared
+## finite numbers, every other key a scalar (ResultsValidation owns the shared
 ## scalar/score helpers, which the live mode state uses too).
 static func validate_mode_block(raw: Variant) -> Dictionary:
 	if not (raw is Dictionary):
@@ -202,7 +201,7 @@ static func _validate_row(raw_row: Variant) -> Dictionary:
 	var specials: Variant = row.get(KEY_SPECIALS_USED)
 	var share: Variant = row.get(KEY_TERRITORY_SHARE)
 	var eliminated: Variant = row.get(KEY_ELIMINATED_AT)
-	# optional (an older payload lacks them) but typed when present.
+	# Optional (default when absent) but typed when present.
 	var height: Variant = row.get(KEY_HEIGHT, 0.0)
 	var peak: Variant = row.get(KEY_PEAK_TERRITORY, 0.0)
 	var wins: Variant = row.get(KEY_WINS, 0)

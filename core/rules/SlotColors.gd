@@ -1,7 +1,6 @@
 class_name SlotColors
 extends RefCounted
-## Single source of "what colour is this slot" (D1). Pure statics, no
-## scene tree. Precedence: the live PlayerSlot.color, else the palette entry for the
+## Single source of "what colour is this slot". Pure statics, no scene tree. Precedence: the live PlayerSlot.color, else the palette entry for the
 ## slot, else the caller's fallback. The runtime accessor is Match.slot_color();
 ## a UI with a test seam passes its own slot colour and palette to resolve().
 

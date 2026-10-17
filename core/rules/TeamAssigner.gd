@@ -10,13 +10,12 @@ extends RefCounted
 ## caller supplies (MatchConfig.rng_seed, or a host randi() when that is -1), so
 ## the same picks and seed always give the same teams and a test can pin them.
 ##
-## DECISION (open question 2 of the plan, recommendation taken): Random is a
-## BALANCED FILL. K = clampi(max(2, highest explicit number), 2, cap); the Random
-## seats, in a seeded shuffled order, each join the least-populated team of
-## 1..K (ties broken by the seed). All-Random therefore gives an even split
-## (4 players -> 2v2, 8 -> 4v4) and Random never builds a team nobody chose
-## beyond K. The alternative (each Random seat drawing uniformly from 1..cap)
-## can produce one team or all singles.
+## DECISION: Random is a BALANCED FILL. K = clampi(max(2, highest explicit
+## number), 2, cap); the Random seats, in a seeded shuffled order, each join the
+## least-populated team of 1..K (ties broken by the seed). All-Random therefore
+## gives an even split (4 players -> 2v2, 8 -> 4v4) and Random never builds a team
+## nobody chose beyond K. The alternative (each Random seat drawing uniformly from
+## 1..cap) can produce one team or all singles.
 
 ## Both the floor of K and the length of the default 1,2,1,2... seeding.
 const DEFAULT_TEAM_COUNT: int = 2

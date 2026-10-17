@@ -11,9 +11,8 @@ extends RefCounted
 ## menu and Settings run clean() on what the local player types so the host
 ## normally has nothing left to change.
 
-## "Player %d" with the 1-based seat number: the label an unnamed human seat has
-## always had (MatchLifecycle._build_slots), and the host's fallback for an
-## empty name.
+## "Player %d" with the 1-based seat number: the label an unnamed human seat gets
+## (MatchLifecycle._build_slots), and the host's fallback for an empty name.
 const FALLBACK_FORMAT: String = "Player %d"
 ## "Bot %d" with the 1-based ordinal: a bot seat whose list name ran out.
 const BOT_FALLBACK_FORMAT: String = "Bot %d"
