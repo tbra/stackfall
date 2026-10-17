@@ -62,12 +62,9 @@ func run() -> void:
 
 ## The analytic circle list the overlay and the replication wire use: only the
 ## home-anchored circles a group kept, sorted by team then largest radius first.
-## Moved from MatchTerritory._update_circle_render.
 static func build_render_list(circles: Array[InfluenceCircle], groups: TerritoryGroups) -> Dictionary:
-	# native lexicographic sort on [team, -radius, sequence]
-	# replaces the GDScript lambda comparator. The sequence tiebreak makes equal
-	# (team, radius) entries keep insertion order (the old unstable sort left
-	# that unspecified; every distinct-key order is identical).
+	# Native lexicographic sort on [team, -radius, sequence]; the sequence tiebreak makes
+	# equal (team, radius) entries keep insertion order.
 	var entries: Array = []
 	var sequence: int = 0
 	for group: int in range(groups.group_count()):
