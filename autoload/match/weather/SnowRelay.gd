@@ -2,12 +2,9 @@ class_name SnowRelay
 extends RefCounted
 ## Hand-off from the host's SnowEffect to net/SnowNet.gd.
 ##
-## DECISION (autoload/match/weather/SnowRelay.gd): a tiny process-wide relay
-## instead of a new Events signal, so the shared autoload/Events.gd (edited by
-## several parallel packages) gains nothing. The effect is a RefCounted owned
-## by MatchWeather and SnowNet is a node under MatchNet; neither can reach the
-## other without a node path, and this keeps the direction one-way (effect ->
-## relay -> net).
+## DECISION: a tiny process-wide relay instead of a new Events signal. The effect is a RefCounted
+## owned by MatchWeather and SnowNet is a node under MatchNet; neither can reach the other without a
+## node path, and this keeps the direction one-way (effect -> relay -> net).
 
 signal state_published(state: Dictionary)
 

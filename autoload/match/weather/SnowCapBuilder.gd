@@ -112,7 +112,7 @@ func set_patch(key: String, node: Node3D, region: int, patch_key: int, xform: Tr
 		_queue.append(key)
 
 
-## Removes an an owner's snow at once (a despawned or tipped block).
+## Removes an owner's snow at once (a despawned or tipped block).
 func drop_owner(key: String) -> void:
 	var owner: CapOwner = _owners.get(key) as CapOwner
 	if owner == null:

@@ -4,67 +4,41 @@ extends RefCounted
 ## validation, the pure outcome-resolution seam, spawn/burn and the blocks-
 ## spawned counter.
 ##
-## Split out of autoload/Match.gd (pure refactor: no behaviour change). See
-## that file's own header comment for the state machine this placement logic
+## Split out of autoload/Match.gd; see its header comment for the state machine this placement logic
 ## serves.
 
-## revised (independent-review finding C):
-## how far inside Field's kill-plane box a burned block's spawn point is kept,
-## as a fraction of the box's half-extent. _burn_block() then adds an outward
-## impulse (TerritoryTuning.reject_impulse / reject_upward_fraction) before
-## the body falls through kill_plane_y, so the clamp must leave enough slack
-## for that impulse's own horizontal travel, not just spawn the body inside
-## the box.
+## How far inside Field's kill-plane box a burned block's spawn point is kept, as a fraction of the
+## box's half-extent. _burn_block() adds an outward impulse (TerritoryTuning.reject_impulse /
+## reject_upward_fraction) before the body falls through kill_plane_y, so the clamp must leave slack
+## for that impulse's horizontal travel (about 26 m/s for reject_impulse=30 and
+## reject_upward_fraction=0.35, roughly field_radius*2 of travel); otherwise a clamped hostile burn
+## could leave the box before reaching kill_plane_y and free-fall forever (see request_place()).
 ##
-## DECISION (autoload/Match.gd): 0.9 left only
-## `field_radius` (30-60 m across the shipped maps) of slack to the box edge.
-## reject_impulse=30 on a mass-1 block with reject_upward_fraction=0.35 gives
-## a horizontal launch speed of impulse * (1 - up_fraction) / sqrt((1 -
-## up_fraction)^2 + up_fraction^2) ~= 26 m/s and enough hang time falling to
-## kill_plane_y (-40) to travel roughly field_radius*2 outward -- more than
-## the old margin's slack, so a maximally clamped hostile burn could exit the
-## box footprint before it ever reached kill_plane_y and free-fall forever
-## (see this file's own request_place() comment on the leaked-RigidBody3D
-## failure this clamp exists to prevent). Halving the margin to 0.5 (clamp
-## radius = half the box half-extent) makes the reserved slack equal to the
-## clamp radius itself (>= 150 m on the smallest map), comfortably above the
-## worst-case impulse travel above, without touching _burn_block()'s impulse
-## for a legitimate near-disk burn --
-## proven by tests/unit/match/test_match_flow.gd's
-## test_repro_burn_clamp_margin_lets_a_maximally_clamped_burn_escape_the_kill_plane.
+## DECISION: 0.5, not 0.9, so the reserved slack equals the clamp radius itself (>= 150 m on the
+## smallest map).
 const _BURN_CLAMP_MARGIN: float = 0.5
 
 var _match: MatchAutoload = null
 
-## M4 P2c: request_throw()'s own tunable (throw_max_speed) -- preloaded here
-## rather than added to autoload/Match.gd's field set (that file, per this
-## package's own file ownership, gets only a one-line forward), the same way
-## Match.gd itself preloads _physics_tuning/_territory_tuning etc.
+## request_throw() reads throw_max_speed from this; preloaded here rather than added as a field on
+## autoload/Match.gd.
 var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 var _glue_drop_tuning: GlueDropTuning = preload("res://config/gifts/glue_drop_tuning.tres")
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
-# DECISION (round 3): numeric guards, not gameplay tunables --
-# a floor so a zero/negative step cannot loop forever, and float slack so the
-# final step landing on the cap is still tried.
+# DECISION: numeric guards, not gameplay tunables -- a floor so a zero/negative step cannot loop
+# forever, and float slack so the final step landing on the cap is still tried.
 const MIN_CLEARANCE_STEP: float = 0.001
 const CLEARANCE_CAP_EPSILON: float = 0.0001
 
-## _spawn_block()'s SpecialDef-by-id cache (M4 P2c), rebuilt once per match:
-## `_special_defs_config` is compared by *identity*, not equality, against
-## `_match.config` -- autoload/match/MatchLifecycle.gd's start_match()
-## replaces that field with a fresh `match_config.duplicate(true)` every
-## match, so a changed reference alone means "a new match started", with no
-## reset() hook of this package's own needed on a file it does not own.
+## SpecialDef-by-id cache, rebuilt once per match. `_special_defs_config` is compared by identity
+## against `_match.config`: start_match() replaces that field with a fresh duplicate every match, so
+## a changed reference means a new match started.
 var _special_defs_by_id: Dictionary = {}
 var _special_defs_config: MatchConfig = null
 
-## _attach_pending_special()'s per-id warning gate: an empty config/gifts/specials/
-## roster (P3-P5 not landed yet) or a misconfigured drawer would otherwise
-## push_warning on every single spawn once gifts are common, drowning any
-## other warning in the log. DECISION (autoload/match/MatchPlacement.gd, M4
-## P2c): warn once per distinct bad id for the life of the process rather
-## than once per match or every occurrence -- surfaces a genuinely stuck
-## drawer/roster bug without spamming it.
+## _attach_pending_special()'s per-id warning gate. DECISION: warn once per distinct bad id for the
+## life of the process, not per match or per occurrence, so a stuck drawer/roster bug surfaces
+## without a push_warning on every spawn drowning other warnings.
 var _warned_special_ids: Dictionary = {}
 
 ## per-slot last aim (unit camera forward), see note_aim().
@@ -100,9 +74,7 @@ enum IntentKind {
 ## held special, aim, territory) after it and map the reason to their own
 ## return type (bool/null for GIFT_USE/PROJECTILE). `feed_seq < 0` is the
 ## trusted-local "don't check" sentinel (see request_place's doc comment).
-## DECISION: the dead-home check ranks before the turn gate
-## for every kind (request_place/request_throw already did; request_use_gift_slot
-## had them swapped, which cannot change its bool result).
+## DECISION: the dead-home check ranks before the turn gate for every kind.
 func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 	if not _match._is_host():
 		return PlacementRules.REASON_NO_BLOCK
@@ -127,9 +99,8 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 		return PlacementRules.REASON_NOT_YOUR_TURN
 	if _match.held_shape(slot_id) == null:
 		return PlacementRules.REASON_NO_BLOCK
-	# lock. A forced auto-drop is what ends it, and the gift slot
-	# has always ignored it (finding for the orchestrator: a locked slot may
-	# still use a slotted gift; behaviour kept).
+	# The release lock: a forced auto-drop is what ends it, and the gift slot ignores it (a locked
+	# slot may still use a slotted gift).
 	if (kind == IntentKind.PLACE or kind == IntentKind.THROW) and _match.is_release_locked(slot_id):
 		return PlacementRules.REASON_NO_BLOCK
 	return &""
@@ -156,20 +127,16 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 ## 2.5's forced release has nowhere else to put it; one that does find a
 ## valid point relocates there instead and emits Events.placement_relocated.
 ##
-## M3a wraps this in net/MatchNet.gd's `@rpc("any_peer", "call_remote",
-## "reliable")` intent, which checks the caller's peer id against `slot_id`
-## and changes nothing else. `feed_seq` is the value of feed_seq(slot_id) the
-## caller last saw; -1 means "don't check", which is what every M2 call site
-## passes by omitting it. A value that is not current means the intent is a
-## replay, a double click inside one round trip, or a race with an auto-drop,
-## and is refused with REASON_NO_BLOCK — the whole of the "never duplicated"
-## "Never duplicated, never lost" defence (1).
+## net/MatchNet.gd wraps this in an @rpc intent that checks the caller's peer id against `slot_id`
+## and changes nothing else. `feed_seq` is the value of feed_seq(slot_id) the caller last saw; -1
+## means "don't check". A stale value means a replay, a double click inside one round trip, or a
+## race with an auto-drop, and is refused with REASON_NO_BLOCK -- the whole of the "Never
+## duplicated, never lost" defence (1).
 ##
-## The -1 sentinel is a courtesy for **trusted local callers only**: the M2
-## controllers, the host's own timer and the tests. It never arrives here from
-## the wire — net/MatchNet.gd refuses any negative remote feed_seq before
-## calling in — because a client that could quote -1 would opt out of defence
-## (1) altogether.
+## The -1 sentinel is for **trusted local callers only**: the local controllers, the host's own
+## timer and the tests. It never arrives here from the wire -- net/MatchNet.gd refuses any negative
+## remote feed_seq before calling in -- because a client that could quote -1 would opt out of
+## defence (1) altogether.
 ##
 ## A pose that cannot be evaluated at all (a non-finite origin, a free
 ## quaternion that is not a finite unit rotation, or an orientation index
@@ -198,10 +165,9 @@ func request_place(
 		return PlacementRules.REASON_OK
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var shape: BlockShape = _match.held_shape(slot_id)
-	# DECISION: the release lock (enforced in _intent_gate for
-	# manual releases only) reuses REASON_NO_BLOCK rather than a new
-	# PlacementRules.REASON_* constant (core/ is not this package's); auto_drop is
-	# exempt because it is the host's own forced release that ends the lock.
+	# DECISION: the release lock (enforced in _intent_gate for manual releases only) reuses
+	# REASON_NO_BLOCK rather than a new PlacementRules.REASON_*; auto_drop is exempt because it is
+	# the host's own forced release that ends the lock.
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return PlacementRules.REASON_NO_BLOCK
 
@@ -210,17 +176,11 @@ func request_place(
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var team_id: int = acting_slot.team_id
 
-	# DECISION (autoload/Match.gd): every MatchConfig.HoleMode
-	# now uses one raycast straight down from `origin` plus
-	# PlacementRules.validate_point(), not just the old v2-only OFF default.
-	# SPEC.md's evidence audit, 2.5 "Placement legality": "cast one
-	# ray straight down from the ghost's middle... Do not require the whole
-	# footprint to fit... not permission to reintroduce footprint territory
-	# tests." validate_point() itself now also rejects a contested/holed point
-	# under the raster fill that TEMPORARY/PERMANENT still run every solve, so the
-	# point path alone already reports every case the footprint chain used to.
-	# footprint_cells()/validate() stay compiled for the bots' footprint scoring only;
-	# this call site never reaches them.
+	# DECISION: every MatchConfig.HoleMode uses one raycast straight down from `origin` plus
+	# PlacementRules.validate_point() (spec 2.5 "Placement legality": one ray from the ghost's
+	# middle, no whole-footprint territory test). validate_point() also rejects a contested/holed
+	# point under the raster fill, so it reports every case the footprint chain used to;
+	# footprint_cells()/validate() stay only for the bots' footprint scoring.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
 	var hit: Variant = _match._field.raycast_down_disk_local(origin)
@@ -233,15 +193,10 @@ func request_place(
 	else:
 		disk_origin = hit as Vector2
 		result = PlacementRules.validate_point(disk_origin, _match.raster(), team_id)
-		# DECISION (autoload/match/MatchPlacement.gd, sandbox rule
-		# B1, spec 1.2 "Sandbox: no territory limits"): only the two
-		# territory-ownership outcomes are waived here -- OFF_DISK (the
-		# hit == null branch above, which never reaches this remap), HOLE and
-		# GOAL_ZONE all stay refused, since the spec line is "no territory
-		# limits", not "place blocks in the void or through a hole/goal
-		# zone". core/rules/PlacementRules.gd itself stays config-agnostic;
-		# this is the one call site that already knows about config.sandbox
-		# (autoload/match/MatchLifecycle.gd:121's own precedent).
+		# DECISION (sandbox rule, spec 1.2 "Sandbox: no territory limits"): only the two
+		# territory-ownership outcomes are waived; OFF_DISK (the hit == null branch above), HOLE and
+		# GOAL_ZONE all stay refused. PlacementRules stays config-agnostic, so this call site, which
+		# already knows config.sandbox, applies the waiver.
 		result = _apply_territory_waiver(slot_id, result)  # held gift waives territory (host state)
 	if result != PlacementRules.Result.VALID and auto_drop:
 		relocated = PlacementRules.closest_valid_point(disk_origin, _match.raster(), team_id, _match._territory_tuning)
@@ -249,39 +204,27 @@ func request_place(
 	var reason: StringName = outcome["reason"]
 
 	if reason != PlacementRules.REASON_OK and not auto_drop:
-		# DECISION (autoload/match/MatchPlacement.gd
-		# ): a manual out-of-zone release is refused outright, not
-		# burned -- the previous "thrown off the map with a visible reject
-		# animation" spawn (spec 1.5) is unreachable from here now; nothing is
-		# spawned or consumed, feed_seq does not move, and _match._feed's
-		# release lock (if any) is never touched, so the caller may simply try
-		# again. This makes the far-off-disk burn/clamp path below (and
-		# net/MatchNet.gd's matching _consumed_a_block()) reachable only for
-		# auto_drop == true, where spec 1.4's forced release still has to land
-		# somewhere. See Events.placement_rejected's own doc comment.
+		# DECISION: a manual out-of-zone release is refused outright, not burned: nothing is spawned
+		# or consumed, feed_seq does not move and the release lock is untouched, so the caller may
+		# simply try again. The burn/clamp path below (and net/MatchNet.gd's matching
+		# _consumed_a_block()) is therefore reachable only for auto_drop == true, where spec 1.4's
+		# forced release still has to land somewhere. See Events.placement_rejected.
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
 	var final_disk_origin: Vector2 = relocated if outcome["use_relocation"] else disk_origin
 	if reason != PlacementRules.REASON_OK:
-		# this is the burn path (placement rule 2 below)
-		# early return above) -- the last cursor MatchNet stored for a remote
-		# slot is finite-but-arbitrary (spec 2.6: "The host checks every intent
-		# before acting on it"; is_pose_well_formed() above only refuses
-		# non-finite poses, not far-off-disk ones). Left unclamped, a block
-		# spawns and is thrown from that raw point, lands outside Field's kill
-		# plane, and free-falls forever: a leaked RigidBody3D plus permanent
-		# snapshot traffic for it (Field.gd's _build_kill_plane, not owned
-		# here, sizes the box at map_def.field_radius *
-		# Field.KILL_PLANE_RADIUS_FACTOR).
+		# Burn path: the last cursor MatchNet stored for a remote slot is finite but arbitrary
+		# (is_pose_well_formed() only refuses non-finite poses). Left unclamped, a block would spawn
+		# and be thrown from that raw point, land outside Field's kill plane and free-fall forever:
+		# a leaked RigidBody3D plus permanent snapshot traffic. Field sizes the box at
+		# map_def.field_radius * Field.KILL_PLANE_RADIUS_FACTOR.
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
-	# + updated item 3: `origin`
-	# is the shape's bottom-centre pivot (GhostPreview/BlockFactory both pivot
-	# there now, rotated-shape corrected -- see GhostPreview's own DECISION)
-	# and the point test above works on that same x/z, so final_disk_origin
-	# already is the frame the spawned body's origin needs -- no cell-
-	# (0, 0, 0) offset and no height correction to add back here.
+	# `origin` is the shape's bottom-centre pivot (GhostPreview/BlockFactory both pivot there,
+	# rotated-shape corrected; see GhostPreview's DECISION) and the point test above works on that
+	# same x/z, so final_disk_origin already is the frame the spawned body's origin needs -- no
+	# cell-(0, 0, 0) offset and no height correction to add back.
 	var final_world_origin: Vector3 = _match._field.to_global(Vector3(
 		final_disk_origin.x, local_origin.y, final_disk_origin.y
 	))
@@ -297,9 +240,9 @@ func request_place(
 			elif _match.config.turn_based:
 				_match._lifecycle.begin_turn_settle_wait()
 			return PlacementRules.REASON_OK
-		# round 3: host-side spawn validation (see _lift_pose_clear()).
-		# a sky-drop gift (Anvil) spawns high above the validated point and
-		# falls; there is nothing up there to clear, so the lift search is skipped for it.
+		# Host-side spawn validation (see _lift_pose_clear()). A sky-drop gift (Anvil) spawns high
+		# above the validated point and falls; there is nothing up there to clear, so the lift
+		# search is skipped for it.
 		var sky_height_m: float = in_place_def.sky_drop_height_m if in_place_def != null else 0.0
 		var sky_origin: Variant = _sky_spawn_origin(shape, final_world_origin, basis, in_place_def) if sky_height_m > 0.0 else null
 		if sky_origin != null:
@@ -314,26 +257,16 @@ func request_place(
 	var gift_id: StringName = _held_deliverable_gift(slot_id) if reason == PlacementRules.REASON_OK else &""
 	var spawned: Block = _spawn_block(shape, final_world_origin, basis, slot_id, true, gift_id)
 	if reason != PlacementRules.REASON_OK:
-		#  ("Invalid release
-		# narrowed by to auto-drop only (see above): a forced
-		# release that finds no valid point to relocate to still spawns the
-		# block and throws it off the map; it is still consumed either way.
+		# Burn: only an auto-drop reaches here (a manual refusal returned above). It found no valid
+		# point to relocate to, so it still spawns the block, throws it off the map and consumes it.
 		#
-		# DECISION (autoload/match/MatchPlacement.gd review
-		# fix, spec 1.4's OPEN "how expiry handles a held special"): a burn
-		# must NOT pop/attach the pending special -- _attach_pending_special()
-		# is deliberately not called on this path, so an unlucky forced
-		# auto-drop that finds nowhere valid to land never destroys a queued
-		# special; it stays queued for the slot's next spawn instead.
+		# DECISION: a burn must NOT pop/attach the pending special -- _attach_pending_special() is
+		# deliberately not called on this path, so a forced auto-drop with nowhere valid to land
+		# never destroys a queued special; it stays queued for the slot's next spawn.
 		#
-		# PlacementRules.closest_valid_point() now falls back
-		# to a full-disk scan (see its own doc comment), so this line is only
-		# reachable when slot_id's team genuinely owns no valid point
-		# anywhere -- home flag down and every stack lost, not merely far
-		# from the ghost. That should be rare enough in a live match that a
-		# distinct warning, rather than silence, is worth its noise: a future
-		# run that hits this a lot again points straight back here instead of
-		# reading as an ordinary relocation.
+		# closest_valid_point() falls back to a full-disk scan, so this is reachable only when the
+		# slot's team owns no valid point anywhere (home flag down and every stack lost). That is
+		# rare, so a distinct warning is worth its noise.
 		push_warning(
 			"MatchPlacement: auto-drop burn for slot %d -- no valid point anywhere on the disk (%s)"
 			% [slot_id, reason]
@@ -376,23 +309,15 @@ func request_place(
 	return reason
 
 
-## Spec 1.6's throw: releases a pending special with velocity instead of
-## dropping it in place (spec 1.6: "Throw strength scales with drag distance,
-## capped at throw_max_speed = 25 m/s"; spec 2.6: "request_throw(slot_id,
-## pos, orient, velocity): the host clamps velocity to throw_max_speed").
-## Mirrors request_place() guard-for-guard (the spawn rules:
-## "check-for-check identical") through the pose-well-formed gate, then
-## diverges: a throw only ever fires a pending special (REASON_NOT_A_SPECIAL
-## otherwise, checked before the raycast -- there is nothing to test a point
-## for without one), a refused throw is never burned -- the piece stays held
-## exactly like a refused manual placement ('s own contract,
-## see that function's doc comment) -- and the release velocity is always
-## clamped rather than ever being a refusal reason.
+## Spec 1.6's throw: releases a pending special with velocity instead of dropping it in place (spec
+## 2.6: the host clamps velocity to throw_max_speed). Mirrors request_place() guard-for-guard
+## through the pose-well-formed gate, then diverges: a throw only ever fires a pending special
+## (REASON_NOT_A_SPECIAL otherwise, checked before the raycast), a refused throw is never burned --
+## the piece stays held exactly like a refused manual placement -- and the release velocity is
+## always clamped rather than ever being a refusal reason.
 ##
-## `velocity` is world-space, the throw gesture's own launch vector (P2d
-## builds it from drag distance/direction, capped again on that side too --
-## this clamp is the authoritative one). `feed_seq`/the -1 sentinel are
-## exactly request_place()'s own contract.
+## `velocity` carries the unit camera forward (see the aim DECISION below); the host derives the
+## launch velocity from it. `feed_seq`/the -1 sentinel are exactly request_place()'s own contract.
 func request_throw(
 	slot_id: int,
 	origin: Vector3,
@@ -406,17 +331,12 @@ func request_throw(
 		return refusal
 	var acting_slot: PlayerSlot = _match.slot(slot_id)
 	var shape: BlockShape = _match.held_shape(slot_id)
-	# DECISION (M4 P2c): the release lock is unconditional for a throw (_intent_gate's
+	# DECISION: the release lock is unconditional for a throw (_intent_gate's
 	# THROW kind); a throw has no auto_drop equivalent.
 	if not is_pose_well_formed(origin, orientation_index, free_quat) or not velocity.is_finite():
 		return PlacementRules.REASON_NO_BLOCK
 	if _match.held_special(slot_id) == &"":
 		return ThrowRules.REASON_NOT_A_SPECIAL
-	# Only Bomb/Magnet/Jumping Bean
-	# fixed trajectory) and Rocket/Paintball take an aimed launch direction; every other gift
-	# refuses a throw (nothing burned, the piece stays held). The client's `velocity` is never
-	# used as a launch velocity: THROW keeps only its horizontal heading, AIMED treats it as the
-	# camera forward and validates it.
 	# DECISION: the camera forward rides the unchanged throw RPC's
 	# `velocity` slot (no new RPC, no replicated camera pose exists to read instead); the host
 	# validates length/finiteness and drops the upward part in RocketEffect.
@@ -424,16 +344,16 @@ func request_throw(
 	var throw_mode: GiftThrow.Mode = GiftThrow.mode_for(held_def)
 	if throw_mode == GiftThrow.Mode.NONE and held_def != null:
 		return ThrowRules.REASON_NOT_A_SPECIAL
-	# DECISION: every gift release is camera-aimed now. The unit camera
-	# forward is the ONLY thing read from the client's `velocity` slot (finite, length band,
-	# 85.21 refusals without consuming); the host derives launch velocity and spawn point from
-	# it and SpecialTuning alone (GiftAim), so a client-supplied speed is never trusted.
+	# DECISION: every gift release is camera-aimed. The unit camera forward is the ONLY thing read
+	# from the client's `velocity` slot (finite, length band; otherwise refused without consuming);
+	# the host derives launch velocity and spawn point from it and SpecialTuning alone (GiftAim), so
+	# a client-supplied speed is never trusted.
 	var aim_direction: Vector3 = GiftThrow.sanitize_aim(velocity, _special_tuning)
 	if aim_direction == Vector3.ZERO:
 		return PlacementRules.REASON_NO_BLOCK
 	var launch_velocity: Vector3 = Vector3.ZERO
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
-		# An unresolved def (spawns as a plain block) takes the same ballistic throw (85.21).
+		# An unresolved def (spawns as a plain block) takes the same ballistic throw.
 		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning, _throw_range_scale())
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
@@ -464,39 +384,31 @@ func request_throw(
 	else:
 		disk_origin = hit as Vector2
 		result = ThrowRules.validate_release_point(disk_origin, _match.raster(), team_id)
-		# DECISION (autoload/match/MatchPlacement.gd, sandbox rule
-		# B1): the throw-path twin of request_place()'s own sandbox remap
-		# above -- same waived outcomes, same reasoning.
-		# DECISION: gifts may be
-		# "dropped anywhere", so a host-held gift (always true here, see the
-		# NOT_A_SPECIAL guard above) waives territory on the throw path too.
+		# DECISION (sandbox rule): the throw-path twin of request_place()'s sandbox waiver, same
+		# waived outcomes. Gifts may also be "dropped anywhere", so a host-held gift (always true
+		# here, see the NOT_A_SPECIAL guard above) waives territory on the throw path too.
 		result = _apply_territory_waiver(slot_id, result)
 	if result != PlacementRules.Result.VALID:
-		# "a refused throw keeps the piece in
-		# hand, like a refused click; never burns" -- mirrors request_place()'s
-		# manual-refusal path: nothing spawns, nothing is
-		# consumed, and the caller may simply try again.
+		# A refused throw keeps the piece in hand, like a refused click, and never burns: nothing
+		# spawns or is consumed, and the caller may simply try again.
 		var reason: StringName = ThrowRules.reason_for(result)
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	# a: the map-size range scaling applies to the ballistic THROW only; an
-	# AIMED launch (Rocket/Paintball) keeps the plain throw_max_speed clamp.
+	# The map-size range scaling applies to the ballistic THROW only; an AIMED launch
+	# (Rocket/Paintball) keeps the plain throw_max_speed clamp.
 	var speed_cap: float = _special_tuning.throw_max_speed
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
 		speed_cap *= GiftAim.speed_factor(_throw_range_scale())
 	var clamped_velocity: Vector3 = launch_velocity.limit_length(speed_cap)
 	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
-	# round 3: the throw spawns at the client-sent pose too, so
-	# it gets the same host overlap validation (a manual intent: refused, the
-	# special stays in hand, when no lift clears it).
-	# the projectile spawns on the camera line (cursor point moved back along
-	# the aim, never below gift_aim_min_height_m over the surface); territory was validated at
-	# the cursor above.
+	# The throw spawns at the client-sent pose too, so it gets the same host overlap validation (a
+	# manual intent: refused, the special stays in hand, when no lift clears it). The projectile
+	# spawns on the camera line (cursor point moved back along the aim, never below
+	# gift_aim_min_height_m over the surface); territory was validated at the cursor above.
 	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
-	# Rocket/Magnet spawn already facing their flight line, so the first
-	# replicated pose is never upright.
-	# the overlap/lift check tests that same faced basis (null = upright).
+	# Rocket/Magnet spawn already facing their flight line, so the first replicated pose is never
+	# upright. The overlap/lift check tests that same faced basis (null = upright).
 	var faced: Variant = launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
 	var overlap_basis: Basis = faced as Basis if faced != null else basis
 	if faced != null and throw_mode == GiftThrow.Mode.AIMED and gift_id != &"":
@@ -509,20 +421,13 @@ func request_throw(
 	world_origin = lifted as Vector3
 	var spawned: Block = _spawn_block(shape, world_origin, basis, slot_id, true, gift_id, faced)
 	spawned.linear_velocity = clamped_velocity
-	# DECISION (autoload/match/MatchPlacement.gd, M4 P2c): spec 2.7 names
-	# "thrown specials" as their own continuous_cd case in the same sentence
-	# as "any body moving faster than 15 m/s", but as a case of its own, not
-	# conditioned on that speed -- request_throw() only ever reaches this line
-	# for a pending special (REASON_NOT_A_SPECIAL above refuses every other
-	# call), so every thrown body qualifies unconditionally; no second
-	# threshold tunable is read or needed here.
+	# DECISION: spec 2.7 names "thrown specials" as their own continuous_cd case, not conditioned on
+	# the 15 m/s speed. request_throw() only reaches this line for a pending special, so every
+	# thrown body qualifies unconditionally; no second threshold tunable is needed.
 	spawned.continuous_cd = true
-	# DECISION (autoload/match/MatchPlacement.gd review fix):
-	# a throw is never a burn -- every earlier return above already refused
-	# anything that would not land -- so this is always the one call that
-	# pops/attaches the pending special this throw is spending (see
-	# request_place()'s matching call, which is conditional, for why this one
-	# is not).
+	# DECISION: a throw is never a burn -- every earlier return refused anything that would not land
+	# -- so this is always the one call that pops/attaches the pending special (request_place()'s
+	# matching call is conditional).
 	_attach_pending_special(spawned, slot_id)
 	if throw_mode == GiftThrow.Mode.AIMED:
 		_apply_aim_direction(spawned, held_def, aim_direction)
@@ -587,17 +492,12 @@ func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> 
 		PaintballEffect.set_launch_direction(block, direction)
 
 
-## Spawn entry point (prerequisite for
-## Volcano): the entry point a special's own SpecialEffect uses to spawn a
-## brand-new projectile at runtime -- e.g. Volcano's lava orbs -- rather than
-## through a player's own placement/throw gesture. Host-only, using
-## request_place()'s own authority guard: returns null and spawns nothing
-## off-host. Not a player intent, so unlike request_place()/request_throw()
-## this consumes no feed slot and runs no PlacementRules/ThrowRules point
-## check -- the caller (an effect's physics_tick(), which SpecialBehavior
-## only ever runs host-side, see game/gifts/specials/SpecialBehavior.gd) already
-## decided the exact world pose and velocity to spawn at.
-##
+## Spawn entry point for a special's own SpecialEffect to create a brand-new projectile at runtime
+## (e.g. Volcano's lava orbs), outside a player's placement/throw gesture. Host-only through the
+## shared intent gate: returns null and spawns nothing off-host. Not a player intent, so it consumes
+## no feed slot and runs no PlacementRules/ThrowRules point check -- the caller (an effect's
+## physics_tick(), which SpecialBehavior only runs host-side) already decided the exact world pose
+## and velocity.
 ## Follows _spawn_block()'s exact pipeline (BlockFactory.build ->
 ## _blocks_parent.add_child -> Events.block_placed [allocates net_id] ->
 ## replicate_spawn), then binds and arms a SpecialBehavior from
@@ -610,12 +510,9 @@ func _apply_aim_direction(block: Block, def: SpecialDef, direction: Vector3) -> 
 ## number, so continuous_cd is armed whenever this spawn's own speed clears
 ## it, independent of which special is spawning.
 ##
-## DECISION (autoload/match/MatchPlacement.gd, M4 P4-SPAWN): also guards on
-## the same state()/_field/_blocks_parent null checks request_place() opens
-## with, even though the brief names only the authority guard -- without them
-## a call arriving mid-teardown (e.g. an effect's physics_tick() still queued
-## the instant a match aborts) would crash inside _spawn_block() instead of
-## returning null the way every other guard here does.
+## DECISION: guards with the same state/_field/_blocks_parent null checks as request_place() (via
+## _intent_gate), not only authority: a call arriving mid-teardown (an effect's physics_tick() still
+## queued as a match aborts) would otherwise crash inside _spawn_block() instead of returning null.
 func spawn_special_projectile(
 	shape: BlockShape,
 	world_origin: Vector3,
@@ -630,14 +527,12 @@ func spawn_special_projectile(
 	if shape == null:
 		return null
 
-	# is_player_placement = false (review fix): an effect's own
-	# projectile spawn (e.g. Volcano's 8-14 lava orbs) must not inflate
-	# `owner_slot`'s blocks_placed stat.
+	# is_player_placement = false: an effect's own projectile spawn (e.g. Volcano's 8-14 lava orbs)
+	# must not inflate `owner_slot`'s blocks_placed stat.
 	var spawned: Block = _spawn_block(shape, world_origin, basis, owner_slot, false)
-	# DECISION (autoload/match/MatchPlacement.gd review): a null
-	# orb_tuning falls back to the match's preloaded _special_tuning, the same
-	# resource _attach_pending_special() uses, instead of crashing the host on
-	# the ccd read below when a .tres leaves its tuning export unset.
+	# DECISION: a null orb_tuning falls back to the match's preloaded _special_tuning, the same
+	# resource _attach_pending_special() uses, instead of crashing the host on the ccd read below
+	# when a .tres leaves its tuning export unset.
 	var effective_tuning: SpecialTuning = orb_tuning if orb_tuning != null else _special_tuning
 	if orb_def != null:
 		_arm_special_behavior(spawned, orb_def, effective_tuning)
@@ -674,8 +569,7 @@ func _sky_spawn_origin(shape: BlockShape, origin: Vector3, basis: Basis, def: Sp
 	return sky_origin
 
 
-## round 3 (dropped blocks get shoved): the
-## client lifts its ghost clear of placed blocks as a prediction, but a late
+## The client lifts its ghost clear of placed blocks as a prediction, but a late
 ## replication, a rotation or a hostile client can still send a pose that
 ## interpenetrates a placed block, and Jolt then ejects the older body. The
 ## host never trusts the pose: it tests the block's collision boxes at that
@@ -774,20 +668,16 @@ func is_pose_well_formed(origin: Vector3, orientation_index: int, free_quat: Qua
 	return BlockOrientations.is_valid_index(orientation_index)
 
 
-## Pure decision step factored out of request_place() so it can be unit-tested
-## against manufactured PlacementRules.Result / relocation values without a
-## working territory solve ("use fakes/stubs
-## for territory results — the P1 stubs exist and compile"). `initial_result`
-## is what validate() said about the desired spot; `relocated` is what
-## closest_valid_point() found (or PlacementRules.NO_ORIGIN), already
-## computed by the caller since that search itself needs a real raster.
+## Pure decision step factored out of request_place() so it can be unit-tested against manufactured
+## PlacementRules.Result / relocation values without a working territory solve. `initial_result` is
+## what validate_point() said about the desired spot; `relocated` is what closest_valid_point()
+## found (or PlacementRules.NO_ORIGIN), computed by the caller since that search needs a real
+## raster.
 ##
-## Returns {"reason": StringName, "use_relocation": bool}: the reason
-## request_place() should return, and whether the block should land at
-## `relocated` (true) or stay at the original spot and be thrown off the map
-## (false, with reason != REASON_OK) — spec 1.5's "burn the block" rule
-## Placement rule 2: any release on an invalid spot burns
-## the block; auto-drop gets one relocation attempt first.
+## Returns {"reason": StringName, "use_relocation": bool}: the reason request_place() should return,
+## and whether the block should land at `relocated` (true) or stay at the original spot and be
+## thrown off the map (false, with reason != REASON_OK) -- spec 1.5's burn rule: any release on an
+## invalid spot burns the block; auto-drop gets one relocation attempt first.
 func _resolve_outcome(
 	initial_result: PlacementRules.Result, auto_drop: bool, relocated: Vector2
 ) -> Dictionary:
@@ -839,9 +729,8 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	)
 	if (_match.config.sandbox or _match.held_special(slot_id) != &"") and territory:
 		return PlacementRules.Result.VALID
-	# [OWNER decision]: a held gift may be used above a hole or a
-	# goal zone. DECISION: only the gift waives these (a plain block and the sandbox keep
-	# refusing them); OFF_DISK still refuses.
+	# DECISION: a held gift may be used above a hole or a goal zone; only the gift waives these (a
+	# plain block and the sandbox keep refusing them); OFF_DISK still refuses.
 	if _match.held_special(slot_id) != &"" and (
 		result == PlacementRules.Result.HOLE or result == PlacementRules.Result.GOAL_ZONE
 	):
@@ -849,7 +738,7 @@ func _apply_territory_waiver(slot_id: int, result: PlacementRules.Result) -> Pla
 	return result
 
 
-## [OWNER decision]: over an open hole cell the down-ray finds no
+## Over an open hole cell the down-ray finds no
 ## floor (null). A held gift whose flat disk projection is still inside the disk is then usable
 ## there (it spawns at the sent pose and falls normally); anything else stays OFF_DISK.
 ## DECISION: a hole under the gift is not a rim overhang, so it must not read as OFF_DISK.
@@ -894,24 +783,16 @@ func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
 	return Basis.IDENTITY if gift_id != &"" else requested
 
 
-## `slot_id`'s own colour tints every mesh of the block it
-## places.
+## `slot_id`'s own colour tints every mesh of the block it places.
 ##
-## DECISION (autoload/Match.gd): the slot's own PlayerSlot.color, not a
-## separate per-team colour. MatchConfig.team_of_slot() is the identity
-## function today (TeamMode beyond OFF is not implemented yet -- every slot is
-## still its own team; see MatchConfig.team_count()'s own comment), so
-## PlayerSlot.color, set from config.player_colors[slot_id] in _build_slots(),
-## already *is* that slot's team colour. If team colours are ever
-## disambiguated from per-slot colours, this is the one line that needs to
-## change to a team-colour lookup instead.
-## review fix: `is_player_placement` (default true, so
-## request_place()/request_throw()'s own call sites below need no change)
-## distinguishes a genuine player placement/auto-drop from
-## spawn_special_projectile()'s own effect spawns -- that function's own call
-## site is the only one that ever passes false. See MatchStats.gd's header
-## comment for why blocks_placed cannot simply listen on Events.block_placed
-## the way every other counter listens on its own Events signal.
+## DECISION: the slot's own PlayerSlot.color, not a separate per-team colour.
+## MatchConfig.team_of_slot() is the identity function today (every slot is its own team), so
+## PlayerSlot.color already is that slot's team colour. If team colours are ever disambiguated from
+## per-slot colours, this is the one line to change.
+##
+## `is_player_placement` (default true) distinguishes a genuine player placement/auto-drop from
+## spawn_special_projectile()'s effect spawns, the only caller passing false. See MatchStats.gd's
+## header comment for why blocks_placed cannot simply listen on Events.block_placed.
 func _spawn_block(
 	shape: BlockShape,
 	world_origin: Vector3,
@@ -944,39 +825,25 @@ func _spawn_block(
 		_match._stats.record_block_placed(slot_id)
 	if _match._replicator != null:
 		_match._replicator.replicate_spawn(block, block.net_id)
-	# M4 P2c: unlike every earlier revision of this file, _spawn_block() does
-	# NOT itself pop/attach a pending special -- see _attach_pending_special()'s
-	# own doc comment (DECISION review fix): a burned block
-	# must not consume the queue, and only the caller (request_place()/
-	# request_throw()) knows at this point whether the spawn it just asked for
-	# is going to be burned. Each call site calls _attach_pending_special()
-	# itself, only on a path that is never a burn.
+	# _spawn_block() does NOT itself pop/attach a pending special (see _attach_pending_special()'s DECISION): a
+	# burned block must not consume the queue, and only the caller knows whether the spawn it asked
+	# for will be burned.
 	return block
 
 
-## The special
-## TYPE was already drawn at claim time by MatchGifts' own weighted drawer
-## (autoload/match/MatchGifts.gd's set_special_drawer()/_ensure_special_
-## drawer_installed()) -- this only pops the head id `slot_id`'s queue was
-## holding and, if it resolves to a real, roster-enabled SpecialDef, attaches
-## a bound SpecialBehavior. Called explicitly by request_place() (only on its
-## non-burn path) and request_throw() (always -- a throw is never a burn), a
-## placed special arms too, exactly like a thrown one, only the launch
-## velocity differs.
+## Pops the head id `slot_id`'s queue was holding (the special TYPE was already drawn at claim time
+## by MatchGifts' weighted drawer) and, if it resolves to a real, roster-enabled SpecialDef,
+## attaches a bound SpecialBehavior. Called explicitly by request_place() (only on its non-burn
+## path) and request_throw() (always -- a throw is never a burn); a placed special arms exactly like
+## a thrown one, only the launch velocity differs.
 ##
-## DECISION (autoload/match/MatchPlacement.gd review fix,
-## spec 1.4's OPEN "how expiry handles a held special"): this is
-## deliberately NOT called from _spawn_block() itself any more -- popping the
-## queue there ran unconditionally, before the caller knew whether the block
-## it just spawned was about to be burned (a forced auto-drop with nowhere
-## valid to land), so an unlucky expiry could destroy a player's queued
-## special for nothing. Each call site now decides for itself, only on a
-## path that actually keeps the block.
+## DECISION: deliberately NOT called from _spawn_block(): popping there ran before the caller knew
+## whether the block was about to be burned (a forced auto-drop with nowhere valid to land), so an
+## unlucky expiry could destroy a queued special for nothing. Each call site decides for itself,
+## only on a path that keeps the block.
 ##
-## Both call sites are host-only (request_place()/request_throw() both
-## refuse immediately off-host), so every attach and every
-## Events.special_triggered forward this produces happens on the host only
-## (spawn path).
+## Both call sites are host-only, so every attach and every Events.special_triggered forward this
+## produces happens on the host only.
 func _attach_pending_special(block: Block, slot_id: int) -> void:
 	var special_id: StringName = _match.pop_pending_special(slot_id)
 	if special_id == &"":
@@ -1014,9 +881,8 @@ func _held_deliverable_gift(slot_id: int) -> StringName:
 
 func _resolve_deliverable_special(special_id: StringName) -> SpecialDef:
 	if special_id == MatchGifts.PENDING_SPECIAL_ID:
-		# The default drawer's placeholder -- MatchGifts has not installed its
-		# real weighted drawer yet (an empty config/gifts/specials/ roster; P3-P5 not
-		# landed). Safe default: spawn exactly as an ordinary block.
+		# The default drawer's placeholder: MatchGifts has not installed its real weighted drawer
+		# (empty roster). Safe default: spawn exactly as an ordinary block.
 		_warn_unresolved_special_once(special_id, "no roster installed yet")
 		return null
 	var def: SpecialDef = _special_def_for_id(special_id)
@@ -1030,11 +896,9 @@ func _resolve_deliverable_special(special_id: StringName) -> SpecialDef:
 	return def
 
 
-## M4 P4-SPAWN: the actual bind+arm mechanics _attach_pending_special() above
-## uses for a gift-drawn special, factored out so spawn_special_projectile()
-## below can bind a runtime-built SpecialDef/SpecialTuning pair (e.g. a
-## Volcano lava orb) the same way without duplicating these four lines or
-## changing _attach_pending_special()'s own behaviour.
+## The bind+arm mechanics _attach_pending_special() uses for a gift-drawn special, factored out so
+## spawn_special_projectile() can bind a runtime-built SpecialDef/SpecialTuning pair (e.g. a Volcano
+## lava orb) the same way without duplicating these four lines.
 func _arm_special_behavior(block: Block, def: SpecialDef, tuning: SpecialTuning) -> SpecialBehavior:
 	var behavior: SpecialBehavior = SpecialBehavior.new()
 	block.add_child(behavior)
@@ -1043,12 +907,9 @@ func _arm_special_behavior(block: Block, def: SpecialDef, tuning: SpecialTuning)
 	return behavior
 
 
-## Forwards SpecialBehavior's own `triggered` signal (game/gifts/specials/
-## SpecialBehavior.gd, not touched by this package -- orchestrator amendment
-## 2) into Events.special_triggered, appended to autoload/Events.gd by this
-## package. `net_id` is bound at connect time in _attach_pending_special()
-## rather than read from `block` here, so a freed block between trigger and
-## forward can never matter.
+## Forwards SpecialBehavior's `triggered` signal into Events.special_triggered. `net_id` is bound at
+## connect time in _arm_special_behavior() rather than read from `block` here, so a freed block
+## between trigger and forward can never matter.
 func _on_special_behavior_triggered(def_id: StringName, position: Vector3, chain_depth: int, net_id: int) -> void:
 	Events.special_triggered.emit(net_id, def_id, position, chain_depth)
 
@@ -1072,21 +933,15 @@ func _warn_unresolved_special_once(special_id: StringName, why: String) -> void:
 	push_warning("MatchPlacement: spawning %s as an ordinary block (%s)" % [special_id, why])
 
 
-## Keeps a burn's disk-local spawn point (x/z only, in Field's local space)
-## inside Field's kill plane, so a body that gets thrown off never free-falls
-## past it. Preserves direction and only shortens the
-## vector, so an on-disk or near-disk burn (the overwhelming common case) is
-## returned unchanged -- this only ever fires for the far-off-disk case a
-## hostile or buggy client can still produce.
+## Keeps a burn's disk-local spawn point (x/z only, in Field's local space) inside Field's kill
+## plane, so a body that gets thrown off never free-falls past it. Preserves direction and only
+## shortens the vector, so an on-disk or near-disk burn (the overwhelming common case) is returned
+## unchanged -- this only fires for the far-off-disk case a hostile or buggy client can still
+## produce.
 ##
-## DECISION (autoload/Match.gd): the safe radius is derived from Field's own
-## KILL_PLANE_RADIUS_FACTOR constant (the one _build_kill_plane() already
-## uses to size the box) times this match's own map_def.field_radius, rather
-## than a new literal or MapDef tunable here, so Match's clamp and Field's
-## box can never drift apart. Field.gd is not owned by this package; if that
-## constant ever needs to become a per-map tunable, MapDef is the right home
-## for it and both Field._build_kill_plane() and this function should read
-## it from there instead (follow-up, not done here).
+## DECISION: the safe radius is derived from Field's KILL_PLANE_RADIUS_FACTOR (the one
+## _build_kill_plane() uses to size the box) times this match's map_def.field_radius, rather than a
+## new literal here, so the clamp and the box can never drift apart.
 func _clamp_disk_origin_for_burn(disk_origin: Vector2) -> Vector2:
 	if _match._field == null or _match._field.map_def == null:
 		return disk_origin
@@ -1096,13 +951,11 @@ func _clamp_disk_origin_for_burn(disk_origin: Vector2) -> Vector2:
 	return disk_origin.limit_length(half_extent)
 
 
-## Spec 1.5: a rejected block "is thrown off the map with a visible reject
-## animation". request_place() now
-## only reaches this for auto_drop == true (a forced release with no valid
-## relocation point) -- a manual release is refused before a block is ever
-## spawned. Impulse points radially outward from the disk center, blended
-## with an upward component (TerritoryTuning.reject_impulse /
-## reject_upward_fraction) so it visibly launches rather than just sliding.
+## Spec 1.5: a rejected block "is thrown off the map with a visible reject animation". Only an
+## auto_drop (a forced release with no valid relocation point) reaches this; a manual release is
+## refused before a block is spawned. The impulse points radially outward from the disk center,
+## blended with an upward component (TerritoryTuning.reject_impulse / reject_upward_fraction) so it
+## visibly launches rather than just sliding.
 func _burn_block(block: Block, disk_origin: Vector2) -> void:
 	if block == null:
 		return
@@ -1133,8 +986,8 @@ func default_ghost_origin(slot_id: int) -> Vector3:
 
 func _clear_blocks() -> void:
 	_aim_by_slot.clear()
-	# review: in-place activation anchors (Earthquake etc.) are not
-	# under _blocks_parent; free them on every reset/abort too, not only via the lifetime backstop.
+	# In-place activation anchors (Earthquake etc.) are not under _blocks_parent; free them on every
+	# reset/abort too, not only via the lifetime backstop.
 	_activation.clear()
 	if _match._blocks_parent == null:
 		return
