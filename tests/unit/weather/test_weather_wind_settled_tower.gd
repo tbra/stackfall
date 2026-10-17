@@ -104,7 +104,7 @@ func _gust_sway(tower: Array[Block], seed_value: int, strength: float, stop_abov
 	tuning.duration_max_s = STRONG_GUST_DURATION_S
 	var effect: BreezeEffect = BreezeEffect.new()
 	effect.tuning = tuning
-	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _surface)
+	effect.bind(WeatherTestHost.wind_context(self, func() -> Array: return _registry.all_blocks(), _surface))
 	effect.begin(seed_value)
 	var center: Vector3 = tower[0].global_position
 	var angle: float = float(seed_value) * 1.1
@@ -155,11 +155,10 @@ func _wind_tuning(max_wakes: int) -> StormTuning:
 
 func _wind_effect(tuning: StormTuning) -> StormEffect:
 	var effect: StormEffect = StormEffect.new()
-	var context: FakeMatchContext = FakeMatchContext.new()
+	var context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return _registry.all_blocks(), _raised_surface)
 	context.has_weather_value = true
 	context.weather_seed_value = 11
 	effect.bind(context, tuning)
-	effect.set_test_world(func() -> Array: return _registry.all_blocks(), _raised_surface)
 	return effect
 
 

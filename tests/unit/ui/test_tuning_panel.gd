@@ -267,7 +267,7 @@ func _fake_weather(host: bool) -> MatchWeather:
 		def.display_name = String(id).capitalize()
 		defs.append(def)
 	w.set_defs(defs)
-	w.set_host_override(host)
+	WeatherTestHost.bind_host(self, w, host)
 	return w
 
 

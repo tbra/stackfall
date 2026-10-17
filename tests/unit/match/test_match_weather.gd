@@ -29,7 +29,6 @@ func after_each() -> void:
 	Match.weather().set_effect_factory(Callable())
 	Match.weather().set_defs(WeatherTuning.load_all())
 	Match.weather().set_schedule_tuning(load("res://config/weather/weather_schedule.tres") as WeatherScheduleTuning)
-	Match.weather().set_host_override(null)
 	Match.set_process(true)
 
 
@@ -68,7 +67,7 @@ func _make(defs: Array[WeatherTuning], schedule: WeatherScheduleTuning, host: bo
 	var w: MatchWeather = MatchWeather.new()
 	w.set_defs(defs)
 	w.set_schedule_tuning(schedule)
-	w.set_host_override(host)
+	WeatherTestHost.bind_host(self, w, host)
 	return w
 
 

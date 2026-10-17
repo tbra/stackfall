@@ -81,13 +81,12 @@ func test_storm_leaves_fused_body_and_members_untouched_but_pushes_a_loose_block
 	var carrier: FusedBody = _group()
 	var loose: Block = _block(0, Vector3(0.0, 0.0, MEMBER_GAP_M * 2.0))
 	var effect: StormEffect = StormEffect.new()
-	var context: FakeMatchContext = FakeMatchContext.new()
+	var listed: Array[Block] = [carrier, loose]
+	listed.append_array(carrier.members)
+	var context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return listed, func() -> float: return HIGH_SURFACE_Y_M)
 	context.has_weather_value = true
 	context.weather_seed_value = 1
 	effect.bind(context, load("res://config/weather/storm.tres") as StormTuning)
-	var listed: Array[Block] = [carrier, loose]
-	listed.append_array(carrier.members)
-	effect.set_test_world(func() -> Array: return listed, func() -> float: return HIGH_SURFACE_Y_M)
 	for _i: int in range(WIND_TICKS):
 		effect.tick(DELTA, 1.0)
 		await wait_physics_frames(1)

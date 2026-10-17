@@ -61,7 +61,7 @@ func before_each() -> void:
 	add_child_autofree(_field)
 	_registry = BlockRegistry.new()
 	_weather = MatchWeather.new()
-	_weather.set_host_override(false)
+	WeatherTestHost.bind_host(self, _weather, false)
 	var defs: Array[WeatherTuning] = [_snow]
 	_weather.set_defs(defs)
 	_net = SnowFakeNet.new()

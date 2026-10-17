@@ -62,7 +62,7 @@ func _weather(host: bool) -> MatchWeather:
 	s.gap_min_s = 5.0
 	s.gap_max_s = 5.0
 	w.set_schedule_tuning(s)
-	w.set_host_override(host)
+	WeatherTestHost.bind_host(self, w, host)
 	return w
 
 

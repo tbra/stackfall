@@ -130,7 +130,7 @@ func test_the_disc_applies_the_same_distance_fog_and_restores() -> void:
 func test_fog_replicates_like_any_weather_and_needs_no_host_effect() -> void:
 	var w: MatchWeather = MatchWeather.new()
 	w.set_defs([_fog])
-	w.set_host_override(true)
+	WeatherTestHost.bind_host(self, w, true)
 	assert_true(w.start_event(&"fog"))
 	assert_eq(w.active_id(), &"fog")
 	w.reset()

@@ -51,7 +51,7 @@ func after_each() -> void:
 	weather.reset()
 	weather.set_effect_factory(Callable())
 	weather.set_defs(WeatherTuning.load_all())
-	weather.set_host_override(null)
+	Match._net_provider = null
 	Match.set_process(true)
 	await get_tree().process_frame
 
@@ -75,7 +75,7 @@ func _block(pos: Vector3) -> Block:
 func _effect(tuning: BreezeTuning = null) -> BreezeEffect:
 	var effect: BreezeEffect = BreezeEffect.new()
 	effect.tuning = tuning if tuning != null else _tuning
-	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
+	effect.bind(WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0))
 	effect.set_weather_source(func() -> StringName: return _weather_id)
 	return effect
 
@@ -144,15 +144,14 @@ func test_a_gust_in_flight_when_the_storm_starts_finishes_and_no_new_one_follows
 func test_breeze_reads_the_host_weather_state_through_match() -> void:
 	var weather: MatchWeather = Match.weather()
 	Match.set_process(false)
-	weather.set_host_override(true)
+	Match._net_provider = FakeNet.host()
 	weather.set_defs(WeatherTuning.load_all())
 	weather.set_effect_factory(func(_def: WeatherTuning) -> WeatherEffect: return null)
 	_block(Vector3(0.0, HIGH_M, 0.0))
 	var effect: BreezeEffect = BreezeEffect.new()
 	effect.tuning = _tuning
-	effect.bind(MatchContext.current())
+	effect.bind(WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0))
 	effect.set_weather_source(weather.active_id)
-	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
 	effect.begin(SEED_A)
 	assert_false(effect.is_quieted_by_weather(), "clear before any weather")
 	assert_true(weather.start_event(STORM_ID))

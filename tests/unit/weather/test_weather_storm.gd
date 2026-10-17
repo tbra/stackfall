@@ -38,11 +38,10 @@ func after_each() -> void:
 
 func _effect(seed_value: int = SEED_A) -> StormEffect:
 	var effect: StormEffect = StormEffect.new()
-	var context: FakeMatchContext = FakeMatchContext.new()
+	var context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0)
 	context.has_weather_value = true
 	context.weather_seed_value = seed_value
 	effect.bind(context, _tuning)
-	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
 	return effect
 
 
@@ -138,13 +137,13 @@ func test_direction_is_drawn_per_event_and_replicated() -> void:
 	assert_eq(first, WindField.direction(WindField.event_seed(SEED_A, 1), 0.0, _tuning))
 	# The event index rides the wire: a client adopting host state gets the same seed inputs.
 	var host: MatchWeather = MatchWeather.new()
-	host.set_host_override(true)
+	WeatherTestHost.bind_host(self, host, true)
 	host.set_defs([_tuning] as Array[WeatherTuning])
 	assert_true(host.start_event(&"storm"))
 	var state: Dictionary = host.state_dict()
 	assert_eq(int(state["ev"]), 1)
 	var client: MatchWeather = MatchWeather.new()
-	client.set_host_override(false)
+	WeatherTestHost.bind_host(self, client, false)
 	client.set_defs([_tuning] as Array[WeatherTuning])
 	assert_true(client.apply_replicated_state(state, true))
 	assert_eq(client.event_index(), host.event_index())
@@ -201,12 +200,12 @@ func test_frozen_blocks_are_never_pushed() -> void:
 
 func test_clients_never_apply_physics() -> void:
 	var high: Block = _floating_block(_tuning.cap_height_m + 2.0)
-	# A client has no host authority: an effect with no host seam and no
-	# authoritative Match never pushes, even given blocks to push.
+	# A client has no host authority: an effect whose context has no
+	# authority never pushes, even given blocks to push.
 	var effect: StormEffect = StormEffect.new()
-	effect.tuning = _tuning
-	effect._blocks_source = func() -> Array: return _blocks
-	effect._surface_source = func() -> float: return 0.0
+	var context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0)
+	context.has_authority_value = false
+	effect.bind(context, _tuning)
 	effect.tick(DELTA, 1.0)
 	await get_tree().physics_frame
 	assert_eq(effect.last_pushed, 0)

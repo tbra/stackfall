@@ -1,8 +1,7 @@
 class_name WindEffect
 extends WeatherEffect
 ## Shared base of the two host-side wind effects, StormEffect
-## and BreezeEffect: the block/surface/host lookups with their
-## test seams, the per-tick push counters and the stable-freeze helpers both
+## and BreezeEffect: the block/surface/host lookups, the per-tick push counters and the stable-freeze helpers both
 ## use to push (and wake) blocks the same way.
 
 ## Six world axes probed by is_exposed().
@@ -13,18 +12,8 @@ var last_pushed: int = 0
 ## Stable-frozen blocks woken on the most recent tick (capped by tuning).
 var last_woken: int = 0
 
-## Test seams: replace the registry/field lookups and the host check.
-var _blocks_source: Callable = Callable()
-var _surface_source: Callable = Callable()
-var _force_host: bool = false
 ## Optional host check (MatchWeather passes its own for Breeze); unset = ask context.
 var _host_check: Callable = Callable()
-
-
-func set_test_world(blocks: Callable, surface_y: Callable) -> void:
-	_blocks_source = blocks
-	_surface_source = surface_y
-	_force_host = true
 
 
 ## True when StableBlockManager's auto-freeze (20 s asleep) holds `block`. A
@@ -78,18 +67,12 @@ static func _owns_physics(block: Block) -> bool:
 
 
 func _is_host() -> bool:
-	if _force_host:
-		return true
 	if _host_check.is_valid():
 		return bool(_host_check.call())
 	return context != null and context.has_authority()
 
 
 func _blocks() -> Array[Block]:
-	if _blocks_source.is_valid():
-		var listed: Array[Block] = []
-		listed.assign(_blocks_source.call() as Array)
-		return listed
 	var registry: BlockRegistry = context.registry() as BlockRegistry if context != null else null
 	if registry == null:
 		var none: Array[Block] = []
@@ -98,7 +81,5 @@ func _blocks() -> Array[Block]:
 
 
 func _surface_y() -> float:
-	if _surface_source.is_valid():
-		return float(_surface_source.call())
 	var field: Field = context.field() as Field if context != null else null
 	return field.surface_y() if field != null else 0.0
