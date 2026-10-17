@@ -1,14 +1,10 @@
 class_name MatchStats
 extends RefCounted
-## Match's per-slot statistics + the results-screen data/flow interface
-## (split from the results-screen UI worker
-## consumes this file's payload and Events.match_results_ready; it does not
-## own or edit this file).
+## Match's per-slot statistics plus the results-screen data/flow interface. The results screen
+## consumes this file's payload and Events.match_results_ready; it does not own this file.
 ##
-## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/
-## MatchLifecycle/MatchGifts are (file ownership over function ownership): a
-## RefCounted wired to autoload/Match.gd via
-## setup(self) in Match's own _ready().
+## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle/MatchGifts are: a
+## RefCounted wired to autoload/Match.gd via setup(self) in Match's own _ready().
 ##
 ## **Host-only collection.** Every counter here only accumulates while
 ## `_match._is_host()` is true, mirroring every other controller's tick/event
@@ -21,25 +17,18 @@ extends RefCounted
 ## ResultsValidation.validate_results_payload() before that signal ever reaches a
 ## client's game code.
 ##
-## **Most counters are driven by the existing Events bus, not by new call
-## sites in MatchPlacement/MatchGifts** — Events.block_removed already
-## carries the Block (whose owner_slot identifies the slot) and
-## Events.gift_claimed/special_consumed already carry slot_id directly, so
-## this file listens for those instead of adding hooks to files another
-## package edits concurrently (disjoint file ownership; this package's own brief flagged MatchGifts.gd's expiry logic
-## as a concurrent edit to avoid colliding with).
+## **Most counters are driven by the existing Events bus, not by new call sites in
+## MatchPlacement/MatchGifts** -- Events.block_removed already carries the Block (whose owner_slot
+## identifies the slot) and Events.gift_claimed/special_consumed already carry slot_id directly, so
+## this file listens for those instead of adding hooks to other files.
 ##
-## **blocks_placed is the one exception** (review fix):
-## Events.block_placed alone cannot tell a genuine player placement/auto-drop
-## apart from MatchPlacement.spawn_special_projectile()'s own effect spawns
-## (e.g. Volcano's 8-14 lava orbs) — both go through the same
-## MatchPlacement._spawn_block() -> Events.block_placed pipeline, and a
-## chain of Volcano orbs would otherwise inflate the placing slot's own
-## "blocks placed" stat by however many orbs it triggered. record_block_
-## placed() below is the one-line hook MatchPlacement._spawn_block() calls
-## directly instead, only when `is_player_placement` (its own new parameter,
-## default true) is true; spawn_special_projectile()'s call site is the only
-## one that ever passes false.
+## **blocks_placed is the one exception.** Events.block_placed alone cannot tell a genuine player
+## placement/auto-drop apart from MatchPlacement.spawn_special_projectile()'s own effect spawns
+## (e.g. Volcano's 8-14 lava orbs) -- both go through the same MatchPlacement._spawn_block() ->
+## Events.block_placed pipeline, and a chain of Volcano orbs would otherwise inflate the placing
+## slot's "blocks placed" stat. record_block_placed() below is the hook
+## MatchPlacement._spawn_block() calls directly, only when `is_player_placement` is true;
+## spawn_special_projectile() is the only caller that passes false.
 ##
 ## --- Results payload contract (for the results-screen UI worker) ----------
 ## Events.match_results_ready(results: Dictionary) fires once per match end,
@@ -52,7 +41,7 @@ extends RefCounted
 ##   "winner_kind": "team" | "slot",   # "slot" iff MatchConfig.team_mode ==
 ##       MatchConfig.TeamMode.OFF (free-for-all: every slot is its own team,
 ##       see MatchConfig.team_of_slot()) -- the results screen must not
-##       always say "Team N wins!" (the reported defect) and should read this
+##       always say "Team N wins!" and should read this
 ##       field to choose between a player name and a team name.
 ##   "winner_id": int,                 # the winning team_id; in FFA this is
 ##       also the winning slot_id (MatchConfig.team_of_slot() is the
@@ -391,22 +380,18 @@ func _winner_name(winning_team: int, ffa: bool) -> String:
 		if slot != null:
 			return slot.display_name
 		return PlayerNames.fallback_for_slot(winning_team)
-	# Lobby rework: the number the team had in the lobby once the
-	# host resolved the picks (MatchConfig.team_number_for()), else team id + 1.
+	# The number the team had in the lobby once the host resolved the picks
+	# (MatchConfig.team_number_for()), else team id + 1.
 	var config: MatchConfig = _match.config
 	var team_number: int = config.team_number_for(winning_team) if config != null else winning_team + 1
 	return PlayerNames.team_label(team_number)
 
 
-# --- Wire validation (net/MatchNet.gd EVENT_MATCH_RESULTS dispatch) ---------
-
 # --- Event listeners (host only) --------------------------------------------
 
-## Spec 2.7's kill plane is the only "off the disc" removal reason that
-## exists today (Events.REASON_KILL_PLANE's own doc: "a block fell below
-## tuning.kill_plane_y"); a future removal reason (the body-cap dissolve
-## spec 2.7 also describes) is deliberately not counted as "lost" here unless
-## a later package decides it should be.
+## Spec 2.7's kill plane (Events.REASON_KILL_PLANE, "a block fell below tuning.kill_plane_y") is the
+## only "off the disc" removal reason counted as lost; other removal reasons (e.g. the body-cap
+## dissolve spec 2.7 also describes) are deliberately not counted.
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	if not _match._is_host():
 		return

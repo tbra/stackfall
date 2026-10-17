@@ -4,8 +4,7 @@ extends RefCounted
 ## render hand-off, goal zones, both elimination-check flavours, and the
 ## replicated territory mirror.
 ##
-## Split out of autoload/Match.gd (pure refactor: no behaviour change). See
-## that file's own header comment for the state machine this territory logic
+## Split out of autoload/Match.gd; see its header comment for the state machine this territory logic
 ## serves.
 
 var _match: MatchAutoload = null
@@ -38,7 +37,7 @@ var _seen_revision: int = -1
 var _seen_config: Dictionary = {}
 var _force_dirty: bool = true
 
-## P-ASYNC: the in-flight WorkerThreadPool solve, if any.
+## The in-flight WorkerThreadPool solve, if any.
 ## DECISION: one job at a time, applied on the first frame it is seen complete
 ## (one frame after kickoff at the earliest). While pending the main thread only
 ## accumulates _solve_accum, so no elapsed time is lost or applied twice.
@@ -98,14 +97,13 @@ func winner_team() -> int:
 
 func _build_territory() -> void:
 	cancel_pending()
-	# G3: the previous match's influence circles must not be encoded to
+	# The previous match's influence circles must not be encoded to
 	# clients (net/MatchNet.gd _encode_circles) while this one loads and counts down.
 	clear_circles()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
-	# a new match (map / goal layout) starts with no cached claim
-	# cell lists. The cache is value-keyed, so this frees memory rather than guarding
-	# correctness.
+	# A new match (map / goal layout) starts with no cached claim cell lists. The cache is
+	# value-keyed, so this frees memory rather than guarding correctness.
 	ClaimCells.clear()
 	_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	_raster.reset()
@@ -114,18 +112,12 @@ func _build_territory() -> void:
 	if _match._territory_tuning.async_solve_min_circles > 0:
 		_shadow_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
 	var goal_positions: PackedVector2Array = PlayerSlot.goal_positions_for(_match.config.effective_goal_flag_count(), map_def)
-	# DECISION (autoload/Match.gd): goal-flag no-build zones now
-	# stamp under every hole_mode, not just OFF. SPEC.md's audit,
-	# 2.2 "Goal no-build zones [OWNER, original unverified]": "keep the earlier
-	# requirement for a no-placement disc around each goal... Zones block
-	# placement, not influence or capture" -- a retained requirement the
-	# audit did not withdraw, unlike v2's OFF default. Zones are static for the
-	# match (goal flags never move) so this stamps once, right after reset(),
-	# rather than every solve. This makes m2_acceptance's scenario (d) (a
-	# capture at the exact flag position) fail under TEMPORARY, since the
-	# march now runs into the flag's own zone before it can capture --
-	# not this ticket, owns rewriting that scenario to march to
-	# the zone's rim instead of the flag's centre point.
+	# DECISION: goal-flag no-build zones stamp under every hole_mode, not just OFF (spec 2.2 "Goal
+	# no-build zones": a no-placement disc around each goal; zones block placement, not influence or
+	# capture). Zones are static for the match (goal flags never move), so this stamps once, right
+	# after reset(), rather than every solve. Under TEMPORARY the capture march therefore runs into
+	# the flag's own zone before it can capture, so a capture scenario must march to the zone's rim,
+	# not the flag's centre.
 	_raster.set_goal_zones(goal_positions, _match._territory_tuning.goal_zone_radius)
 	_objective = ModeObjective.create(
 		_match.config.game_mode, goal_positions, _match._territory_tuning.capture_hold, _match.config.team_count(),
@@ -147,16 +139,15 @@ func _build_territory() -> void:
 	_cached_groups = null
 	_force_dirty = true
 
-	# the same goal list, cached for the analytic shader and
-	# the replicated circle wire (see the class-level DECISION on
-	# _goal_positions above).
+	# The same goal list, cached for the analytic shader and the replicated circle wire (see
+	# _goal_positions above, class-level DECISION).
 	_goal_positions = goal_positions
 	_goal_radii = PackedFloat32Array()
 	_goal_radii.resize(goal_positions.size())
 	_goal_radii.fill(_match._territory_tuning.goal_zone_radius)
 
 
-## QoL experiment 3: the capture claim radius -- 0 (flag cell
+## The capture claim radius -- 0 (flag cell
 ## only, the rule) unless the toggle is on, then goal_zone_radius times the
 ## multiplier. The no-build disc and its drawn circle keep the base radius.
 ##
@@ -172,11 +163,10 @@ func _claim_radius() -> float:
 
 
 func _tick_territory(delta: float) -> void:
-	# Spec 2.6, "Clients never solve territory"
-	# client every body is frozen, so the settled rule would call the whole
-	# field settled instantly and the solve would invent a territory that
-	# disagrees with the host's. The mirror raster arrives over the wire
-	# instead (see apply_replicated_territory).
+	# Spec 2.6: clients never solve territory. On a client every body is frozen, so the settled rule
+	# would call the whole field settled instantly and the solve would invent a territory that
+	# disagrees with the host's. The mirror raster arrives over the wire instead (see
+	# apply_replicated_territory).
 	if not _match._is_host():
 		# A job pending across a loss of authority must never be applied to a
 		# mirror raster later.
@@ -333,9 +323,8 @@ func _finish_objective_step() -> void:
 		_match._lifecycle._finish_match(_objective.winner())
 
 
-## the mode goal context bots score against (null in Classic,
-## so classic scoring is untouched). Host-side; reads the live
-## objective, raster and registry only.
+## The mode goal context bots score against (null when no objective exists). Host-side; reads the
+## live objective, raster and registry only.
 func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	if _objective == null:
 		return null
@@ -576,8 +565,8 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 	return job
 
 
-## Main-thread half of a solve step, in the exact order the old single-pass
-## step used: cache store, groups, raster, objective, overlay, events.
+## Main-thread half of a solve step, in this order: cache store, groups, raster, objective, overlay,
+## events.
 func _apply(job: TerritorySolveJob) -> void:
 	var groups: TerritoryGroups = job.groups
 	var circles: Array[InfluenceCircle] = job.out_circles
@@ -596,20 +585,11 @@ func _apply(job: TerritorySolveJob) -> void:
 
 	Events.territory_updated.emit(_raster, groups)
 
-	# DECISION (autoload/Match.gd): overlap modes (TEMPORARY/
-	# PERMANENT) keep the existing hole-under-home-flag trigger below
-	# unchanged; OFF keeps _check_home_flags_v2()'s argmax-ownership trigger.
-	# SPEC.md's audit leaves the overlap-mode trigger explicitly
-	# [OPEN] (2.3 "Home elimination": "the persistent home circle prevents
-	# enemy ownership at its center; resolve the trigger before implementation
-	# ... Until resolved, do not claim default-mode elimination complies
-	# merely because v2 elimination tests pass"). This keeps the pre-existing,
-	# already-tested M2 trigger rather than inventing a new one: a hole
-	# opening under a home flag is a physical event (the floor the flag stands
-	# on is gone), which is at least as defensible as any other untested
-	# guess, and it is what shipped before this ticket. It is NOT claimed to
-	# be the original's actual rule -- that stays unverified -- only the
-	# least-invented option available until real evidence settles it.
+	# DECISION: overlap modes (TEMPORARY/PERMANENT) keep the hole-under-home-flag trigger below; OFF
+	# keeps _check_home_flags_v2()'s argmax-ownership trigger. Spec 2.3 "Home elimination" leaves
+	# the overlap-mode trigger [OPEN]. A hole opening under a home flag is a physical event (the
+	# floor the flag stands on is gone), the least-invented option until real evidence settles it;
+	# it is not claimed to be the original's actual rule.
 	if job.holes_enabled:
 		var opened: PackedInt32Array = _raster.holes_opened()
 		var closed: PackedInt32Array = _raster.holes_closed()
@@ -633,10 +613,6 @@ func _apply(job: TerritorySolveJob) -> void:
 	_finish_objective_step()
 
 
-
-## Include every settled block, not just a tower's top: an obscured block can
-## slide out from under a cone without moving that top block. Exact transforms
-## are deliberately conservative: a false miss costs time, a false hit changes rules.
 func _territory_config_signature() -> Dictionary:
 	var signature: Dictionary = {
 		"field": _match._field.global_transform if _match._field != null else Transform3D.IDENTITY,
@@ -668,6 +644,9 @@ func _territory_config_signature() -> Dictionary:
 	return signature
 
 
+## Include every settled block, not just a tower's top: an obscured block can
+## slide out from under a cone without moving that top block. Exact transforms
+## are deliberately conservative: a false miss costs time, a false hit changes rules.
 func _territory_source_signature() -> Dictionary:
 	var signature: Dictionary = _territory_config_signature()
 	if _match._registry != null:
@@ -691,14 +670,13 @@ func _collect_circles() -> Array[InfluenceCircle]:
 	return circles
 
 
-## (requirement: "should look smooth"). Builds the
-## analytic circle list game/field/TerritoryOverlay.gd's shader draws instead of
-## the smoothstepped, bilinearly-upscaled 1 m cell raster: only the
-## *home-anchored* circles TerritorySolver kept in a group (never a raw,
-## possibly cut-off circle — the raster and the shader must agree on which
-## circles are live territory) survive, already capped at
-## TerritoryTuning.max_circles by TerritorySolver's own budget (see the
-## DECISION there), so this never needs its own overflow check.
+## Builds the analytic circle list game/field/TerritoryOverlay.gd's shader draws instead of the
+## smoothstepped, bilinearly-upscaled 1 m cell raster (so the edge looks smooth): only the
+## *home-anchored* circles TerritorySolver kept in a group (never a raw, possibly cut-off circle --
+## the raster and the shader must agree on which circles are live territory) survive, already capped
+## at TerritoryTuning.max_circles by TerritorySolver's own budget, so this never needs its own
+## overflow check (see the
+## DECISION in TerritorySolver).
 ##
 ## Sorted by team, largest radius first within a team: shaders/
 ## territory.gdshader's cheap early-out (stop folding a team's circles into
@@ -725,7 +703,7 @@ func _apply_circle_render(render: Dictionary) -> void:
 		_match._field.set_overlay_circles(xs, zs, radii, teams, _goal_positions, _goal_radii, argmax_mode)
 
 
-## G3: drops the cached influence-circle list (only that list; goal
+## Drops the cached influence-circle list (only that list; goal
 ## positions/radii are rebuilt by the next _build_territory()). Called from MatchLifecycle._reset_match_state() (every
 ## abort/start, host and client) and at the top of _build_territory(); idempotent.
 ## Does not touch Field's overlay (Main's clear_match_state owns that).
@@ -753,12 +731,10 @@ func circle_render_arrays() -> Dictionary:
 	}
 
 
-##  "Home flag lost to a hole"
-## opening under a slot's home flag eliminates it — home_flag_alive goes
-## false, its circles unanchor (P1's TerritorySolver drops them next solve
-## since they no longer connect to a home circle), it gets no more feed, and
-## the win check ignores it. If that leaves one player/team standing, the
-## match ends right here.
+## Overlap modes: a hole opening under a slot's home flag eliminates it -- home_flag_alive goes
+## false, its circles unanchor (TerritorySolver drops them next solve since they no longer connect
+## to a home circle), it gets no more feed, and the win check ignores it. If that leaves one
+## player/team standing, the match ends right here.
 func _check_home_flags(opened: PackedInt32Array) -> void:
 	if not _match._is_host():
 		return
@@ -781,16 +757,13 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 	_match._lifecycle._check_last_team_standing()
 
 
-## Home-flag elimination (kept behavior, new
-## trigger)": the v2 counterpart of _check_home_flags(opened) above, run every
-## v2 territory step rather than off a hole-opened event, since the default
-## ruleset never opens one. The home circle is always one of the anchored
-## circles feeding the field, so under normal play it always wins the argmax
-## at its own center (kernel value home_radius, distance 0) -- unless an
-## enemy circle is both close enough and tall enough to outscore it there. If
-## raster.team_at() at a living slot's home cell answers anyone else, that
-## enemy area has swallowed the flag: eliminate it exactly as the overlap-mode
-## trigger does, through the one shared _eliminate_slot().
+## The v2 counterpart of _check_home_flags(opened) above, run every v2 territory step rather than
+## off a hole-opened event, since the default ruleset never opens one. The home circle is always one
+## of the anchored circles feeding the field, so under normal play it wins the argmax at its own
+## center (kernel value home_radius, distance 0) -- unless an enemy circle is both close enough and
+## tall enough to outscore it there. If raster.team_at() at a living slot's home cell answers anyone
+## else, that enemy area has swallowed the flag: eliminate it exactly as the overlap-mode trigger
+## does, through the one shared _eliminate_slot().
 func _check_home_flags_v2(delta: float = 0.0) -> void:
 	if not _match._is_host():
 		return
@@ -810,7 +783,7 @@ func _check_home_flags_v2(delta: float = 0.0) -> void:
 	_match._lifecycle._check_last_team_standing()
 
 
-## [OWNER decision] Elimination: a home flag is
+## Elimination: a home flag is
 ## knocked out only after the attacker controls it continuously for the claim
 ## time (TerritoryTuning.capture_hold, shared with the goal beacons). Pressure is
 ## the same trigger the instant knockout used: v2 (HoleMode.OFF) an enemy-owned
@@ -867,15 +840,11 @@ func _attacker_slot_for(victim: int, team: int) -> int:
 ## flipped so MatchNet can re-emit Events.hole_cells_changed and Field opens
 ## exactly the same holes the host did.
 ##
-## the circle_* / goal_* / argmax_mode arguments are
-## core/net/CircleWire.gd's decoded analytic circle list, defaulted empty so
-## every pre-existing call site (this file's own tests, a stale client build
-## that only ever sent the raster payload) still compiles and still mirrors
-## the raster exactly as before -- an empty circle list just means the
-## overlay falls back to the raster path for that frame
-## (game/field/TerritoryOverlay.gd's set_circles(), "circles_valid"), never a
-## crash. net/MatchNet.gd's net_territory() is the only real caller that
-## passes a non-empty list.
+## The circle_* / goal_* / argmax_mode arguments are core/net/CircleWire.gd's decoded analytic
+## circle list, defaulted empty so a caller that only has the raster payload still mirrors the
+## raster exactly; an empty circle list means the overlay falls back to the raster path for that
+## frame (game/field/TerritoryOverlay.gd's set_circles(), "circles_valid"), never a crash.
+## net/MatchNet.gd's net_territory() is the only real caller that passes a non-empty list.
 func apply_replicated_territory(
 	cells: PackedInt32Array,
 	owners: PackedByteArray,
@@ -895,63 +864,47 @@ func apply_replicated_territory(
 		_raster.apply_replicated_state(owners, states)
 	else:
 		_raster.apply_replicated_diff(cells, owners, states)
-	# DECISION (autoload/Match.gd): an empty circle_xs is treated as "no
-	# circle update in this packet" rather than "clear the overlay's
-	# circles" -- a legitimately empty circle list should not occur during
-	# play (every living team keeps a home circle), so an empty array here
-	# almost always means a caller that never decoded one (an old test, a
-	# malformed circle_payload net_territory() dropped). Matching net/
-	# MatchNet.gd's raster payload contract ("ignored, not half-applied"): a
-	# circle update that didn't arrive intact must not blank a client's
-	# overlay that was previously drawing correctly.
+	# DECISION: an empty circle_xs means "no circle update in this packet", not "clear the overlay's
+	# circles": a legitimately empty list should not occur during play (every living team keeps a
+	# home circle), so it almost always means a caller that never decoded one. Matching
+	# net/MatchNet.gd's raster contract ("ignored, not half-applied"), an update that didn't arrive
+	# intact must not blank an overlay that was drawing correctly.
 	if _match._field != null and circle_xs.size() > 0:
 		_match._field.set_overlay_circles(
 			circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode
 		)
 
 
-# --- Special-punched holes (M4 P5-HOLE) -------------------------------------
+# --- Special-punched holes -------------------------------------
 
-## A special effect's own hole, independent of territory contest (spec 1.6).
-## `world_pos` is disk-local (x, z) metres -- Field.disk_local_from_world()'s
-## convention, the same one CellGrid documents -- not a Vector3 world
-## position; a caller (e.g. game/gifts/specials/JumpingBeanEffect.gd) converts
-## before calling in.
+## A special effect's own hole, independent of territory contest (spec 1.6). `world_pos` is
+## disk-local (x, z) metres -- Field.disk_local_from_world()'s convention, the same one CellGrid
+## documents -- not a Vector3 world position; a caller (e.g.
+## game/gifts/specials/JumpingBeanEffect.gd) converts before calling in.
 ##
-## Host-only, the same guard _tick_territory()/_check_home_flags() use, and a
-## no-op under HoleMode.OFF -- enforced here, not
-## trusted to every SpecialEffect caller, so a special cannot invent a hole
-## ruleset the lobby turned off. Otherwise force-opens every in-disk cell
-## whose centre falls within radius_m of world_pos, then runs the same
-## change-set path _run_territory_step() runs for a natural hole: one
-## Events.hole_cells_changed for the whole punch, then _check_home_flags(opened)
-## -- open question 2, M4_SPECIALS_PACKAGES.md orchestrator
-## decision 2: a special-punched hole eliminates a home flag exactly like a
-## natural one, shipped as the default while that question is open.
+## Host-only, the same guard _tick_territory()/_check_home_flags() use, and a no-op under
+## HoleMode.OFF -- enforced here, not trusted to every SpecialEffect caller, so a special cannot
+## invent a hole ruleset the lobby turned off. Otherwise force-opens every in-disk cell whose centre
+## falls within radius_m of world_pos, then runs the same change-set path _run_territory_step() runs
+## for a natural hole: one Events.hole_cells_changed for the whole punch, then
+## _check_home_flags(opened). A special-punched hole eliminates a home flag exactly like a natural
+## one (the shipped default while that rule stays open).
 ##
-## DECISION (autoload/match/MatchTerritory.gd): the opened
-## change-set is computed locally from is_hole() before/after each cell,
-## rather than by reading TerritoryRaster.holes_opened() the way
-## _run_territory_step() does. That array is only cleared at the top of
-## update() -- a periodic 10 Hz solve tick, not this call -- so between two
-## solves it still holds whatever the *last* update() opened, already
-## reported once by _run_territory_step(). This call can land in that gap
-## (a Jumping Bean hops on its own clock, not the solve's), and reading
-## holes_opened() then would re-announce those stale cells as newly opened.
-## `closed` is always empty here: force_hole_cell() only ever opens a cell
-## immediately, never closes one -- closing stays _advance_timers()'s job,
-## later, off the existing solve loop.
+## DECISION: the opened change-set is computed locally from is_hole() before/after each cell, not
+## from TerritoryRaster.holes_opened() as _run_territory_step() does. That array is only cleared at
+## the top of update() (the periodic solve tick), so between two solves it still holds what the last
+## update() opened, already reported once. This call can land in that gap (a Jumping Bean hops on
+## its own clock), and reading holes_opened() would re-announce those stale cells. `closed` is
+## always empty: force_hole_cell() only opens a cell; closing stays _advance_timers()'s job off the
+## solve loop.
 func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
 	if not _match._is_host():
 		return
-	# DECISION (autoload/match/MatchTerritory.gd review):
-	# live-play guard (PLAYING or SUDDEN_DEATH via
-	# MatchAutoload.is_live(), like placement since).
-	# _finish_match() only sets State.END -- it never tears the raster down or
-	# stops a SpecialEffect's physics_tick() -- so a Jumping Bean still hopping
-	# after a natural win could otherwise still punch a hole here and, through
-	# _check_home_flags() below, eliminate a still-alive slot (even one on the
-	# already-decided winning team) after the match is already over.
+	# DECISION: live-play guard (PLAYING or SUDDEN_DEATH via MatchAutoload.is_live()).
+	# _finish_match() only sets State.END -- it never tears the raster down or stops a
+	# SpecialEffect's physics_tick() -- so a Jumping Bean still hopping after a natural win could
+	# otherwise punch a hole here and, through _check_home_flags(), eliminate a still-alive slot
+	# after the match is over.
 	if not MatchAutoload.is_live(_match.state()):
 		return
 	if _match.config.hole_mode == MatchConfig.HoleMode.OFF:
@@ -995,7 +948,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 		_check_home_flags(opened)
 
 
-# --- Sudden death disk shrink (spec 1.9, M6 A3) ------------------------------
+# --- Sudden death disk shrink (spec 1.9) ------------------------------
 
 ## Spec 1.9: "The disk's edge crumbles inward by 1 m every 10 s." Called by
 ## MatchLifecycle._tick_sudden_death() with the current shrink radius (field
@@ -1004,14 +957,11 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 ## outside `radius_m` as a **permanent** hole -- regardless of the match's own
 ## hole_mode, since a shrunk cell must never reopen.
 ##
-## DECISION (autoload/match/MatchTerritory.gd, M6 A3): shrinking is expressed
-## entirely in the existing hole vocabulary (TerritoryRaster.force_hole_cell(),
-## the same mechanism punch_special_hole() above already proves for Jumping
-## Bean) rather than resizing CellGrid/rebuilding Field's trimesh -- A0
-## established that a whole-disk operation, not something to run every 10 s.
-## game/field/Field.gd needs no new code at all for sudden death: it already reacts
-## to set_hole_cells()/wakes bodies above a newly-opened cell exactly as it
-## does for a natural overlap hole.
+## DECISION: shrinking is expressed entirely in the existing hole vocabulary
+## (TerritoryRaster.force_hole_cell(), the same mechanism punch_special_hole() uses) rather than
+## resizing CellGrid/rebuilding Field's trimesh, a whole-disk operation not to run every 10 s.
+## game/field/Field.gd needs no new code for sudden death: it already reacts to
+## set_hole_cells()/wakes bodies above a newly-opened cell exactly as for a natural overlap hole.
 ##
 ## Monotonic by construction: a cell already a hole (`_raster.is_hole()` true)
 ## is skipped, so calling this again -- even with a *larger* radius than a

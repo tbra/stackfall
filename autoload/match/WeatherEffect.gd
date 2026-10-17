@@ -1,9 +1,7 @@
 class_name WeatherEffect
 extends RefCounted
-## Host-side physics hook a weather implements. Storm, Rain
-## and Snow packages subclass this and name the script in their
-## config/weather/*.tres `effect_script`. Clients never run one: they only
-## present.
+## Host-side physics hook a weather implements. Storm, Rain and Snow subclass this and name the
+## script in their config/weather/*.tres `effect_script`. Clients never run one: they only present.
 ##
 ## Contract:
 ## - apply(intensity) is called whenever the ramped intensity 0..1 changes

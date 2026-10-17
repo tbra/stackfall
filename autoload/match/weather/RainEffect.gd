@@ -9,7 +9,7 @@ extends WeatherEffect
 ## plus a cheap registry scan every RainTuning.rescan_interval_s to catch
 ## blocks that spawned during rain.
 ##
-## DECISION (RainEffect.gd): rain MULTIPLIES the baseline it finds instead of
+## DECISION: rain MULTIPLIES the baseline it finds instead of
 ## overwriting with a fixed wet value, so it composes with other effects. The
 ## baseline of a material is captured when rain first touches it. If a material's
 ## friction no longer equals what rain last wrote (Freeze, a tuning-panel change
@@ -56,7 +56,7 @@ func tick(delta: float, intensity: float) -> void:
 		_write_all(intensity, rain)
 
 
-## DECISION (round 2): the "negative friction" feel. Each awake
+## DECISION: the "negative friction" feel. Each awake
 ## block already sliding faster than RainTuning.wet_slide_min_speed_mps gets a
 ## force along its own horizontal velocity, scaled by the ramped intensity, and
 ## none once it is past wet_slide_max_speed_mps (the cap). Direction follows the
