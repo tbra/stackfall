@@ -5,8 +5,7 @@ extends RefCounted
 ## Net.kick_peer() asks the transport to disconnect a peer, but ENet keeps it in
 ## multiplayer.get_peers() until the disconnect completes a poll or more later,
 ## and every send addressed to it in that window logs an engine error ("Condition
-## p_channel >= peer->channelCount is true", once per packet; fixed Net's
-## own fan-outs). A plain rpc() addresses every listed peer, so each host
+## p_channel >= peer->channelCount is true", once per packet). A plain rpc() addresses every listed peer, so each host
 ## broadcast in MatchNet, SnapshotSync and the weather / snow / breeze relays goes
 ## through broadcast() instead, which leaves the disconnecting peer out.
 ##

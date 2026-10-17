@@ -10,7 +10,7 @@ extends Node
 ## An unreliable RPC on its own channel is how spec 2.6's "custom packets on
 ## their own channel ... tag each with a sequence number" is met while staying
 ## inside MultiplayerAPI (CLAUDE.md: gameplay code must never assume a
-## transport). Steam's peer in M3b carries it unchanged.
+## transport). Steam's peer carries it unchanged.
 ##
 ## **Wire layout** — one fragment, little-endian throughout. Bodies are packed
 ## by core/net/Quantize.gd, 15 bytes each (u24 net_id; see its DECISION).
@@ -82,7 +82,7 @@ const MAX_FRAGMENTS: int = 255
 
 # --- Shared state -----------------------------------------------------------
 
-# DECISION (S3a/D8): held as Node so this file names no game/ class; block_for_net_id is called dynamically.
+# DECISION: held as Node so this file names no game/ class; block_for_net_id is called dynamically.
 var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
@@ -122,7 +122,7 @@ var _last_snapshot_bytes: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
 ## Peer ids seen last tick (sorted); a new id forces a full snapshot even
-## when another peer left in the same tick (review of).
+## when another peer left in the same tick.
 var _known_peers: PackedInt32Array = PackedInt32Array()
 var _disk: Node3D = null
 
@@ -152,10 +152,8 @@ var _disk_next_rotation: Quaternion = Quaternion.IDENTITY
 ## last_position/last_rotation/was_clamped fields (see that class's docs for
 ## why: leaving a held/extrapolated pose is the one place a jump can appear,
 ## so that is the one place an offset is seeded, and it decays everywhere
-## else). Review fix (SHOULD-FIX 1): before this, past the
-## newest sample the disk pose held flat forever with no cap-then-resume
-## offset, so a snapshot that broke a stall at a materially different tilt
-## snapped the mirrored disc straight there.
+## else). Without it a snapshot that broke a stall at a materially different
+## tilt would snap the mirrored disc straight there.
 var _disk_error_position: Vector3 = Vector3.ZERO
 var _disk_error_rotation: Quaternion = Quaternion.IDENTITY
 var _disk_last_position: Vector3 = Vector3.ZERO
@@ -274,7 +272,7 @@ func set_disk(disk: Node3D) -> void:
 ## config.resend_position_epsilon / resend_angle_epsilon since they were last
 ## sent, or that are in this tick's slice of the keyframe rotation.
 ##
-## **Awake here means the physics engine's sleep state, not M2's settled rule**
+## **Awake here means the physics engine's sleep state, not the settled rule**
 ## (PhysicsTuning.sleep_* and BlockRegistry.is_settled). Those thresholds are
 ## deliberately looser and feed territory influence; confusing the two makes
 ## towers stutter or influence flicker.
@@ -381,16 +379,12 @@ func client_tick(delta: float) -> void:
 		block.global_transform = Transform3D(
 			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
 		)
-		# Fix round (review MAJOR): the "contributing to
-		# territory influence" glow (Block.set_contributing_visual()) has to
-		# be driven from here too, not just from a block's own
-		# sleeping_state_changed (BlockFactory.build()) -- this body is frozen
-		# kinematic (freeze_body() above) and never sleeps for real on a
-		# client, so without this a client never saw the settled glow at all.
-		# The newest buffered sample's sleeping flag (Interpolator's own
-		# pose["sleeping"]), applied every tick same as the pose itself;
-		# Block's own change-guard keeps a steady stream of identical values
-		# cheap.
+		# The "contributing to territory influence" glow
+		# (Block.set_contributing_visual()) is driven from here too: this body is
+		# frozen kinematic (freeze_body() above) and never sleeps for real on a
+		# client, so BlockFactory.build()'s sleeping_state_changed hook never
+		# fires. The newest buffered sample's sleeping flag is applied every tick;
+		# Block's own change-guard keeps identical values cheap.
 		block.set_contributing_visual(bool(pose["sleeping"]))
 
 	# the disk rides every snapshot the same way a body does
@@ -658,7 +652,7 @@ func _session() -> Variant:
 	return _net()
 
 
-## Autoload decoupling S3a: Net binds itself in its _ready (bind_net); an
+## Net binds itself in its _ready (bind_net); an
 ## unbound instance (a test, or a call before Net._ready) falls back to the real
 ## Net autoload by path so no file edge to autoload/Net.gd exists.
 func bind_net(net: Node) -> void:
@@ -784,15 +778,10 @@ func _push_disk_sample(host_time_ms: int, position: Vector3, rotation: Quaternio
 ## DECISION on _extrapolate_disk() below) and then holding, with a
 ## convergence offset seeded the moment a hold/extrapolation cap ends so the
 ## resumed pose eases back in step rather than snapping (mirrors
-## Interpolator.sample_at_render_time()'s own comment on the same trick --
+## Interpolator.sample_at_render_time()'s comment on the same trick --
 ## the disk's own spring is irrelevant here: once apply_replicated_pose() is
 ## mirroring a client's disc, the spring never runs, so nothing else here
 ## smooths a stall). `ok` is false until the first disk sample has arrived.
-##
-## Review fix (SHOULD-FIX 1): before this, past the newest
-## sample the pose held flat with no extrapolation and no offset, so a
-## dropped fragment at high tilt made the next real sample apply as a hard
-## snap once it finally arrived.
 func _disk_pose_at_render_time() -> Dictionary:
 	if _disk_next_time_ms < 0:
 		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}
@@ -848,7 +837,7 @@ func _disk_pose_at_render_time() -> Dictionary:
 ## comment on why clamping the elapsed time rather than the result is what
 ## makes the hold exact.
 ##
-## DECISION (net/SnapshotSync.gd SHOULD-FIX 1): reuses
+## DECISION: reuses
 ## config.max_extrapolation_ms rather than adding a second tunable. The disk
 ## rides the same NetConfig resource and the same render clock
 ## (_interpolator.render_time_ms()) every synced body does; a second knob for

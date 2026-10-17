@@ -260,12 +260,9 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	track.last_position = raw_position + track.error_position
 	track.last_rotation = (track.error_rotation * raw_rotation).normalized()
 	track.has_last = true
-	# Fix round (review MAJOR): the newest buffered sample's
-	# own sleeping flag, not an interpolated/blended one -- a boolean can't be
-	# blended, and "is the body currently settled" is a property of the most
-	# recent state the host reported, regardless of which branch above
-	# produced this tick's position/rotation (bracketed, held, or
-	# extrapolated). SnapshotSync.client_tick() is the only reader.
+	# The newest sample's own sleeping flag: a boolean can't be blended, and
+	# "settled" is a property of the latest host state whichever branch above
+	# produced the pose. SnapshotSync.client_tick() is the only reader.
 	return _pose(track.last_position, track.last_rotation, newest.sleeping)
 
 
