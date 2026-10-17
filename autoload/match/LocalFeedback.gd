@@ -1,6 +1,5 @@
 extends RefCounted
-## "the host could hear my block
-## rejected sound": the one answer to "may this machine give its player
+## The one answer to "may this machine give its player
 ## refusal feedback (sound, rumble) for `slot_id`?".
 ##
 ## Events.placement_rejected is a fact about a slot, emitted on the host for

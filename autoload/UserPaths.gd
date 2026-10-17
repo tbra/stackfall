@@ -2,7 +2,7 @@ class_name UserPaths
 extends RefCounted
 ## Maps persistent user:// config files to per-process files during GUT runs
 ## so tests (and sharded gate processes) never read or write the player's real
-## settings or F4 overrides (/ .21). Normal runs, exports and
+## settings or F4 overrides. Normal runs, exports and
 ## --headless-host are unaffected: is_gut_run() is false without gut_cmdln.gd.
 
 const GUT_CMDLN_SCRIPT: String = "gut_cmdln.gd"
@@ -30,7 +30,7 @@ static func isolated_for(gut_run: bool, probe_run: bool) -> bool:
 	return gut_run or probe_run
 
 
-## true when a run may write user:// config. GUT runs always
+## True when a run may write user:// config. GUT runs always
 ## may (they use per-PID files); any other headless run (editor import, smoke,
 ## --headless-host bots) must never touch the owner's real files.
 static func persistence_allowed() -> bool:

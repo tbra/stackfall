@@ -3,12 +3,11 @@ extends RefCounted
 ## Match's state machine (Lobby -> Loading -> Countdown -> Playing -> End ->
 ## Lobby, spec 2.4), slots/teams, disconnect grace and hot-seat turn logic.
 ##
-## Split out of autoload/Match.gd (pure refactor: no behaviour change). See
-## that file's own header comment for the full state-machine contract.
+## See autoload/Match.gd's header comment for the full state-machine contract.
 
-## the shared (F4-editable) QoL experiment toggles.
+## The shared (F4-editable) QoL experiment toggles.
 const QOL_EXPERIMENTS: QolExperiments = preload("res://config/match/qol_experiments.tres")
-## min display time and ready-wait cap of the loading-screen gate.
+## Min display time and ready-wait cap of the loading-screen gate.
 const LOADING_TUNING: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 
 var _match: MatchAutoload = null
@@ -16,16 +15,16 @@ var _match: MatchAutoload = null
 var _state: MatchAutoload.State = MatchAutoload.State.LOBBY
 var _countdown_remaining: float = 0.0
 var _countdown_last_whole: int = 0
-## while true the countdown does not run down. Game/Main.gd
+## While true the countdown does not run down. game/main/Main.gd
 ## holds it from LOADING until the fullscreen loading screen is done, so the
 ## 3-2-1 is actually seen. Cleared by every match reset.
 var _countdown_held: bool = false
 
 ## -- Loading-screen ready gate ---------------------------------
-##  every human presses ready (ui_accept / gamepad A)
-## on the loading screen before the countdown runs (no minimum display time).
-## per-match state and the host's hooks. Net (autoload/Net.gd) is the transport:
-## it validates the sender and hands the intent over on the Events bus.
+## Every human presses ready (ui_accept / gamepad A) on the loading screen
+## before the countdown runs (no minimum display time). Per-match state and the
+## host's hooks. Net (autoload/Net.gd) is the transport: it validates the sender
+## and hands the intent over on the Events bus.
 ##
 ## DECISION: the gate is *armed* by ui/menus/LoadingScreen.gd when it shows for a
 ## match (arm_loading_ready_gate()), and only when a window exists (not
@@ -35,9 +34,9 @@ var _countdown_held: bool = false
 ## raises the overlay so it is never gated; the tutorial, hot-seat, vs-bots and
 ## online matches all are. Headless tests, bot harnesses and windowed
 ## --agent-probe tools (screenshots, benches) drive Match by hand and see no gate
-## (set_loading_gate_forced() is the test/harness seam that arms it anyway; the
-## ready-prompt probe a script removed in (see git history) forces it). An unarmed
-## gate opens immediately, so a client of an ungated host is never left waiting.
+## (set_loading_gate_forced() is the test/harness seam that arms it anyway). An
+## unarmed gate opens immediately, so a client of an ungated host is never left
+## waiting.
 var _loading_tuning: LoadingScreenTuning = LOADING_TUNING
 var _ready_gate: LoadingReadyGate = LoadingReadyGate.new()
 var _gate_armed: bool = false
@@ -86,7 +85,7 @@ var _disconnect_grace_left: Array[float] = []
 ## clients through the player_eliminated event.
 var _eliminated_by: Dictionary = {}
 
-## -- Match timer + sudden death (spec 1.9, M6 A3) ----------------------------
+## -- Match timer + sudden death (spec 1.9) ----------------------------
 
 ## Seconds left on the match timer, armed at State.PLAYING entry from
 ## config.match_timer_minutes * 60.0. 0.0 means "off" (spec 1.9's own range
@@ -113,7 +112,7 @@ var _sudden_death_elapsed: float = 0.0
 ## always runs once.
 var _last_shrink_radius: float = INF
 
-## -- Turn-based (spec 1.2, M6 B4) ---------------------------------------------
+## -- Turn-based (spec 1.2) ---------------------------------------------
 
 ## Seconds left before a turn-based placement's settle-wait forces the turn to
 ## advance anyway, or -1.0 when no wait is running (not turn-based, or the
@@ -121,7 +120,7 @@ var _last_shrink_radius: float = INF
 ## begin_turn_settle_wait() and ticked down by _tick_turn_based(); cleared the
 ## moment advance_turn() actually fires so a second placement mid-wait (a
 ## bot's held block, an already-in-flight throw) cannot arm a second,
-## overlapping wait -- the plan's one-active-wait-at-a-time contract.
+## overlapping wait (one active wait at a time).
 var _turn_settle_wait_left: float = -1.0
 
 
@@ -134,7 +133,7 @@ func setup(match_ref: MatchAutoload) -> void:
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	Events.net_peer_left.connect(_on_loading_roster_changed)
 	Events.net_peer_joined.connect(_on_loading_roster_changed)
-	# a roster change mid-match (a late joiner taking a seat, a rejoin)
+	# A roster change mid-match (a late joiner taking a seat, a rejoin)
 	# carries the new player's name onto the slot the results are read from.
 	Events.net_roster_changed.connect(_on_roster_names_changed)
 
@@ -161,19 +160,18 @@ func setup(match_ref: MatchAutoload) -> void:
 ## (Match.raster()), Field.place_flags(config), SnapshotSync.begin_match
 ## (Match.registry(), config.map_def()) -- so the raster, the slots and the
 ## configured registry must all exist before the signal goes out; emitting
-## first and building afterwards handed those consumers a null raster (Beads
-## ). Nothing in the build reads _state, so building while
-## still LOBBY costs nothing.
+## first and building afterwards handed those consumers a null raster. Nothing
+## in the build reads _state, so building while still LOBBY costs nothing.
 func start_match(match_config: MatchConfig) -> void:
 	# DECISION (autoload/Match.gd): a repeated or stale start is handled here
 	# rather than by every caller (the Lobby, net_match_start, the tests, a
 	# future rematch button): Match owns its state machine, so it is Match
 	# that guarantees the sequence consumers can rely on.
 	#
-	# set before the abort_match() branch below, not just
-	# around the two _set_state() calls further down, so the leading
-	# old_state->LOBBY transition a restart-from-PLAYING/END produces is
-	# covered too -- see _starting's own doc.
+	# Set before the abort_match() branch below, not just around the two
+	# _set_state() calls further down, so the leading old_state->LOBBY
+	# transition a restart-from-PLAYING/END produces is covered too -- see
+	# _starting's own doc.
 	_starting = true
 	if _state != MatchAutoload.State.LOBBY:
 		abort_match()
@@ -197,26 +195,23 @@ func start_match(match_config: MatchConfig) -> void:
 	# was sent (net_match_start carries sky_theme_resolved).
 	if _match._is_host():
 		_match.config.resolve_sky_theme(randi())
-		# C1b follow-up: and the cycle sky's variation seed, so every
-		# match (not just seeded ones) draws its own curve; it rides in to_dict().
+		# And the cycle sky's variation seed, so every match (not just seeded
+		# ones) draws its own curve; it rides in to_dict().
 		_match.config.resolve_sky_variation_seed(randi())
 		# and the random phase a Cycle sky opens at (seed-derived).
 		var sky_source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
 		if sky_source != null:
 			_match.config.resolve_sky_start_phase(randi(), sky_source.cycle_random_start_min, sky_source.cycle_random_start_max)
 
-	# M4 P5-TILT: register_world() itself runs before
-	# start_match() on every path (hot-seat, sandbox and the lobby -- see
-	# game/main/Main.gd's own "Wiring order matters" doc), before Match.config
+	# register_world() runs before start_match() on every path (see
+	# game/main/Main.gd's "Wiring order matters" doc), before Match.config
 	# exists, so this is the first point at which both the Field and the new
-	# match's tilt_mode are known together. Runs on the host and on a client
-	# alike: this whole function is what net/MatchNet.gd's net_match_start RPC
-	# calls locally on a client's own Match copy (see this file's start_match()
-	# doc above), so a client's Field spring stays enabled in step with the
-	# host's rather than only reacting to specials it never simulates itself.
+	# match's tilt_mode are known. Runs on the host and on a client alike:
+	# net_match_start calls this whole function locally on a client, so its
+	# Field spring stays enabled in step with the host's.
 	_apply_tilt_mode()
 
-	# DECISION (autoload/match/MatchLifecycle.gd.20a): the lobby's
+	# DECISION (autoload/match/MatchLifecycle.gd): the lobby's
 	# gravity_multiplier (spec 1.9 "Gravity 0.5x-2x") is written straight into
 	# the shared config/physics/physics_tuning.tres *instance* Match already holds
 	# (_physics_tuning), not a config-local copy -- BlockFactory.build() and
@@ -255,11 +250,11 @@ func start_match(match_config: MatchConfig) -> void:
 	_countdown_last_whole = int(ceil(_countdown_remaining))
 	Events.countdown_tick.emit(_countdown_last_whole)
 	_starting = false
-	# after net_match_start went out (it is queued by the
+	# After net_match_start went out (it is queued by the
 	# LOADING -> COUNTDOWN emit above), so a client's reliable channel delivers
 	# the gate state to a match it has already built.
 	_publish_loading_gate_start()
-	# every slot holds its first block from the moment the
+	# Every slot holds its first block from the moment the
 	# countdown exists (the HUD cards and the local ghost are populated when the
 	# ready gate opens, not on the first PLAYING frame). Placement stays
 	# PLAYING-only and the feed timers only tick in PLAYING, so nothing can be
@@ -315,55 +310,39 @@ func _reset_match_state() -> void:
 	_pending_mode_state = {}
 	_match._territory._last_groups = null
 	_match._territory._solve_accum = 0.0
-	# G3: no stale influence circles into the next match's replication.
+	# No stale influence circles into the next match's replication.
 	_match._territory.clear_circles()
 	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
-	# shared by abort_match() and start_match()'s own leading
-	# call to this function, exactly like _match._gifts.reset() just above --
-	# a replay or a return-to-lobby must never leak one match's stats into
-	# the next. resize_for_slots() (this file's own _build_slots()) runs
-	# after this on every start, so the arrays are always re-sized before
-	# anything can bump them.
+	# A replay or a return-to-lobby must never leak one match's stats into the
+	# next. resize_for_slots() (in _build_slots()) runs after this on every
+	# start, so the arrays are re-sized before anything can bump them.
 	_match._stats.reset()
 	_match.config = null
-	# M4 P5-TILT: shared by abort_match() (teardown back to
-	# LOBBY) and start_match()'s own leading call to this function (tearing
-	# down whatever match was running before the new one's _apply_tilt_mode()
-	# call re-enables it) -- Field is a persistent node game/field/Field.gd's own
-	# clear_match_state() doc describes, so a tilt (and its spring velocity)
-	# left enabled here would otherwise still be live the moment the field
-	# sits idle behind the main menu. set_tilt_enabled(false) is also what
-	# levels the disc (game/field/Field.gd: "Disabling mid-match also snaps the tilt
-	# itself back to level"); a no-op if tilt was never enabled this match.
+	# Field is a persistent node (see game/field/Field.gd's
+	# clear_match_state()), so a tilt (and its spring velocity) left enabled
+	# here would still be live while the field sits idle behind the main menu.
+	# set_tilt_enabled(false) also snaps the disc back to level; a no-op if tilt
+	# was never enabled this match.
 	if _match._field != null:
 		_match._field.set_tilt_enabled(false)
-		# M6 B5: also drops PHYSICAL_BALANCE's registry link on teardown, same
-		# reasoning as set_tilt_enabled(false) above -- a leftover torque
-		# source must not still be wired the moment the field sits idle behind
-		# the main menu.
+		# Also drops PHYSICAL_BALANCE's registry link: a leftover torque source
+		# must not stay wired while the field sits idle behind the main menu.
 		_match._field.set_physical_balance_enabled(false)
 
 
-## M4 P5-TILT: turns the Field tilt controller on for the
-## match that just got a config, per config/match/MatchConfig.gd's tilt_mode (spec
-## 2.8). A no-op if register_world() was never called (some unit tests never
-## hand Match a field at all) or by a caller who -- unlike every real path in
-## game/main/Main.gd -- called start_match() before register_world().
+## Turns the Field tilt controller on for the match that just got a config, per
+## config/match/MatchConfig.gd's tilt_mode (spec 2.8). A no-op if
+## register_world() was never called (some unit tests never hand Match a field).
 ##
-## DECISION (autoload/match/MatchLifecycle.gd): written as an exhaustive match
-## over TiltMode's two current members, both of which tilt (config/
-## MatchConfig.gd's own comment: "PHYSICAL_BALANCE's weight-driven tilt is
-## M6", not "PHYSICAL_BALANCE doesn't tilt yet" -- SPECIALS_ONLY's spring still
-## runs under it in the meantime), rather than "!= some OFF value" that does
-## not exist yet: a future OFF mode is one new branch calling
-## set_tilt_enabled(false), not an inverted condition to re-derive.
+## DECISION (autoload/match/MatchLifecycle.gd): an exhaustive match over
+## TiltMode's two members, both of which tilt (SPECIALS_ONLY's spring runs
+## under PHYSICAL_BALANCE too), rather than "!= some OFF value" that does not
+## exist: a future OFF mode is one new branch calling set_tilt_enabled(false).
 ##
-## M6 B5: PHYSICAL_BALANCE additionally hands Field the same BlockRegistry
-## Match already holds off register_world(), and explicitly clears it back off
-## for SPECIALS_ONLY -- so a match that starts PHYSICAL_BALANCE, aborts, then
-## starts a fresh SPECIALS_ONLY match cannot leave a stale torque source wired
-## into a mode that should never tilt from settled weight at all.
+## PHYSICAL_BALANCE additionally hands Field the BlockRegistry Match already
+## holds, and SPECIALS_ONLY explicitly clears it, so a PHYSICAL_BALANCE match
+## followed by a SPECIALS_ONLY one cannot leave a stale torque source wired.
 func _apply_tilt_mode() -> void:
 	if _match._field == null:
 		return
@@ -381,7 +360,7 @@ func state() -> MatchAutoload.State:
 	return _state
 
 
-## see _starting's own doc.
+## See _starting's own doc.
 func is_starting_match() -> bool:
 	return _starting
 
@@ -438,14 +417,13 @@ func _begin_playing() -> void:
 
 
 ## Arms every slot's block timer and issues its first block. Idempotent: a slot
-## that already holds its first block (issued when the countdown began) is left alone, so the bag is never advanced twice.
+## that already holds its first block (issued when the countdown began) is left
+## alone, so the bag is never advanced twice.
 func _issue_first_blocks() -> void:
 	for i: int in range(_slots.size()):
-		# follow-up: set the interval before issuing, not
-		# after -- _issue_next_block() emits Events.feed_block_issued
-		# synchronously, and net/MatchNet.gd's handler reads feed_time_left()
-		# at that exact moment to replicate it, so a client's mirror is only
-		# ever as accurate as what this slot's timer already says.
+		# Set the interval before issuing, not after: _issue_next_block() emits
+		# Events.feed_block_issued synchronously, and net/MatchNet.gd's handler
+		# reads feed_time_left() at that moment to replicate it.
 		_match._feed._feed_time_left[i] = _match.config.block_timer
 		_match._feed._feed_expired[i] = false
 		if _match._feed._held_shapes[i] == null:
@@ -479,8 +457,8 @@ func arm_loading_ready_gate() -> bool:
 
 ## Pure: a headless display or an agent-probe run never arms the gate on its own
 ## (nobody is there to press ready, and a probe tool would otherwise sit 5-60 s on
-## the overlay). review: the probe half mirrors game/main/Main.gd's
-## staged-build condition.
+## the overlay). The probe half mirrors game/main/Main.gd's staged-build
+## condition.
 static func gate_suppressed_for_environment(display_name: String, probe_active: bool) -> bool:
 	return display_name == "headless" or probe_active
 
@@ -491,8 +469,8 @@ static func gate_suppressed_for_environment(display_name: String, probe_active: 
 func loading_gate_blocking() -> bool:
 	if not _gate_armed:
 		return false
-	# DECISION: the gate exists only
-	# a set no other site shares, so it is not a Match predicate.
+	# DECISION: the pre-play set (LOADING or COUNTDOWN) is private to the gate,
+	# so it is not a Match predicate.
 	var pre_play: bool = _state == MatchAutoload.State.LOADING
 	pre_play = pre_play or _state == MatchAutoload.State.COUNTDOWN
 	if not pre_play:
@@ -646,7 +624,7 @@ func _publish_loading_gate_start() -> void:
 		Events.loading_gate_opened.emit()
 
 
-# --- Match timer + sudden death (spec 1.9, M6 A3) ---------------------------
+# --- Match timer + sudden death (spec 1.9) ---------------------------
 
 ## Seconds left on the match timer, or 0.0 once it has run out or was never
 ## armed (config.match_timer_minutes == 0, "Off").
@@ -654,9 +632,8 @@ func match_timer_left() -> float:
 	return _match_timer_left
 
 
-## True only in State.SUDDEN_DEATH. ui/hud/HUD.gd may read this later (M6 A3's
-## own brief); MatchGifts._effective_special_frequency() reads it now, to
-## ramp the gift chance only once sudden death has actually started.
+## True only in State.SUDDEN_DEATH. MatchGifts._effective_special_frequency()
+## reads it to ramp the gift chance only once sudden death has started.
 func sudden_death_active() -> bool:
 	return _state == MatchAutoload.State.SUDDEN_DEATH
 
@@ -664,7 +641,7 @@ func sudden_death_active() -> bool:
 ## Ticked from Match._process()'s State.PLAYING branch. A no-op once the
 ## timer has reached 0.0 (whether it was ever armed or already ran out), so a
 ## match with config.match_timer_minutes == 0 -- timer "Off" -- never enters
-## sudden death no matter how long it plays (this file's own regression test).
+## sudden death no matter how long it plays.
 func _tick_match_timer(delta: float) -> void:
 	if _match_timer_left <= 0.0:
 		return
@@ -694,10 +671,9 @@ func _tick_match_timer(delta: float) -> void:
 		_begin_sudden_death()
 	# Spec 1.9: "Sudden death: Off/On ... on if match timer is set" by
 	# default, independently toggleable -- config.sudden_death == false with a
-	# set timer means the timer simply becomes cosmetic once it hits zero
-	# (this function's own doc header comment; also this package's plan
-	# doc). Falling through here (no transition) is exactly that: the match
-	# keeps running PLAYING under normal rules with no more timer.
+	# set timer means the timer simply becomes cosmetic once it hits zero.
+	# Falling through here (no transition) is exactly that: the match keeps
+	# running PLAYING under normal rules with no more timer.
 
 
 ## Seconds the match timer starts with: a timed mode's round_timer_minutes, else
@@ -770,7 +746,7 @@ func _begin_sudden_death() -> void:
 	_set_state(MatchAutoload.State.SUDDEN_DEATH)
 
 
-## Ticked from Match._process()'s new State.SUDDEN_DEATH branch, alongside
+## Ticked from Match._process()'s State.SUDDEN_DEATH branch, alongside
 ## the same three ticks State.PLAYING already runs (disconnect grace, feed,
 ## territory) -- spec 1.9's three bullets: the gift-chance ramp is
 ## MatchGifts._effective_special_frequency()'s own job (reads
@@ -809,7 +785,7 @@ func _tick_sudden_death(delta: float) -> void:
 ## _tick_sudden_death() at all, so in practice this runs at most once, but the
 ## guard costs nothing and documents the invariant.
 ##
-## DECISION (autoload/match/MatchLifecycle.gd, M6 A3): ties broken by lowest
+## DECISION (autoload/match/MatchLifecycle.gd): ties broken by lowest
 ## team id -- spec doesn't say, and an exact float tie between two teams'
 ## territory share is a vanishingly unlikely edge case not worth a second
 ## rule. `share > best_share` (strictly greater) rather than `>=` is what
@@ -831,10 +807,9 @@ func _resolve_sudden_death_tiebreak() -> void:
 	_finish_match(best_team)
 
 
-# --- Turn-based (spec 1.2, M6 B4) --------------------------------------------
+# --- Turn-based (spec 1.2) --------------------------------------------
 
-## DECISION (autoload/match/MatchLifecycle.gd, the turn-lock rule
-## section): turn_based and hot_seat are mutually exclusive in practice -- the
+## DECISION (autoload/match/MatchLifecycle.gd): turn_based and hot_seat are mutually exclusive in practice -- the
 ## lobby never offers hot_seat, and the CLI --hot-seat path never sets
 ## turn_based -- so nothing here resolves "both true" (advance_turn()'s own
 ## instant hand-off would just win, since it runs unconditionally once either
@@ -853,8 +828,7 @@ func begin_turn_settle_wait() -> void:
 
 
 ## Ticked from Match._process()'s State.PLAYING and State.SUDDEN_DEATH
-## branches, only when config.turn_based (mirrors _tick_sudden_death()'s own
-## call site pattern). Spec 1.2: "Physics settles completely (all bodies
+## branches, only when config.turn_based. Spec 1.2: "Physics settles completely (all bodies
 ## asleep, or after 6 s) before the next player's turn starts" -- hands the
 ## turn over the instant every tracked block is settled, or once the safety
 ## cap runs out, whichever comes first, so one block that never fully sleeps
@@ -906,7 +880,7 @@ func advance_turn() -> void:
 	# Any settle-wait belonged to the outgoing turn. If the active slot was
 	# eliminated mid-wait, MatchFeed._tick_feed() advances the turn here and
 	# the stale wait must not fire a second advance_turn() once settled or
-	# capped (review follow-up).
+	# capped.
 	_turn_settle_wait_left = -1.0
 	var next_slot: int = _next_alive_slot(_active_slot)
 	_active_slot = next_slot
@@ -928,7 +902,7 @@ func _next_alive_slot(after: int) -> int:
 	return -1
 
 
-## the names this host gave its bots so far, by bot ordinal. They
+## The names this host gave its bots so far, by bot ordinal. They
 ## persist across matches (play again) and are trimmed when a bot seat goes away.
 var _host_bot_names: PackedStringArray = PackedStringArray()
 
@@ -960,11 +934,10 @@ func _build_slots() -> void:
 	for i: int in range(_match.config.player_count):
 		var color: Color = SlotColors.wrapped_color(i, _match.config.player_colors)
 		var home: Vector2 = PlayerSlot.home_position_for(i, _match.config.player_count, map_def)
-		# M5 P1: the trailing ai_count slots become bots; every
-		# slot before that stays a human seat exactly as today. See
-		# The bot notes explain why this is a one-line append.
+		# The trailing ai_count slots are bots; every slot before that is a
+		# human seat.
 		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
-		# a human seat carries the name the host replicated for its
+		# A human seat carries the name the host replicated for its
 		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
 		# offline hot-seat seat or an empty seat keeps "Player N". Host and client
 		# both build from the same roster, so MatchStats' results (host-built,
@@ -983,9 +956,8 @@ func _build_slots() -> void:
 	_match._feed._feed_seq.resize(_slots.size())
 	_match._feed._release_locked.resize(_slots.size())
 	_disconnect_grace_left.resize(_slots.size())
-	# sizes MatchStats' per-slot arrays now that the new
-	# match's slot count is known (reset() above cannot do this -- it runs
-	# before _build_slots() on start_match()'s own call order).
+	# Sizes MatchStats' per-slot arrays now that the new match's slot count is
+	# known (reset() cannot do this: it runs before _build_slots()).
 	_match._stats.resize_for_slots(_slots.size())
 	for i: int in range(_slots.size()):
 		_match._feed._held_shapes[i] = null
@@ -996,7 +968,7 @@ func _build_slots() -> void:
 		_disconnect_grace_left[i] = -1.0
 
 
-## the replicated name of the human peer seated at `slot_id`, or ""
+## The replicated name of the human peer seated at `slot_id`, or ""
 ## when nobody holds it (a bot, an empty or hot-seat seat, a departed player) or
 ## the session double has no name roster. Offline (sandbox / hot-seat) there are no
 ## peers, so the local human on slot 0 goes by the name saved in Settings.
@@ -1017,7 +989,7 @@ func _peer_name_for_slot(slot_id: int) -> String:
 	return peer_name
 
 
-## copies each human seat's current roster name onto its slot. A
+## Copies each human seat's current roster name onto its slot. A
 ## seat nobody holds keeps the last name it had (a player who left mid-match is
 ## still named in the results); bots are never touched.
 func refresh_slot_names() -> void:
@@ -1043,7 +1015,7 @@ func _on_roster_names_changed(_roster: Array[Dictionary]) -> void:
 ## left standing.
 ##
 ## Its held block needs no cleanup: a held block is a ghost, drawn only on its
-## the user's screen and held here as a BlockShape, so there is nothing in the
+## player's screen and held here as a BlockShape, so there is nothing in the
 ## physics world to tidy. An intent already in flight is refused by
 ## net/MatchNet.gd's peer check, its sender no longer holding a slot.
 func on_peer_left(slot_id: int) -> void:
@@ -1095,15 +1067,14 @@ func _tick_disconnect_grace(delta: float) -> void:
 
 
 ## The one elimination path, shared by a home flag lost to a hole (spec 1.5)
-## and by a peer that never came back, so the
-## two cannot drift apart.
+## and by a peer that never came back, so the two cannot drift apart.
 func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
 	var target: PlayerSlot = _slots[slot_id]
 	if not target.home_flag_alive:
 		return
 	target.home_flag_alive = false
 	_eliminated_by[slot_id] = by_slot
-	# an eliminated player holds nothing and cannot drop.
+	# An eliminated player holds nothing and cannot drop.
 	_match._feed.clear_slot_blocks(slot_id)
 	var objective: ModeObjective = _match._territory._objective
 	if objective is EliminationObjective:
@@ -1147,23 +1118,19 @@ func _resolve_elimination(objective: EliminationObjective) -> void:
 
 func _finish_match(winning_team: int) -> void:
 	var already_ended: bool = _state == MatchAutoload.State.END
-	# apply any in-flight solve before the results are built;
+	# Apply any in-flight solve before the results are built;
 	# if that apply itself ended the match, it already published the outcome.
 	_match._territory.flush_pending()
 	if _state == MatchAutoload.State.END and not already_ended:
 		return
 	_set_state(MatchAutoload.State.END)
 	Events.match_won.emit(winning_team)
-	# built after match_won so a listener that reacts to the
-	# win first (ui/hud/HUD.gd's show_winner()) and one that wants the fuller
-	# payload (the results-screen UI worker) both see events in the same
-	# order every match. _finish_match() only ever runs on the host (see
-	# this function's own call sites: _check_last_team_standing() and
-	# _resolve_sudden_death_tiebreak(), both reached only from Match._process's
-	# `if not _is_host(): return`-gated ticks) -- a client's own copy never
-	# calls this, and instead reaches State.END and its results payload
-	# through EVENT_STATE_CHANGED and EVENT_MATCH_RESULTS respectively
-	# (net/MatchNet.gd).
+	# Built after match_won so a listener that reacts to the win first
+	# (ui/hud/HUD.gd's show_winner()) and one that wants the fuller payload both
+	# see events in the same order every match. _finish_match() only runs on
+	# the host (its callers are reached from host-gated ticks); a client
+	# reaches State.END and its results payload through EVENT_STATE_CHANGED and
+	# EVENT_MATCH_RESULTS (net/MatchNet.gd).
 	var objective: ModeObjective = _match._territory._objective
 	var mode_fields: Dictionary = {}
 	if objective != null and objective.mode_id() != MatchConfig.GameMode.CLASSIC:
