@@ -1,35 +1,23 @@
 class_name RumbleConfig
 extends Resource
 ## Controller rumble tunables (spec 1.3 gamepad parity), driven by
-## autoload/Rumble.gd's Events listeners. Keeps Rumble.gd free of magic
-## numbers per CLAUDE.md, the same role config/physics/CameraShakeConfig.gd plays for
-## game/player/CameraRig.gd's own Events.block_impacted reaction.
+## autoload/Rumble.gd's Events listeners (the counterpart of CameraShakeConfig for
+## the camera).
 ##
-## DECISION (config/player/RumbleConfig.gd): enabled_by_default/global_strength_scale
-## are the SEED values autoload/Settings.gd's own persisted rumble_enabled()/
-## rumble_strength() read the first time user://settings.cfg has no
-## [gamepad] section yet (Settings._load()) -- a single source of truth for
-## "what a fresh install feels like" rather than a second hardcoded default
-## living in Settings.gd too. Once a player has an opinion, Settings.gd's own
-## persisted value wins on every later boot; this file is never re-read for
-## that after the first run.
+## DECISION: enabled_by_default/global_strength_scale are the SEED values
+## autoload/Settings.gd's rumble_enabled()/rumble_strength() read when
+## user://settings.cfg has no [gamepad] section yet (Settings._load()), so "what a
+## fresh install feels like" has one source. Once a player has a persisted value it
+## wins on every later boot.
 
-## DECISION (config/player/RumbleConfig.gd): "Rumble
-## at 100 is still pretty weak". The Options slider is already 0..1 and
-## Rumble._trigger() multiplies by it, so 100% was never capped by Settings;
-## the weakness was the per-event magnitudes below. The loudest event
-## (player_eliminated strong = 1.0) already reached full power, but the events
-## a player actually feels all session -- block impacts (also the Options
-## "test pulse") topped out at 0.35 weak / 0.55 strong, a light tick at 0.2,
-## a refusal at 0.5. Those were re-scaled by ~x1.8 so the strongest motor of
-## each reaches (or nears) 1.0 at 100%, keeping each event's weak:strong shape
-## (impact 0.35:0.55 -> 0.65:1.0, placed/refused ticks x1.8, special
-## 0.6:0.9 -> 0.67:1.0). Match won/lost only got x1.3 so the end-of-match
-## pulses stay below the special/eliminated tier. Net effect: 50% now feels
-## about like the old 100% for impacts and ticks. Pulses under ~0.08 s do not
-## give a pad's motors time to spin up, so the two tick durations that were at
-## or below that (placed 0.06 s, refused 0.08 s) are now 0.1 s. Every
-## *_magnitude stays within 0..1 and at least one reaches exactly 1.0
+## DECISION: the Options slider is 0..1 and Rumble._trigger() multiplies by it, so
+## felt strength is set by the per-event magnitudes below. The events a player feels
+## all session (block impacts, which are also the Options "test pulse", and the light
+## placed/refused ticks) are scaled so the strongest motor of each reaches or nears
+## 1.0 at 100%, keeping each event's weak:strong shape; match won/lost are scaled
+## less so end-of-match pulses stay below the special/eliminated tier. Pulses under
+## ~0.08 s do not give a pad's motors time to spin up, so tick durations are at least
+## 0.1 s. Every *_magnitude stays within 0..1 and at least one reaches exactly 1.0
 ## (tests/unit/player/test_rumble.gd guards both, plus a duration floor).
 
 ## Whether a fresh install starts with rumble on.
@@ -39,8 +27,8 @@ extends Resource
 ## range Settings.set_rumble_strength() clamps a user value into).
 @export var global_strength_scale: float = 1.0
 
-# --- Block impact (game/player/CameraRig.gd's shake_config precedent: scales with
-# how far impact speed is above a threshold, not a plain on/off) ------------
+# --- Block impact (scales with how far impact speed is above a threshold, like
+# camera shake, not a plain on/off) ------------
 
 ## Minimum impact speed (Block.gd's deceleration magnitude, same value
 ## Events.block_impacted already carries for camera shake/thuds) that

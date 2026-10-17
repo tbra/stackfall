@@ -1,9 +1,8 @@
 class_name PhysicsTuning
 extends Resource
-## Every tunable number M1's physics needs (spec 1.4, 2.7). CLAUDE.md: "No
-## magic numbers... every tunable value belongs in a Resource under
-## res://config/". Loaded once as config/physics/physics_tuning.tres and shared by
-## BlockFactory, Field, and the benchmark scenes.
+## Every tunable number the block physics needs (spec 1.4, 2.7). Loaded once as
+## config/physics/physics_tuning.tres and shared by BlockFactory, Field, and the
+## benchmark scenes.
 
 ## -- Block bodies (spec 1.4) ------------------------------------------------
 ## Cube edge length in meters.
@@ -16,38 +15,17 @@ extends Resource
 ## Block physics material.
 @export var block_friction: float = 0.85
 @export var block_bounce: float = 0.4
-## DECISION (config/physics/PhysicsTuning.gd): spec 1.4 doesn't specify body damping,
-## so blocks use Godot's project-default 0.1 and nothing more. Damping is
-## deliberately NOT used to hold towers up.
-##
-## An earlier M1 revision set both of these to 4.0 because a 40-cube column
-## would otherwise lean over and collapse. That was treating the symptom. The
-## cause was Jolt's velocity solver running too few iterations to distribute
-## the support force through a 40-contact chain (see the long comment on
-## velocity_steps in tools/bootstrap_project.gd). The leftover per-block
-## velocity kept the stack above Jolt's sleep threshold, and above roughly 15
-## blocks it fed a lean that grew at the free inverted-pendulum rate until the
-## tower fell. Damping of 4.0 did not stabilise that - it just slowed the
-## topple by about 7x, which was enough for Jolt to put the tower to sleep
-## before it fell over.
-##
-## The price was game feel. Spec 1.6 says the appeal is "a real
-## sense of weight and balance", and linear damping of 4.0 caps a falling
-## block at g/damp = 2.5 m/s, so blocks floated down like feathers. With the
-## solver fixed, the 40-cube benchmark passes at zero damping (max top drift
-## 24 mm, asleep at 0.52 s), so 0.1 here is insurance, not structure: it caps
-## terminal velocity at 98 m/s, i.e. free fall for anything this game drops.
-##
-## that 24 mm / 0.52 s result was reproducible only
-## by luck of body creation order until Jolt's body-pair contact cache
-## distance threshold was tightened (tools/bootstrap_project.gd); with it the
-## tower is 8/8 clean at every tested offset. Damping was never the variable.
-##
-## Worth knowing either way: Jolt sleeps a whole connected island together,
-## not body by body, so one vibrating block near the top of a tower keeps
-## every block below it awake too. These are also NOT the same numbers as the
-## sleep_linear/angular_threshold fields below, which describe spec 1.5's
-## settled-block/influence rule and aren't engine settings.
+## DECISION: spec 1.4 doesn't specify body damping, so blocks use Godot's
+## project-default 0.1 and nothing more. Damping is deliberately NOT used to hold
+## towers up: linear damping of 4.0 caps a falling block at g/damp = 2.5 m/s and
+## kills the "sense of weight" of spec 1.6, and it only slowed a topple (about 7x)
+## rather than preventing it. The cause was Jolt's velocity solver running too few
+## iterations (see velocity_steps in tools/bootstrap_project.gd) plus its body-pair
+## contact cache distance threshold (same file); with those fixed a 40-cube tower
+## is stable at zero damping, so 0.1 is insurance (terminal velocity 98 m/s).
+## Jolt sleeps a whole connected island together, so one vibrating block near the
+## top keeps every block below awake. These are not the sleep_linear/angular
+## thresholds below, which describe spec 1.5's settled-block/influence rule.
 ## See tests/unit/match/test_tower_placement.gd and tests/bench/bench_tower.gd.
 @export var block_linear_damp: float = 0.1
 @export var block_angular_damp: float = 0.15
@@ -62,46 +40,32 @@ extends Resource
 
 ## -- Settled-block rule (spec 1.5: "A block counts as settled when its
 ## linear speed is below 0.15 m/s and its angular speed below 0.3 rad/s for
-## 0.5 s"). Used from M2 onward for territory influence, not by anything in
-## M1 yet, but the numbers belong here rather than hard-coded later. ---------
+## 0.5 s"), used for territory influence. ---------
 @export var sleep_linear_threshold: float = 0.15
 @export var sleep_angular_threshold: float = 0.3
 @export var sleep_settle_time: float = 0.5
 
 ## -- Gravity (spec 1.9 "Gravity 0.5x-2x") ------------------------------------
-## [OWNER decision]: base gravity raised 1.25x (1.4 -> 1.75).
+## Base gravity multiplier (1.25x the original 1.4).
 @export var gravity_multiplier: float = 1.75
-## the Heavy & Bouncy factor folded out of the lobby scale.
+## The Heavy & Bouncy factor folded out of the lobby scale.
 ## start_match() sets gravity_multiplier = this * MatchConfig.gravity_multiplier.
 @export var lobby_gravity_baseline: float = 1.75
 
-## -- Rebound damping ("heavier and
-## more bouncy, but a dropped block shouldn't just bounce straight up
-## again") --------------------------------------------------------------------
-## DECISION (config/physics/PhysicsTuning.gd): block_bounce (the PhysicsMaterial
-## restitution above) is Jolt's only source of "bounciness", and Jolt applies
-## restitution along the whole contact-normal impulse -- a block landing flat
-## gets that restitution straight back as vertical velocity ("bounces
-## straight up again"), while a corner/edge hit already scatters some of it
-## sideways into tumble. Raising block_bounce for a livelier corner/edge hit
-## therefore also raises the flat-drop's straight-up rebound; there is no
-## separate Jolt knob for "restitution, but not on the vertical axis". So
-## this field damps only the vertical (world Y) component of a block's own
-## post-solve velocity, only on the one physics step a bounce actually
-## happens (game/Block._integrate_forces(), host-only since a client's
-## synced blocks are frozen and never integrate) -- horizontal and angular
-## velocity, and every step that isn't a fresh bounce, are untouched, so
-## block_bounce still gives lateral/tumbling liveliness. 1.0 is a pass-
-## through multiplier (state.linear_velocity.y * 1.0 is exact under
-## IEEE754), so this field defaults to 1.0 and every existing preset/test's
-## behavior is byte-identical until a preset sets it below 1. See
-## config/physics/presets/*.tres for the shipped presets and
-## game/Block._damp_rebound() for the pure scaling rule this field feeds.
-## script defaults now equal the shipped Heavy & Bouncy tuning
-## (cube_mass, block_friction, block_bounce, block_angular_damp,
-## gravity_multiplier, rebound_damping), so F4 "modified" markers and Reset
-## agree with config/physics/physics_tuning.tres.
-## (Rebound default was 1.0, a pass-through, before that change.)
+## -- Rebound damping ("heavier and more bouncy, but a dropped block shouldn't just
+## bounce straight up again") -----------------------------------------------
+## DECISION: block_bounce (the PhysicsMaterial restitution above) is Jolt's only
+## source of bounciness and applies along the whole contact-normal impulse, so a
+## flat landing gets it straight back as vertical velocity while a corner/edge hit
+## scatters some sideways. There is no Jolt knob for "restitution, but not
+## vertical", so this field damps only the world-Y component of a block's own
+## post-solve velocity, only on the physics step a bounce happens
+## (game/Block._integrate_forces(), host-only since a client's synced blocks are
+## frozen). Horizontal and angular velocity are untouched, so block_bounce still
+## gives lateral/tumbling liveliness. 1.0 is a pass-through. See
+## config/physics/presets/*.tres and game/Block._damp_rebound(). The script
+## defaults equal the shipped Heavy & Bouncy tuning so F4 "modified" markers and
+## Reset agree with config/physics/physics_tuning.tres.
 @export var rebound_damping: float = 0.3
 
 ## Experimental Original feel preset: deterministic release tilt, not a
@@ -109,38 +73,26 @@ extends Resource
 @export var release_tilt_degrees: float = 0.0
 @export var release_tilt_min_gap_cubes: float = 1.0
 
-## -- Stable-block freeze (spec 2.7 "Stable-block optimization" [NEW],
-## ---
-## DECISION (config/physics/PhysicsTuning.gd): spec 2.7 gives this rule's own number
-## directly ("asleep for more than 20 s") -- no fidelity-table ambiguity to
-## resolve, unlike some of this file's other fields. 20.0 also matches the
-## Freeze special's own duration (spec 1.8's table: "static for 20 s"), which
-## keeps "how long is a block frozen for" one number in the player's head
-## across both the optimization and the special, even though they arrive at
-## it through unrelated code paths (game/blocks/StableBlockManager.gd vs. a future
-## FreezeEffect). A block resets this timer (and un-freezes if already
-## frozen) the instant it wakes, per spec 2.7's "goes back to normal the
-## moment any impulse, tilt, or change in the cells under it happens".
+## -- Stable-block freeze (spec 2.7 "Stable-block optimization") ---------------
+## DECISION: spec 2.7 gives the number directly ("asleep for more than 20 s"). 20.0
+## also matches the Freeze special's duration (spec 1.8: "static for 20 s"), so
+## "how long is a block frozen" stays one number. A block resets this timer (and
+## un-freezes if frozen) the instant it wakes, per spec 2.7's "goes back to normal
+## the moment any impulse, tilt, or change in the cells under it happens".
 @export var stable_freeze_delay_s: float = 20.0
-## DECISION (config/physics/PhysicsTuning.gd): the physics tuning section
-## suggested reusing a bare internal accumulator instead of a tunable here,
-## since spec 2.7 names no interval of its own -- but this project's own "no
-## magic numbers" rule (CLAUDE.md) is stricter than that suggestion, so this
-## stays a real field rather than a hard-coded constant inside
-## game/blocks/StableBlockManager.gd. 0.5 s: cheap enough at a few hundred live
-## blocks (this only reads Block.sleeping and, rarely, flips freeze_mode --
-## nothing like the ~5-7 ms/step contact_monitor cost this file's rebound-
-## damping section above already documents) and coarse enough that the
-## 20 s freeze delay's own precision doesn't need anything tighter.
+## DECISION: spec 2.7 names no scan interval, but the no-magic-numbers rule keeps it
+## a field rather than a constant in game/blocks/StableBlockManager.gd. 0.5 s is
+## cheap at a few hundred live blocks (it only reads Block.sleeping and, rarely,
+## flips freeze_mode) and fine enough for the 20 s freeze delay.
 @export var stable_freeze_scan_interval_s: float = 0.5
-## a sleeping block's freeze timer survives a wake (Jolt
+## A sleeping block's freeze timer survives a wake (Jolt
 ## wakes whole contact islands on any landing) as long as the block stays
 ## within this distance (m; also applied to each unit basis axis) of the pose
 ## it fell asleep in; moving further restarts the timer. See
 ## game/blocks/StableBlockManager.gd's own DECISION.
 @export var stable_freeze_rest_epsilon_m: float = 0.005
 
-## -- Settle freeze (B, spec 2.7) ------------
+## -- Settle freeze (spec 2.7) ------------
 ## Jolt keeps a micro-jittering pile awake forever, so the sleep-based freeze above
 ## never reaches it. With this on, a block that is AWAKE but has stayed within
 ## settle_freeze_move_epsilon_m / settle_freeze_rotation_epsilon of the pose its
@@ -160,7 +112,7 @@ extends Resource
 ## about one cube diagonal plus slack, so it only stops blocks it could be touching.
 @export var settle_freeze_neighbour_radius_m: float = 1.8
 
-## -- Physics catch-up cap (D) -------------------------
+## -- Physics catch-up cap -------------------------
 ## When a frame runs long, the engine runs extra physics steps to catch up, which
 ## makes the next frame longer still (a spiral). Capping them trades a brief
 ## slow-motion for a stable frame time. The project setting

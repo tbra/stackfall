@@ -2,11 +2,10 @@ class_name NetConfig
 extends Resource
 ## Every tunable number the network stack uses (spec 2.6).
 ##
-## CLAUDE.md: "No magic numbers. Every tunable value belongs in a Resource
-## under res://config/." Nothing in autoload/Net.gd, net/*.gd or core/net/*.gd
-## may write a literal that appears here. Loaded once as
-## config/net/net_config.tres; callers that mutate it (the debug overlay's lag
-## sliders) must duplicate() first, exactly as Match does with MatchConfig.
+## Nothing in autoload/Net.gd, net/*.gd or core/net/*.gd may write a literal that
+## appears here. Loaded once as config/net/net_config.tres; callers that mutate it
+## (the debug overlay's lag sliders) must duplicate() first, as Match does with
+## MatchConfig.
 
 # --- Ports and session (spec 2.6 "LAN discovery") ---------------------------
 
@@ -16,8 +15,8 @@ extends Resource
 @export var game_port: int = 47778
 ## Spec 1.9: 2-8 players, so at most 7 remote peers plus the listen-server host.
 @export var max_peers: int = 8
-## Longest player name, in characters, the host accepts. The
-## menu's name field, Settings and the host's handshake check all use it.
+## Longest player name, in characters, the host accepts. The menu's name field,
+## Settings and the host's handshake check all use it.
 @export var max_player_name_length: int = 16
 ## How often the host sends its LAN advert, in Hz (spec 2.6: "once per second").
 @export var discovery_broadcast_hz: float = 1.0
@@ -39,15 +38,14 @@ extends Resource
 @export var peer_timeout_max_ms: int = 10000
 ## How often each peer round-trips a ping RPC with the host, in Hz. Our own
 ## ping rather than ENetPacketPeer statistics, so the number is identical over
-## Steam in M3b (CLAUDE.md: never assume a transport).
+## Steam (gameplay never assumes a transport).
 @export var ping_hz: float = 1.0
 ## Round-trip samples averaged into the reported ping.
 @export var ping_history: int = 8
 ## Seconds a slot whose peer vanished keeps its territory before Match
 ## eliminates it.
 @export var disconnect_grace: float = 10.0
-## Host: per-peer flood limit on Net.request_seat_pref, a token
-## bucket. This is its size: how many colour/team requests a seated peer may send
+## Host: per-peer flood limit on Net.request_seat_pref, a token bucket. This is its size: how many colour/team requests a seated peer may send
 ## back to back (every request drains a token, valid or not). Each accepted
 ## request makes the lobby republish its data to every peer, so an unthrottled
 ## client could turn one peer's clicks into 8x the traffic; a human cycling
@@ -60,13 +58,10 @@ extends Resource
 # --- Steam lobby (spec 2.6) -------------------------------------------------------
 
 ## Steam.LOBBY_TYPE_* ordinal passed to SteamClient.create_lobby(). Default
-## FriendsOnly (the Steam question list:
-## answered). Verified against the installed GodotSteam 4.22.1
-## addon on this machine (netcode-F-probe_lobby_const.log):
+## FriendsOnly. Verified against GodotSteam 4.22.1:
 ## Steam.LOBBY_TYPE_PRIVATE=0, LOBBY_TYPE_FRIENDS_ONLY=1, LOBBY_TYPE_PUBLIC=2,
-## LOBBY_TYPE_INVISIBLE=3, LOBBY_TYPE_PRIVATE_UNIQUE=4 — this is Valve's own
-## ELobbyType enum ordinal, unrelated to Godot and stable across SDK
-## versions. A plain int (not the enum) because the value only ever crosses
+## LOBBY_TYPE_INVISIBLE=3, LOBBY_TYPE_PRIVATE_UNIQUE=4 — Valve's own ELobbyType
+## ordinal, stable across SDK versions. A plain int (not the enum) because the value only ever crosses
 ## into the Steam singleton via a duck-typed .call(), which cannot accept a
 ## GDScript enum type either way.
 @export var steam_lobby_type: int = 1
@@ -79,16 +74,14 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## Largest UTF-8 byte length SteamClient.encode_match_config()'s output may
 ## be before decode_match_config() refuses it. Steamworks' own
 ## ISteamMatchmaking::SetLobbyData documents a 255-char key / 8192-byte value
-## limit; not independently re-verified against isteammatchmaking.h in this
-## checkout (the downloaded GDExtension zip bundles no Steamworks SDK headers
-## — see the spike results). Treat as
-## the spec's documented estimate, not a confirmed hard limit.
+## limit; not re-verified against isteammatchmaking.h (the GDExtension bundles no
+## SDK headers). Treat as the documented estimate, not a confirmed hard limit.
 @export var steam_lobby_data_max_bytes: int = 8192
 ## Seconds between polls of Steam's pull-based request_lobby_list() while the
 ## menu's Steam lobby list is open. Unlike the LAN advert (server pushes once
-## a second), Steam's list is asked for; ui/menus/MainMenu.gd (P3) is expected to
-## call Net.refresh_lobby_list() on a Timer at this interval rather than
-## polling every frame. DECISION: 5 s — frequent enough that a friend's new
+## a second), Steam's list is asked for; ui/menus/MainMenu.gd calls
+## Net.refresh_lobby_list() on a Timer at this interval rather than polling every
+## frame. DECISION: 5 s — frequent enough that a friend's new
 ## lobby appears promptly, infrequent enough not to hammer Steam's matchmaking
 ## servers from every client's menu screen.
 @export var steam_lobby_list_refresh_s: float = 5.0
@@ -100,8 +93,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 # cannot head-of-line block the reliable stream. The numbers are NOT here:
 # @rpc takes a compile-time constant, so they live as
 # SnapshotSync.SNAPSHOT_CHANNEL = 1 and MatchNet.CURSOR_CHANNEL = 2. They are
-# architecture, not tunables — the same reason Match.COUNTDOWN_SECONDS is a
-# const (CLAUDE.md's "no magic numbers" targets tunables).
+# architecture, not tunables.
 
 # --- Rates (spec 2.6, 2.4) --------------------------------------------------
 
@@ -113,7 +105,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## Cursor updates per second, client -> host and host -> clients (spec 2.6:
 ## "update_cursor(pos): unreliable, 15 Hz").
 @export var cursor_hz: float = 15.0
-## live scoreboard snapshots per second, host -> clients.
+## Live scoreboard snapshots per second, host -> clients.
 @export var scoreboard_hz: float = 2.0
 
 # --- Snapshot packing (spec 2.6 "Snapshots") --------------------------------
@@ -128,7 +120,7 @@ const STEAM_LOBBY_TYPE_PUBLIC: int = 2
 ## Absolute lower Y bound of the quantized volume, in meters. Must bracket
 ## PhysicsTuning.kill_plane_y (-40) below.
 @export var pos_min_y: float = -48.0
-## the tallest tower height the match must support (disc top
+## The tallest tower height the match must support (disc top
 ## is world y 0), in meters. Reach the Sky's target height feeds this (set it
 ## >= that target); the band top is derived from it, never hard-coded.
 @export var build_height_target_m: float = 100.0
