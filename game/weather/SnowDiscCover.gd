@@ -1,8 +1,8 @@
 class_name SnowDiscCover
 extends Node3D
 ## Visual-only snow on the disc. No geometry of its own: it
-## drives the snow layer inside the disc's own shader (shaders/territory.
-## gdshader, the TerritoryOverlay material), so the composite order is
+## drives the snow layer inside the disc's own shader (shaders/territory/territory.gdshader,
+## the TerritoryOverlay material), so the composite order is
 ## disc -> snow -> territory tint/contour, holes stay open, and territory
 ## reads on snow with the same smooth contour as on bare disc.
 ##
@@ -16,7 +16,7 @@ extends Node3D
 ## layer off again. The colliding drifts are SnowCapBuilder's domes.
 ##
 ## the displayed level eases toward the target level at one
-## level per SnowTuning.cover_ease_s, so growth and melt read as the snow
+## The displayed level eases toward the target level at one
 ## spreading and retreating instead of stepping. A cover set to level 0 retires
 ## (SnowCaps renames it) and frees itself once it has faded out.
 
@@ -202,7 +202,7 @@ func _advance_drift(budget: int) -> void:
 		var entry: Variant = _drift_queue[_drift_head]
 		_drift_head += 1
 		left -= 1
-		# a block freed since the queue was captured (burned,
+		# A block freed since the queue was captured (burned,
 		# kill plane) must be rejected BEFORE the typed cast, which errors on a
 		# freed object every frame it is hit.
 		if not is_instance_valid(entry):

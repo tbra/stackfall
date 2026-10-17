@@ -11,8 +11,8 @@ const SHADER: Shader = preload("res://shaders/weather/rain_streaks.gdshader")
 const TUNING: RainTuning = preload("res://config/weather/rain.tres")
 ## The volume's AABB is unbounded for culling: the vertex shader relocates it.
 const CULL_EXTENT_M: float = 2000.0
-## Render layer the mirror camera skips (the removed DiscMirror): reflected streaks
-## rendered at mirror resolution read as dotted chains. Distinct from CloudSea.
+## Render layer the disc ReflectionProbe skips (Skybox.PROBE_CULL_MASK): reflected streaks
+## read as dotted chains. Distinct from CloudSea.
 const RENDER_LAYER_BIT: int = 1 << 17
 
 var _instance: MultiMeshInstance3D = null
@@ -44,7 +44,7 @@ func _preset_scale() -> float:
 
 
 func _build() -> void:
-	# DECISION (fix round 3): the volume can grow up to
+	# DECISION: the volume can grow up to
 	# _max_height() to reach the cloud ceiling, so allocate streaks for that
 	# height and show only the share matching the current height (_apply_visible)
 	# to keep streaks per cubic metre equal to the unlifted volume.

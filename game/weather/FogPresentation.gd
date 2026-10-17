@@ -1,6 +1,6 @@
 class_name FogPresentation
 extends WeatherPresentation
-## stylised cel fog, presentation only on every peer. There is
+## Stylised cel fog, presentation only on every peer. There is
 ## no geometry: the ramped intensity is pushed into the Skybox (which owns the
 ## Environment, see Skybox.set_weather_fog) as DEPTH fog that only starts
 ## depth_begin_m from the camera (near blocks keep full colour), plus a cool

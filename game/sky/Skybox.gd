@@ -2,29 +2,26 @@ class_name Skybox
 extends Node3D
 ## Sky presentation (spec 1.10): owns the WorldEnvironment's sky material, the
 ## theme / day-night cycle, fog, light, ambient life and the reflection probe.
-## (The optional six-face texture skybox was removed in.)
 ##
 ## Two pieces layer on top of the sky:
 ##   - apply_theme() writes `theme`'s (config/sky/SkyThemeDef.gd) sky/ground
 ##     colours onto `_fallback_sky_material` *in place*, its fog colour/
 ##     density onto the wired Environment's basic depth fog, and its
 ##     volumetric_fog_density/volumetric_fog_albedo onto that same
-##     Environment's global ambient volumetric-fog fields (fix round 2 --
-##     see SkyThemeDef.volumetric_fog_density's own doc for why the ambient
+##     Environment's global ambient volumetric-fog fields (see
+##     SkyThemeDef.volumetric_fog_density's own doc for why the ambient
 ##     floor has to be set too, not just the FogVolume cloud deck below) --
 ##     called once from _ready().
 ##   - a single FogVolume "cloud deck" child (_spawn_fog_volume()) is always
 ##     created, its `visible` flag alone tracking
 ##     GraphicsPreset.volumetric_fog_enabled (Settings.graphics_preset_changed,
-##     the same read-only-preset pattern Main.gd's own P1 package
-##     establishes) -- dropped from view entirely on Low, present on
-##     Medium/High.
+##     the same read-only-preset pattern Main.gd uses) -- dropped from view
+##     entirely on Low, present on Medium/High.
 
 @export var config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
-## M7 P3: the sky/ground/fog palette applied onto the
-## sky material -- see
-## apply_theme() below and the class doc's new paragraph on it. Optional (null
+## The sky/ground/fog palette applied onto the sky material -- see
+## apply_theme() below and the class doc. Optional (null
 ## in a fixture that only cares about the sky state); the game
 ## itself never overrides this from `preload`'s default, the same one-field/
 ## one-instance convention `config`/`visuals` above already use.
@@ -37,13 +34,13 @@ extends Node3D
 ## state, e.g. most of tests/unit/sky/test_skybox.gd): every sky-
 ## material write below is skipped when this or its .sky is unset.
 @export var environment: Environment = null
-## the scene's DirectionalLight3D (wired in Main.tscn, same
+## The scene's DirectionalLight3D (wired in Main.tscn, same
 ## NodePath convention as reflection_probe_path); apply_theme() writes the
 ## theme's light colour/energy/rotation onto it. Empty in fixtures: no-op.
 @export var light_path: NodePath = NodePath("")
 
 ## Probe cull mask: all 20 render layers minus the disc, the cloud puffs (below the
-## disc plane) and rain streaks (formerly DiscMirror.MIRROR_CULL_MASK).
+## disc plane) and rain streaks.
 const PROBE_CULL_MASK: int = 0xFFFFF & ~TerritoryOverlay.DISC_LAYER_BIT & ~CloudSea.RENDER_LAYER_BIT & ~RainPresentation.RENDER_LAYER_BIT
 const THEME_DIR: String = "res://config/sky/themes"
 const DEFAULT_THEME_ID: String = "sunset"
@@ -52,16 +49,16 @@ const DEFAULT_THEME_ID: String = "sunset"
 const CYCLE_THEME_ID: String = "cycle"
 ## The night palette the cycle fades toward (config/sky/themes/night.tres).
 const CYCLE_NIGHT_THEME_ID: String = "night"
-## C1b: the palette of the cycle's morning and noon (config/sky/themes/
+## The palette of the cycle's morning and noon (config/sky/themes/
 ## dawn.tres); SkyPalette fades it into the sunset.tres palette on the setting side.
 const CYCLE_DAWN_THEME_ID: String = "dawn"
 var _cloud_sea: CloudSea = null
-## the running cloud wind (calm per-match heading, storm wind, parallax integral).
+## The running cloud wind (calm per-match heading, storm wind, parallax integral).
 var _cloud_drift: CloudDriftState = CloudDriftState.new()
-## the one lighting/weather/cycle state all cloud layers read.
+## The one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
 var _birds: DistantBirds = null
-## cosmetic local ambient life, gated by the theme's
+## Cosmetic local ambient life, gated by the theme's
 ## AmbientLifeConfig (perching birds on sunset, fireflies on night) and the
 ## graphics preset's ambient_life_enabled. field_path / registry_path are wired
 ## in Main.tscn (same NodePath convention as light_path); empty in fixtures.
@@ -70,11 +67,10 @@ var _birds: DistantBirds = null
 var _perching: PerchingBirds = null
 var _fireflies: Fireflies = null
 
-## "isn't very reflective, like at all": Forward+
-## never reflects dynamic scene geometry (the placed blocks) without a
+## Forward+ never reflects dynamic scene geometry (the placed blocks) without a
 ## ReflectionProbe or SSR, so the disk's high metallic/low roughness
-## (config/territory/TerritoryVisuals.gd) only ever showed the sky's own smooth
-## gradient -- reads as a dull tint, not a mirror. NodePath, not a typed Node
+## (config/territory/TerritoryVisuals.gd) would only show the sky's own smooth
+## gradient -- a dull tint, not a mirror. NodePath, not a typed Node
 ## export, matching game/player/PlayerController.gd's camera_rig_path/ghost_path
 ## convention elsewhere in this codebase. Wired in Main.tscn to a sibling
 ## ReflectionProbe over the disc; left empty in every test fixture below
@@ -95,7 +91,7 @@ var _fireflies: Fireflies = null
 ## derived placement detail of reflection_probe_height_m right below, not an
 ## independent tunable a playtester would ever need to move on its own.
 const PROBE_GROUND_CLEARANCE_M: float = 4.0
-## the probe is re-rendered by writing its transform, which marks the
+## The probe is re-rendered by writing its transform, which marks the
 ## engine's probe instance dirty while keeping the old atlas slot valid (no blank frame,
 ## unlike a visibility toggle). RenderingServer ignores a write equal to the current
 ## transform, so alternate a sub-millimetre nudge; a derived placement detail like the
@@ -109,29 +105,26 @@ var _probe_seen_revision: int = -1
 var _probe_nudged: bool = false
 var _probe_registry: BlockRegistry = null
 
-## fix round: the cloud deck's box footprint/thickness/height
-## are per-theme now (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not
-## local constants here -- the previous candidate's centred-at-y40 box (y
-## 10..70) enclosed the entire play volume up to NetConfig.pos_max_y (150.0 since)
-## and the gameplay camera itself, which read as a uniform haze with no
-## sunset gradient visible. See SkyThemeDef.gd's doc on those two fields for
-## the corrected placement (well below the disk, clear of the stacking
-## volume).
+## The cloud deck's box footprint/thickness/height are per-theme
+## (SkyThemeDef.cloud_deck_size_m/cloud_deck_height_m), not local constants here:
+## a deck enclosing the play volume (up to NetConfig.pos_max_y) and the gameplay camera
+## reads as a uniform haze with no sunset gradient. See SkyThemeDef.gd's doc on those two
+## fields for the placement (well below the disk, clear of the stacking volume).
 
 ## The Sky's own material before this node ever touched it (Main.tscn's
-## ProceduralSkyMaterial, captured once in _ready()) -- restored whenever
-## load_set() falls back, the same moment the box itself is hidden.
+## ProceduralSkyMaterial, captured once in _ready()); apply_theme() repoints it at the
+## theme's own sky material.
 var _fallback_sky_material: Material = null
 var _cycle_theme: SkyThemeDef = null
 var _cycle_day: SkyThemeDef = null
 var _cycle_night: SkyThemeDef = null
-## C1b: `_cycle_day` (sunset.tres) is the cycle's structure and its
+## `_cycle_day` (sunset.tres) is the cycle's structure and its
 ## setting-side palette; `_cycle_dawn` (dawn.tres) is its morning/noon palette. Never
 ## written: SkyPalette.blend() mixes the two into `_cycle_theme` every phase tick.
 var _cycle_dawn: SkyThemeDef = null
 var _cycle_phase_last: float = -1.0
 var _cycle_life_is_night: bool = false
-## the phase mapping is phase = fposmod(clock / length + offset,
+## The phase mapping is phase = fposmod(clock / length + offset,
 ## 1). `_cycle_length_s` is the length it is currently based on and
 ## `_cycle_phase_offset` is re-based whenever the live length changes (F4), so
 ## the time of day never jumps. `_cycle_clock_s` is the last shared clock seen.
@@ -142,7 +135,7 @@ var _cycle_clock_s: float = 0.0
 ## Night options and F4's Time of day); -1 = running. Derived from replicated
 ## mode data and shipped SkyThemeDef content, never from the clock.
 var _cycle_locked_phase: float = -1.0
-## C1b variation: the seed of the cycle's exposure / cloud-coverage
+## The seed of the cycle's exposure / cloud-coverage
 ## variation (SkyVariation). configure_match_sky() takes it from the replicated
 ## MatchConfig (the host-rolled sky_variation_seed, else a deterministic rng_seed),
 ## so every peer draws the same sky and each match its own; a cycle started outside
@@ -161,7 +154,7 @@ var _launch_theme_name: String = ""
 var _launch_cycle: bool = false
 var _launch_process_mode: Sky.ProcessMode = Sky.PROCESS_MODE_AUTOMATIC
 
-## G1: see _process. SKY_TIME_GLOBAL is registered in project.godot
+## See _process. SKY_TIME_GLOBAL is registered in project.godot
 ## [shader_globals] (tools/bootstrap_project.gd).
 const SKY_TIME_GLOBAL: StringName = &"sky_time"
 ## global uniforms for the sun and moon disc directions (registered next to
@@ -173,7 +166,7 @@ const SKY_MOON_DIR_GLOBAL: StringName = &"sky_moon_dir"
 ## Counts disc writes and keeps the last sun direction written (tests / probes).
 var disc_publish_count: int = 0
 var last_disc_sun_direction: Vector3 = Vector3.ZERO
-## the sky's own clock, advanced by _process delta (not the wall clock) so a
+## The sky's own clock, advanced by _process delta (not the wall clock) so a
 ## paused tree (offline pause menu) freezes cloud animation. Seeded from the wall clock once.
 var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
 const RADIANCE_TICK_WRAP: int = 1024
@@ -199,7 +192,7 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 		var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
 		if source != null:
 			locked = source.locked_phase_for(match_config.locked_sky_id())
-	# DECISION (C1b variation): the replicated match seed drives the sky
+	# DECISION: the replicated match seed drives the sky
 	# variation. The host rolls MatchConfig.sky_variation_seed once per match (an
 	# unresolved config with no rng_seed shares SkyVariation's default curve).
 	_variation_seed = SkyVariation.seed_for(match_config.effective_sky_variation_seed())
@@ -312,7 +305,7 @@ func _process(delta: float) -> void:
 	_publish_sky_time()
 	if _cycle_theme != null:
 		_publish_disc_directions(cycle_phase_at(MatchContext.current().shared_clock_seconds()))
-	# G1: the radiance octmap re-renders whenever the sky material
+	# The radiance octmap re-renders whenever the sky material
 	# is written (sky.cpp:1044 uniform_set_updated) or the shader reads TIME (:1033;
 	# the sky shaders read the global `sky_time` instead, which neither flag sees, so
 	# the visible sky stays smooth). Material writes (the cycle's sun/palette and
@@ -338,7 +331,7 @@ func _publish_sky_time() -> void:
 		fposmod(_sky_clock_s, radiance_config.time_wrap_seconds))
 
 
-## sun direction for cycle `phase`, from the day theme's sun azimuth.
+## Sun direction for cycle `phase`, from the day theme's sun azimuth.
 func _cycle_sun_direction(phase: float) -> Vector3:
 	var sun_base: Vector3 = (_cycle_day.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
 	var horizontal: Vector3 = Vector3(sun_base.x, 0.0, sun_base.z).normalized()
@@ -468,8 +461,8 @@ func current_cycle_phase() -> float:
 	return _cycle_phase_last if _cycle_theme != null else -1.0
 
 
-## The seed the cycle's exposure / cloud-coverage variation currently draws from
-## C1b follow-up: what configure_match_sky() took from the match
+## The seed the cycle's exposure / cloud-coverage variation currently draws from:
+## what configure_match_sky() took from the match
 ## config, or SkyVariation.DEFAULT_SEED outside a match.
 func variation_seed() -> int:
 	return _variation_seed
@@ -532,7 +525,7 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_cycle_night = load_theme(CYCLE_NIGHT_THEME_ID)
 	if _cycle_day == null or _cycle_night == null:
 		return
-	# DECISION (C1b): a build without dawn.tres degrades to the sunset
+	# DECISION: a build without dawn.tres degrades to the sunset
 	# palette all day (the blend then has the same palette at both ends).
 	_cycle_dawn = load_theme(CYCLE_DAWN_THEME_ID)
 	if _cycle_dawn == null:
@@ -601,7 +594,7 @@ func set_cycle_phase(phase: float) -> void:
 	if is_equal_approx(phase, _cycle_phase_last):
 		return
 	_cycle_phase_last = phase
-	# C1b: the day palette first (dawn by day, sunset on the setting
+	# The day palette first (dawn by day, sunset on the setting
 	# side), written onto the live theme and its materials; everything below mixes that
 	# toward the night palette, so `_cycle_theme`'s palette fields are day values here.
 	SkyPalette.blend(_cycle_theme, _cycle_dawn, _cycle_day,
@@ -686,7 +679,7 @@ func set_cycle_phase(phase: float) -> void:
 	_publish_cloud_lighting()
 
 
-## C1b variation: writes the cycle's sky exposure, cloud coverage and
+## Writes the cycle's sky exposure, cloud coverage and
 ## cloud-floor (sea) coverage for `phase` onto the live sky material and the cloud
 ## puffs. The values are SkyVariation's pure function of (match seed, phase) inside the
 ## SkyThemeDef.variation_* ranges, or, with variation off, the day theme's own fixed
@@ -734,8 +727,8 @@ func _fixed_uniform(material: ShaderMaterial, uniform: StringName) -> float:
 ## `theme` was unset in _ready() (see that method's own doc).
 var _fog_volume: FogVolume = null
 
-## step 2 (F4 tuning panel live-apply, same idiom
-## game/player/CameraRig.gd's own TUNING_GROUP doc explains): every Skybox adds
+## F4 tuning-panel live-apply (same idiom as
+## game/player/CameraRig.gd's TUNING_GROUP): every Skybox adds
 ## itself to this group in _ready() so ui/debug/TuningPanel.gd's
 ## refresh_territory_visuals_live() can push a live SSR/reflection-probe edit
 ## onto whichever Skybox is actually in the tree, the same way it already
@@ -753,12 +746,12 @@ const OVERCAST_GROUP: StringName = &"weather_skybox"
 ## Environment or the light directly.
 var _overcast_amount: float = 0.0
 var _weather_cloud_overcast: float = 0.0
-## snow brightening 0..1 (CloudCeiling); the gain/lift come from ceiling.tres.
+## Snow brightening 0..1 (CloudCeiling); the gain/lift come from ceiling.tres.
 var _snow_brighten: float = 0.0
-## storm sky blend state (see set_storm_sky()).
 const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_disc.png")
 const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_halo.png")
 const CEILING_TUNING: WeatherCeilingTuning = preload("res://config/weather/ceiling.tres")
+## Storm sky blend state (see set_storm_sky()).
 var _storm_amount: float = 0.0
 ## aurora write cache (see _apply_aurora()). `_aurora_preset_on` is the graphics
 ## preset's aurora_enabled, kept from graphics_preset_changed instead of looked up every call;
@@ -772,10 +765,10 @@ var _storm_target: SkyThemeDef = null
 var _storm_blend: SkyThemeDef = null
 var _storm_blend_base: SkyThemeDef = null
 var _overcast_light_scale: float = 1.0
-## direct-sun scale from clouds covering the sun (game/sky/CloudShadows.gd),
+## Direct-sun scale from clouds covering the sun (game/sky/CloudShadows.gd),
 ## 1 = clear. Part of the one light-energy writer, _apply_overcast().
 var _sun_cloud_scale: float = 1.0
-## the cycle's last unit sun direction (ZERO before any cycle phase) and
+## The cycle's last unit sun direction (ZERO before any cycle phase) and
 ## daylight 0..1, read by game/sky/CloudShadows.gd.
 var _sun_direction: Vector3 = Vector3.ZERO
 var _daylight: float = 1.0
@@ -872,25 +865,19 @@ func _exit_tree() -> void:
 ## Public re-apply seam ui/debug/TuningPanel.gd calls (via TUNING_GROUP above)
 ## whenever the owner edits a reflection tunable live in the F4 panel --
 ## configure_reflection_probe()/configure_ssr() otherwise only ever run once,
-## at boot. Also the one place a script removed in (see git history)'s
-## `--mirror-mode=`/`--reflection-mode=` overrides re-apply their duplicated
-## TerritoryVisuals after swapping `visuals` out from under an already-ready
-## Skybox.
+## at boot.
 func refresh_from_visuals() -> void:
 	configure_reflection_probe()
 	configure_ssr()
 
 
-## step 2 ("the disc isn't very reflective, like at
-## all?" -- step 1's ReflectionProbe alone only ever showed a faint, blurred
-## sky gradient): Forward+'s screen-space reflections trace the actual
+## Forward+'s screen-space reflections trace the actual
 ## rendered depth/color buffer per pixel, so a block that is currently on
 ## screen shows up in the disk's reflection at roughly its true screen
 ## position -- the probe's own blurred, periodically-snapshotted cubemap
-## cannot do that on its own. Written onto the wired Environment directly
+## cannot do that on its own. Written onto the wired Environment directly,
 ## not the ReflectionProbe node: SSR is a WorldEnvironment-level effect,
-## the same as the sky/ambient the class doc's DECISION
-## explains. A no-op when no `environment` was wired or `visuals` is unset,
+## the same as the sky/ambient. A no-op when no `environment` was wired or `visuals` is unset,
 ## matching configure_reflection_probe()'s own contract.
 func configure_ssr() -> void:
 	if visuals == null or environment == null:
@@ -911,7 +898,7 @@ func configure_ssr() -> void:
 	environment.ssao_ao_channel_affect = visuals.ssao_ao_channel_affect
 
 
-## the probe strategy in force: OFF when the scene-level switch is off,
+## The probe strategy in force: OFF when the scene-level switch is off,
 ## ALWAYS when the dev override forces it, else the graphics preset's choice (INTERVAL when
 ## no preset is known). Pure, so tests can assert the mapping.
 static func effective_probe_mode(tuning: TerritoryVisuals, preset: GraphicsPreset) -> int:
@@ -951,7 +938,7 @@ func _step_probe_interval(delta: float) -> void:
 	retrigger_reflection_probe()
 
 
-## sizes and enables the ReflectionProbe wired via
+## Sizes and enables the ReflectionProbe wired via
 ## reflection_probe_path (Main.tscn), once at boot -- not per-match, unlike
 ## TerritoryOverlay's own configure() (see reflection_probe_margin_m's
 ## DECISION comment in config/territory/TerritoryVisuals.gd for why). A no-op when
@@ -988,10 +975,9 @@ func configure_reflection_probe() -> void:
 	probe.cull_mask = PROBE_CULL_MASK
 
 
-## applies `applied_theme`'s sky/ground colours onto
-## `_fallback_sky_material` *in place*## _restore_fallback_sky() restores the themed colours, not the material's own
-## untouched defaults) and its fog colour/density onto the wired Environment's
-## basic depth fog. A no-op when `applied_theme` is unset or no
+## Applies `applied_theme`'s sky/ground colours onto
+## `_fallback_sky_material` *in place* and its fog colour/density onto the wired
+## Environment's basic depth fog. A no-op when `applied_theme` is unset or no
 ## `environment`/`environment.sky` was wired, matching every other
 ## Environment-touching method above's contract.
 func apply_theme(applied_theme: SkyThemeDef) -> void:
@@ -1040,16 +1026,14 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 	environment.fog_enabled = true
 	environment.fog_light_color = applied_theme.fog_color
 	environment.fog_density = applied_theme.fog_density
-	# fix round: the previous candidate never set this, so it
-	# silently sat at the Environment engine default (1.0), which fully
+	# Must be written: the Environment engine default (1.0) fully
 	# replaces the rendered sky background with flat fog_light_color and
-	# masked the ProceduralSkyMaterial's sunset gradient regardless of
+	# masks the ProceduralSkyMaterial's sunset gradient regardless of
 	# fog_density. See SkyThemeDef.fog_sky_affect's own doc.
 	environment.fog_sky_affect = applied_theme.fog_sky_affect
-	# fix round 2 (decisive finding): Environment.volumetric_fog_
-	# density defaults to 0.05 on a fresh Environment and was never written
-	# here, so the whole frustum showed a uniform grey haze regardless of
-	# _spawn_fog_volume()'s FogVolume placement -- a FogVolume only adds density
+	# Must be written: Environment.volumetric_fog_density defaults to 0.05
+	# on a fresh Environment, which shows a uniform grey haze over the whole frustum
+	# regardless of _spawn_fog_volume()'s FogVolume placement -- a FogVolume only adds density
 	# on top of this ambient global floor, it cannot remove it. See
 	# SkyThemeDef.volumetric_fog_density's own doc.
 	environment.volumetric_fog_density = applied_theme.volumetric_fog_density
@@ -1060,7 +1044,7 @@ func _apply_theme_parameters(applied_theme: SkyThemeDef) -> void:
 	_apply_sun_flare(applied_theme)
 
 
-## storm sky option C: blends the
+## Blends the
 ## active theme toward `storm_theme` by `amount` 0..1 through the same writers
 ## apply_theme() uses (procedural sky uniforms, fog, light, ambient, overcast).
 ## DECISION: the two themes own different sky materials, so the blend lerps the
@@ -1163,9 +1147,9 @@ func _apply_storm_blend() -> void:
 	_publish_cloud_lighting()
 
 
-## procedural sky P1: writes the opt-in procedural-look uniforms
-## onto the theme's sky ShaderMaterial. The mix is always the theme's procedural_sea_mix (the
-## painted panorama is gone, so 0 would be a black sky; sky_look_procedural no longer gates it).
+## Writes the procedural-look uniforms
+## onto the theme's sky ShaderMaterial. The mix is always the theme's procedural_sea_mix (0 would
+## be a black sky; sky_look_procedural does not gate it).
 ## Shaders that lack a uniform ignore the write.
 func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeDef) -> void:
 	var mix: float = applied_theme.procedural_sea_mix
@@ -1192,7 +1176,7 @@ func _apply_procedural_params(material: ShaderMaterial, applied_theme: SkyThemeD
 			applied_theme.proc_cards_scale, cards_layout.y, applied_theme.proc_cards_density, cards_layout.w))
 
 
-## creates this Skybox's own FogVolume "cloud deck" child --
+## Creates this Skybox's own FogVolume "cloud deck" child --
 ## Skybox and Field are sibling nodes under Main.tscn (game/sky/Skybox.gd's
 ## class-doc paragraph), so this is the only owned-file path to
 ## add it; game/field/Field.tscn itself is left untouched (DECISION, this method):
@@ -1234,7 +1218,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_publish_cloud_lighting()
 
 
-## loads res://config/sky/themes/<id>.tres, or null if missing.
+## Loads res://config/sky/themes/<id>.tres, or null if missing.
 static func load_theme(theme_id: String) -> SkyThemeDef:
 	var path: String = "%s/%s.tres" % [THEME_DIR, theme_id]
 	if not ResourceLoader.exists(path):
@@ -1242,7 +1226,7 @@ static func load_theme(theme_id: String) -> SkyThemeDef:
 	return load(path) as SkyThemeDef
 
 
-## live theme switch (sky, light, environment, cloud sea, birds,
+## Live theme switch (sky, light, environment, cloud sea, birds,
 ## cloud-deck fog volume, sun flare, reflection probe re-capture).
 func set_theme_by_id(theme_id: String) -> bool:
 	# "cycle" is not a theme file; it (re)starts the running cycle
@@ -1322,7 +1306,7 @@ func _apply_sun_flare(applied_theme: SkyThemeDef) -> void:
 			flare.set_weather_scale(_cloud_lighting.sun_scale)
 
 
-## cloud puffs and birds follow the graphics preset (Low:
+## Cloud puffs and birds follow the graphics preset (Low:
 ## sparse puffs, no birds). A null preset means full quality. The puffs copy
 ## the theme's sky material uniforms so their far fade matches the sky.
 func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> void:
@@ -1350,7 +1334,7 @@ func _apply_ambient_life(preset: GraphicsPreset, applied_theme: SkyThemeDef) -> 
 		_fireflies.configure(life, life_enabled, _disc_radius_for_ambient_life())
 
 
-## writes the theme's light and glow/ambient values onto the
+## Writes the theme's light and glow/ambient values onto the
 ## wired DirectionalLight3D and Environment.
 func _apply_light_and_environment(applied_theme: SkyThemeDef, write_rotation: bool = true) -> void:
 	environment.ambient_light_energy = applied_theme.ambient_energy
@@ -1418,7 +1402,7 @@ func _publish_cloud_lighting() -> void:
 		_apply_sun_effect_scale(sun_effects)
 
 
-## writes the moon_v1 disc/halo uniforms on the live cycle sky. The moon
+## Writes the moon disc/halo uniforms on the live cycle sky. The moon
 ## sits opposite the sun, fades in with the night mix and is hidden by overcast/storm
 ## exactly as far as the sun's own weather keep (CloudLighting.sun_weather_keep).
 func _apply_moon(night: float) -> void:
@@ -1442,9 +1426,14 @@ func _apply_moon(night: float) -> void:
 	sky.set_shader_parameter(&"moon_brightness", _cycle_theme.cycle_moon_brightness)
 
 
-## the cycle's night number (integer cycle count; a locked sky is night 0).
-## "at night lets add an aurora borealis effect to the sky":
-## writes the aurora uniforms on the live sky material (the cycle's sunset_clouds, or a static
+## The cycle's night number (integer cycle count; a locked sky is night 0).
+func _cycle_night_index() -> int:
+	if _cycle_locked_phase >= 0.0:
+		return 0
+	return int(floori(_cycle_clock_s / _cycle_length_s + _cycle_phase_offset))
+
+
+## Writes the aurora uniforms on the live sky material (the cycle's sunset_clouds, or a static
 ## theme's own sky such as night_sky). `night` is the cycle's night mix 0..1 (0 outside the
 ## cycle). The shaders only read `aurora_visibility`, so the day / night / weather / preset
 ## decision lives here, exactly as for the moon: the cycle fades it in over the theme's
@@ -1456,12 +1445,6 @@ func _apply_moon(night: float) -> void:
 ## day): no Settings lookup, and nothing is written to the material until the visibility
 ## changes. The look uniforms are written only while visible and only when they differ from
 ## what is already on that material (a new sky material is written afresh).
-func _cycle_night_index() -> int:
-	if _cycle_locked_phase >= 0.0:
-		return 0
-	return int(floori(_cycle_clock_s / _cycle_length_s + _cycle_phase_offset))
-
-
 func _apply_aurora(night: float) -> void:
 	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
 	var sky: ShaderMaterial = active.sky_material as ShaderMaterial if active != null else null
@@ -1503,7 +1486,7 @@ func _apply_aurora(night: float) -> void:
 	sky.set_shader_parameter(&"aurora_curtain_height", active.aurora_curtain_height)
 
 
-## scales the sky shader's god rays / sun glow and the screen
+## Scales the sky shader's god rays / sun glow and the screen
 ## flare by the weather + night sun scale (host and client compute it the same).
 func _apply_sun_effect_scale(sun_effects: float) -> void:
 	var active: SkyThemeDef = _cycle_theme if _cycle_theme != null else theme
@@ -1523,7 +1506,7 @@ static func _puff_color(material: ShaderMaterial, parameter: StringName, fallbac
 	return value as Color if value is Color else fallback
 
 
-## the radius the cloud sea, its exclusion cylinder and the
+## The radius the cloud sea, its exclusion cylinder and the
 ## reflection probe must cover -- the bound Field's (disc-size scaled) radius,
 ## never below the largest shipped map.
 func _largest_disc_radius() -> float:
@@ -1544,7 +1527,7 @@ func _disc_radius_for_ambient_life() -> float:
 	return MapDef.RADIUS_MEDIUM
 
 
-## the FogVolume's only gating -- `visible` alone, never
+## The FogVolume's only gating -- `visible` alone, never
 ## created/destroyed (see _spawn_fog_volume()'s own doc on why). Dropped from view entirely
 ## on Low (config/graphics/presets/low.tres: volumetric_fog_enabled == false),
 ## present on Medium/High. A no-op when no FogVolume exists yet (`theme` was
@@ -1570,7 +1553,7 @@ func set_overcast(amount: float, light_scale: float, ambient_scale: float, expos
 	_publish_cloud_lighting()
 
 
-## the overcast every weather (rain, snow, storm; CloudCeiling) asks
+## The overcast every weather (rain, snow, storm; CloudCeiling) asks
 ## of the cloud layers. Grades the shared CloudLighting only; the light, ambient
 ## and fog overcast above stay RainPresentation's.
 func set_weather_cloud_overcast(amount: float) -> void:
@@ -1581,7 +1564,7 @@ func set_weather_cloud_overcast(amount: float) -> void:
 	_publish_cloud_lighting()
 
 
-## snow brightens the sky (background exposure) and the clouds
+## Snow brightens the sky (background exposure) and the clouds
 ## (negative weather dim) by `amount` 0..1; 0 restores exactly.
 func set_snow_brighten(amount: float) -> void:
 	var clamped: float = clampf(amount, 0.0, 1.0)
@@ -1644,7 +1627,7 @@ func _apply_overcast(applied_theme: SkyThemeDef) -> void:
 		light.light_energy = applied_theme.light_energy * lerpf(1.0, _overcast_light_scale, amount) * _sun_cloud_scale
 
 
-## the sun scale clouds cover it by (1 = clear). Rewrites only the light.
+## The sun scale clouds cover it by (1 = clear). Rewrites only the light.
 func set_sun_cloud_scale(scale: float) -> void:
 	scale = clampf(scale, 0.0, 1.0)
 	if is_equal_approx(scale, _sun_cloud_scale):
@@ -1690,7 +1673,7 @@ func _step_cloud_drift(delta: float) -> void:
 		_cloud_sea.set_drift_offset(_cloud_drift.offset)
 
 
-## aerial perspective, sun scatter and height fog from the theme.
+## Aerial perspective, sun scatter and height fog from the theme.
 func _apply_fog_extras(applied_theme: SkyThemeDef) -> void:
 	if is_inside_tree():
 		WeatherFogShader.set_ambient(applied_theme.haze_strength, applied_theme.haze_begin_m,

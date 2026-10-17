@@ -1,7 +1,7 @@
 class_name Sandbox
 extends Node
 ## The unlisted `godot --path . -- --sandbox [--players=N]` debug entry point
-## : a HotSeat-shaped controller/ghost/HUD subtree (same shape
+## -- a HotSeat-shaped controller/ghost/HUD subtree (same shape
 ## as game/main/HotSeat.tscn, reused rather than duplicated) plus the extra
 ## hotkeys and the debug panel a manual rules/physics tester needs.
 ##
@@ -20,7 +20,7 @@ extends Node
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 @onready var _panel: SandboxPanel = $SandboxPanel
-## the in-game tuning panel (F4), self-contained here the
+## The in-game tuning panel (F4), self-contained here the
 ## same way SandboxPanel is above -- see game/main/HotSeat.gd's matching field for
 ## why this lives inside the subtree rather than being instanced separately
 ## by game/main/Main.gd.
@@ -50,14 +50,14 @@ var _forced_special_index: int = -1
 var _forced_special_id: StringName = &""
 ## True when the last _apply_forced_special() call's debug_queue_special()
 ## refused the request. A filled next slot is replaced under the latest-gift-
-## wins rule; it no longer sets this flag.
+## wins rule and does not set this flag.
 var _forced_special_queue_full: bool = false
 
 ## sandbox_slow_motion (F10): whether Engine.time_scale is currently set to
 ## sandbox_config.slow_motion_scale. ui/debug/SandboxPanel.gd reads this every
 ## refresh.
 var _slow_motion_active: bool = false
-## the gift-demo preset (null for a plain sandbox) and a
+## The gift-demo preset (null for a plain sandbox) and a
 ## counter that cancels a pending pre-placement when the field resets again.
 var _preset: SandboxConfig = null
 var _gift_strip: GiftDemoStrip = null
@@ -83,7 +83,7 @@ func _ready() -> void:
 	_controller.enable_mouse_capture()
 	add_child(SandboxHintBar.new())
 	Events.block_placed.connect(_on_diagnostic_block_placed)
-	# M6 B2 (sandbox_pause_physics, F11): PROCESS_MODE_ALWAYS so this whole
+	# sandbox_pause_physics (F11): PROCESS_MODE_ALWAYS so this whole
 	# subtree -- this node's own _unhandled_input (every sandbox hotkey,
 	# including the one that un-pauses again) plus the controller/ghost/HUD
 	# children that inherit it -- keeps responding while get_tree().paused is
@@ -157,9 +157,8 @@ func forced_special_queue_full() -> bool:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# gift-demo preset only. DECISION: the old demo's cursor
-	# toggle is dropped (pause menu frees the cursor) and its reset is F5, which
-	# re-places the preset towers.
+	# gift-demo preset only. DECISION: the demo's cursor toggle is dropped (the pause
+	# menu frees the cursor) and its reset is F5, which re-places the preset towers.
 	if _preset != null:
 		if event.is_action_pressed(&"gift_demo_cycle_prev"):
 			_cycle_forced_special(-1)
@@ -277,7 +276,7 @@ func is_physics_paused() -> bool:
 	return _physics_paused
 
 
-## ui/debug/SandboxPanel.gd's block-picker OptionButton (M6 B2): forces the active
+## ui/debug/SandboxPanel.gd's block-picker OptionButton: forces the active
 ## slot's held shape to `shape_id`. See autoload/match/MatchFeed.gd's own
 ## debug_force_next_shape() doc comment for the host/config.sandbox gate and
 ## why this reaches into Match._feed directly rather than through a new
@@ -335,7 +334,7 @@ func _reset_field() -> void:
 		_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 		_field.set_overlay_source(Match.raster(), config.player_colors)
 	_set_active_slot(0)
-	# M6 B2: a reset starts a brand new match, which must not silently
+	# A reset starts a brand new match, which must not silently
 	# inherit whatever slow-motion state the previous one left running (see
 	# _exit_tree()'s matching guarantee) or the previous match's tallest
 	# stack (ui/debug/SandboxPanel.gd's own height record).
@@ -389,24 +388,7 @@ func _freeze_diagnostic_block(block: Block) -> void:
 	block.collision_mask = 0
 
 
-## sandbox_spawn_tower (F7): drops sandbox_config.tower_block_count blocks,
-## stacked sandbox_config.tower_spacing apart, at the ghost's current (x, z)
-## — through Match.request_place() so PlacementRules still decides whether
-## each one lands, exactly like a real click.
-##
-## DECISION (game/sandbox/Sandbox.gd): request_place() has no shape parameter — it
-## always spawns whatever the target slot is currently holding
-## (autoload/Match.gd) — and this package does not own core/ rule logic, so
-## there is no in-scope way to force every drop to a fixed cube shape
-## without either reaching into Match's private _held_shapes (breaking its
-## encapsulation for a debug feature) or duplicating the bag/feed system
-## here. Each call in the loop below still lands the slot's real held block
-## and immediately
-## refeeds (_consume_and_refeed() runs inside request_place() itself), so in
-## practice this builds a tower of whatever the bag deals next, not
-## literally N cubes — the debugging value (a fast physical stack to test
-## territory/physics against) is the same either way.
-## arms the gift-demo preset; its towers drop once the match
+## Arms the gift-demo preset; its towers drop once the match
 ## countdown ends and again after every field reset.
 func apply_preset(preset: SandboxConfig) -> void:
 	_preset = preset
@@ -477,6 +459,23 @@ func _build_tower(slot_id: int, at: Vector2, height: int) -> void:
 			block.sleeping = _preset.preplaced_start_asleep
 
 
+## sandbox_spawn_tower (F7): drops sandbox_config.tower_block_count blocks,
+## stacked sandbox_config.tower_spacing apart, at the ghost's current (x, z)
+## — through Match.request_place() so PlacementRules still decides whether
+## each one lands, exactly like a real click.
+##
+## DECISION (game/sandbox/Sandbox.gd): request_place() has no shape parameter — it
+## always spawns whatever the target slot is currently holding
+## (autoload/Match.gd) — and this package does not own core/ rule logic, so
+## there is no in-scope way to force every drop to a fixed cube shape
+## without either reaching into Match's private _held_shapes (breaking its
+## encapsulation for a debug feature) or duplicating the bag/feed system
+## here. Each call in the loop below still lands the slot's real held block
+## and immediately
+## refeeds (_consume_and_refeed() runs inside request_place() itself), so in
+## practice this builds a tower of whatever the bag deals next, not
+## literally N cubes — the debugging value (a fast physical stack to test
+## territory/physics against) is the same either way.
 func _spawn_tower() -> void:
 	if _ghost == null or Match.state() != Match.State.PLAYING:
 		return
@@ -488,8 +487,8 @@ func _spawn_tower() -> void:
 
 # --- sandbox_force_special: F9 -----------------------------------------------
 #
-# forces the next drawn special to a fixed id so a tester can
-# exercise each of the seven specials on demand instead of waiting on the
+# Forces the next drawn special to a fixed id so a tester can
+# exercise each special on demand instead of waiting on the
 # crate roll's RNG (spec 1.6/1.9). F9 cycles off -> each SpecialDef.
 # load_all_specials() id, in that order -> off; `--force-special=<id>`
 # (game/main/Main.gd) sets the same state at startup. Both converge on
@@ -554,7 +553,7 @@ func _on_turn_changed(slot_id: int) -> void:
 	# that (config.hot_seat is false), so this only sets the initial active
 	# slot. sandbox_next_slot/_reset_field() own every change after this.
 	_active_slot = slot_id
-	# item 4: this is sandbox's equivalent of HotSeat.
+	# This is sandbox's equivalent of HotSeat.
 	# bind_local_slot() -- the one-time "a controller is now bound to a real
 	# slot" moment -- so the very first frame looks from that slot's home
 	# flag toward the disk centre instead of the generic yaw = 0 default.

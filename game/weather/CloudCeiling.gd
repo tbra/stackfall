@@ -1,6 +1,6 @@
 class_name CloudCeiling
 extends Node
-## / : drives the overcast puff layer above the disc while
+## Drives the overcast puff layer above the disc while
 ## it rains, snows or storms (the disc floats above a cloud sea, so precipitation
 ## needs clouds overhead). The layer itself is the cloud sea's own puff field
 ## (game/sky/CloudSea.gd: same mesh, shader, noise and CloudLighting), duplicated high

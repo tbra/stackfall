@@ -9,12 +9,10 @@ extends CanvasLayer
 ## number lives in config/sky/SunFlareConfig.gd (`config`, see its own class doc
 ## for why it is not yet reachable from the in-game F4 panel).
 ##
-## Fix round ("move god rays into the sky, they're painting dark
-## spokes over the disc"): the big warm sun halo and long god-ray beams are
-## NOT drawn here anymore -- they moved into shaders/sky/sunset_clouds.gdshader
-## (part of the sky render pass, so they sit behind every opaque object for
-## free, unlike this screen-space layer which draws on top of everything).
-## This script only ever renders the true camera-lens artifacts.
+## The big warm sun halo and long god-ray beams are NOT drawn here: they live in
+## shaders/sky/sunset_clouds.gdshader (part of the sky render pass, so they sit behind every
+## opaque object for free, unlike this screen-space layer which draws on top of everything).
+## This script only renders the true camera-lens artifacts.
 ##
 ## config.sun_direction is a fixed world-space direction (see that field's
 ## own DECISION for why it is measured from the painted sunset panorama, not
@@ -35,9 +33,8 @@ extends CanvasLayer
 var _cycle_config_local: bool = false
 var _cycle_base_config: SunFlareConfig = null
 ## Wired in Main.tscn to the live gameplay camera (game/player/CameraRig.tscn's own
-## Camera3D), the same NodePath convention the removed DiscMirror's own
-## camera_path/field_path already use for a sibling-node reference resolved
-## once at _ready() rather than a deep get_node("../..") chain.
+## Camera3D): a NodePath resolved once at _ready() rather than a deep get_node("../..")
+## chain.
 @export var camera_path: NodePath = NodePath("")
 
 const FLARE_SHADER: Shader = preload("res://shaders/sky/sun_flare.gdshader")
@@ -55,18 +52,12 @@ const FLARE_SHADER: Shader = preload("res://shaders/sky/sun_flare.gdshader")
 ## camera/preset with a much shorter far plane can never end up projecting a
 ## point past it.
 ##
-## While debugging this file's own tests/unit/sky/test_sun_flare.gd, an
-## unproject_position() call right after a freshly created, never-ticked
-## Camera3D's own look_at() read back a wildly wrong screen position
-## (~3727px in a 1280px-wide viewport for a camera looking directly at the
-## projected point) -- NOT a far-plane issue (unproject_position()'s x/y
-## math does not depend on the far plane at all), but "physics interpolation
-## on" (CLAUDE.md's tech rules): the camera's rendering-side transform lags
-## one physics tick behind a script's own global_position/look_at() write
-## until a physics step syncs it. See that test file's own
-## _make_camera_facing() doc for the fix (await wait_physics_frames()) --
-## a real gameplay camera never hits this, since it is already moving every
-## frame by the time this script reads it.
+## Test trap: right after a freshly created, never-ticked Camera3D's look_at(),
+## unproject_position() reads back a wildly wrong position, because with physics
+## interpolation on the camera's rendering-side transform lags one physics tick behind
+## until a physics step syncs it (not a far-plane issue). Tests await
+## wait_physics_frames() (tests/unit/sky/test_sun_flare.gd's _make_camera_facing()); a real
+## gameplay camera moves every frame and never hits it.
 const SUN_PROJECTION_DISTANCE_M: float = 5000.0
 
 var _rect: ColorRect = null
@@ -288,10 +279,10 @@ func _edge_fade(uv: Vector2) -> float:
 ## two physics rays, either hit hides the flare. The forward ray (camera toward
 ## the sun) is what blocks, but game/field/Field.gd's disc collider is a single-sided trimesh -- faces
 ## only up and out of the rim -- so seen from below or edge-on the forward ray crosses the disc
-## without a hit and the starburst drew over the disc's underside. The reverse ray (sun point back to the camera)
+## without a hit and the starburst would draw over the disc's underside. The reverse ray (sun point back to the camera)
 ## meets the very same faces from outside, so together the rays find every crossing of a
 ## one-sided surface; convex blocks answer to both. Two intersect_ray() calls per refresh,
-## cheap enough for the brief ("check with a raycast or depth, cheap"). Any hit fades the
+## which is cheap. Any hit fades the
 ## flare fully out for this frame; _process() smooths that binary result over
 ## config.visibility_lerp_speed so a single frame's occlusion does not pop the flare off.
 func _occlusion_factor(direction: Vector3) -> float:
