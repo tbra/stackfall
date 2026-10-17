@@ -36,7 +36,6 @@ extends RefCounted
 ## dropped index: 47 bits. One spare bit carries the sleeping flag. A 15-bit
 ## component step is 2*0.7071/32767 = 4.3e-5.
 ##
-## The stub's "under 0.005 degrees" was the *typical* figure, not the bound.
 ## Measured over 300000 uniformly random quaternions the worst round trip is
 ## **0.0074 deg**, and the adversarial case — all four components near 0.5,
 ## where the reconstructed component's sensitivity d(w)/d(x) = x/w reaches 1
@@ -178,8 +177,7 @@ static func pack_quat(out: PackedByteArray, offset: int, rotation: Quaternion, s
 
 	# Unrolled on purpose: this runs 300 times per snapshot at 30 Hz, and in
 	# GDScript every `for i in range(4)` allocates an Array and every helper
-	# call costs more than the arithmetic inside it. See tests/bench/
-	# bench_snapshot.gd, which is what grades this.
+	# call costs more than the arithmetic inside it (tests/bench/bench_snapshot.gd).
 	var dropped: int = 0
 	var largest: float = absf(q.x)
 	if absf(q.y) > largest:
@@ -283,20 +281,19 @@ static func is_wire_id(net_id: int) -> bool:
 static func pack_net_id(out: PackedByteArray, offset: int, net_id: int) -> int:
 	# DECISION (core/net/Quantize.gd): the wire net_id is u24,
 	# not spec 2.6's u16. game/blocks/BlockRegistry.gd allocates ids monotonically and
-	# never reuses one within a match (see the net_id allocation note in the spawn/snapshot
-	# race handling), so a u16 field would pack the 65536th block of
+	# never reuses one within a match, so a u16 field would pack the 65536th block of
 	# a match as 0 ("no body", dropped) and the 65537th as 1 — the first block
 	# of the match — and a snapshot would silently move the wrong body. 65535
 	# ids is reachable: eight players on MatchConfig's 3 s block timer with the
-	# match timer off burn one every 0.375 s, so under seven hours, before M4's
-	# specials add spawns of their own and M8's soak runs bots for longer. At
+	# match timer off burn one every 0.375 s, so under seven hours, before
+	# specials add spawns of their own or a soak runs bots for longer. At
 	# that rate 2^24 - 1 ids last 72 days, so NET_ID_MAX is unreachable and the
 	# allocator refuses past it instead of aliasing. u32 was rejected: a 16-byte
 	# record puts 300 bodies at 4860 B in five fragments, over the plan's
 	# 4.5 KB budget, and would not fit the PackedInt32Array that
 	# Interpolator.tracked_ids() returns. u24 keeps four fragments (78 bodies
 	# each) and 4560 B, a 7% cost. Spec 2.6 is a technical section, not an
-	# [ORIGINAL] rule; the deviation is explained in the comment above.
+	# [ORIGINAL] rule.
 	var wire: int = net_id if is_wire_id(net_id) else NET_ID_NONE
 	out.encode_u16(offset, wire & 0xFFFF)
 	out[offset + 2] = (wire >> 16) & 0xFF

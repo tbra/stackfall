@@ -26,8 +26,7 @@ extends RefCounted
 ## cell_index(), the index TerritoryRaster's per-cell arrays use), only cells
 ## inside the grid, exactly the cells the uncached loop visited. Indices rather than
 ## (cx, cy) pairs let claim_at() read the raster's arrays directly, with no
-## per-cell coordinate math or bounds check (the residual cost after the first
-## pass of this bead: ~1.9 us per cell through TerritoryRaster.group_at/team_at).
+## per-cell coordinate math or bounds check.
 ##
 ## Main-thread only (the win check and bot scoring run there; the solver's
 ## worker task never calls it). Pure logic: no scene tree (CLAUDE.md).

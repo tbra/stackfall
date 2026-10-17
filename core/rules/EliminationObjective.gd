@@ -13,7 +13,7 @@ extends ModeObjective
 ##    the surviving teams are ranked by territory share, highest wins, equal
 ##    shares share the win.
 ## _scores holds each team's living player count (0 = out).
-## [OWNER decision] A home flag is only knocked out
+## A home flag is only knocked out
 ## after the attacker has kept the pressure on it continuously for the claim
 ## time (TerritoryTuning.capture_hold, the goal-beacon claim duration). The
 ## per-slot claim timers live here (pure); MatchTerritory feeds the pressure.
@@ -37,7 +37,7 @@ var _winners: PackedInt32Array = PackedInt32Array()
 ## Claim time in seconds (<= 0 = instant knockout).
 var _claim_hold: float = 0.0
 ## Seconds of claim progress lost per second while the pressure has lapsed
-## (<= 0 = the old instant reset). [OWNER decision b]
+## (<= 0 = instant reset).
 var _claim_decay_rate: float = 0.0
 ## slot -> seconds the current attacker has held its home flag.
 var _claim_held: Dictionary = {}
@@ -91,7 +91,7 @@ func update(raster: TerritoryRaster, _delta: float) -> void:
 
 ## Host: advances every home-flag claim by `delta`. `pressure` maps each slot
 ## whose home flag is currently under attack to the attacking team id
-## (NO_TEAM when unknown). [OWNER decision b] A slot
+## (NO_TEAM when unknown). A slot
 ## missing from `pressure` keeps its claim and FADES by claim_decay_rate seconds
 ## per second (removed at 0) instead of resetting, so brief lapses (temporary
 ## holes) do not undo it; resumed pressure from the same attacker continues from
