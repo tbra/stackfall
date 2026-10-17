@@ -1,6 +1,6 @@
 class_name BotModeGoal
 extends RefCounted
-## phase A: the per-mode goal context BotStrategy and BotController read.
+## The per-mode goal context BotStrategy and BotController read.
 ## Pure data, built on the host from the active ModeObjective (see
 ## MatchTerritory.bot_mode_goal()) and handed to the bot through BotWorldView; null or a CLASSIC
 ## context means the ordinary classic behaviour.

@@ -10,8 +10,7 @@ extends RefCounted
 ##
 ## What the analysis yields per body: the bodies it rests on, the convex support hull of its
 ## contacts (or of its bottom cubes when on the disc), the load above it (itself plus everything
-## resting on it, directly or not) and its soundness. DECISION (deviates from the plan's "full load
-## to every supporter"): the true split is statically indeterminate, and charging a bridge's whole
+## resting on it, directly or not) and its soundness. DECISION: the true split is statically indeterminate, and charging a bridge's whole
 ## load to each leg would flag every arch. A body's load therefore includes only the bodies it
 ## carries ALONE; a body with two or more supporters is tested against the union hull of its
 ## contacts and its load does not travel further down. DECISION: a body with no supporter and no disc contact (floating, or its support
@@ -439,7 +438,7 @@ func down_set(supports: PackedInt32Array) -> PackedInt32Array:
 ## rest: the resting plane is the highest face overlapping any of them (the host lifts the piece onto it), but not
 ## below `min_plane`; the faces on that plane within rest_tolerance_m carry it. Each carrier's top face is shrunk by
 ## `aim` (the aim error moves the piece, not the carrier, so this is a lower bound on every outcome of it); the
-## disc is never shrunk: `disc_ok[j]` (empty: all) says square j may rest on the disc. See STATICS_DESIGN 2.3.
+## disc is never shrunk: `disc_ok[j]` (empty: all) says square j may rest on the disc.
 func piece_cut(
 	bottom: PackedVector2Array, half: float, min_plane: float, aim: float, disc_ok: PackedByteArray
 ) -> PieceCut:

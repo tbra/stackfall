@@ -57,8 +57,8 @@ var weather_id: StringName = &""
 var weather_intensity: float = 0.0
 ## Height response of the active wind (WindField.height_factor); null when no wind blows
 ## (calm, rain, snow, ...), which keeps every wind term at exactly 0.
-# DECISION (replaces the earlier "direction and gusts ignored" note): the height
-# response still decides how tip-prone a tall stack is, and the wind HEADING now only grades the
+# DECISION: the height
+# response decides how tip-prone a tall stack is, and the wind HEADING only grades the
 # fall-off-the-rim part of it (BotEvaluator.downwind_rim_factor): a piece with open disc downwind
 # of it is unchanged, one near the rim on the downwind side is graded worse. The Storm heading is
 # its seeded base heading (WindField.base_angle of the event seed): the host's live +/- veer is
@@ -75,7 +75,7 @@ var gust_center: PackedVector3Array = PackedVector3Array()
 var gust_radius: PackedFloat32Array = PackedFloat32Array()
 var gust_heading: PackedVector2Array = PackedVector2Array()
 var gust_power_values: PackedFloat32Array = PackedFloat32Array()
-## .53b: snapshot of the cubes near the own towers (game/bots/BotStackProbe.gd); BotThink's STACK
+## Snapshot of the cubes near the own towers (game/bots/BotStackProbe.gd); BotThink's STACK
 ## phase analyses it. null = no tower statics: every site keeps its old score.
 var stack: BotStack = null
 ## live gravity in the disc frame (magnitude = g * gravity_multiplier); DOWN = a level disc.

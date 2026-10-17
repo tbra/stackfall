@@ -108,11 +108,10 @@ class SiteJob:
 		if needed <= 0:
 			return
 		_stop_at = budget
-		# DECISION (option d): a profile with no FILL share (every V2 tier) never
-		# picked a FILL site in the scripted tower scenes (24 of 24 thinks picked a TIP site), yet the
-		# top-up of every targeted shortfall (60-90 sites) cost ~15-24 % of a think in FILL plus the
-		# probe/rank of those sites. FILL is now only a fallback for ZERO targeted sites.
-		# fill_share > 0 is unchanged.
+		# DECISION: a profile with no FILL share (every V2 tier) never picked a FILL site in the
+		# scripted tower scenes (24 of 24 thinks picked a TIP site), yet topping up every targeted
+		# shortfall (60-90 sites) cost ~15-24 % of a think; FILL is only a fallback for ZERO
+		# targeted sites. fill_share > 0 is unchanged.
 		if capped and not out.is_empty():
 			return
 		fallback_ran = capped
@@ -151,7 +150,7 @@ class _Gen:
 	var _own_index: PackedInt32Array = PackedInt32Array()
 	var _tip_orientations: Array[BotStatics.OrientationInfo] = []
 	var _stack_orientations: Array[BotStatics.OrientationInfo] = []
-	## Replaces the older debris clearance: a site must rest on the disc or on block faces
+	## A site must rest on the disc or on block faces
 	## flat against it whose pile holds the piece in the analysed snapshot (_rests_flat).
 	var flat_supports_only: bool = false
 
@@ -177,7 +176,7 @@ class _Gen:
 			_own_radii.append(view.cr[i])
 			_own_index.append(i)
 
-	## P4: `infos` already holds only orientations whose own centre of mass stands on their contact
+	## `infos` already holds only orientations whose own centre of mass stands on their contact
 	## squares (BotStatics.orientation_infos); the stability model judges each site in PROBE, so generation only
 	## offers a spread. Tip: highest reach, then widest own margin, then largest grip. Stack: flattest first.
 	func _rank_orientations() -> void:
@@ -207,7 +206,7 @@ class _Gen:
 		_stack_orientations = stack.slice(0, maxi(t.stack_orientation_variants, 1))
 		_add_tall_stack_orientations()
 
-	## bots always laid bars flat: Reach the Sky also offers the
+	## Flat-first orientations alone lay bars flat: Reach the Sky also offers the
 	## tallest orientations after the flattest ones; any eligible orientation may stand on a sound top.
 	## DECISION: Reach the Sky only; other modes keep their flat-first stack orientations (and candidate sets).
 	func _add_tall_stack_orientations() -> void:
