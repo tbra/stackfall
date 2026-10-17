@@ -1,28 +1,17 @@
 class_name SunFlareConfig
 extends Resource
-## Tunables for game/sky/SunFlare.gd's screen-space lens flare (
-## "Graphics pass 2" -- feedback/graphics_feedback.md: "lens
-## flare from the sun"). Every number the shader (shaders/sky/sun_flare.gdshader)
-## and the driving script read lives here, following the same "no magic
-## numbers" pattern config/physics/CameraShakeConfig.gd already uses for
-## game/player/CameraRig.gd.
+## Tunables for game/sky/SunFlare.gd's screen-space lens flare. Every number the
+## shader (shaders/sky/sun_flare.gdshader) and the driving script read lives here.
 ##
-## # DECISION (config/sky/SunFlareConfig.gd): this Resource is
-## not yet wired into ui/debug/TuningPanel.gd -- that file is out of this package's
-## owned-file scope (CLAUDE.md pause-point discipline: do not touch another
-## worker's owned files) and TuningPanel.gd hardcodes one `preload()`'d var
-## per tunable Resource it exposes (no generic auto-discovery), so adding
-## this file's section there needs a follow-up in that file itself. Flagged
-## to the orchestrator in this package's handback; until that lands, these
-## fields are Resource-only (edit config/sky/sun_flare.tres directly), not
-## live-editable from the in-game F4 panel.
+## DECISION: not wired into ui/debug/TuningPanel.gd, which hardcodes one preload()'d
+## var per tunable Resource it exposes; these fields are Resource-only (edit
+## config/sky/sun_flare.tres), not live-editable from the in-game F4 panel.
 
 ## World-space direction from the field's center toward the sun (normalized).
-## # DECISION (v2): preserve the original flare axis and scene
-## light rotation. sunset.tres rotates panorama sampling to place its painted
-## sun on this axis; changing the light instead caused a grazing hotspot and
-## moved the sun away from the default home view. See sunset_clouds.gdshader
-## for the measured panorama centre and a script removed in (see git history) for QA.
+## # DECISION: keep the original flare axis and scene light rotation. sunset.tres
+## rotates panorama sampling to place its painted sun on this axis; moving the
+## light instead caused a grazing hotspot. See sunset_clouds.gdshader for the
+## measured panorama centre.
 @export var sun_direction: Vector3 = Vector3(0.963087, 0.069011, -0.260192)
 
 ## Warm tint applied to every flare element (core, rays, ghosts) before
@@ -30,18 +19,16 @@ extends Resource
 @export var sun_color: Color = Color(1.0, 0.86, 0.62)
 
 ## Bright core disc radius/softness, in normalized screen-diagonal units
-## (see shaders/sky/sun_flare.gdshader's own doc for the exact unit conversion). Fix
-## round ("reduce the hard white clipped look"): the painted panorama
-## supplies the sun disc behind all geometry; this is a small sparkle on
-## top of it, so it stays low-intensity rather than re-blowing-out the disc.
+## (see shaders/sky/sun_flare.gdshader's own doc for the exact unit conversion). The
+## painted panorama supplies the sun disc behind all geometry; this is a small
+## sparkle on top of it, so it stays low-intensity rather than blowing out the disc.
 @export var core_radius: float = 0.022
 @export var core_softness: float = 0.5
 @export var core_intensity: float = 0.9
 
 ## A tight starburst sparkle right on the sun's own screen position -- NOT
-## the big god-ray beams (those moved into shaders/sky/sunset_clouds.gdshader's
-## own sky pass, per the owner's fix-round feedback: they need to sit behind
-## scene geometry, which only the sky pass can do for free). ray_length is
+## the big god-ray beams (those live in shaders/sky/sunset_clouds.gdshader's
+## sky pass, which can sit behind scene geometry for free). ray_length is
 ## deliberately small (a lens-artifact spike a few percent of the screen
 ## diagonal), not a long beam.
 @export var ray_count: int = 8
@@ -51,18 +38,9 @@ extends Resource
 @export var ray_intensity: float = 0.4
 
 ## Ghost ("ghost ring") ghost discs sampled along the sun-to-screen-center
-## axis, alternating between sun_color (warm) and ghost_color_b (teal) --
-## fix round ("make them visible but subtle, like a camera flare").
-## # DECISION (config/sky/SunFlareConfig.gd): ghost_base_size and
-## ghost_alpha both trimmed down from this fix round's own earlier values
-## (0.06/0.65 before) -- this package's brief asks for ghost discs subtle
-## enough that none of them reads as a second sun on its own; now that
-## sun_direction actually points at the bright painted disc (see that
-## field's own DECISION), a same-size-as-before ghost sitting a third of the
-## way toward screen center read as too close in brightness/size to a small
-## second sun in the feedback/pt-sun-before-* probe images. Kept non-zero
-## (still "visible but subtle" per the owner's own fix-round wording above),
-## not zeroed.
+## axis, alternating between sun_color (warm) and ghost_color_b (teal).
+## # DECISION: ghost_base_size and ghost_alpha are kept small and non-zero so the
+## ghosts stay visible but subtle and none reads as a second sun.
 @export var ghost_count: int = 4
 ## Position of each ghost as a fraction of the way from the sun toward (and
 ## past) the screen center -- e.g. 0.5 sits halfway to center, 1.3 sits just
@@ -71,14 +49,11 @@ extends Resource
 @export var ghost_base_size: float = 0.03
 @export var ghost_size_falloff: float = 0.72
 @export var ghost_alpha: float = 0.22
-## "from an angle it looks like there are 2
-## suns": ROOT CAUSE -- the first ghost sits ghost_positions[0] of the way from
-## the sun to screen centre as a solid sun-coloured disc. Straight on the sun is
-## at centre so every ghost collapses onto it; from the side the ghost separates
-## and reads as a second sun. Ghosts are now hollow rings (this fraction of the
-## ghost's radius is ring; 0 restores solid discs) and dimmer, so they read as
-## lens artifacts. The sky-shader sun, the scene light and this flare's
-## sun_direction all agree (tests/unit/sky/test_sky_themes.gd asserts it).
+## Fraction of the ghost's radius that is ring (0 = solid discs). Solid discs read as
+## a second sun when seen from the side, since straight on every ghost collapses onto
+## the sun at screen centre; hollow, dim rings read as lens artifacts. The sky-shader
+## sun, the scene light and this flare's sun_direction all agree
+## (tests/unit/sky/test_sky_themes.gd asserts it).
 @export var ghost_ring_width: float = 0.3
 @export var ghost_color_b: Color = Color(0.35, 0.78, 0.72)
 
@@ -106,18 +81,17 @@ extends Resource
 @export var max_intensity: float = 1.0
 
 @export_group("Occlusion")
-##  "sun is visible through the clouds and arena". ROOT CAUSE 1:
-## the disc collider is a single-sided trimesh (game/field/Field.gd: faces only up and out of the
+## The disc collider is a single-sided trimesh (game/field/Field.gd: faces only up and out of the
 ## rim), so the one camera-to-sun ray of game/sky/SunFlare.gd passes unhit through the disc seen
 ## from below or edge-on. With this on, a second ray from the sun back to the camera is cast
-## too (it meets the faces from outside) and either hit hides the flare. Off restores the
-## single forward ray (for A/B captures).
+## too (it meets the faces from outside) and either hit hides the flare. Off uses only the
+## forward ray.
 @export var reverse_ray_enabled: bool = true
 ## How far from the camera (m, along the sun direction) the reverse ray starts: past the arena and the
 ## whole play volume, but short enough that a long float-precision ray does not leak between the disc
 ## quads. Never longer than the forward ray.
 @export var reverse_ray_length_m: float = 800.0
-## ROOT CAUSE 2: the puffs are shader-drawn instances, not physics bodies, and the flare is
+## The puffs are shader-drawn instances, not physics bodies, and the flare is
 ## an additive layer over all 3D, so clouds never hid it. game/sky/CloudSea.gd answers
 ## sun_ray_cloud_occlusion() from the bounds recorded at build; this scales how much of that
 ## answer hides the flare (0 = clouds never hide it, 1 = a fully covered sun hides it).

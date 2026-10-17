@@ -1,55 +1,35 @@
 class_name BeaconVisualTuning
 extends Resource
-## Sizes, colors and emission strengths for the procedural "beacon" that
-## replaces the M2 pole-and-banner placeholder on both HomeFlag and GoalFlag
-## ("procedural home
-## beacons (socket + luminous ring + faceted crystal) replace the pennants; a
-## neutral variant for the goal flag").
+## Sizes, colors and emission strengths for the procedural "beacon" on both
+## HomeFlag and GoalFlag.
 ##
 ## Every beacon is three MeshInstance3D pieces built from primitives/an
-## ArrayMesh in HomeFlag._build() -- no imported art assets, no shader (P2
-## owns toon shading; these stay plain StandardMaterial3D):
+## ArrayMesh in HomeFlag._build() -- no imported art assets, no shader (these stay
+## plain StandardMaterial3D):
 ## - Socket: a low cylinder, always socket_color regardless of owning slot.
 ## - Ring: a flat annulus lying on top of the socket, tinted the owner's
 ##   color (or neutral_color on a GoalFlag) and lit up via emission.
 ## - Crystal: a faceted bipyramid ("cut gem") on top of the ring, same tint.
 ##
 ## GoalFlag.banner_scale() returns goal_scale_factor so its ring and crystal
-## are larger than a HomeFlag's, matching HomeFlag's own "the socket stays a
-## constant base for every flag" contract (see HomeFlag._build()'s comment) --
-## only the socket ever stays a fixed size.
+## are larger than a HomeFlag's; only the socket stays a fixed size for every flag
+## (see HomeFlag._build()'s comment).
 ##
 ## Exposed on the F4 TuningPanel "Beacons" tab with ranges/descriptions in
-## config/ui/tuning_panel_hints.tres (the original launch values
-## package left the wiring to a follow-up).
+## config/ui/tuning_panel_hints.tres. Loaded once as
+## config/territory/beacon_visual_tuning.tres.
 ##
-## Loaded once as config/territory/beacon_visual_tuning.tres.
-##
-## DECISION ("the beacons are way too small"):
-## socket/ring/crystal dimensions scaled up 2.5x from the launch
-## defaults (socket_radius 0.4->1.0, socket_height 0.25->0.625,
-## ring_outer_radius 0.55->1.375, ring_thickness 0.12->0.3, crystal_radius
-## 0.22->0.55, crystal_height 0.75->1.875) so a HomeFlag's crystal reads as
-## roughly two 1m block cells tall and its ring as wider than one, matching
-## the art mockup at the real follow-camera
-## distance (config/player/camera_tuning.tres' follow_distance 9.0) rather than only
-## at the far overview framing earlier screenshots used. goal_scale_factor is
-## unchanged (1.35) -- it already keeps the goal variant proportionately
-## larger (goal crystal ~2.53m), so no change was needed there. The socket
-## still stays a constant base across every flag (only scaled up in absolute
-## terms, not made proportional to banner_scale()) -- no per-flag rule
-## changed, only BeaconVisualTuning's own numbers. Checked HomeFlag.tscn/
-## GoalFlag.tscn and HomeFlag._build(): the beacon is three plain
-## MeshInstance3D pieces with no CollisionShape/StaticBody/Area3D anywhere,
-## so this size change carries no physics footprint and cannot affect block
-## placement (core/rules/PlacementRules.gd never reads flag geometry either).
+## DECISION: the socket/ring/crystal dimensions are sized so a HomeFlag's crystal
+## reads as roughly two 1 m block cells tall and its ring as wider than one at the
+## real follow-camera distance (config/player/camera_tuning.tres follow_distance).
+## The beacon is plain MeshInstance3D pieces with no collision shapes, so its size
+## has no physics footprint and cannot affect block placement.
 
 ## -- Socket (the low base every beacon shares) -------------------------------
 @export var socket_radius: float = 1.0
 @export var socket_height: float = 0.625
 ## Always this color, home or goal -- only the ring and crystal above it
-## carry an an owner's (or the goal's neutral) color, matching the reference
-## mockup's dark, uniform beacon bases.
+## carry an owner's (or the goal's neutral) color.
 @export var socket_color: Color = Color(0.16, 0.16, 0.18)
 
 ## -- Ring (the luminous halo lying flat on the socket) -----------------------
@@ -77,13 +57,11 @@ extends Resource
 @export var crystal_facets: int = 6
 @export var crystal_emission: float = 1.1
 
-## -- Crystal cel shading ("Same for the beacons" -- the faceted
-## crystal now draws with shaders/territory/beacon_crystal.gdshader, the same toon-band
-## + shadow-tint + hard specular technique as shaders/blocks/block_cell_grid.gdshader,
-## kept as its own tunable set here (rather than reusing BlockVisualTuning)
-## since HomeFlag/BeaconVisualTuning own the beacon end to end and every
-## HomeFlag/GoalFlag already builds its own dedicated material instance, never
-## a shared/cached one. -----------------------------------------------------
+## -- Crystal cel shading: the faceted crystal draws with
+## shaders/territory/beacon_crystal.gdshader, the same toon-band + shadow-tint +
+## hard specular technique as shaders/blocks/block_cell_grid.gdshader, kept as its
+## own tunable set (rather than reusing BlockVisualTuning) since every
+## HomeFlag/GoalFlag builds its own dedicated material instance. ----------------
 ## How many discrete lit/shadow bands the crystal's toon diffuse ramp is
 ## quantized into.
 @export var crystal_toon_band_count: int = 3
@@ -102,7 +80,7 @@ extends Resource
 ## Width of the smoothstep used to turn the specular falloff into a hard edge.
 @export var crystal_specular_softness: float = 0.08
 
-## -- Pulsating glow ("pulsating glow from the beacons") ------
+## -- Pulsating glow ------
 ## HomeFlag._process()/_apply_pulse() drive both the ring's own scale and the
 ## ring/crystal emission energy from a single sine wave over this period, so
 ## every beacon on the disk pulses in lockstep rather than drifting out of
@@ -119,16 +97,11 @@ extends Resource
 ## -- Goal variant -------------------------------------------------------------
 ## How much larger a GoalFlag's ring and crystal are than a HomeFlag's;
 ## GoalFlag.banner_scale() returns this (spec keeps that method name -- see
-## HomeFlag.banner_scale()'s own doc). Same default TerritoryVisuals.
-## goal_flag_scale used to carry for the old banner, kept for continuity.
+## HomeFlag.banner_scale()'s own doc).
 @export var goal_scale_factor: float = 1.35
-## GoalFlag's own ring/crystal tint, independent of any owner's color -- spec
-## 2.2/2.3's goal flag has no team. Same default color
-## TerritoryVisuals.goal_flag_color already uses for its own, unrelated
-## fallback purposes (Field.gd._color_for_index(), TerritoryOverlay.gd.
-## set_slot_colors()), kept in sync for visual coherence even though the two
-## exports are intentionally independent (this package doesn't own
-## TerritoryVisuals.gd).
+## GoalFlag's own ring/crystal tint, independent of any owner's color -- the goal
+## flag has no team. Same default as TerritoryVisuals.goal_flag_color, which is a
+## separate export used for other fallbacks; the two are intentionally independent.
 @export var neutral_color: Color = Color(1.0, 1.0, 1.0)
 
 ## Global multiplier on the beacon ring and crystal emission (raise/lower for night themes). Peaks stay near the 1.3 glow threshold at 1.0.
@@ -193,7 +166,7 @@ extends Resource
 ## Number of probe points on that ring.
 @export var contested_probe_samples: int = 16
 
-## -- Claim-radius ring (QoL experiment 4). Drawn on the ground
+## -- Claim-radius ring. Drawn on the ground
 ## around each goal beacon ONLY while the "bigger goal claim radius" toggle is on
 ## (see GoalFlag.set_claim_ring()); with the toggle off nothing is built.
 ## Tint of the ring (alpha is claim_ring_alpha); neutral so it reads as "the area
@@ -225,7 +198,7 @@ extends Resource
 @export var claim_zone_rim_lighten: float = 0.45
 
 
-## -- Timer labels ---------------------------------
+## -- Timer labels --------------------------------------------------------------
 ## A camera-facing Label3D above each goal beacon: Classic counts down to the
 ## capture, CTF counts up the hold (with an "xN" chip when the holder controls
 ## several beacons). Colours are the Stackfall Arcade tokens (cream text, disc-950
@@ -248,7 +221,7 @@ extends Resource
 @export var timer_no_depth_test: bool = true
 
 
-## height of a beacon's highest point (the crystal tip) above
+## Height of a beacon's highest point (the crystal tip) above
 ## the surface its socket stands on, in metres -- the same extents
 ## HomeFlag._build()/collision_transforms() place the socket and crystal at
 ## (socket_height plus the crystal's apex-to-apex height). `scale_factor` is

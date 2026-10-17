@@ -1,7 +1,6 @@
 class_name HoleVisualTuning
 extends Resource
-## option A: holes are a shader
-## effect on a solid disc. Hole cells read as an animated "void" in
+## Holes are a shader effect on a solid disc. Hole cells read as an animated "void" in
 ## shaders/territory/territory.gdshader (game/field/TerritoryOverlay.gd uploads these) and a
 ## block touching one dissolves with a rim glow toward the void colour
 ## (shaders/blocks/block_cell_grid.gdshader, game/blocks/BlockDissolveFx.gd). Presentation

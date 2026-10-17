@@ -102,8 +102,7 @@ extends Resource
 @export var proc_roughness_variation: float = 0.08
 
 @export_group("Procedural height fade")
-## Detail fades with the camera's height above the disc top alone (feel
-## follow-up), so the whole disc fades in and out together as the camera
+## Detail fades with the camera's height above the disc top alone, so the whole disc fades in and out together as the camera
 ## rises or zooms: rivets first, then seams, hatches, tone variation and sheen
 ## facets. Below *_start_m the detail is fully drawn, above *_end_m it is gone.
 @export var proc_rivet_fade_height_start_m: float = 14.0

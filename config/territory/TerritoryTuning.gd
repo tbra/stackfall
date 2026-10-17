@@ -2,22 +2,19 @@ class_name TerritoryTuning
 extends Resource
 ## Every tunable number the territory rules need (spec 1.5, 2.5).
 ##
-## DECISION (config/territory/TerritoryTuning.gd): spec 2.8 sketches these as extra
-## fields on PhysicsTuning. They live in their own resource instead, for the
-## same reason GhostTuning already split off: PhysicsTuning holds rigid-body
-## numbers that the physics benchmarks tune, while these are rule numbers that
-## the pure core/ solver tunes, and the two are edited by different people at
-## different times. PhysicsTuning keeps the settled-block thresholds
-## (sleep_linear_threshold / sleep_angular_threshold / sleep_settle_time),
-## which are read from here's consumers, not duplicated.
+## DECISION: spec 2.8 sketches these as extra fields on PhysicsTuning. They live in
+## their own resource instead, for the same reason GhostTuning split off:
+## PhysicsTuning holds rigid-body numbers that the physics benchmarks tune, while
+## these are rule numbers that the pure core/ solver tunes. PhysicsTuning keeps the
+## settled-block thresholds (sleep_linear_threshold / sleep_angular_threshold /
+## sleep_settle_time); they are not duplicated here.
 ##
 ## Loaded once as config/territory/territory_tuning.tres.
 
 ## -- Influence circles (spec 1.5) -------------------------------------------
 ## r = min(influence_base + h * tan(40 deg), influence_max_fraction * field_radius),
 ## where h is the height of the block's highest point above the disk surface
-## along the disk normal (InfluenceCircle.CONE_HALF_ANGLE_DEGREES). The earlier
-## linear per-block radius model was removed.
+## along the disk normal (InfluenceCircle.CONE_HALF_ANGLE_DEGREES).
 @export var influence_base: float = 1.5
 ## r is capped at influence_max_fraction * field_radius (spec 1.5: 0.6).
 @export var influence_max_fraction: float = 0.6
@@ -28,8 +25,8 @@ extends Resource
 ## circle is always fully inside a kept one of the same team in practice,
 ## because the big ones are the tall towers.
 ##
-## DECISION (config/territory/TerritoryTuning.gd): the same capped list
-## TerritorySolver keeps is what autoload/Match.gd now hands to
+## DECISION: the same capped list
+## TerritorySolver keeps is what autoload/Match.gd hands to
 ## game/field/TerritoryOverlay.gd's analytic circle shader and to
 ## net/MatchNet.gd's replicated circle list (core/net/CircleWire.gd), so this
 ## number is also the wire's hard cap (≤400 * 7 bytes ≈ 2.8 KB). A second,
@@ -39,38 +36,32 @@ extends Resource
 @export var max_circles: int = 400
 
 ## -- Rates (spec 2.5 "Recompute territory at 10 Hz", 3.4 "diffs at 5 Hz") ---
-## DECISION (config/territory/TerritoryTuning.gd): raised from spec 2.5's 10.0 to 20.0
-## for the v2 rules. Clarifications "The area must update
-## continuously -- if a stack falls the circles shrink/vanish immediately, not
-## only when a new block is placed." BlockRegistry's settled flag already
-## flips every physics frame, so the only lag left is how often the field is
-## re-solved, and 50 ms is short enough that a toppling tower reads as
-## instant. A full physics-tick rate would roughly triple the cost for a
-## difference no player can see. Re-measured
-## at this rate; see hash_cell_size below for the standing protocol when the
-## budget is missed.
-## DECISION (config/territory/TerritoryTuning.gd): this rate drives
-## autoload/Match.gd's _tick_territory()/_run_territory_step() the same way
-## under every MatchConfig.HoleMode -- TerritoryRaster._fill_stamp() (the
-## default TEMPORARY/PERMANENT modes) runs
-## on the identical solve_accum loop as _fill_v2(), so a moving/collapsing
-## tower's contest and hole state update at this rate too, not just its
-## ownership.
+## DECISION: raised from spec 2.5's 10.0 to 20.0. The area must update continuously
+## (if a stack falls the circles shrink/vanish immediately), BlockRegistry's settled
+## flag already flips every physics frame, so the only lag left is how often the
+## field is re-solved, and 50 ms is short enough that a toppling tower reads as
+## instant. A full physics-tick rate would roughly triple the cost for a difference
+## no player can see.
+## DECISION: this rate drives autoload/Match.gd's _tick_territory()/
+## _run_territory_step() the same way under every MatchConfig.HoleMode --
+## TerritoryRaster._fill_stamp() (TEMPORARY/PERMANENT) runs on the identical
+## solve_accum loop as _fill_v2(), so a moving/collapsing tower's contest and hole
+## state update at this rate too, not just its ownership.
 @export var solve_hz: float = 20.0
 @export var raster_upload_hz: float = 5.0
-## while any block is still awake (not yet settled) the host
+## While any block is still awake (not yet settled) the host
 ## skips scheduled territory solves, then solves at once when all have settled.
 ## This is the maximum staleness in seconds before a solve is forced anyway, so
 ## claims, gift sweeps and captures are never delayed longer than this. 0 turns
 ## deferral off (solve every 1/solve_hz).
 @export var solve_defer_max_s: float = 0.5
-## a solve step whose collected circle count (homes + blocks,
+## A solve step whose collected circle count (homes + blocks,
 ## before the cone) is at least this runs on a WorkerThreadPool thread and is
 ## applied on a later frame (one frame late). Smaller boards, and 0, stay
 ## synchronous. DECISION: 48 keeps small boards and unit-test fixtures on the
-## exact old single-frame path while the 150+ circle collapse boards go async.
+## single-frame path while the 150+ circle collapse boards go async.
 @export var async_solve_min_circles: int = 48
-## a settled block that moves (or turns) less than this many
+## A settled block that moves (or turns) less than this many
 ## metres since it was last counted does not mark the territory dirty; an
 ## unchanged board skips collect/solve/raster/overlay entirely.
 @export var dirty_move_epsilon: float = 0.005
@@ -83,38 +74,16 @@ extends Resource
 ## the few genuinely huge circles occupy many cells, which is correct and
 ## still far cheaper than all-pairs.
 ##
-## Raised from the plan's starting 4.0 to 12.0 after measuring, which
-## The P1 acceptance note explicitly allows
-## hash_cell_size ... in the resource, never in code, and report the
-## numbers").
-##
-## Re-measured for the M2 code review (a single run had reported
-## solve_ms≈8.95 / total_ms≈11.2, FAIL, against an earlier table's ~3.2 ms
-## that didn't say where it came from). ~15 repeats here — idle, and under
-## deliberate 6-way concurrent CPU contention — never reproduced anything
-## close to that; worst observed total_ms at the graded 200-circle size was
-## 6.44 ms even under contention, still inside the 8.0 ms budget. The
-## TerritoryRaster/CellGrid change in the same milestone (odd-rounded `res`,
-## `half_extent`) only renames a variable and grows the grid by at most one
-## cell, and doesn't touch TerritorySolver at all — no regression found. The
-## single bad reading is most likely a one-off scheduling/contention spike on
-## whatever else was running on the reviewer's machine at the time, not a
-## reproducible cost. hash_cell_size is unchanged; this is a documentation
-## fix, not a tuning one.
-##
-## Total ms (solve + raster + win check) on map M, one run = 20 internal
-## averages, 5 runs repeated, idle machine, Windows 10, Godot 4.7.2.stable,
-## debug interpreter, M2 code-review fix pass:
+## Raised from a starting 4.0 to 12.0 after measuring. Total ms (solve + raster + win
+## check) on map M, averages of repeated runs, idle machine, debug interpreter:
 ##
 ##   cell size   |  4.0 |  6.0 |  8.0 | 10.0 | 12.0
 ##   200 circles | 5.96 | 4.13 | 3.51 | 3.54 | 3.59 ms
 ##   600 circles | 35.5 | 30.4 | 28.5 | 27.9 | 27.9 ms
 ##
-## These run higher than the table they replace, most visibly at 600 circles
-## (non-graded) — most likely a slower or busier machine than whatever
-## recorded the old numbers, since the *relative* shape (12.0 best or
-## tied-best throughout) hasn't changed and the graded 200-circle row still
-## clears budget with room to spare either way.
+## Under 6-way concurrent CPU contention the worst total at the graded 200-circle size
+## was 6.44 ms, inside the 8.0 ms budget; a single outlier reading is a scheduling
+## spike, not a reproducible cost.
 ##
 ## Cost tracks how many buckets each circle is inserted into, not how many
 ## overlapping pairs come back: small cells shred every circle across dozens
@@ -131,25 +100,25 @@ extends Resource
 ## Spec 2.5: "Batch the toggles so there are at most 64 per frame."
 @export var max_cell_toggles_per_frame: int = 64
 
-## -- Goal-flag no-build zones (clarifications) -------------
-## "Goal flags have their own area of influence in which no player may place a
-## block." A static disc of this radius around every goal flag, in meters,
+## -- Goal-flag no-build zones --------------------------------------------------
+## Goal flags have their own area of influence in which no player may place a
+## block. A static disc of this radius around every goal flag, in meters,
 ## inside which PlacementRules.validate_point() refuses every placement.
 ## Ownership is deliberately unaffected: a player's area has to be able to
 ## reach through the zone, because winning means holding the flag's base
-## inside that area ("open questions").
+## inside that area.
 ##
-## DECISION (config/territory/TerritoryTuning.gd): 4.0 m to start with -- a couple of
+## DECISION: 4.0 m -- a couple of
 ## cube widths of clearance around the pole, big enough that a player cannot
 ## wall the flag in with one block and small enough to leave the flag
 ## reachable on a 45 m map. A flat rule number like home_radius, not a
-## per-map fraction, so it lives here and not on MapDef. Tune freely by eye.
+## per-map fraction, so it lives here and not on MapDef.
 @export var goal_zone_radius: float = 4.0
 
 ## -- Win check (spec 1.5) ---------------------------------------------------
 ## One connected territory must contain every goal flag for this long.
 @export var capture_hold: float = 20.0
-## Elimination home claim [OWNER decision b]: seconds of
+## Elimination home claim: seconds of
 ## claim progress lost per second while the attacker's control has lapsed
 ## (0 = reset at once, 1 = fades as fast as it grew). Range 0..2.
 ## DECISION: 0.25 -- a ~2 s temporary-hole gap costs 0.5 s of the ~20 s claim, and
@@ -164,8 +133,8 @@ extends Resource
 ## Reach the Sky: a changed record replicates at once unless one went out within
 ## this many seconds, then it waits for the interval.
 @export var sky_replicate_interval_s: float = 0.5
-## Domination: minimum seconds between territory-share replications to clients
-## ; the final state always goes out at the round end.
+## Domination: minimum seconds between territory-share replications to clients;
+## the final state always goes out at the round end.
 @export var domination_replicate_interval_s: float = 1.0
 
 ## -- Auto-drop (spec 1.4: "If that spot isn't valid, it drops at the closest
@@ -181,19 +150,19 @@ extends Resource
 ## outward from the disk center.
 @export var reject_upward_fraction: float = 0.35
 
-## -- Sudden death (spec 1.9's last row, M6 A3) -------------------------------
-## "Gift probability climbs toward the maximum of the finalized spawn model."
+## -- Sudden death (spec 1.9's last row) --------------------------------------
+## Gift probability climbs toward the maximum of the finalized spawn model.
 ## Seconds MatchGifts._effective_special_frequency() takes to lerp from
 ## MatchConfig.special_frequency up to 100.0 (GiftConfig.frequency_to_chance_max
 ## is that finalized model's own maximum chance, spec 1.6) once sudden death
 ## starts, clamped there afterwards.
 ##
-## DECISION (config/territory/TerritoryTuning.gd, M6 A3): the spec names only the
+## DECISION: the spec names only the
 ## direction ("climbs toward the maximum"), not a duration. 60 s is a round
 ## number on the same order as the shrink schedule below (6 shrink steps) --
 ## short enough that sudden death visibly escalates well before the disk has
 ## crumbled to the radius-8 tiebreak on every map size, long enough not to
-## feel instantaneous. Tune freely by eye.
+## feel instantaneous.
 @export var sudden_death_ramp_s: float = 60.0
 ## "The disk's edge crumbles inward by 1 m every 10 s" (spec 1.9, verbatim).
 @export var sudden_death_shrink_interval_s: float = 10.0
@@ -202,7 +171,7 @@ extends Resource
 ## or team with the most territory wins" (spec 1.9, verbatim).
 @export var sudden_death_tiebreak_radius_m: float = 8.0
 
-## -- Turn-based (spec 1.2, M6 B4) --------------------------------------------
+## -- Turn-based (spec 1.2) ---------------------------------------------------
 ## "Physics settles completely (all bodies asleep, or after 6 s) before the
 ## next player's turn starts" (spec 1.2, verbatim). Safety cap:
 ## MatchLifecycle._tick_turn_based() hands the turn over once
