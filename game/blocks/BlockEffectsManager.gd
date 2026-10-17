@@ -1,22 +1,15 @@
 class_name BlockEffectsManager
 extends Node3D
-## M7 P4, spec 1.10 "effects + camera shake": visual effects
-## for block events. Purely additive/cosmetic -- never touches
-## territory/physics/win-check state (core/ stays untouched), so it is safe to
-## add as a child of game/field/Field.tscn without affecting any existing gameplay
-## test (tests/unit/field/test_field.gd builds Field.new() directly and never loads
-## the .tscn, so this node never even exists in that suite).
+## Spec 1.10 "effects + camera shake": visual effects for block events.
+## Purely cosmetic -- never touches territory/physics/win-check state.
 ##
 ## Three effect kinds (config/blocks/tuning/BlockEffectsConfig.gd has every tunable):
 ## - landing burst: Events.block_impacted_at, whenever a block's own detected
 ##   impact speed reaches config.dust_impact_speed_threshold. Spawns a small
 ##   team-colored cubelet shower (_find_block_at() resolves the owning slot by a
 ##   physics point query at the impact position -- Events.block_impacted_at
-##   only carries speed/position, not the block itself) plus the original
-##   softer dust puff, both under one wrapper Node3D so one impact is a single
-##   effect. Events.block_impacted_at is additive
-##   alongside the pre-existing Events.block_impacted (autoload/Sfx.gd's own
-##   listener, untouched).
+##   only carries speed/position, not the block itself) plus a softer dust
+##   puff, both under one wrapper Node3D so one impact is a single effect.
 ## - falling-block trail: a continuous, team-tinted luminous streak behind any
 ##   block whose measured fall speed crosses config.trail_speed_threshold --
 ##   see _update_falling_trails()'s own doc for why this is driven from
@@ -32,9 +25,9 @@ extends Node3D
 
 ## Radius (meters) of the sphere shape query _find_block_at() uses to
 ## resolve the impacting block's owning slot -- see that method's own DECISION for
-## why a sphere, not a point. A query-robustness implementation detail, not
-## a gameplay tunable (a BlockShape's own single-cube edge length is
-## the real reference scale this only has to comfortably beat).
+## why a sphere, not a point. A query-robustness detail, not a gameplay tunable
+## (a BlockShape's single-cube edge length is the reference scale it only has to
+## comfortably beat).
 const FIND_BLOCK_QUERY_RADIUS_M: float = 0.35
 ## Reused by _find_block_at; built lazily.
 var _find_params: PhysicsShapeQueryParameters3D = null
@@ -53,10 +46,9 @@ const TRAIL_SHADER: Shader = preload("res://shaders/gifts/trail_streak.gdshader"
 # use" leak on the open-project check). One manager per match, so cost is equal.
 var _fade_ramp: GradientTexture1D = null
 
-## per-block previous global_position, keyed by
-## Object.get_instance_id() -- the same idiom
-## _schedule_cleanup_fallback()'s own DECISION already uses for a
-## freed-object-safe key. Used only to measure each block's own fall speed
+## Per-block previous global_position, keyed by Object.get_instance_id() (the
+## freed-object-safe key idiom from _schedule_cleanup_fallback()'s DECISION).
+## Used only to measure each block's own fall speed
 ## every physics step (_update_falling_trails()); pruned in the same pass for
 ## any id no longer seen in Block.TUNING_GROUP.
 var _prev_positions: Dictionary = {}
@@ -68,13 +60,10 @@ var _prev_positions: Dictionary = {}
 var _trails: Dictionary = {}
 
 ## Settings.graphics_preset_changed-driven (see _on_graphics_preset_changed()):
-## gates only the falling trail, the one continuous per-frame effect this
-## package adds -- matches game/sky/Skybox.gd's own volumetric_fog_enabled gate
-## for its FogVolume cloud deck (the Low-preset performance budget), reusing that same flag as "heavy atmospheric/ambient
-## effects" rather than inventing a second graphics-preset field. The
-## one-shot landing/kill bursts stay on every preset -- they already existed
-## before this package and are bounded, one-shot costs, not a new continuous
-## per-frame one.
+## gates only the falling trail, the one continuous per-frame effect. It reuses
+## game/sky/Skybox.gd's volumetric_fog_enabled flag as "heavy atmospheric/ambient
+## effects" rather than adding a second graphics-preset field. The one-shot
+## landing/kill bursts stay on every preset: they are bounded one-shot costs.
 var _trail_effects_enabled: bool = true
 ## GraphicsPreset.particle_budget_scale (adaptive quality governor).
 var _particle_budget_scale: float = 1.0
@@ -126,10 +115,9 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	_start_burst(burst, config.kill_lifetime_s)
 
 
-## Landing burst: a team-colored cubelet shower plus the
-## original grey-brown dust puff, both scaled by _impact_intensity() and
-## held by one pooled wrapper Node3D, one effect per impact. wrappers/particle systems come
-## from a reuse pool and are restarted, meshes/materials are shared per
+## Landing burst: a team-colored cubelet shower plus a grey-brown dust puff,
+## both scaled by _impact_intensity() and held by one pooled wrapper Node3D, one
+## effect per impact. Wrappers/particle systems come from a reuse pool and are restarted, meshes/materials are shared per
 ## colour/kind, and new bursts are budgeted (see _acquire_burst()).
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if speed < config.dust_impact_speed_threshold:
@@ -164,7 +152,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	_start_burst(burst, maxf(config.cubelet_lifetime_s, config.dust_lifetime_s))
 
 
-## pooled flipbook puff (game/blocks/ImpactPuff.gd) at the contact
+## Pooled flipbook puff (game/blocks/ImpactPuff.gd) at the contact
 ## point. Cosmetic only, driven by the same replicated impact event on host and
 ## clients. Over-cap puffs are dropped (like bursts); the cap shrinks with the
 ## graphics preset's particle_budget_scale, so a Low preset thins/disables them.
@@ -217,26 +205,23 @@ func _impact_intensity(speed: float) -> float:
 	return clampf(speed / config.dust_impact_speed_threshold, 1.0, config.impact_intensity_max)
 
 
-## Events.block_impacted_at carries only (speed, position) -- Block.gd is not
-## an owned file for this package, so this resolves the impacting block's
-## owner_slot from the outside instead: a small-sphere physics shape query
-## centered at the impact position (the block's own global_position at emit
+## Events.block_impacted_at carries only (speed, position), so this resolves the
+## impacting block's owner_slot from the outside: a small-sphere physics shape
+## query centered at the impact position (the block's own global_position at emit
 ## time, game/blocks/Block.gd). Returns null (the cubelet burst falls back to
 ## config.cubelet_fallback_color) when nothing resolves -- e.g. a test that
 ## emits the signal directly with no real Block in the world
 ## (tests/unit/blocks/test_block_effects.gd).
 ##
-## DECISION (game/blocks/BlockEffectsManager.gd, fix round): a sphere query, not a
+## DECISION (game/blocks/BlockEffectsManager.gd): a sphere query, not a
 ## zero-radius point query (the original candidate) -- game/blocks/BlockFactory.gd
 ## builds a multi-cube block as a COMPOUND of one CollisionShape3D per cube,
 ## each offset from the RigidBody3D's own origin (BlockFactory.build(), "one
 ## CollisionShape3D per cell"). For any shape wider than a single cube, that
 ## origin can sit exactly on a shared edge/corner between cubes -- outside
 ## every individual cube's own box shape -- so a zero-radius point query
-## there can miss the block entirely. Reproduced while capturing this
-## package's own removed capture probe (see git history) evidence: a landing
-## square4 (2x2) block's cubelet burst rendered in
-## cubelet_fallback_color instead of its own team color. A small sphere
+## there can miss the block entirely (a landing square4 (2x2) block's cubelet
+## burst rendered in cubelet_fallback_color instead of its team color). A small sphere
 ## (FIND_BLOCK_QUERY_RADIUS_M) reliably overlaps at least one of the
 ## impacting block's own cube shapes regardless of where its origin sits.
 func _find_block_at(position: Vector3) -> Block:
@@ -263,8 +248,8 @@ func _find_block_at(position: Vector3) -> Block:
 	return null
 
 
-## GiftCrate._claim_color()'s own fallback shape (that file's own doc explains
-## why it is not shared as a common helper): a real PlayerSlot's own colour
+## Follows GiftCrate._claim_color()'s fallback shape (that file's doc explains
+## why it is not a shared helper): a real PlayerSlot's own colour
 ## when Match can name one for `slot_id`, otherwise the live match's
 ## MatchConfig.player_colors[slot_id], and `fallback` if neither resolves
 ## (slot_id < 0, no match running -- both true in
@@ -277,7 +262,7 @@ func _color_for_owner_slot(slot_id: int, fallback: Color) -> Color:
 	return context.slot_color(slot_id, fallback)
 
 
-## burst pool. One PooledBurst = one wrapper Node3D plus its
+## Burst pool. One PooledBurst = one wrapper Node3D plus its
 ## particle systems, created lazily (up to config.burst_max_active active at a
 ## time), kept in the tree and restarted on reuse instead of re-instantiated.
 ## Each pooled particle system owns its ParticleProcessMaterial (built once,
@@ -301,7 +286,7 @@ var _new_bursts_this_frame: int = 0
 var _cubelet_meshes: Dictionary = {}
 var _kill_meshes: Dictionary = {}
 var _dust_mesh: Mesh = null
-## flipbook puff pool (see _spawn_impact_puff()).
+## Flipbook puff pool (see _spawn_impact_puff()).
 var _puffs: Array[ImpactPuff] = []
 var _puff_root: Node3D = null
 
@@ -386,7 +371,7 @@ func _start_burst(burst: PooledBurst, lifetime_s: float) -> void:
 
 
 ## Returns finished bursts to the pool (GPUParticles3D.finished may never fire
-## headless, so expiry is time-based, like the old cleanup-fallback timer).
+## headless, so expiry is time-based).
 func _release_expired_bursts() -> void:
 	if _active_bursts <= 0:
 		return
@@ -448,16 +433,13 @@ func _get_dust_mesh() -> Mesh:
 	return _dust_mesh
 
 
-## Fix round ("make them actual tiny 3D cubes... tumbling... a small
-## bounce or just fall, shrinking/fading out"): a GPUParticles3D whose
-## draw_pass_1 mesh/material give each cube shaders/gifts/cubelet.gdshader's cheap
-## 2-tone cel look, random per-particle size (scale_min/max), tumbling
-## (angular_velocity_min/max), real gravity (cubelet_gravity), and a shared
-## fade+shrink profile (color_ramp/scale_curve, both built once by
-## _get_fade_ramp()/_get_shrink_curve() below) rather than any bounce
-## simulation of its own -- "a small bounce or just fall" -- falling alone
-## already reads fine for a particle this short-lived and this is the
-## cheaper of the two options.
+## A GPUParticles3D whose draw_pass_1 mesh/material give each cube
+## shaders/gifts/cubelet.gdshader's cheap 2-tone cel look, random per-particle
+## size (scale_min/max), tumbling (angular_velocity_min/max), real gravity
+## (cubelet_gravity), and a shared fade+shrink profile (color_ramp/scale_curve,
+## built once by _get_fade_ramp()/_get_shrink_curve() below). No bounce
+## simulation: falling alone reads fine for a particle this short-lived and is
+## cheaper.
 func _build_cubelet_mesh(color: Color) -> Mesh:
 	var mesh: BoxMesh = BoxMesh.new()
 	mesh.size = Vector3.ONE * config.cubelet_scale
@@ -531,9 +513,8 @@ func _get_fade_ramp() -> GradientTexture1D:
 
 
 ## Shared shrink-to-nothing profile (scale x1 -> x0 over a particle's own
-## lifetime) for cubelet_burst's ParticleProcessMaterial.scale_curve --
-## "shrinking... over ~0.8 s". Not used by the dust burst (the brief asks for
-## a "quick expand", not a shrink, for dust puffs).
+## lifetime) for cubelet_burst's ParticleProcessMaterial.scale_curve. Not used
+## by the dust burst (dust puffs expand quickly rather than shrink).
 var _shrink_curve: CurveTexture = null
 func _get_shrink_curve() -> CurveTexture:
 	if _shrink_curve == null:
@@ -546,10 +527,8 @@ func _get_shrink_curve() -> CurveTexture:
 	return _shrink_curve
 
 
-## falling-block trail: every live Block adds itself to
-## Block.TUNING_GROUP in _ready() (that constant's own doc -- built for
-## exactly this "reach every live block without a new coupling" case, already
-## used by ui/debug/TuningPanel.gd's live-apply path). Measures each block's own
+## Falling-block trail: every live Block adds itself to Block.TUNING_GROUP in
+## _ready(), which reaches every live block without a new coupling. Measures each block's own
 ## fall velocity from its position delta this physics step, not
 ## RigidBody3D.linear_velocity: a client's synced blocks are frozen kinematic
 ## (net/SnapshotSync.gd's freeze_body(), spec 2.6) and driven purely by
@@ -557,10 +536,9 @@ func _get_shrink_curve() -> CurveTexture:
 ## physics integration, so linear_velocity would read as a false zero for
 ## every client-visible falling block. A position-delta measurement reads
 ## correctly on both the host (real physics) and a client (interpolated
-## position) with no freeze-state branch needed here at all -- exactly the
-## "host/client both" visual-only contract this package's brief asks for.
+## position) with no freeze-state branch needed here at all.
 func _update_falling_trails(delta: float) -> void:
-	# only awake blocks (Block.awake_blocks(), which also
+	# Only awake blocks (Block.awake_blocks(), which also
 	# reports a block for a couple of frames after it sleeps) plus ids still
 	# holding a previous position, i.e. recently moving ones. A sleeping block
 	# has zero fall speed, so skipping it changes nothing; once a block is
@@ -604,13 +582,10 @@ func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: flo
 		_prev_positions[id] = position
 
 
-## Fix round (the previous particle-burst trail read as "dashed/
-## dotted... not attached to the falling piece" -- GPUParticles3D defaults
-## to world-space simulation, so each already-emitted particle stayed fixed
-## in place as the emitter/block kept falling past it, leaving a trail of
-## disconnected blobs drifting behind). Now a single persistent wrapper
-## Node3D per fast-falling block (built once by _build_trail_wrapper() and
-## kept in `_trails`), re-positioned/re-oriented/re-scaled every physics
+## A single persistent wrapper Node3D per fast-falling block, not a particle
+## trail (GPUParticles3D simulates in world space by default, so emitted
+## particles would stay behind as disconnected blobs). Built once by
+## _build_trail_wrapper() and kept in `_trails`, re-positioned/re-oriented/re-scaled every physics
 ## step: `wrapper.global_position` is always exactly the block's own current
 ## visual centre (_trail_anchor()), so it can never lag or detach the way a
 ## world-space particle could, and the block itself hides the ribbon's head.
@@ -618,8 +593,8 @@ func _update_block_trail(id: int, block: Block, inv_delta: float, threshold: flo
 ## block's travel and local +Y (the quad's normal) turns about that axis
 ## toward the camera (a fixed flat strip went edge-on from many
 ## views). The ribbon's length follows `fall_speed` (trail_length_per_speed_s,
-## clamped to [trail_min_length_m, trail_max_length_m]) -- "length
-## proportional to speed"; its width is fixed per block at build time.
+## clamped to [trail_min_length_m, trail_max_length_m]); its width is fixed per
+## block at build time.
 func _ensure_trail(id: int, block: Block, fall_speed: float, velocity: Vector3) -> void:
 	var wrapper: Node3D = _trails.get(id) as Node3D
 	if wrapper != null and not is_instance_valid(wrapper):
@@ -755,11 +730,9 @@ func _get_trail_unit_mesh() -> ArrayMesh:
 	return _trail_unit_mesh
 
 
-## The trail is a persistent mesh now, not particles, so there is nothing to
-## stop emitting -- just free it after a short fade delay
-## (trail_release_fade_s) once the block is no longer falling fast, the same
-## create_timer(...) fallback pattern _schedule_cleanup_fallback() already
-## uses elsewhere in this file.
+## The trail is a persistent mesh, so there is nothing to stop emitting: free it
+## after a short fade delay (trail_release_fade_s) once the block is no longer
+## falling fast, via _schedule_cleanup_fallback().
 func _release_trail(id: int) -> void:
 	if not _trails.has(id):
 		return
@@ -770,12 +743,10 @@ func _release_trail(id: int) -> void:
 	_schedule_cleanup_fallback(wrapper, config.trail_release_fade_s)
 
 
-## GPUParticles3D.finished is driven by the visual particle system and may
-## never fire in a headless run (no renderer advancing it) -- confirmed by
-## this package's own test_block_effects.gd cleanup case, which awaits this
-## timer rather than the finished signal. This fallback frees the node
-## `lifetime + config.cleanup_margin_s` after spawn if it's somehow still
-## alive, guarded against a double free (finished already freed it first).
+## Frees the node `lifetime + config.cleanup_margin_s` from now if it is still
+## alive, guarded against a double free. Timer-based because
+## GPUParticles3D.finished may never fire in a headless run (no renderer
+## advancing it).
 ##
 ## DECISION: binds the particle node's own instance id (an int), not the node
 ## itself -- a lambda/Callable.bind() that captures a live Object reference
@@ -786,11 +757,8 @@ func _release_trail(id: int) -> void:
 ## plain int and resolving it back through instance_from_id() at call time
 ## avoids that engine-level check entirely.
 ##
-## `node` is now any Node (a bare GPUParticles3D for the
-## kill-plane path's own original shape and every falling trail, or a wrapper
-## Node3D holding two GPUParticles3D children for a landing burst) -- freeing
-## a wrapper frees its particle children too, so one fallback timer is enough
-## per effect regardless of how many particle systems it holds.
+## `node` is any Node; freeing a wrapper frees its children too, so one fallback
+## timer is enough per effect.
 func _schedule_cleanup_fallback(node: Node, lifetime: float) -> void:
 	var timer: SceneTreeTimer = get_tree().create_timer(lifetime + config.cleanup_margin_s)
 	timer.timeout.connect(_on_cleanup_fallback_timeout.bind(node.get_instance_id()))

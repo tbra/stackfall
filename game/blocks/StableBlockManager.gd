@@ -5,11 +5,9 @@ extends Node
 ## freeze_mode = STATIC. It goes back to normal the moment any impulse,
 ## tilt, or change in the cells under it happens.").
 ##
-## Host-gated the same way every autoload/match/ controller already is (`if
-## not Net.is_host(): return`, true offline too, matching
-## game/bots/BotController.gd's own convention) -- built unconditionally at
-## game/main/Main.gd's single wiring point (see that file's own comment there) so
-## a client's copy costs nothing and stays inert, never a client-side scan.
+## Host-gated (true offline too, like game/bots/BotController.gd) and built
+## unconditionally at game/main/Main.gd's single wiring point, so a client's copy
+## costs nothing and stays inert, never a client-side scan.
 ##
 ## "Isn't touching any awake body" is satisfied for free by relying on
 ## Jolt's own island-sleep semantics (RigidBody3D.sleeping) rather than a
@@ -18,15 +16,11 @@ extends Node
 ## resting against something still awake never reads as sleeping at all, and
 ## this class never has to ask "what else is it touching" itself.
 ##
-## Poll-based, not signal-based: rather than connecting to each tracked
-## Block's own sleeping_state_changed (game/BlockFactory.build()'s pattern),
-## this reads Block.sleeping directly on its own low-rate scan
-## (PhysicsTuning.stable_freeze_scan_interval_s) so it never has to manage a
-## per-block connect/disconnect lifecycle as game/BlockRegistry.all_blocks()'s
-## own set changes underneath it every placement/removal -- and so
-## tests/unit/blocks/test_stable_block_manager.gd can drive it deterministically
-## through _tick() below without waiting any real seconds or needing a real
-## physics step to fire a signal.
+## Poll-based, not signal-based: it reads Block.sleeping directly on its own
+## low-rate scan (PhysicsTuning.stable_freeze_scan_interval_s) so it never has to
+## manage a per-block connect/disconnect lifecycle as BlockRegistry's set changes
+## on every placement/removal, and so tests can drive it deterministically
+## through _tick() without waiting real seconds.
 
 @export var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 
@@ -57,15 +51,14 @@ var _settle_frozen: Dictionary = {}
 var _scan_accumulator: float = 0.0
 ## Field pose seen on the previous physics tick.
 var _last_field_transform: Transform3D = Transform3D.IDENTITY
-## Awake-but-still tracking (B; see _settle_awake()).
+## Awake-but-still tracking (see _settle_awake()).
 var _settle: SettleTracker = SettleTracker.new()
 ## Catch-up cap state last pushed to Engine (the project setting starts capped).
 var _catchup_cap_applied: bool = true
 
 
 ## Called once by game/main/Main.gd right after it builds a match's BlockRegistry
-## (its own single wiring-point comment), the same setup() shape
-## game/bots/BotController.gd already uses for the same registry reference.
+## (same setup() shape as game/bots/BotController.gd).
 func setup(registry: BlockRegistry) -> void:
 	_registry = registry
 	active = self
@@ -107,7 +100,7 @@ func _physics_process(delta: float) -> void:
 	_tick(delta)
 
 
-## D: pushes the F4 catch-up toggle to the engine when it changes
+## Pushes the F4 catch-up toggle to the engine when it changes
 ## (every peer: it is per-process frame pacing, not game state). Applied only on a
 ## change so a bench that raises Engine.max_physics_steps_per_frame itself is not
 ## overridden every tick; the project setting already starts it capped.
@@ -119,14 +112,13 @@ func apply_catchup_cap() -> void:
 	Engine.max_physics_steps_per_frame = tuning.catchup_steps_capped if want_capped else tuning.catchup_steps_default
 
 
-## "gifts that cause tilting lead to settled blocks
-## clipping through the disc": a STATIC-frozen block does not ride a
-## kinematic disc, so a tilting Field swept through every long-stable block.
-## The scan below only releases a block once it reads awake, which a frozen
-## body never does, and only every scan interval. So the moment the disc pose
-## changes, release every block this manager froze and wake it, and restart
-## its asleep timer; the blocks then ride the disc (awake while it moves,
-## ) and re-freeze after the normal delay once it stops.
+## A STATIC-frozen block does not ride a kinematic disc, so a tilting Field would
+## sweep through every long-stable block. The scan below only releases a block
+## once it reads awake, which a frozen body never does, and only every scan
+## interval. So the moment the disc pose changes, release every block this
+## manager froze and wake it, and restart its asleep timer; the blocks then ride
+## the disc (awake while it moves) and re-freeze after the normal delay once it
+## stops.
 func check_field_motion() -> void:
 	if _registry == null:
 		return
@@ -222,11 +214,9 @@ func _scan(scan_delta: float) -> void:
 				_rest_anchor.erase(id)
 
 	# A block BlockRegistry no longer tracks (removed/freed) can't be scanned
-	# again to release it properly -- but Events.block_removed/queue_free()
-	# take the body itself out of the world either way, so there is nothing
-	# left needing FREEZE_MODE_RIGID restored. Just drop this manager's own
-	# bookkeeping for it, the same defensive cleanup
-	# game/blocks/BlockRegistry.gd's own _physics_process() does for _entries.
+	# again to release it, but it leaves the world anyway, so just drop this
+	# manager's bookkeeping for it (the same cleanup BlockRegistry does for
+	# _entries).
 	for id: Variant in _asleep_elapsed.keys().duplicate():
 		if not live_ids.has(id):
 			_asleep_elapsed.erase(id)
@@ -256,7 +246,7 @@ func _fast_positions(blocks: Array[Block]) -> PackedVector3Array:
 	return out
 
 
-## B (spec 2.7): an awake block that stayed still for the whole window
+## Spec 2.7: an awake block that stayed still for the whole window
 ## and has no fast neighbour freezes exactly like an asleep one (request_freeze_static
 ## puts it to sleep, so the sleeping branch of _scan() then owns it, and every
 ## release path -- tilt, impulse, wind, glue -- applies unchanged). DECISION: the

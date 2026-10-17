@@ -1,24 +1,20 @@
 class_name BlockStepBatch
 extends RefCounted
-## one batched pass per physics tick over Block's awake set
-## replacing the two GDScript callbacks Godot used to make per awake Block per
-## tick (Block._integrate_forces() and Block._physics_process(); the
-## REPORT attributed ~40-55% of a 250-block moving pile's step to
-## them). It runs the rebound
-## damping / kick pass-through bookkeeping and the impact-audio detection for
-## every awake Block in ONE engine->script call (SceneTree.physics_frame).
+## One batched pass per physics tick over Block's awake set, instead of two
+## GDScript callbacks per awake Block per tick (they were ~40-55% of a
+## 250-block moving pile's step). It runs the rebound damping / kick
+## pass-through bookkeeping and the impact-audio detection for every awake Block
+## in ONE engine->script call (SceneTree.physics_frame).
 ##
-## Timing contract (game/blocks/Block.gd's old per-node hooks, Godot 4.7.2 main loop
-## and Jolt): a tick is [PhysicsServer3D.flush_queries() -> every called-back
-## body's state sync (where _integrate_forces ran) -> SceneTree.physics_frame
-## -> every node's _physics_process -> deferred calls/timers -> step]. This
-## hook is connected FIRST on physics_frame (install() moves any earlier
-## listener behind it), so it runs after every state sync of the tick and
-## before any other script reads or writes a block for that tick: exactly
-## where the old _integrate_forces work became visible. Step N's result is
-## still adjusted before step N+1, never later.
+## Timing contract (Godot 4.7.2 main loop and Jolt): a tick is
+## [PhysicsServer3D.flush_queries() -> every called-back body's state sync ->
+## SceneTree.physics_frame -> every node's _physics_process -> deferred
+## calls/timers -> step]. This hook is connected FIRST on physics_frame
+## (install() moves any earlier listener behind it), so it runs after every
+## state sync of the tick and before any other script reads or writes a block
+## for that tick. Step N's result is still adjusted before step N+1, never later.
 ##
-## Which blocks Jolt would have called back is reconstructed, not guessed:
+## Which blocks Jolt synced is reconstructed, not guessed:
 ## a body is synced at tick F iff it was active at step F-1 or woke during
 ## it. Block keeps _sync_from_frame for that (see Block._next_sync_frame());
 ## the engine's own sleep/wake transition (sleeping_state_changed, raised

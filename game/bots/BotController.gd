@@ -9,24 +9,23 @@ extends Node
 ## too), so a bare unit test or a bench scene needs no networking to exercise this. One instance per
 ## seat; a per-bot seeded RNG drives the reaction-delay jitter, the think and the aim noise.
 
-## a large odd offset distinct from MatchFeed._build_bags()'s own
-## per-slot bag stride (1000003) and MatchGifts' two RNG offsets (999983,
-## 999979) -- this file's own per-system stream off the shared
-## Match.config.rng_seed, so a fixed match seed reproduces this bot's own
-## jitter/aim-noise/territory-sample draws without colliding with any other
-## seeded system in the match (determinism is the reason for the separate stream).
+## A large odd offset distinct from MatchFeed._build_bags()'s per-slot bag stride
+## (1000003) and MatchGifts' two RNG offsets (999983, 999979): this file's own
+## stream off the shared Match.config.rng_seed, so a fixed match seed reproduces
+## this bot's jitter/aim-noise/territory-sample draws without colliding with any
+## other seeded system.
 const RNG_OFFSET: int = 777001
 
-## the shipped Storm wind response the V2 evaluator reads (same resource StormEffect uses).
+## The shipped Storm wind response the V2 evaluator reads (same resource StormEffect uses).
 const STORM_TUNING: StormTuning = preload("res://config/weather/storm.tres")
-## the wire fields (Events.breeze_gust_started) a listed gust must carry to be read.
+## The wire fields (Events.breeze_gust_started) a listed gust must carry to be read.
 const GUST_KEYS: Array[String] = ["x", "y", "z", "a", "r", "d", "s"]
-## the shipped Breeze response the V2 evaluator reads for live gusts (same resource BreezeEffect uses).
+## The shipped Breeze response the V2 evaluator reads for live gusts (same resource BreezeEffect uses).
 const BREEZE_TUNING: BreezeTuning = preload("res://config/breeze/breeze.tres")
 
 enum State { IDLE, ACTING, THINKING, RELEASE_WAIT }
 
-## own seeded stream for the release-delay draw (a separate stream so the
+## Own seeded stream for the release-delay draw (a separate stream so the
 ## think/aim draws of _rng, and the decisions they make, are unchanged by the release timing).
 const RELEASE_RNG_OFFSET: int = RNG_OFFSET + 1
 const SLOT_SEED_STRIDE: int = 1000003
@@ -58,8 +57,7 @@ var _match_provider: Variant = null
 var _net_provider: Variant = null
 
 ## Seeded once at setup() off Match.config.rng_seed + RNG_OFFSET + a per-slot
-## stride, per the determinism requirement -- never
-## randi()/randf()'s global state. Drives the reaction-delay jitter (drawn
+## stride, never randi()/randf()'s global state. Drives the reaction-delay jitter (drawn
 ## once, below), the territory-point sampling and the aim-noise offset.
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _release_rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -76,13 +74,14 @@ var _think_delay_s: float = 0.0
 var _countdown: float = 0.0
 
 var _state: State = State.IDLE
-## Bot V2: the snapshot the current think-cycle started from (read by the special planner).
+## The snapshot the current think-cycle started from (read by the special planner).
 var _special_view: BotWorldView = null
 var _think: BotThink = null
 var _think_frames_used: int = 0
-## opt-in think cost report (BotThinkCostCollector.current(); null = off, then none of
-## these is touched). Snapshot build / apply time, this tick's BotThink time, the bot's other THINKING-tick
-## work, the think's start time and whether a finished record is waiting to be flushed at the tick's end.
+## Opt-in think cost report (BotThinkCostCollector.current(); null = off, then none of
+## these is touched): snapshot build / apply time, this tick's BotThink time, the
+## bot's other THINKING-tick work, the think's start time and whether a finished
+## record is waiting to be flushed at the tick's end.
 var _cost_build_us: int = 0
 var _cost_apply_us: int = 0
 var _cost_other_us: int = 0
@@ -94,7 +93,7 @@ var _think_last_frame: int = -1
 ## THINKING ticks by which the current think must be decided, and ticks so far.
 var _think_deadline_ticks: int = 0
 var _think_ticks: int = 0
-## the V2 probes' reused column-ray query (built on first use) and the physics
+## The V2 probes' reused column-ray query (built on first use) and the physics
 ## space of the current THINKING tick (null outside one).
 var _column_query: PhysicsRayQueryParameters3D = null
 var _probe_space: PhysicsDirectSpaceState3D = null
@@ -106,11 +105,11 @@ func _ready() -> void:
 
 
 ## One instance drives exactly one bot slot on the host. Called once by
-## whatever builds the match world (game/main/Main.gd's _build_match_world(), M5
-## P5) right alongside HotSeat's own per-slot wiring.
+## whatever builds the match world (game/main/Main.gd's _build_match_world())
+## alongside HotSeat's own per-slot wiring.
 func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, registry: BlockRegistry) -> void:
 	_slot_id = slot_id
-	# a new bot never inherits the previous match's Reach the Sky base memory.
+	# A new bot never inherits the previous match's Reach the Sky base memory.
 	BotThink.clear_strategy_memory(slot_id)
 	# DECISION: setup() runs for every bot when a match world is built, so it is the match
 	# start the report sees; the opt-in collector never carries match A's thinks into match B.
@@ -155,10 +154,9 @@ func _seed_rng() -> void:
 		_release_rng.seed = config.rng_seed + RELEASE_RNG_OFFSET + _slot_id * SLOT_SEED_STRIDE
 	else:
 		_release_rng.randomize()
-		# BlockBag._init()'s identical convention for rng_seed < 0
-		# ("randomize" mode) -- explicit rather than relying on _rng's own
-		# construction-time seed (review fix, RandomNumberGenerator
-		# is not guaranteed random at construction across engine versions).
+		# BlockBag._init()'s convention for rng_seed < 0 ("randomize" mode); explicit
+		# because RandomNumberGenerator is not guaranteed random at construction
+		# across engine versions.
 		_rng.randomize()
 
 
@@ -192,7 +190,7 @@ func _physics_process(delta: float) -> void:
 		_flush_cost(cost, Time.get_ticks_usec() - tick_start_us)
 
 
-## books this tick's time (the whole tick is a bot frame; its share outside BotThink
+## Books this tick's time (the whole tick is a bot frame; its share outside BotThink
 ## joins the think's "other" work) and, when the think finished in it, hands the record over.
 func _flush_cost(cost: BotThinkCostCollector, tick_us: int) -> void:
 	cost.record_frame(_slot_id, tick_us)
@@ -359,7 +357,7 @@ func _append_uncovered_towers(
 			added += 1
 
 
-## after the sudden-death shrink, the view's live radius is the surviving disc.
+## After the sudden-death shrink, the view's live radius is the surviving disc.
 func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
 	if match_ref.has_method("sudden_death_active") and bool(match_ref.sudden_death_active()):
 		var live: float = BotWorldView.live_radius_from_raster(view.raster, view.grid)
@@ -367,7 +365,7 @@ func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
 			view.live_radius = minf(live, view.field_radius)
 
 
-## live gravity in the Field's local frame (magnitude g * gravity_multiplier) and the match's
+## Live gravity in the Field's local frame (magnitude g * gravity_multiplier) and the match's
 ## gifts flag, for BotStability's tilted-disc shift and gift allowance.
 func _apply_gravity_and_gifts(view: BotWorldView, match_ref: Variant) -> void:
 	if _field != null:
@@ -379,8 +377,8 @@ func _apply_gravity_and_gifts(view: BotWorldView, match_ref: Variant) -> void:
 		view.gifts_enabled = (config as MatchConfig).gifts_enabled
 
 
-## copies the live weather (host) into the view; only a Storm blows wind.
-## also the Storm heading (seeded base heading, disk-local) and the live Breeze gusts.
+## Copies the live weather (host) into the view; only a Storm blows wind.
+## Also the Storm heading (seeded base heading, disk-local) and the live Breeze gusts.
 func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
 	if not match_ref.has_method("weather"):
 		return
@@ -395,7 +393,7 @@ func _apply_weather(view: BotWorldView, match_ref: Variant) -> void:
 	_apply_gusts(view, weather)
 
 
-## the active Storm's base heading (WindField.base_angle of the event seed, the value
+## The active Storm's base heading (WindField.base_angle of the event seed, the value
 ## StormEffect and the presentation also derive; the slow +/- veer is not readable here) as a disk-local
 ## unit vector; ZERO when the weather object exposes no seed.
 func _storm_heading(weather: Object) -> Vector2:
@@ -405,7 +403,7 @@ func _storm_heading(weather: Object) -> Vector2:
 	return _disk_heading(Vector2(cos(angle), sin(angle)))
 
 
-## copies the host's live Breeze gusts (BreezeEffect.gusts(): wire fields plus "age")
+## Copies the host's live Breeze gusts (BreezeEffect.gusts(): wire fields plus "age")
 ## into the view in disk-local space; the view's gust power is BotWorldView.gust_power().
 func _apply_gusts(view: BotWorldView, weather: Object) -> void:
 	if not weather.has_method("breeze"):
@@ -429,7 +427,7 @@ func _apply_gusts(view: BotWorldView, weather: Object) -> void:
 		view.breeze_tuning = BREEZE_TUNING
 
 
-## a world x/z direction as a unit vector in disk-local x/z (the field's own
+## A world x/z direction as a unit vector in disk-local x/z (the field's own
 ## rotation undone, like Field.disk_local_from_world does for points).
 func _disk_heading(world_dir: Vector2) -> Vector2:
 	if _field == null:
@@ -449,7 +447,7 @@ func think_deadline_ticks() -> int:
 	)
 
 
-## seconds left on this slot's block timer; -1.0 when the match exposes none.
+## Seconds left on this slot's block timer; -1.0 when the match exposes none.
 func _feed_time_left() -> float:
 	var match_ref: Variant = _match()
 	if match_ref.has_method("feed_time_left") and not bool(match_ref.has_method("timer_paused") and match_ref.timer_paused(_slot_id)):
@@ -457,7 +455,7 @@ func _feed_time_left() -> float:
 	return -1.0
 
 
-## the reaction delay cut so the bot still has min_think_s of think time and the plan
+## The reaction delay cut so the bot still has min_think_s of think time and the plan
 ## lands margin_s before the auto-drop. Unchanged (and exact) while the timer is long enough or unknown
 ## (time_left < 0).
 static func clamp_reaction_s(delay_s: float, time_left_s: float, margin_s: float, min_think_s: float) -> float:
@@ -466,14 +464,14 @@ static func clamp_reaction_s(delay_s: float, time_left_s: float, margin_s: float
 	return minf(delay_s, maxf(time_left_s - margin_s - min_think_s, 0.0))
 
 
-## the think deadline (physics ticks) cut to the time left before the margin; >= 1.
+## The think deadline (physics ticks) cut to the time left before the margin; >= 1.
 static func clamp_think_ticks(ticks: int, time_left_s: float, margin_s: float, ticks_per_s: int) -> int:
 	if time_left_s < 0.0:
 		return ticks
 	return mini(ticks, maxi(floori((time_left_s - margin_s) * float(ticks_per_s)), 1))
 
 
-## Bot V2: the held special planned against this piece's world snapshot and
+## The held special planned against this piece's world snapshot and
 ## its chain graph (built here, only when a special is actually held).
 func _plan_special_v2(held_special_id: StringName) -> BotSpecialPlanner.BotSpecialAction:
 	return BotSpecialPlanner.plan_v2(
@@ -542,11 +540,11 @@ func _tick_thinking() -> void:
 		_begin_release_wait()
 
 
-## this tick's think slice. The deadline share (BotThink's remaining-work
+## This tick's think slice. The deadline share (BotThink's remaining-work
 ## estimate over the ticks left, this one included, less the tier's think_reserve_frames) always
 ## runs; while the shared per-frame cap (think_frame_cap_us, all V2 bots together) has room the
-## bot may work ahead up to its think_budget_us. The cap no longer skips a bot's tick: that only
-## pushed decisions late. Until this process has measured every costly stage
+## bot may work ahead up to its think_budget_us. The cap never skips a bot's tick
+## (that only pushes decisions late). Until this process has measured every costly stage
 ## (BotThink.has_cost_estimate) the share is the tier's think_budget_us.
 func _think_slice_us(ticks_left: int) -> int:
 	var deadline_share_us: int = _profile.think_budget_us
@@ -565,8 +563,7 @@ func _probe(xz: Vector2) -> Dictionary:
 	return {"hit": true, "height": _field.to_local(hit["position"] as Vector3).y}
 
 
-## The per-bottom-cube probe: like `_probe` plus `body`, the
-## instance id of the block collider hit (1 for the disc or a miss).
+## The per-bottom-cube probe: like `_probe` plus `body`, the instance id of the block collider hit (1 for the disc or a miss).
 func _probe_cell(xz: Vector2) -> Dictionary:
 	var hit: Dictionary = _column_hit(xz)
 	if hit.is_empty():
@@ -624,7 +621,7 @@ func _gift_eta_s(state: Dictionary) -> float:
 	return maxf(origin.distance_to(landing) / speed - float(state.get("elapsed", 0.0)), 0.0)
 
 
-## every enemy special still in flight (armed, untriggered, not landed, moving)
+## Every enemy special still in flight (armed, untriggered, not landed, moving)
 ## becomes a predicted impact point + radius in the view's incoming-special list. Own-team throws
 ## are ignored. Nothing happens without a field.
 func _apply_incoming_specials(view: BotWorldView, match_ref: Variant) -> void:
@@ -632,7 +629,7 @@ func _apply_incoming_specials(view: BotWorldView, match_ref: Variant) -> void:
 		return
 	var eval_tuning: BotEvalTuning = BotEvaluator.tuning
 	var gravity_base: float = float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-	# gravity expressed in the Field's local frame, so a tilted disc predicts right.
+	# Gravity expressed in the Field's local frame, so a tilted disc predicts right.
 	var local_gravity: Vector3 = _field.global_transform.basis.orthonormalized().inverse() * (Vector3.DOWN * gravity_base)
 	var gravity_down_local: float = -local_gravity.y
 	for node: Node in get_tree().get_nodes_in_group(SpecialBehavior.GROUP):
@@ -698,7 +695,7 @@ func _raycast_support_height(local_xz: Vector2) -> Dictionary:
 
 # --- ACTING: one frame, exactly one request per completed think-cycle ------
 
-## the plan is ready; hold the release for a seeded random delay (this bot's
+## The plan is ready; hold the release for a seeded random delay (this bot's
 ## own stream), cut so it lands release_safety_margin_s before the block timer's expiry. A
 ## gift piece (gift_use_delay_s) and a zero range release at once.
 func _begin_release_wait() -> void:
@@ -735,7 +732,7 @@ func _tick_acting() -> void:
 	var match_ref: Variant = _match()
 	var held_special_id: StringName = StringName(match_ref.held_special(_slot_id))
 	if held_special_id != &"" and _special_view != null:
-		# chain-aware targeting off this think's snapshot.
+		# Chain-aware targeting off this think's snapshot.
 		var action: BotSpecialPlanner.BotSpecialAction = _plan_special_v2(held_special_id)
 		if action.should_throw:
 			_apply_rejection_backoff(_send_throw(action))
@@ -751,24 +748,22 @@ func _tick_acting() -> void:
 	_apply_rejection_backoff(_send_best_placement())
 
 
-## Review fix (MINOR): an outright-rejected request_place()/
-## request_throw() (anything but PlacementRules.REASON_OK -- e.g.
-## REASON_CONTESTED after another block landed on the sampled spot between
-## THINKING and ACTING) must not spend every following physics frame
-## retrying the exact same rejected cycle -- with no backoff, _tick_idle()'s
-## own countdown gate reads 0.0 the very next frame (nothing resets it short
-## of a fresh Events.feed_block_issued) and thinking restarts immediately.
+## An outright-rejected request_place()/request_throw() (anything but
+## PlacementRules.REASON_OK -- e.g. REASON_CONTESTED after another block landed
+## on the sampled spot between THINKING and ACTING) must not retry the same
+## rejected cycle every physics frame: without a backoff, _tick_idle()'s
+## countdown gate reads 0.0 the very next frame (nothing resets it short of a
+## fresh Events.feed_block_issued) and thinking restarts immediately.
 ## `reason` is `PlacementRules.REASON_OK` (StringName "") both when a request
-## actually succeeded and when `_send_best_placement()`/`_send_throw()` sent
-## nothing at all (empty candidates, null best, null `_field`) -- neither
-## case needs a backoff, only a genuine non-OK reason from a request that was
-## actually sent does.
+## succeeded and when `_send_best_placement()`/`_send_throw()` sent nothing at
+## all (empty candidates, null best, null `_field`); only a genuine non-OK
+## reason from a request that was actually sent needs a backoff.
 func _apply_rejection_backoff(reason: StringName) -> void:
 	if reason != PlacementRules.REASON_OK:
 		_countdown = tuning.rejection_backoff_s
 
 
-## the disk-local pose `request_place` is sent for a piece whose pivot (bottom_center) is
+## The disk-local pose `request_place` is sent for a piece whose pivot (bottom_center) is
 ## at `pivot_xz` over a support at `support_y`: the pivot raised so the ROTATED shape's lowest corner rests on
 ## the support. Pure seam so tests use exactly the send conversion.
 static func spawn_pose(
@@ -779,7 +774,7 @@ static func spawn_pose(
 	return Vector3(pivot_xz.x, support_y + lift, pivot_xz.y)
 
 
-## the support height the piece rests on when its pivot is at `pivot_xz`: the highest ray
+## The support height the piece rests on when its pivot is at `pivot_xz`: the highest ray
 ## hit under its real bottom cubes (spawn frame, outermost first, at most stability_raycast_count rays,
 ## once per decision), which is where the host lift puts it; `fallback_y` (the pivot ray) when no cube ray
 ## hits. DECISION: the cap is the tier's own ray count (Hard 9), so no new tunable.
@@ -828,12 +823,9 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	if best == null:
 		return PlacementRules.REASON_OK
 	var noisy_origin: Vector2 = best.origin + _aim_noise_offset()
-	# Review fix (MAJOR): best.support_height was sampled at
-	# the pre-noise origin -- the aim-noise offset can legitimately land the
-	# request over a different (e.g. taller) collider than the one the
-	# candidate was scored against, so the height must be resampled at the
-	# actual noisy point the request is about to use, never the stale
-	# pre-noise sample.
+	# best.support_height was sampled at the pre-noise origin, but the aim-noise
+	# offset can land the request over a different (e.g. taller) collider, so the
+	# height must be resampled at the actual noisy point.
 	var held: BlockShape = match_ref.held_shape(_slot_id)
 	var hit: Dictionary = _raycast_support_height(noisy_origin)
 	var support_y: float = float(hit.get("height", 0.0))
@@ -852,10 +844,9 @@ func _send_best_placement(place_target_override: Variant = null) -> StringName:
 	return reason
 
 
-## M5 P3b-ii: the already-generated candidate whose `origin`
-## is disk-local nearest `target` -- _send_best_placement()'s own selection
-## when a placed-special heuristic supplied a `place_target`. Assumes
-## `_candidates` is non-empty; its only caller already checked that.
+## The already-generated candidate whose `origin` is disk-local nearest `target`
+## (_send_best_placement()'s selection when a placed-special heuristic supplied a
+## `place_target`). Assumes `_candidates` is non-empty; its only caller checked.
 func _pick_candidate_nearest_to(target: Vector2) -> BotCandidate:
 	var best: BotCandidate = _candidates[0]
 	var best_dist_sq: float = best.origin.distance_squared_to(target)
@@ -868,7 +859,7 @@ func _pick_candidate_nearest_to(target: Vector2) -> BotCandidate:
 	return best
 
 
-## b: this map's host throw range (GiftAim.range_scale of the field radius),
+## This map's host throw range (GiftAim.range_scale of the field radius),
 ## so the bomb heuristic releases from where the fixed trajectory lands on the target.
 func _throw_range_m() -> float:
 	var radius: float = _field_radius()
@@ -887,32 +878,22 @@ func _send_throw(action: BotSpecialPlanner.BotSpecialAction) -> StringName:
 	var match_ref: Variant = _match()
 	var noisy_origin: Vector2 = action.throw_origin + _aim_noise_offset()
 	var world_origin: Vector3 = _field.world_from_disk_local(noisy_origin, 0.0)
-	# DECISION (game/bots/BotController.gd item C): core/ai/
-	# BotSpecialPlanner.gd's own _ballistic_velocity() builds `throw_velocity`
-	# in disk-local axes (x, y=up, z -- see that file's own doc comment on the
-	# function), never world space; MatchPlacement.request_throw() applies
-	# `velocity` to the spawned RigidBody3D verbatim (world space, only
-	# clamped to throw_max_speed -- see that file's own doc comment on
-	# request_throw()), so a level Field happened to make the two spaces
-	# coincide, but a tilted disk (SPECIALS_ONLY, spec 1.7/1.2/2.7) would then
-	# throw a Bomb along the FLAT disk's axes instead of the bot's own tilted
-	# one. Rotating through Field.global_transform.basis (a pure rotation,
-	# tilt has no scale) converts the planner's disk-local direction into the
-	# same world-space vector request_throw() expects, exactly like
-	# MatchPlacement._burn_block()'s own `_match._field.global_transform.basis
-	# * Vector3(outward.x, 0.0, outward.y)` conversion of a disk-local
-	# direction into world space -- the same pattern, reused rather than
-	# reinvented. A pure rotation preserves length, so the planner's own
-	# `special_throw_speed_mps` speed survives the conversion unchanged.
+	# DECISION (game/bots/BotController.gd): core/ai/BotSpecialPlanner.gd's
+	# _ballistic_velocity() builds `throw_velocity` in disk-local axes (x, y=up, z),
+	# but MatchPlacement.request_throw() applies `velocity` verbatim in world space,
+	# so a tilted disk (SPECIALS_ONLY, spec 1.7/1.2/2.7) would throw a Bomb along
+	# the flat disk's axes. Rotating through Field.global_transform.basis (a pure
+	# rotation, so the planned speed survives) converts it, like
+	# MatchPlacement._burn_block() does for a disk-local direction.
 	var world_velocity: Vector3 = _field.global_transform.basis * action.throw_velocity
-	# the host derives the throw from a unit aim only (client speed is never
-	# trusted), so the bot sends its planned direction, not a speed-scaled velocity.
-	# the host (GiftAim.throw_velocity) adds the loft itself, so send the flat
-	# camera-style forward (planner's horizontal heading), not the loft-included ballistic direction.
+	# The host derives the throw from a unit aim only (client speed is never
+	# trusted) and adds the loft itself (GiftAim.throw_velocity), so send the flat
+	# camera-style forward (planner's horizontal heading), not a speed-scaled or
+	# loft-included ballistic velocity.
 	var flat_forward: Vector3 = Vector3(world_velocity.x, 0.0, world_velocity.z)
 	if flat_forward.length_squared() <= 0.0:
 		flat_forward = world_velocity
-	# remembered so a refused/backed-off throw still leaves the host an aim for
+	# Remembered so a refused/backed-off throw still leaves the host an aim for
 	# the expiry throw of this gift.
 	if match_ref.has_method(&"note_aim"):
 		match_ref.note_aim(_slot_id, flat_forward.normalized())
@@ -932,7 +913,7 @@ func _aim_noise_offset() -> Vector2:
 	return Vector2(cos(angle), sin(angle)) * radius
 
 
-## the active mode's goal context, or null when the match
+## The active mode's goal context, or null when the match
 ## provider has none (test fakes, Classic).
 func _mode_goal(match_ref: Variant) -> BotModeGoal:
 	if not match_ref.has_method("bot_mode_goal"):
@@ -948,34 +929,21 @@ func _goal_positions() -> PackedVector2Array:
 	return PlayerSlot.goal_positions_for(config.effective_goal_flag_count(), config.map_def())
 
 
-## item F: every other special currently ticking on the disk
-## (`game/gifts/specials/SpecialBehavior.GROUP`, its own scene-tree group -- see
-## that file's own header comment), converted to a disk-local point through
-## `_field.disk_local_from_world()`, the same conversion Field's own
-## raycast_down_disk_local() uses. Fed to the world snapshot
-## (spec 1.8's risk term: don't stack a new block, or aim a special, on top of one
-## already armed and ticking). A behaviour is always added as a child of its
-## owning Block (autoload/match/MatchPlacement.gd's `_arm_special_behavior()`:
-## `block.add_child(behavior)`) -- read generically as `Node3D` rather than
-## the concrete `Block` type, so a test fixture that stands in for "a
-## Block-like Node3D" (any parented Node3D with a `global_position`) does not
-## need to construct a real, physics-backed Block.
-## item 2 (review fix): a triggered special's SpecialBehavior
-## node lingers in the group until its Block is actually freed (game/gifts/specials/
-## SpecialBehavior.gd's own is_triggered() doc: it flips once, on trigger(),
-## and nothing here removes the node from GROUP before then), so a spent
-## special (already exploded/landed) must not still count as "live" for
-## _tick_acting()'s risk term or BotSpecialPlanner's own chain-avoidance --
-## skip it before it is ever converted to a position.
+## Every other special currently ticking on the disk (SpecialBehavior.GROUP),
+## converted to a disk-local point through `_field.disk_local_from_world()`, the
+## same conversion Field's own raycast_down_disk_local() uses. Fed to the world
+## snapshot (spec 1.8's risk term: don't stack a new block, or aim a special, on
+## top of one already armed and ticking). A behaviour is always a child of its
+## owning Block (MatchPlacement's `_arm_special_behavior()`) but is read
+## generically as `Node3D`, so a test fixture needs no real, physics-backed Block.
+## A triggered special's node lingers in the group until its Block is freed
+## (SpecialBehavior.is_triggered() flips once, on trigger()), so a spent special
+## must not count as "live" for the risk term or chain-avoidance: skip it before
+## converting it to a position.
 ##
-## item 3 (review fix): get_nodes_in_group() iteration order is
-## not part of any contract (Godot's own docs: insertion order into the
-## group's internal list, not spatial or otherwise stable across runs), so
-## sorting the result removes any dependence on it for the consumer that
-## reads this list (the snapshot), so a bot's choices depend only on
-## its own seeded RNG stream, not on however many other specials happened to
-## spawn first. Vector2's own `<` (x, then y) is exactly sort()'s default
-## ordering.
+## get_nodes_in_group() order is not part of any contract (insertion order, not
+## stable across runs), so the result is sorted: a bot's choices then depend only
+## on its own seeded RNG stream. Vector2's `<` (x, then y) is sort()'s default.
 func _active_special_positions() -> PackedVector2Array:
 	var positions: PackedVector2Array = PackedVector2Array()
 	if _field == null:
@@ -995,8 +963,7 @@ func _active_special_positions() -> PackedVector2Array:
 
 
 ## Pull radius (m) read from the shipped Black hole SpecialDef so the bot's scoring
-## cannot drift from the real effect. 0.0 if the def or its effect
-## is missing, which makes the planner skip the special.
+## cannot drift from the real effect. 0.0 if the def or its effect is missing, which makes the planner skip the special.
 static func black_hole_pull_radius_m() -> float:
 	var def: SpecialDef = SpecialDef.find_by_id(&"black_hole")
 	var effect: BlackHoleEffect = def.effect as BlackHoleEffect if def != null else null

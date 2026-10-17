@@ -1,20 +1,16 @@
 class_name Block
 extends BlockBody
 ## A placed or falling block (spec 1.4, 2.8). Built by BlockFactory from a
-## BlockShape; carries just enough identity for M1 (which shape it is and how
-## many cubes it has). Ownership, influence, and special behavior arrive in
-## later milestones.
+## BlockShape.
 
 @export var cube_count: int = 0
 
 ## shape_id, owner_slot, gift_id and net_id live on game/world/BlockBody.gd
 ## (the light base class); they are inherited unchanged.
 
-## in-game tuning panel: every Block adds itself to this
-## group in _ready() so ui/debug/TuningPanel.gd can push a PhysicsTuning edit onto
-## every block already standing, not just the next one BlockFactory builds
-## (get_tree().get_nodes_in_group(TUNING_GROUP), never a game/blocks/BlockRegistry.gd
-## change -- that file belongs to a different package).
+## Every Block adds itself to this group in _ready() so ui/debug/TuningPanel.gd
+## can push a PhysicsTuning edit onto every block already standing, not just the
+## next one BlockFactory builds.
 const TUNING_GROUP: StringName = &"tuning_blocks"
 
 ## the one shared awake set. Instance id (int) -> Block for
@@ -23,8 +19,8 @@ const TUNING_GROUP: StringName = &"tuning_blocks"
 ## sleeping_state_changed plus tree enter/exit and the static-freeze pair
 ## below, so BlockRegistry's settle loop and BlockEffectsManager's trail scan
 ## iterate awake bodies instead of every block. A client's bodies are frozen
-## kinematic and never sleep for real, so they stay in the set (the old
-## "visit everything" behaviour there). Read it through awake_blocks().
+## kinematic and never sleep for real, so they stay in the set.
+## Read it through awake_blocks().
 static var _awake: Dictionary = {}
 ## Blocks that left the awake set recently (instance id -> Block / physics
 ## frame), still reported by awake_blocks() for SLEPT_TAIL_FRAMES more physics
@@ -34,13 +30,12 @@ static var _slept_blocks: Dictionary = {}
 static var _slept_frames: Dictionary = {}
 const SLEPT_TAIL_FRAMES: int = 2
 
-## assets-audio package (revised: no contact_monitor -- an earlier revision's
-## bench_rain.gd cost ~5-7 ms/step at 300 blocks, well over budget). Impacts
-## are detected from the body's own motion instead: _batch_tick()'s inlined impact test below
-## (the old per-node _physics_process, now driven from
-## game/blocks/BlockStepBatch.gd's one batched pass) compares this tick's
-## linear_velocity against the previous tick's, and a sudden drop in speed
-## (hitting something) crosses AudioConfig.impact_speed_min.
+## No contact_monitor (it cost ~5-7 ms/step at 300 blocks, well over budget).
+## Impacts are detected from the body's own motion instead: _batch_tick()'s
+## inlined impact test below (driven from game/blocks/BlockStepBatch.gd's one
+## batched pass) compares this tick's linear_velocity against the previous
+## tick's, and a sudden drop in speed (hitting something) crosses
+## AudioConfig.impact_speed_min.
 ## autoload/Sfx.gd sets impact_speed_min and impacts_enabled (statics on
 ## game/world/BlockBody.gd, inherited here) once at startup from AudioConfig.
 
@@ -54,8 +49,7 @@ const IMPACT_EMIT_INTERVAL_MS: int = 120
 var _last_impact_emit_ms: int = -1000000
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
-## owner feel report "heavier and more bouncy, but a dropped
-## block shouldn't just bounce straight up again": the live PhysicsTuning
+## The live PhysicsTuning
 ## this Block was built from, kept only so _integrate_forces() below can read
 ## rebound_damping without a scene-tree/group lookup every physics step. Set
 ## once by BlockFactory.build() and refreshed by apply_physics_tuning() below,
@@ -75,35 +69,26 @@ var tuning: PhysicsTuning = null
 ## (runs after).
 var _prev_step_linear_velocity_y: float = 0.0
 
-## Review fix (SHOULD-FIX 1): set by kick()/mark_script_kick()
-## below, consumed (and cleared) by the very next _integrate_forces() call.
-## See kick()'s own doc comment for what this is for.
+## Set by kick()/mark_script_kick() below, consumed (and cleared) by the very
+## next rebound pass. See kick()'s own doc comment for what this is for.
 var _script_kick_pending: bool = false
-## physics frame mark_script_kick() ran in. The old
-## _integrate_forces() consumed a kick at the body's first state sync AFTER
-## the mark; game/blocks/BlockStepBatch.gd runs after the whole sync phase, so a mark
-## made during this frame's sync phase is only due from the next frame.
+## physics frame mark_script_kick() ran in. A kick is consumed at the body's
+## first state sync AFTER the mark; game/blocks/BlockStepBatch.gd runs after the
+## whole sync phase, so a mark made during this frame's sync phase is only due
+## from the next frame.
 var _kick_frame: int = -1
 var _release_checked: bool = false
-## first physics frame at which Jolt has synced this body
-## (state sync callback) since it last entered the awake set -- the frames
-## the old _integrate_forces() ran on. See _next_sync_frame().
+## First physics frame at which Jolt has synced this body (state sync callback)
+## since it last entered the awake set. See _next_sync_frame().
 var _sync_from_frame: int = 0
 
-## Fix round (review MAJOR): the "contributing to territory
-## influence" glow (BlockFactory.build()'s own DECISION: RigidBody3D.sleeping
-## as the settled proxy) used to be written straight onto the BlockMesh
-## MeshInstance3D from inside BlockFactory.build() and a local
-## sleeping_state_changed connection -- both of which only ever fire on
-## whichever peer actually runs physics for this body. A client's synced
-## blocks are frozen kinematic (net/SnapshotSync.gd's freeze_body(), spec
-## 3.4) and never sleep for real, so a client never saw the glow at all.
-## This seam moves the write onto Block itself so a client's own
-## SnapshotSync.client_tick() can drive it from the wire's `sleeping` flag
-## (net/Interpolator.gd's Sample.sleeping) instead, while BlockFactory.build()
-## keeps driving it from the real sleeping_state_changed signal on whichever
-## peer is this body's physics authority -- both paths converge here, so
-## neither has to know or care which one currently applies.
+## State of the "contributing to territory influence" glow (RigidBody3D.sleeping
+## is the settled proxy, see BlockFactory.build()). A client's synced blocks are
+## frozen kinematic (net/SnapshotSync.gd's freeze_body(), spec 3.4) and never
+## sleep for real, so the glow must be drivable from the wire's `sleeping` flag
+## (net/Interpolator.gd's Sample.sleeping) via SnapshotSync.client_tick() as well
+## as from the real sleeping_state_changed signal on the physics authority; both
+## paths converge on this field.
 var _contributing_visual: bool = false
 ## Sentinel separate from _contributing_visual itself: without it, the very
 ## first call with `contributing == false` (BlockFactory.build()'s own
@@ -173,9 +158,8 @@ static func _next_sync_frame() -> int:
 func _enter_tree() -> void:
 	BlockStepBatch.ensure_installed()
 	if not _release_checked:
-		# the release tilt runs inside Jolt's own first state
-		# sync of this body, before the C++ RigidBody3D sync, exactly where the
-		# old _integrate_forces() ran it (once per block, not per tick).
+		# The release tilt runs inside Jolt's own first state sync of this body,
+		# before the C++ RigidBody3D sync (once per block, not per tick).
 		PhysicsServer3D.body_set_force_integration_callback(get_rid(), _on_first_integration)
 	_apply_awake(not sleeping)
 
@@ -190,8 +174,7 @@ func _exit_tree() -> void:
 ## Puts this block in (or takes it out of) the awake set, which is also what
 ## game/blocks/BlockStepBatch.gd's per-tick pass visits: a sleeping or statically
 ## frozen block has nothing to measure, and wake re-seeds the previous-speed
-## sample exactly as the old per-node impact callback's idle tick did, and
-## marks when Jolt first syncs the body again (_next_sync_frame()).
+## sample and marks when Jolt first syncs the body again (_next_sync_frame()).
 func _apply_awake(awake: bool) -> void:
 	# A removed-but-not-freed block must never (re)enter the set: no _exit_tree
 	# would follow to drop it again.
@@ -221,9 +204,8 @@ func wake() -> void:
 
 
 ## Raised only from inside this body's own state sync (RigidBody3D's
-## _sync_body_state()), so Jolt has synced it this very frame. Falling asleep:
-## that sync is where the old _integrate_forces() took its early-out, so it
-## runs here (same values: the node's velocity was copied before the signal).
+## _sync_body_state()), so Jolt has synced it this very frame. Falling asleep
+## runs the early-out here (the node's velocity was copied before the signal).
 ## Waking: the batch must treat the body as synced from this frame on.
 func _on_sleeping_state_changed() -> void:
 	if sleeping:
@@ -235,20 +217,18 @@ func _on_sleeping_state_changed() -> void:
 
 ## this block's share of game/blocks/BlockStepBatch.gd's per-tick pass
 ## (it calls this for every block in the awake set, once per physics frame,
-## before any node's _physics_process). Replaces the old per-node
-## _integrate_forces() (rebound pass, only on frames Jolt synced this body)
-## and _physics_process() (impact detection, every awake tick).
+## before any node's _physics_process). Runs the rebound pass (only on frames
+## Jolt synced this body) and impact detection (every awake tick).
 ##
 ## `physics_active` is false while the SceneTree is paused (which deactivates
 ## the physics server: no step, no state sync, so no rebound pass), and
-## can_process() is the same gate Godot applied to the old _physics_process()
-## (pause, PROCESS_MODE_DISABLED; a disabled body is also out of its space).
+## can_process() gates on pause and PROCESS_MODE_DISABLED (a disabled body is
+## also out of its space).
 func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, noise_floor: float, impacts_on: bool, impact_min: float, impact_min_sq_lo: float) -> void:
 	if not can_process():
 		return
 	if sleeping:
-		# Asleep without a sleep transition this tick: Jolt did not sync it. The
-		# old _physics_process() dropped such a block here the same way.
+		# Asleep without a sleep transition this tick: Jolt did not sync it.
 		_prev_linear_velocity = linear_velocity
 		_apply_awake(false)
 		return
@@ -260,8 +240,8 @@ func _batch_tick(frame: int, physics_active: bool, damp_on: bool, damp: float, n
 		_prev_linear_velocity = Vector3.ZERO
 		return
 	if synced:
-		# The old _integrate_forces() full path; `velocity` is what this tick's
-		# state sync just copied from the body.
+		# Full rebound path; `velocity` is what this tick's state sync just copied
+		# from the body.
 		if _script_kick_pending and _kick_frame < frame:
 			_script_kick_pending = false
 		elif damp_on and velocity.y > noise_floor and _prev_step_linear_velocity_y < -noise_floor:
@@ -297,13 +277,10 @@ func _emit_impact(decel: float) -> void:
 		return
 	_last_impact_emit_ms = now_ms
 	Events.block_impacted.emit(decel)
-	# M7 P4 fix: additive alongside the line above -- see
-	# Events.block_impacted_at's own doc comment. autoload/Sfx.gd's listener
-	# on block_impacted is unchanged.
 	Events.block_impacted_at.emit(decel, global_position)
 
 
-## The old _integrate_forces() early-out for a body synced asleep or frozen:
+## Early-out for a body synced asleep or frozen:
 ## only keep the previous-velocity sample current and consume a due kick.
 func _early_out_sync(frame: int) -> void:
 	if _script_kick_pending and _kick_frame < frame:
@@ -317,21 +294,16 @@ func _ready() -> void:
 		sleeping_state_changed.connect(_on_sleeping_state_changed)
 	collision_mask |= Field.BEACON_COLLISION_LAYER
 	if tuning == null:
-		# Review fix (SHOULD-FIX 3): game/blocks/BlockFactory.gd's
-		# build() now sets `block.tuning = tuning` itself (its own build()
-		# doc comment), so this fallback only matters for a bare Block never
-		# built through that factory (e.g. Block.new() directly in a test) --
-		# it defaults such a block to the shared preloaded
-		# config/physics/physics_tuning.tres instance rather than leaving `tuning`
-		# null (rebound_damping would just never apply otherwise, the same
-		# no-op as tuning == null everywhere below already handles safely,
-		# but every real gameplay default should still get the shipped
-		# rebound-damping behavior instead of silently opting out of it).
+		# BlockFactory.build() sets `block.tuning` itself, so this fallback only
+		# matters for a bare Block never built through that factory (e.g.
+		# Block.new() directly in a test): it gets the shared preloaded
+		# config/physics/physics_tuning.tres instead of silently opting out of
+		# rebound damping.
 		tuning = preload("res://config/physics/physics_tuning.tres")
 
 
-## Impact detection (assets-audio package moved it into
-## _batch_tick(), driven by game/blocks/BlockStepBatch.gd once per tick):
+## Impact detection lives in _batch_tick(), driven by
+## game/blocks/BlockStepBatch.gd once per tick:
 ## sleeping bodies (a settled pile) skip it entirely -- Jolt stops
 ## integrating them, so linear_velocity would otherwise read as a false,
 ## constant "impact" the instant they wake. DECISION: the deceleration
@@ -344,10 +316,8 @@ func _ready() -> void:
 ## detects impacts; a client hears the host's via MatchNet.net_block_impacts().
 
 
-## rebound damping (run per synced body by _batch_tick(),
-## driven by game/blocks/BlockStepBatch.gd since it used to be
-## this class's _integrate_forces() override, so "_integrate_forces()" below
-## means that pass): damps only a fresh bounce's straight-up (world Y) velocity,
+## Rebound damping (run per synced body by _batch_tick(), driven by
+## game/blocks/BlockStepBatch.gd; "_integrate_forces()" below means that pass): damps only a fresh bounce's straight-up (world Y) velocity,
 ## leaving horizontal and angular velocity alone so block_bounce still gives
 ## lateral/tumbling liveliness off a corner or edge hit -- see
 ## config/physics/PhysicsTuning.gd's rebound_damping DECISION for why this can't just
@@ -360,7 +330,7 @@ func _ready() -> void:
 ## follows from "only the host runs physics" (CLAUDE.md) without this file
 ## needing to ask Net anything.
 ##
-## Review fix (SHOULD-FIX 1): a special effect's own
+## A special effect's own
 ## intentional velocity write (a Jumping Bean hop, a Rocket's continuous
 ## thrust tick, a Propeller lift start, an explosion's apply_impulse) can also
 ## flip a block's vertical velocity from falling to rising -- indistinguishable
@@ -414,12 +384,10 @@ func _ready() -> void:
 ## it outright; see config/physics/presets/heavy_bouncy.tres for the shipped
 ## values this was tuned against.
 ##
-## the one-shot release tilt below is the only part still run
-## from an engine callback per body: Jolt's force-integration callback at the
-## body's first state sync (installed in _enter_tree(), dropped after its one
-## call), i.e. the same flush position and order the old first
-## _integrate_forces() call had. It writes the body transform before the C++
-## RigidBody3D sync copies it to the node, exactly as before.
+## The one-shot release tilt below is the only part run from an engine callback
+## per body: Jolt's force-integration callback at the body's first state sync
+## (installed in _enter_tree(), dropped after its one call). It writes the body
+## transform before the C++ RigidBody3D sync copies it to the node.
 func _on_first_integration(state: PhysicsDirectBodyState3D) -> void:
 	if _release_checked:
 		return
@@ -486,7 +454,7 @@ func kick(velocity: Vector3) -> void:
 
 ## Marks the very next _integrate_forces() step (_batch_tick() rebound pass)
 ## as a script-driven velocity write, not a natural bounce -- see
-## _integrate_forces()'s own review-fix DECISION above for why a flag, not
+## _integrate_forces()'s own DECISION above for why a flag, not
 ## contact detection. Call this right after
 ## directly assigning/adding to `linear_velocity` (or apply_impulse()) from a
 ## special effect, whenever kick() itself doesn't fit (e.g. PropellerEffect
@@ -523,7 +491,7 @@ func apply_physics_tuning(tuning: PhysicsTuning) -> void:
 	material.bounce = tuning.block_bounce
 
 
-## Fix round (review MAJOR): the one write site for the
+## The one write site for the
 ## "contributing to territory influence" glow's instance shader parameter.
 ## Called by BlockFactory.build() (from the real RigidBody3D.sleeping /
 ## sleeping_state_changed on this body's physics authority) and by
@@ -603,11 +571,10 @@ func request_freeze_static(reason: StringName) -> void:
 		return
 	_freeze_reasons[reason] = true
 	if _freeze_reasons.size() == 1:
-		# frozen between ticks, a body Jolt stepped last tick is
-		# still queued for one more state sync, where the old _integrate_forces()
-		# took its early-out. A STATIC freeze also puts the body to sleep, so
-		# that sync raises sleeping_state_changed and _on_sleeping_state_changed()
-		# runs the same early-out there.
+		# Frozen between ticks, a body Jolt stepped last tick is still queued
+		# for one more state sync. A STATIC freeze also puts the body to sleep,
+		# so that sync raises sleeping_state_changed and
+		# _on_sleeping_state_changed() runs the early-out there.
 		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 		freeze = true
 		_apply_awake(false)

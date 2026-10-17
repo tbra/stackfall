@@ -1,7 +1,7 @@
 class_name BlockRegistry
 extends Node
 ## Tracks every live Block, whether it has settled, and the net_id <-> Block
-## mapping the territory solve and (from M3) snapshot sync both need.
+## mapping the territory solve and snapshot sync both need.
 ##
 ## Listens to Events.block_placed / Events.block_removed instead of walking
 ## the scene tree (CLAUDE.md's global signal bus), and runs the settled rule
@@ -23,7 +23,7 @@ class _Entry:
 	var is_settled: bool = false
 	## Transform last reported to the territory dirty state (settled only).
 	var marked_transform: Transform3D = Transform3D.IDENTITY
-	## cached pure geometry, keyed on exact inputs.
+	## Cached pure geometry, keyed on exact inputs.
 	var geom_valid: bool = false
 	var geom_block_xform: Transform3D = Transform3D.IDENTITY
 	var geom_field_xform: Transform3D = Transform3D.IDENTITY
@@ -31,7 +31,7 @@ class _Entry:
 	var geom_com_xz: Vector2 = Vector2.ZERO
 	var geom_top: float = 0.0
 	var geom_com_y: float = 0.0
-	## the last circle handed out. Circles are never mutated
+	## The last circle handed out. Circles are never mutated
 	## after creation, so an identical one is reused (same object) instead of
 	## allocating; any changed field allocates a fresh circle.
 	var circle: InfluenceCircle = null
@@ -40,20 +40,20 @@ class _Entry:
 
 ## Host: a block just became settled (the sleep rule above); `height` is its top
 ## above the disk along the disk normal, the HUD's tower measure. Reach the Sky
-##  records its players' heights from this, so a block that is
-## still falling or balancing never counts.
+## records its players' heights from this, so a block that is still falling or
+## balancing never counts.
 signal block_settled(owner_slot: int, height: float)
 
 var _entries: Dictionary = {}          ## instance id (int) -> _Entry
 var _net_id_to_block: Dictionary = {}  ## net_id (int) -> Block
 var _next_net_id: int = 1
-## instance ids of entries not yet settled. Together with
+## Instance ids of entries not yet settled. Together with
 ## Block's awake set (Block.awake_blocks()) this is everything the per-tick
 ## settle loop must visit: an awake body, or a body still accumulating
 ## settled_time (it may have gone to sleep before sleep_settle_time elapsed).
 ## A settled, sleeping or statically frozen block needs no per-tick work.
 var _unsettled: Dictionary = {}
-## Glue fusion: instance id -> FusedBody whose
+## Instance id -> FusedBody (glue fusion) whose
 ## members must be settle-stepped this tick. Per-tick scratch, rebuilt in
 ## _physics_process: a follower's own velocity is mirrored, so the carrier's is the
 ## one the settled rule reads, and the result is written to every member entry.
@@ -62,7 +62,7 @@ var _carriers: Dictionary = {}
 ## is pruned by a periodic sweep over every entry.
 const STALE_SWEEP_TICKS: int = 60
 var _sweep_ticks: int = 0
-## bumped by anything that can change territory influence
+## Bumped by anything that can change territory influence
 ## (block placed/removed, settled flag flips, a settled block moving beyond
 ## TerritoryTuning.dirty_move_epsilon, slot change). MatchTerritory compares it
 ## to skip solves on an unchanged board.
@@ -76,15 +76,13 @@ var _field: Node3D = null
 ## Test seam: false recomputes every block's geometry (the oracle path).
 var _geometry_cache_enabled: bool = true
 
-## M3a. True on the host **and offline** (Net.is_host()'s contract), so M2's
-## single-PC behaviour is the default and nothing had to change for it.
-## A client allocates no net_ids — the host's are the only ones a snapshot can
+## True on the host **and offline** (Net.is_host()'s contract), so single-PC
+## play is the default. A client allocates no net_ids — the host's are the only ones a snapshot can
 ## name — and runs no settled rule, because every one of its bodies is frozen
 ## and would read as settled the instant it spawned. The two kinds of asleep are kept apart.
 var _host_authority: bool = true
 
-## host-side hole contact and dissolve (game/
-## HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
+## Host-side hole contact and dissolve (game/field/HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
 ## blocks every physics tick.
 var _dissolver: HoleDissolver = null
 
@@ -222,7 +220,7 @@ func _physics_process(delta: float) -> void:
 	var ang_sq: float = tuning.sleep_angular_threshold * tuning.sleep_angular_threshold
 	var settle_time: float = tuning.sleep_settle_time
 	var stale: Array = []
-	# blocks that moved this tick (unsettled, just settled or
+	# Blocks that moved this tick (unsettled, just settled or
 	# settled-but-shifted), collected only while the field has a hole, so the
 	# dissolver tests just those instead of every block.
 	var dissolver: HoleDissolver = _ensure_dissolver()
@@ -231,8 +229,7 @@ func _physics_process(delta: float) -> void:
 	var visited: Dictionary = {}
 	_carriers.clear()
 	# Awake bodies first, then unsettled ones that are not awake (asleep before
-	# settling finished, or freed): the only entries the old full scan could
-	# have changed state for.
+	# settling finished, or freed): the only entries whose state can change.
 	for awake_block: Block in Block.awake_blocks():
 		var awake_id: int = awake_block.get_instance_id()
 		if awake_block is FusedBody:
@@ -293,7 +290,7 @@ func _physics_process(delta: float) -> void:
 	PerfProbe.stop(&"registry", probe_registry)
 
 
-## One entry's settle accounting (the former loop body, unchanged arithmetic).
+## One entry's settle accounting.
 func _step_entry(
 	id: int, entry: _Entry, delta: float, lin_sq: float, ang_sq: float, settle_time: float,
 	collect: bool, moving: Array[Block], stale: Array, settled_override: int = -1
@@ -480,7 +477,7 @@ func field_global_transform() -> Transform3D:
 	return _field.global_transform
 
 
-## adds, per slot, the blocks faster than sqrt(limit_sq)
+## Adds, per slot, the blocks faster than sqrt(limit_sq)
 ## into `counts` (pre-sized by the caller). Allocation-free, unlike all_blocks().
 func count_fast_blocks_by_owner(limit_sq: float, counts: PackedInt32Array) -> void:
 	for id: Variant in _entries:
@@ -524,7 +521,7 @@ func all_blocks() -> Array[Block]:
 ## True once every tracked block's own settled flag (the per-block accumulator
 ## _physics_process() above maintains from PhysicsTuning.sleep_linear_threshold
 ## / sleep_angular_threshold / sleep_settle_time) is true. Used by
-## MatchLifecycle._tick_turn_based() (M6 B4, spec 1.2) to decide when to hand
+## MatchLifecycle._tick_turn_based() (spec 1.2) to decide when to hand
 ## the turn to the next player. An empty registry (no blocks placed yet) is
 ## vacuously settled, matching the "nothing left to wait for" case.
 func all_settled() -> bool:
@@ -537,10 +534,10 @@ func all_settled() -> bool:
 
 ## One Vector3 per settled block, packed as (disk-local x offset from
 ## center, mass, disk-local z offset) -- the same "a spare component carries a
-## second scalar" packing this codebase already uses to avoid a per-frame
-## Array[Object] allocation. game/field/Field.gd's PHYSICAL_BALANCE tilt (a
-## kinematic-torque approximation, not a joint coupling) sums mass * lever-arm across these to drive
-## its tilt spring every physics tick.
+## second scalar" packing, which avoids a per-frame Array[Object] allocation.
+## game/field/Field.gd's PHYSICAL_BALANCE tilt (a kinematic-torque approximation,
+## not a joint coupling) sums mass * lever-arm across these to drive its tilt
+## spring every physics tick.
 ##
 ## Host-authority gated exactly like influence_circles(): every body on a
 ## client is frozen (this file's own _physics_process() doc), so a client

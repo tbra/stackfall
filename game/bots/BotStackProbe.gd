@@ -1,7 +1,6 @@
 class_name BotStackProbe
 extends RefCounted
-## Collects the bodies the bot's tower statics
-## model (core/ai/BotStack.gd) analyses. Scene-facing, hence in game/ and not in core/ai/.
+## Collects the bodies the bot's tower statics model (core/ai/BotStack.gd) analyses. Scene-facing, hence in game/ and not in core/ai/.
 ##
 ## build() snapshots every simulating body (unfused blocks and one FusedBody carrier per group) of ANY
 ## team whose centre of mass lies within BotStackTuning.snapshot_radius_m of a tower source, nearest
