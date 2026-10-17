@@ -1,26 +1,21 @@
 extends Node
-## In-game screenshot capture ("add a button to
-## take in-game screenshots which automatically saves to the docs", revised
-## the same day to a folder outside the repo -- see OUTPUT_DIR_ENV).
+## In-game screenshot capture, saved to a folder outside the repo (see
+## OUTPUT_DIR_ENV).
 ##
 ## Bound to the screenshot_capture action (F12 + gamepad, see
 ## tools/bootstrap_project.gd), fired from _unhandled_input so it works while
 ## the mouse is captured and over menus alike. Listens directly on the Input
-## Map action rather than Events (CLAUDE.md's bus is for gameplay state
-## changes between systems; a screenshot is a one-shot local side effect with
-## no other system caring about it, the same reasoning ui/menus/MainMenu.gd and
-## ui/lobby/Lobby.gd use for calling Sfx.play() directly on button press).
+## Map action rather than Events: a screenshot is a one-shot local side effect
+## no other system cares about.
 ##
-## No class_name: this is the Screenshots autoload singleton (same reason
-## Events, Settings, Net, Match and Sfx have none -- see autoload/Net.gd's
-## header).
+## No class_name: this is the Screenshots autoload singleton (see
+## autoload/Net.gd's header).
 
 const ACTION_NAME: StringName = &"screenshot_capture"
 const TIMESTAMP_FORMAT: String = "%04d%02d%02d_%02d%02d%02d"
 
 ## Test seam: overrides the save directory so tests never touch a shared user://
-## folder. Empty means "use the real resolution logic below"
-## (autoload/Sfx.gd's set_root_dir_for_test is the same pattern).
+## folder. Empty means "use the real resolution logic below".
 var output_dir_override: String = ""
 
 ## Test seam: overrides how the captured Image is produced.
@@ -30,15 +25,12 @@ var output_dir_override: String = ""
 var image_provider: Callable = Callable(self, "_grab_viewport_image")
 
 ## Test seam: skips the `await RenderingServer.frame_post_draw` below.
-## DECISION (autoload/Screenshots.gd, found while writing test_screenshots.gd):
-## a headless `godot --headless -s addons/gut/gut_cmdln.gd` run never draws a
-## frame, so RenderingServer never emits frame_post_draw and an unconditional
-## await here hung every test (and would hang capture() forever on a headless
-## bot-match host too, spec 2.2 M5). Production capture() still needs the
-## wait -- reading the viewport texture before the frame finishes drawing can
-## grab a stale or partial image -- so the wait stays the default and only
-## tests, which already stub image_provider and have no real frame to wait
-## for, turn it off.
+## DECISION (autoload/Screenshots.gd): a headless GUT run never draws a frame,
+## so RenderingServer never emits frame_post_draw and an unconditional await
+## would hang every test (and capture() on a headless bot-match host).
+## Production capture() still needs the wait -- reading the viewport texture
+## before the frame finishes drawing can grab a stale or partial image -- so
+## only tests, which stub image_provider, turn it off.
 var wait_for_frame_draw: bool = true
 
 var _last_capture_unix_second: int = -1
