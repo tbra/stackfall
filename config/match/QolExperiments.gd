@@ -1,17 +1,14 @@
 class_name QolExperiments
 extends Resource
-## Opt-in quality-of-life experiments (roadmap "Qol
-## tests (friction)"). Every toggle defaults OFF, so the default rules are
+## Opt-in quality-of-life experiments. Every toggle defaults OFF, so the default rules are
 ## untouched.
 ##
-## DECISION (config/match/QolExperiments.gd): the shared config/match/qol_experiments.tres
+## DECISION: the shared config/match/qol_experiments.tres
 ## is what the F4 panel edits. The host snapshots it into MatchConfig.qol at
 ## start_match() and MatchConfig.to_dict()/from_dict() carry it (appended last)
 ## in net_match_start, so clients see the values in effect at match start. Only
 ## the host's copy decides anything; a client reads backlog/paused state from
 ## the replicated QoL feed event.
-##
-## Loaded once as config/match/qol_experiments.tres.
 
 ## -- Toggle 1: pause the block timer during events / big topples ------------
 ## Master switch. While a slot's timer is paused it neither counts down nor
@@ -59,7 +56,7 @@ extends Resource
 @export var gift_slot_min_window_s: float = 2.0
 
 ## -- Rule trial: a claimed gift joins the queue one block later --
-## Approved trial (playtest), ON by default (a rule variant, not an opt-in experiment): a claimed gift becomes
+## ON by default (a rule variant, not an opt-in experiment): a claimed gift becomes
 ## the block AFTER next and the ordinary next piece stays, so a late claim leaves
 ## more time to plan. Off restores the rule (the gift replaces the next piece).
 ## DECISION: unsupported next to the backlog or gift-slot experiments, which keep the old rule.

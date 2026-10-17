@@ -1,9 +1,8 @@
 class_name VolcanoParticleTuning
 extends Resource
-## Presentation tunables for the Volcano's eruption particles (
-## Loaded from
-## through VolcanoEffect.particles. Visual-only (client and host build the same cosmetic node), so
-## it is not part of the F4 tuning panel and needs no config/ui/tuning_panel_hints.tres entries.
+## Presentation tunables for the Volcano's eruption particles (game/gifts/specials/fx/VolcanoEruptionFx.gd).
+## Loaded from config/gifts/specials/fx/volcano_particle_tuning.tres through VolcanoEffect.particles.
+## Visual-only (client and host build the same cosmetic node), so it is not part of the F4 tuning panel and needs no config/ui/tuning_panel_hints.tres entries.
 
 ## Ember count of the one-shot burst emitted with every block shot.
 @export_range(0, 512, 1) var burst_count: int = 32

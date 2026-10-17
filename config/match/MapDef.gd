@@ -1,8 +1,8 @@
 class_name MapDef
 extends Resource
-## One map's size, shape and layout (spec 1.7, 1.5, 2.5). M1 only needed the
-## round field and its radius; M2 adds the cell grid the holes are cut from,
-## the territory texture resolution, and where the home and goal flags sit.
+## One map's size, shape and layout (spec 1.7, 1.5, 2.5): the round field and
+## its radius, the cell grid the holes are cut from, the territory texture
+## resolution, and where the home and goal flags sit.
 
 const RADIUS_MEDIUM: float = 45.0
 const RADIUS_LARGE: float = 60.0
@@ -18,18 +18,12 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 
 ## Thickness of the disk. Field builds its collision and mesh from this.
 ##
-## DECISION (config/match/MapDef.gd, "the glass
-## disk is quite thick... looks like the blocks are hovering"): lowered from
-## 1.0 to 0.2 m -- a thin slab a 1 m block visibly rests ON rather than IN.
-## Every reader of this field already scales with it (game/field/Field.gd's hole/
-## rim wall depth and overlay y-offset, game/field/TerritoryOverlay.gd's CylinderMesh
-## height), so nothing needed a second, decoupled tunable to keep the old
-## depth: a shallower guide wall still pushes a block sliding into a hole off
-## to the side before it clears the wall's bottom edge and free-falls, the
-## same behaviour test_a_block_over_a_lone_hole_cell_falls_through
-## (tests/unit/field/test_field_cells.gd) pins with its own fixture MapDef. Interim
-## fix per the owner's note ("we'll work more on the design in m7"); not art
-## direction.
+## DECISION: 0.2 m, a thin slab a 1 m block visibly rests ON rather than IN (a 1.0 m disk
+## made blocks look like they hover). Every reader scales with this field (Field's hole/rim
+## wall depth and overlay y-offset, TerritoryOverlay's CylinderMesh height); a shallower guide
+## wall still pushes a block sliding into a hole off to the side before it clears the wall's
+## bottom edge (pinned by test_a_block_over_a_lone_hole_cell_falls_through in
+## tests/unit/field/test_field_cells.gd).
 @export var disk_height: float = 0.2
 
 ## Spec 2.5: the disk's collision is a square grid of BoxShape3Ds of this
@@ -45,15 +39,11 @@ const BASE_PATH: String = "res://config/match/maps/round.tres"
 ## Spec 1.5: home flags are spaced evenly around the edge; extra goal flags
 ## are placed symmetrically at 0.4 * field_radius.
 ##
-## DECISION (home beacons "should
-## always be a fixed distance from the edge"): a home flag sits at
-## field_radius - home_flag_edge_inset, so the gap to the rim no longer grows
-## with the map. 6.0 m is the old 0.85 fraction's inset on the default
-## 45 m map (6.75 m) nudged outward; it equals TerritoryTuning.home_radius, so a
-## home circle just reaches the rim, and leaves the 1 m beacon socket and a
-## held-block spawn well inside the safe margin. Sudden-death shrink never moves
-## homes (it only removes outer cells), and the lobby's disc-size slider scales
-## the radius only, so the inset stays fixed there too.
+## DECISION: a home flag sits at field_radius - home_flag_edge_inset, so the gap to the rim
+## does not grow with the map. 6.0 m equals TerritoryTuning.home_radius, so a home circle
+## just reaches the rim, and leaves the 1 m beacon socket and a held-block spawn well inside
+## the safe margin. Sudden-death shrink never moves homes (it only removes outer cells), and
+## the lobby's disc-size slider scales the radius only, so the inset stays fixed there too.
 @export var home_flag_edge_inset: float = 6.0
 @export var goal_flag_radius_fraction: float = 0.4
 
@@ -86,10 +76,10 @@ func shape_test() -> Callable:
 	return Callable()
 
 
-## a uniformly scaled copy of this map (the lobby's disc-size
-## slider, see config/match/DiscSizeTuning.gd for the DECISION on what scales). The
-## radius and the territory texture resolution scale; the
-## goal fraction-of-radius field follows the radius by itself (home flags keep their fixed edge inset) follows the radius by itself, and cell_size / disk_height / wake query extents stay as they are.
+## A uniformly scaled copy of this map (the lobby's disc-size slider, see
+## config/match/DiscSizeTuning.gd for the DECISION on what scales). The radius and the
+## territory texture resolution scale; the goal flag ring follows the radius by itself, home
+## flags keep their fixed edge inset, and cell_size / disk_height / wake query extents stay.
 ## A factor of 1.0 returns this very resource so the default map is untouched.
 func scaled(factor: float) -> MapDef:
 	if is_equal_approx(factor, 1.0) or factor <= 0.0:

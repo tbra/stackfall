@@ -3,13 +3,10 @@ extends Resource
 ## One selectable graphics quality tier (spec 2.1). autoload/Settings.gd
 ## loads one of config/graphics/presets/{low,medium,high}.tres by id;
 ## Settings itself never applies these fields to a Viewport/Environment --
-## that's game/main/Main.gd's job (M7 P1): Settings only persists
+## that's game/main/Main.gd's job: Settings only persists
 ## the choice and emits graphics_preset_changed so a consumer can react.
 ##
-## SSIL intentionally absent -- that render feature doesn't exist yet (a
-## later M7 package adds it); a preset that named it today would be a promise
-## this milestone cannot keep. volumetric_fog_enabled below is a
-## performance budget: Low drops the cloud-deck
+## volumetric_fog_enabled below is a performance budget: Low drops the cloud-deck
 ## FogVolume on the field; Medium/High keep it.
 
 @export var id: StringName
@@ -25,7 +22,7 @@ extends Resource
 ## The shader carves the silhouette per pixel, so 1 looks the same at a quarter of the
 ## ~1.2M-primitive cloud-sea cost.
 @export_range(1, 2) var cloud_puff_subdivisions: int = 2
-## fix 2a: cloud clumps whose rest position lies at least this far (m) from the
+## Cloud clumps whose rest position lies at least this far (m) from the
 ## disc axis draw as camera-facing hexagon impostors (4 triangles) instead of 80-triangle hulls; the
 ## puff shader carves the same lumpy silhouette on either. 0 = every puff keeps its hull.
 @export var cloud_billboard_distance_m: float = 0.0
@@ -55,11 +52,11 @@ enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
 ## the swirl animation (noise, per-pixel) of the hole void
 ## on the disc. Off on Low: the void is then a flat deep colour with its rim.
 @export var hole_void_animated: bool = true
-## fix2b: the rivets and brushed streaks of the procedural disc
+## The rivets and brushed streaks of the procedural disc
 ## plating (shaders/territory/territory.gdshader disc_fine_detail), its two costliest per-pixel
 ## details. Off on Low: plates, seams, lips, hatches and the sheen stay.
 @export var disc_fine_detail_enabled: bool = true
-## fix2b: the inverted-hull block outline (shaders/blocks/block_outline.gdshader,
+## The inverted-hull block outline (shaders/blocks/block_outline.gdshader,
 ## the next_pass of every block material; game/blocks/BlockFactory.gd). Off on Low.
 @export var block_outline_enabled: bool = true
 ## the noise dissolve + rim glow on a block eaten by a hole
@@ -81,7 +78,7 @@ enum ReflectionProbeMode { OFF, ONCE, INTERVAL, ALWAYS }
 enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export var frame_cap_mode: FrameCap = FrameCap.DISPLAY_REFRESH
 ## display vsync (DisplayServer.window_set_vsync_mode).
-## DECISION (orchestrator): default ON on every preset because project.godot sets no
+## DECISION: default ON on every preset because project.godot sets no
 ## vsync_mode, so Godot's default (Enabled) is what the game runs with today. Engine.max_fps
 ## is honoured alongside vsync, so the frame-cap settings stay active in both states.
 @export var vsync_enabled: bool = true
@@ -101,7 +98,7 @@ enum FrameCap { DISPLAY_REFRESH, FIXED, UNCAPPED }
 @export_range(0.0, 1.0) var weather_density_scale: float = 1.0
 ## Viewport.scaling_3d_scale (1 = native resolution).
 @export_range(0.25, 1.0) var render_scale_3d: float = 1.0
-## fix 2a: Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
+## Viewport.Scaling3DMode used while render_scale_3d < 1 (0 bilinear,
 ## 1 FSR 1.0, 2 FSR 2.2). Ignored at native resolution.
 @export_range(0, 2) var render_scale_3d_mode: int = 0
 
@@ -166,8 +163,8 @@ const ENVIRONMENT_FIELDS: Array[StringName] = [
 	&"ambient_life_enabled", &"disc_fine_detail_enabled", &"hole_void_animated",
 	&"gift_idle_glow_enabled", &"block_dissolve_effect_enabled",
 ]
-## Reflections: Off / Low / High. DECISION:
-## share one reflection setup), so the three tiers are fixed: Off = no probe and no SSR, Low = the
+## Reflections: Off / Low / High. DECISION: the probe and SSR share one reflection setup, so
+## the three tiers are fixed: Off = no probe and no SSR, Low = the
 ## interval-refreshed probe only, High = probe plus screen-space reflections.
 const REFLECTION_TIERS: Array[Dictionary] = [
 	{&"reflection_probe_mode": ReflectionProbeMode.OFF, &"ssr_enabled": false},

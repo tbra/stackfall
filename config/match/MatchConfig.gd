@@ -1,7 +1,7 @@
 class_name MatchConfig
 extends Resource
 ## Every lobby setting from spec 1.9, plus the player palette, serializable to
-## a Dictionary so M3 can send it over an RPC or store it as Steam lobby data
+## a Dictionary so it can be sent over an RPC or store it as Steam lobby data
 ## (spec 2.6, 2.8).
 ##
 ## Loaded once as config/match/match_defaults.tres. Match.start_match() takes a
@@ -18,24 +18,20 @@ enum TiltMode { SPECIALS_ONLY, PHYSICAL_BALANCE }
 ## no-overlap v2 mode: no floor holes at all,
 ## ownership decided by TerritoryRaster's argmax fill.
 ##
-## DECISION (config/match/MatchConfig.gd): reverted to TEMPORARY as
-## the default. SPEC.md's evidence audit ("Decisions made — current
-## target": "restore overlap holes as the fidelity target... The no-overlap v2
-## mode is optional, not the default") supersedes the earlier 
-## this comment used to cite -- the installed original's own tutorial text
-## confirms overlap sinking, which the v2
-## OFF default contradicted. Point-ray placement, continuous solving and goal
-## no-build zones are retained requirements and now apply under every
-## mode (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
+## DECISION: TEMPORARY is the default. The spec's evidence audit ("restore overlap holes as
+## the fidelity target... The no-overlap v2 mode is optional, not the default") supersedes an
+## OFF default; the installed original's own tutorial text confirms overlap sinking.
+## Point-ray placement, continuous solving and goal no-build zones apply under every mode
+## (autoload/Match.gd, core/rules/PlacementRules.gd), not just OFF.
 ##
-## DECISION (config/match/MatchConfig.gd): OFF is **appended** rather than inserted,
+## DECISION: OFF is **appended** rather than inserted,
 ## so the existing two values keep their ints and every already-serialized raw
 ## 0 or 1 -- a .tres on disk, a saved lobby preset, a peer still running the
 ## previous build -- keeps meaning exactly what it meant.
 enum HoleMode { TEMPORARY, PERMANENT, OFF }
 
 ## Weather.
-## DECISION (config/match/MatchConfig.gd): a TYPE mode (STORM/RAIN/SNOW/...) is that
+## DECISION: a TYPE mode (STORM/RAIN/SNOW/...) is that
 ## weather active CONSTANTLY for the whole match (short start delay, then full
 ## intensity, no calm gaps); RANDOM = one type drawn at match start, then
 ## constant; CHANGING = random events, calm most of the time, each event draws
@@ -46,8 +42,7 @@ enum HoleMode { TEMPORARY, PERMANENT, OFF }
 ## lower-casing its name.
 enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
-## Lobby "Map" time of day (reworked by
-## CYCLE = the running
+## Lobby "Map" time of day. CYCLE = the running
 ## day/night cycle, the DEFAULT. DAY ("Sunset"), NIGHT and DAWN are that same
 ## cycle locked at a fixed phase (SkyThemeDef.locked_phase_for). RANDOM = the
 ## host picks one of the three locked ones at match start
@@ -62,7 +57,7 @@ const SKY_ID_SUNSET: String = "sunset"
 const SKY_ID_NIGHT: String = "night"
 const SKY_ID_DAWN: String = "dawn"
 const SKY_THEME_IDS: PackedStringArray = [SKY_ID_SUNSET, SKY_ID_NIGHT, SKY_ID_DAWN]
-## C1b follow-up: sky_variation_seed's "not resolved" value, and the
+## sky_variation_seed's "not resolved" value, and the
 ## largest seed (a 31-bit int, so core/SkyVariation's integer hash never overflows).
 const SKY_VARIATION_SEED_UNRESOLVED: int = -1
 const SKY_VARIATION_SEED_MAX: int = 2147483647
@@ -72,8 +67,7 @@ const SKY_START_PHASE_UNRESOLVED: float = -1.0
 
 ## Game mode. Appended-only like the other enums: ints ride
 ## in to_dict() and in saved lobbies. Only the ids in SELECTABLE_GAME_MODES
-## may be played; CAPTURE_THE_FLAG, ELIMINATION and REACH_THE_SKY are
-## RESERVED ids for/.8/.9. A reserved or out-of-range id is
+## may be played; a reserved or out-of-range id is
 ## never an error: sanitize() (host, on every config it adopts) and
 ## from_dict() (so a wire value can never start a mode with no objective)
 ## fall back to CLASSIC. A mode package makes its id selectable by adding it
@@ -87,7 +81,7 @@ const SELECTABLE_GAME_MODES: Array[int] = [
 const GAME_MODE_LABELS: PackedStringArray = ["Classic", "Capture the Flag", "Elimination", "Reach the Sky", "Domination"]
 ## Round timer (timed modes only), minutes. Classic keeps match_timer_minutes.
 ## DECISION: the lobby timer is a
-## 2-30 minute slider defaulting to 5 (was 1-40, default 10). Classic's
+## 2-30 minute slider defaulting to 5. Classic's
 ## match_timer_minutes shares ROUND_TIMER_MAX_MINUTES as its ceiling, so an old
 ## saved/remote 40 is clamped to 30 by sanitize() like any other out-of-range value.
 const ROUND_TIMER_MIN_MINUTES: int = 2
@@ -96,8 +90,7 @@ const ROUND_TIMER_MAX_MINUTES: int = 30
 const ROUND_TIMER_DEFAULT_MINUTES: int = 5
 ## Domination always needs a timer (it has no early win); this is
 ## the round length it starts from when the lobby has none to carry over.
-## DECISION: follows the owner's 5-minute default round timer
-## (playtest) like every other timed mode.
+## DECISION: follows the default 5-minute round timer like every other timed mode.
 const DOMINATION_ROUND_MINUTES_DEFAULT: int = 5
 ## Elimination alone may switch its round timer off (0): it then runs until one
 ## team is left. Every other timed mode needs a timer to end.
@@ -111,25 +104,25 @@ const TEAM_PICK_RANDOM: int = 0
 const TEAM_PICK_MAX: int = 4
 
 ## -- Spec 1.9 table, in order -----------------------------------------------
-## the lobby's disc-size slider step, an index
+## The lobby's disc-size slider step, an index
 ## into config/match/disc_size_tuning.tres (0 = tiny 50% .. 5 = enormous 175%); the
 ## default is the medium step, 100% = the unscaled default map (the one map).
 const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var disc_size_step: int = DISC_SIZE_STEP_DEFAULT
 ## Total players including bots, 2-8.
 @export var player_count: int = 4
-## How many of `player_count` are bots. M2 is hot-seat only, so 0.
+## How many of `player_count` are bots (0 = humans only).
 @export var ai_count: int = 0
 ## Default difficulty for every bot; slot_ai_difficulties overrides it per slot.
 @export var ai_difficulty: AiDifficulty = AiDifficulty.NORMAL
 @export var team_mode: TeamMode = TeamMode.OFF
-## Lobby rework (section 3). Per-seat
+## Per-seat
 ## team picks live in the lobby seat table; at Start the host resolves them
 ## (core/rules/TeamAssigner.gd) and writes the result here. All three arrays are
 ## OPTIONAL and empty by default, which is exactly the default behaviour (teams
 ## interleave by slot, one bot difficulty), so an old saved lobby, a dict from
 ## another build, `--bots=N` and the sandbox all keep working untouched.
-## DECISION (config/match/MatchConfig.gd): `team_mode` stays the on/off switch and the
+## DECISION: `team_mode` stays the on/off switch and the
 ## pick cap (OFF, or 2/3/4 teams offered); the arrays are only honoured while it
 ## is not OFF, and sanitize() drops them when they are not self-consistent, so a
 ## bad wire value degrades to the default interleave instead of crashing a match.
@@ -154,37 +147,32 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## means "no experiments", the default for every config built outside a match.
 @export var qol: QolExperiments = null
 ## Lobby gravity multiplier, GRAVITY_MIN-GRAVITY_MAX, 1.0 = the shipped feel.
-## DECISION: this is relative to PhysicsTuning.lobby_gravity_baseline
-## (the old 1.4 Heavy & Bouncy factor); start_match() writes
-## baseline * this into the shared tuning's gravity_multiplier, so the
-## effective default gravity is unchanged while the lobby reads 1.0.
-## [OWNER decision]: the lobby default stays 1.0x; the BASE gravity
-## (PhysicsTuning.lobby_gravity_baseline) was raised 1.25x instead.
+## DECISION: this is relative to PhysicsTuning.lobby_gravity_baseline;
+## start_match() writes baseline * this into the shared tuning's gravity_multiplier,
+## so the lobby default stays 1.0x and the base gravity lives in the baseline.
 @export var gravity_multiplier: float = GRAVITY_DEFAULT
 ## Goal flags, 1-5.
 @export var goal_flag_count: int = 1
 @export var gifts_enabled: bool = true
 ## the lobby's Experiments master switch. Off: the match starts with no QoL experiment
 ## active (MatchConfig.qol_in_effect()), whatever the chips say; the chips keep their selection for when it
-## is switched back on. Default on = the chips decide, as before.
+## is switched back on. Default on = the chips decide.
 @export var experiments_enabled: bool = true
 ## Special frequency, 0-100.
 @export var special_frequency: int = 30
-## Empty means "every special enabled by default" (M4 populates it).
+## Empty means "every special enabled by default".
 @export var enabled_specials: Array[StringName] = []
 @export var tilt_mode: TiltMode = TiltMode.SPECIALS_ONLY
 @export var hole_mode: HoleMode = HoleMode.TEMPORARY
 ## Match timer in minutes; 0 is off, otherwise up to ROUND_TIMER_MAX_MINUTES
-## (the lobby slider skips 1 so on is 2-30; spec 1.9's 10-40 was superseded by
-## the note).
+## (the lobby slider skips 1 so on is 2-30; spec 1.9's 10-40 is superseded).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
 ## Spec 1.2 "Turn-based [NEW]": physics settles completely before the next
-## player's turn starts. Orthogonal to team_mode and to hot_seat (M2's own
-## single-PC test harness, spec Part 4 M2: "must not become normal play") --
-## turn_based is a real, networkable mode B4 implements against active_slot/
-## advance_turn(), the same machinery hot_seat already uses for its own,
-## different (instant hand-off) trigger.
+## player's turn starts. Orthogonal to team_mode and to hot_seat (the single-PC
+## test harness, spec Part 4 M2: "must not become normal play"); a real,
+## networkable mode driven by active_slot/advance_turn(), the same machinery
+## hot_seat uses with its own instant hand-off.
 @export var turn_based: bool = false
 ## Which objective decides the match (see GameMode). Default CLASSIC.
 @export var game_mode: GameMode = GameMode.CLASSIC
@@ -204,7 +192,7 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## yet, and "" for CYCLE, which is not a concrete theme). Rides in to_dict() so
 ## clients never roll their own.
 @export var sky_theme_resolved: String = ""
-## C1b follow-up: the seed of the cycle sky's exposure / cloud
+## The seed of the cycle sky's exposure / cloud
 ## coverage variation (core/sky/SkyVariation.gd). -1 = not resolved yet. The host rolls it
 ## once per match start (resolve_sky_variation_seed) and it rides in to_dict(), so the
 ## host and every client draw the same sky and each match gets its own curve. A match
@@ -234,7 +222,7 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
 ## stated default is per player, which is what true means here.
 @export var per_player_timer: bool = true
-## M2 hot-seat: one PC, players take turns. M3 turns this off.
+## Hot-seat: one PC, players take turns. Networked play turns this off.
 @export var hot_seat: bool = true
 ## Slot colors, indexed by slot_id. Eight entries, one per possible player.
 @export var player_colors: PackedColorArray = PackedColorArray([
@@ -256,17 +244,11 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## lobby, a wire message or Steam lobby data — Main sets it only on the
 ## sandbox config it builds itself, offline.
 ##
-## DECISION (config/match/MatchConfig.gd): a MatchConfig field rather than a
-## dedicated PLAYER_COUNT_MIN-like constant, because sanitize() needs to know
-## *this config's* intent, not add a second global floor every other caller
-## would have to remember not to use. It does exactly one thing here: lets
-## sanitize() allow a 1-player match, so a sandbox tester can place blocks
-## for one slot alone without needing a second seat. It carries no other
-## meaning — the feed-timer-disabled default Match starts a sandbox match
-## with is a runtime flag on Match itself (autoload/Match.gd's
-## _feed_timer_enabled), read once from this at start_match() and then
-## flippable by ui/debug/SandboxPanel.gd's sandbox_toggle_timer hotkey without
-## touching this Resource again.
+## DECISION: a MatchConfig field rather than a global PLAYER_COUNT_MIN-like floor, because
+## sanitize() needs *this config's* intent: it lets a 1-player match through so a sandbox
+## tester can place blocks for one slot. The feed-timer-disabled default Match starts a
+## sandbox match with is a runtime flag on Match (_feed_timer_enabled), read once at
+## start_match() and flipped by ui/debug/SandboxPanel.gd's sandbox_toggle_timer hotkey.
 @export var sandbox: bool = false
 
 ## Shared source for player_colors' default so sanitize() can pad a config
@@ -287,12 +269,12 @@ static func default_player_colors() -> PackedColorArray:
 	])
 
 ## Spec 1.9 ranges, so the lobby and the host's validation share one source.
-## [OWNER decision = b]: 1-8 players (solo matches allowed).
+## 1-8 players (solo matches allowed).
 const PLAYER_COUNT_MIN: int = 1
 const PLAYER_COUNT_MAX: int = 8
 const BLOCK_TIMER_MIN: float = 3.0
 const BLOCK_TIMER_MAX: float = 12.0
-## [OWNER decision]: range 0.1x-2.0x.
+## Range 0.1x-2.0x.
 const GRAVITY_DEFAULT: float = 1.0
 const GRAVITY_MIN: float = 0.1
 const GRAVITY_MAX: float = 2.0
@@ -305,7 +287,7 @@ const SPECIAL_FREQUENCY_MIN: int = 0
 const SPECIAL_FREQUENCY_MAX: int = 100
 
 
-## the lobby shows ONE timer control whose range follows the
+## The lobby shows ONE timer control whose range follows the
 ## mode. Classic edits match_timer_minutes (0 = off); CTF and Reach the Sky edit
 ## round_timer_minutes (minimum 1); Elimination edits round_timer_minutes with 0
 ## meaning "no limit".
@@ -417,21 +399,16 @@ func team_count() -> int:
 
 ## Which team a slot belongs to. Free-for-all gives every slot its own team.
 ##
-## DECISION (config/match/MatchConfig.gd): teams interleave (`slot_id %
-## team_count`) rather than block-assign (first half one team, second half
-## the other). MapDef.home_flag_position() already spaces every slot's home
-## flag evenly around the disk by `slot_id` (config/match/MapDef.gd:221-223), so
-## interleaving spreads each team's starting positions around the disk
-## instead of clustering them on one arc -- a reasonable default reading of
-## "exact original team-win/home-anchor semantics remain unverified" (spec
-## 2.2). `mini(..., player_count)` in team_count() guards the degenerate case
-## (TEAMS_4 with player_count == 2: team_count() returns 2, not 4, so no team
-## is ever empty).
+## DECISION: teams interleave (`slot_id % team_count`) rather than block-assign (first half
+## one team, second half the other). MapDef.home_flag_position() spaces every slot's home flag
+## evenly around the disk by `slot_id`, so interleaving spreads each team's starting positions
+## around the disk instead of clustering them on one arc (spec 2.2: the original's exact
+## team-win/home-anchor semantics remain unverified). `mini(..., player_count)` in
+## team_count() guards the degenerate case (TEAMS_4 with player_count == 2 gives 2 teams, so
+## no team is ever empty).
 ##
-## Lobby rework: once the host has resolved the lobby team picks
-## (slot_team_ids) a slot the array covers uses its resolved id; the interleave
-## stays the fallback for everything else, so a lobby with no picks, an old
-## config and `--bots=N` behave exactly as before.
+## Once the host has resolved the lobby team picks (slot_team_ids) a slot the array covers
+## uses its resolved id; the interleave stays the fallback for everything else.
 func team_of_slot(slot_id: int) -> int:
 	if team_mode == TeamMode.OFF:
 		return slot_id
@@ -483,7 +460,7 @@ func ai_difficulty_for_slot(slot_id: int) -> AiDifficulty:
 ## t is slot t (slot_id % count == t for t < count), so player_colors[t] is already
 ## the right colour. With resolved teams a team shows the colour of its lowest
 ## slot; per-player colours (block tints, flags) stay independent of this.
-## DECISION (plan D4, config/match/MatchConfig.gd): lowest slot, not an extra palette
+## DECISION: lowest slot, not an extra palette
 ## pick, so a team's colour is always one its members actually own.
 func territory_colors() -> PackedColorArray:
 	if not teams_resolved():
@@ -501,35 +478,28 @@ func territory_colors() -> PackedColorArray:
 	return colors
 
 
-## networked play only has as many real players as connected
-## peers, so a lobby that starts with player_count above that count leaves a
-## slot with no peer behind it. That slot still gets a feed timer
-## (autoload/Match.gd's _tick_feed) and auto-drops a block at its home flag on
-## every expiry (net/MatchNet.gd's _on_feed_timer_expired), which reads as a
-## phantom player taking a turn -- unless M5's `ai_count` claims it as a bot
-## seat instead (autoload/match/MatchLifecycle.gd's _build_slots()).
-## `peer_count` is Net.peer_ids().size() (or a test double's), which counts
-## the host too. Pure and Resource-owned (CLAUDE.md: no scene-tree dependence
-## in config/), so ui/lobby/Lobby.gd's own DECISION on where to call this from
+## Networked play only has as many real players as connected peers, so a lobby that starts
+## with player_count above that count leaves a slot with no peer behind it. That slot still
+## gets a feed timer (autoload/Match.gd's _tick_feed) and auto-drops a block at its home flag
+## on every expiry (net/MatchNet.gd's _on_feed_timer_expired), which reads as a phantom player
+## taking a turn -- unless `ai_count` claims it as a bot seat instead
+## (autoload/match/MatchLifecycle.gd's _build_slots()). `peer_count` is Net.peer_ids().size()
+## (or a test double's), which counts the host too. Pure and Resource-owned (no scene-tree
+## dependence in config/), so ui/lobby/Lobby.gd's own DECISION on where to call this from
 ## stays the only place that needs to know about Net.
 ##
-## DECISION (config/match/MatchConfig.gd, M5): a bot never needs a
-## connected peer behind it -- only ai_count and the spec 1.9 range bound it.
-## Humans outrank bots for the available seats: peer_count is never reduced
-## to make room for a bot, and a stale ai_count that doesn't fit is trimmed
-## down to whatever room is left, never zeroed outright unless there is none.
-## With ai_count == 0 this reduces to the exact old formula (player_count =
-## clampi(peer_count, MIN, MAX), ai_count stays 0), so every existing caller
-## that never touches ai_count sees no behaviour change.
+## DECISION: a bot never needs a connected peer behind it -- only ai_count and the spec 1.9
+## range bound it. Humans outrank bots for the available seats: peer_count is never reduced
+## to make room for a bot, and a stale ai_count that doesn't fit is trimmed down to whatever
+## room is left, never zeroed outright unless there is none. With ai_count == 0 this is
+## player_count = clampi(peer_count, MIN, MAX), ai_count stays 0.
 func clamp_to_connected_peers(peer_count: int) -> void:
 	var wanted_total: int = clampi(peer_count + ai_count, peer_count, PLAYER_COUNT_MAX)
 	ai_count = clampi(wanted_total - peer_count, 0, PLAYER_COUNT_MAX - peer_count)
 	player_count = clampi(peer_count + ai_count, PLAYER_COUNT_MIN, PLAYER_COUNT_MAX)
 
 
-## Clamps every field into its spec 1.9 range. The host calls this on any
-## config that arrived over the wire before using it.
-## with the Experiments master switch off no opt-in experiment runs. Called when a
+## With the Experiments master switch off no opt-in experiment runs. Called when a
 ## match starts (MatchLifecycle), NOT from sanitize(): the lobby publishes sanitized configs and the
 ## chips must keep their selection for when the switch is turned back on.
 func apply_experiments_switch() -> void:
@@ -537,6 +507,8 @@ func apply_experiments_switch() -> void:
 		qol = QolExperiments.with_toggles(qol, false, false, false, false)
 
 
+## Clamps every field into its spec 1.9 range. The host calls this on any
+## config that arrived over the wire before using it.
 func sanitize() -> void:
 	var disc_tuning: DiscSizeTuning = DiscSizeTuning.shared()
 	if disc_tuning != null:
@@ -573,7 +545,7 @@ func sanitize() -> void:
 	_sanitize_team_data()
 
 
-## Lobby rework arrays (see slot_team_ids). slot_ai_difficulties is clamped per
+## Lobby team arrays (see slot_team_ids). slot_ai_difficulties is clamped per
 ## entry (an oversized array is dropped: it falls back to ai_difficulty). The two
 ## team arrays are all-or-nothing: they survive only while teams are on and they
 ## agree (one id per slot, ids dense 0..n-1 each used, numbers strictly ascending
@@ -734,7 +706,7 @@ func to_dict() -> Dictionary:
 		"player_colors": player_colors.duplicate(),
 		"rng_seed": rng_seed,
 	}
-	# Lobby rework arrays ride only when set, so a default config's dict is unchanged.
+	# Lobby team arrays ride only when set, so a default config's dict is unchanged.
 	if not slot_team_ids.is_empty():
 		data["slot_team_ids"] = slot_team_ids.duplicate()
 	if not team_numbers.is_empty():
@@ -751,7 +723,7 @@ func to_dict() -> Dictionary:
 ## Rebuilds a config from to_dict() output. Unknown keys keep their defaults.
 static func from_dict(data: Dictionary) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	# Absent in lobby data from before the default (medium, 1.0).
+	# Absent in older lobby data: stays the default (medium, 1.0).
 	config.disc_size_step = int(data.get("disc_size_step", config.disc_size_step))
 	config.player_count = int(data.get("player_count", config.player_count))
 	config.ai_count = int(data.get("ai_count", config.ai_count))
@@ -844,7 +816,7 @@ static func _int_array_from(value: Variant) -> PackedInt32Array:
 	return parsed
 
 
-## . # DECISION: sandbox (and the tutorial, which is a sandbox
+## DECISION: sandbox (and the tutorial, which is a sandbox
 ## config) skip the countdown: a lone tester wants to place immediately.
 ## Headless bot matches set countdown_seconds = 0 in Main.
 func effective_countdown_seconds() -> float:
