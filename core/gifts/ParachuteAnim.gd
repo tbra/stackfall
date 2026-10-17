@@ -4,7 +4,7 @@ extends RefCounted
 ## tree, no autoloads, no randomness: the whole pose is a function of the phase
 ## and the seconds elapsed, so it is identical on host and client and can be
 ## unit-tested with plain numbers. COSMETIC ONLY -- the descent speed, landing
-## time, claims and network messages all live in MatchGifts and are untouched.
+## time, claims and network messages all live in MatchGifts.
 ##
 ## HIDDEN      no canopy (never fell yet, or fully collapsed)
 ## DEPLOYING   inflating from a narrow stream (ease-out-back, slight overshoot)

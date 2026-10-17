@@ -1,7 +1,7 @@
 class_name ClaimProgressExtrapolator
 extends RefCounted
-## Client-side smoothing of the beacon-claim hold progress (
-## shared by Sfx's claim-tension bed and the HUD capture ring so they never
+## Client-side smoothing of the beacon-claim hold progress
+## (shared by Sfx's claim-tension bed and the HUD capture ring so they never
 ## disagree). A client only receives Events.goal_capture_progress when the
 ## territory raster changes, so on a static board the value freezes. Between
 ## updates this advances the hold at 1 / hold_seconds per second while the

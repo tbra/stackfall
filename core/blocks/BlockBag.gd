@@ -1,6 +1,6 @@
 class_name BlockBag
 extends RefCounted
-## The weighted "bag" randomizer (spec 1.4), replacing M1's SimpleBlockFeed.
+## The weighted "bag" randomizer (spec 1.4).
 ##
 ## Spec 1.4: "Weights are set per shape in BlockFeedConfig. Use a 'bag'
 ## randomizer so no player goes long without getting a stabilizing shape."

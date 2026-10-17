@@ -1,13 +1,11 @@
 class_name CircleWire
 extends RefCounted
-## Wire packing for the territory circle list (
-## requirement: "should look smooth... some kind of metaballs system").
+## Wire packing for the territory circle list.
 ##
-## game/field/TerritoryOverlay.gd's shader now draws territory as the analytic
-## union of the *home-anchored* circles TerritorySolver/TerritoryGroups kept,
-## rather than smoothstepping a bilinearly-upscaled 1 m cell grid (see that
-## class's doc comment for why the grid route cannot recover a curved
-## border). Clients need the same circle list a client's raster mirror does
+## game/field/TerritoryOverlay.gd's shader draws territory as the analytic
+## union of the *home-anchored* circles TerritorySolver/TerritoryGroups kept
+## (an upscaled 1 m cell grid cannot recover a curved border). Clients need
+## the same circle list, which a client's raster mirror does
 ## not otherwise carry, so net/MatchNet.gd's replicate_territory()/
 ## net_territory() ship it alongside the existing raster diff, on the same
 ## NetConfig.raster_diff_hz cadence. Pure functions over PackedByteArray, no
@@ -46,7 +44,7 @@ extends RefCounted
 ##
 ## At the graded size (400 circles, 5 goals) the whole payload is
 ## HEADER_BYTES + 400*7 + 5*6 = 5 + 2800 + 30 = 2835 bytes, under the
-## ticket's 4 KB budget (tests/unit/net/test_circle_wire.gd asserts this).
+## 4 KB budget (tests/unit/net/test_circle_wire.gd asserts this).
 
 ## Bumped whenever the layout changes, exactly like Quantize's body record
 ## and MatchNet.RASTER_VERSION — architecture, not a tunable (CLAUDE.md's "no
