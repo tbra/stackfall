@@ -66,7 +66,12 @@ func _run_host() -> void:
 	# The host's own solver keeps overwriting the fake state, so re-assert it for a while.
 	for _i: int in range(HOST_FORCE_STEPS):
 		_force_host_state()
-		await _wait(HOST_FORCE_STEP_S)
+		# Ship the faked state in the same frame: the live solver rewrites the capture
+		# values and goal cells between frames, and the periodic territory tick could
+		# otherwise broadcast the solver's empty state instead of the fake.
+		_match_net.call(&"replicate_territory")
+		if _i < HOST_FORCE_STEPS - 1:
+			await _wait(HOST_FORCE_STEP_S)
 	print("BTENET host mode=%s timer=%s chip=%s" % [
 		"ctf" if _ctf else "classic", _label_text(_field.goal_flags()[0], "TimerLabel"), _label_text(_field.goal_flags()[0], "MultiplierLabel")])
 	get_tree().quit(0)
@@ -98,6 +103,11 @@ func _run_client() -> void:
 	print("BTENET client mode=%s playing=%s timer=%s chip=%s ctrl=%d" % [
 		"ctf" if _ctf else "classic", playing, _label_text(flag, "TimerLabel"), _label_text(flag, "MultiplierLabel"), flag.control()])
 	print("BTENET result=%s" % ("PASS" if playing and seen else "FAIL"))
+	if not playing:
+		print("BTENET never appeared: Match.State.PLAYING on the client")
+	elif not seen:
+		print("BTENET never appeared: beacon labels following the host (TimerLabel%s) within the wait" % (
+			" and MultiplierLabel x2" if _ctf else ""))
 	await _wait(1.0)
 	get_tree().quit(0)
 
