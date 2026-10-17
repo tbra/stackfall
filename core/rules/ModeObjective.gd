@@ -131,7 +131,7 @@ func capture_progress() -> float:
 
 
 ## Mode-specific replicated values, small and wire-safe: String keys mapped to
-## int, float or bool only (net/MatchNet.gd validates exactly that).
+## int, float, bool or a short String (ResultsValidation.clean_scalars checks that).
 func extra_state() -> Dictionary:
 	return {}
 
@@ -183,7 +183,7 @@ func _declare_winner(team: int) -> void:
 		_state_dirty = true
 
 
-# --- Wire validation (net/MatchNet.gd, autoload/match/MatchStats.gd) ---------
+# --- Wire validation (net/MatchEventApplier.gd) -------------------------------
 
 const MAX_WIRE_KEYS: int = ResultsValidation.MAX_WIRE_KEYS
 const MAX_WIRE_STRING: int = ResultsValidation.MAX_WIRE_STRING

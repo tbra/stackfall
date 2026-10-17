@@ -6,7 +6,7 @@ extends RefCounted
 ## validate_point()/closest_valid_point() are the placement contract for
 ## **every** MatchConfig.HoleMode: one raycast from the middle of the ghost
 ## block straight down; the hit point must be inside your own area, outside
-## every goal flag's area and not contested or a hole (SPEC.md 2.5 "Placement
+## every goal flag's area and not contested or a hole (SPEC.md 1.4 "Placement
 ## legality"). The raycast is done in autoload/match/MatchPlacement.gd;
 ## everything from the hit point on is here. There is no cell-footprint test;
 ## footprint_cells() only serves the bots' footprint scoring.
@@ -100,8 +100,7 @@ static func footprint_cells(
 	# For the 24 axis-aligned orientations that is exact. Under a free rotation
 	# the true projection is a hexagon, and this square is a close
 	# over-approximation of it, which errs towards refusing a placement rather
-	# than allowing one over a hole -- the safe direction, and the reason the
-	# stub's own note says a rotated cube covers "up to four cells".
+	# than allowing one over a hole.
 	var half: float = maxf(cube_size * 0.5 - _BOUNDARY_EPSILON, 0.0)
 	var cell_size: float = grid.cell_size
 	var half_extent: float = grid.half_extent
@@ -162,21 +161,18 @@ static func is_no_origin(origin: Vector2) -> bool:
 	return is_inf(origin.x) or is_inf(origin.y)
 
 
-## -- The v2 point check ------------------------------------------------------
+# --- Point check ----------------------------------------------------------------
 
-## Spec 2.5's check reduced to the single point the owner's raycast hit
-## (clarifications reaffirmed as the placement contract for
-## every hole_mode by the evidence audit, SPEC.md 2.5 "Placement
-## legality" and). `point` is disk-local (x, z), already
-## converted by the caller; this never touches physics.
+## The placement check reduced to the single point the owner's raycast hit, the
+## contract for every hole_mode (SPEC.md 1.4 "Placement legality"). `point` is
+## disk-local (x, z), already converted by the caller; this never touches physics.
 ##
 ## Order matters: off the disk first, because a point past the rim has no cell
 ## to ask anything about; then the goal flags' no-build zones, so a player
 ## standing in their own territory around a flag is told the real reason they
-## cannot build there; then the hole/contested state (SPEC.md 2.2
-## "Overlap holes": "Opposing candidate influence creates a contested region
-## that neither player may use for placement"), so a specific reason beats the
-## generic OUTSIDE_TERRITORY a contested/holed cell's unowned (-1) team would
+## cannot build there; then the hole/contested state (SPEC.md 1.5 "Overlap
+## holes": neither team may place on a contested cell), so a specific reason beats
+## the generic OUTSIDE_TERRITORY a contested/holed cell's unowned (-1) team would
 ## otherwise report; then ownership.
 ##
 ## is_hole()/is_contested() only ever answer true under the stamp fill
@@ -201,37 +197,22 @@ static func validate_point(
 	return Result.VALID
 
 
-## Spec 1.4's auto-drop relocation, now shared by every hole_mode
-## : the nearest disk-local point at or around `desired` that
-## validate_point() accepts, or NO_ORIGIN when the placing team owns no valid
-## point anywhere on the disk. SPEC.md's audit, 2.5 "Expiry and
-## invalid actions", flags relocate-vs-lose-vs-retain as [OPEN] for the
-## original and calls the closest-valid-point search only the remake's own
-## [NEW] fallback -- kept unchanged here because nothing in the audit
-## contradicts it, only notes that it is not evidenced.
+## Spec 1.4's auto-drop relocation, shared by every hole_mode: the nearest
+## disk-local point at or around `desired` that validate_point() accepts, or
+## NO_ORIGIN when the placing team owns no valid point anywhere on the disk (home
+## flag down and every stack lost). Only then does request_place() burn/throw the
+## block off the map.
 ##
-## "if I'm close to my area it
-## relocates, otherwise it just yeets the block in a direction": the ring
-## search below only ever looked out to auto_drop_search_max_radius (12 m by
-## default) and returned NO_ORIGIN past it, which sent request_place() down
-## the burn/throw path even though the player's own territory was sitting
-## right there on the disk, just further than 12 m from the expired ghost.
-## `_scan_disk_for_closest_valid_point()` is the fix: whenever the ring search
-## comes up empty, it falls back to a scan of every in-disk cell and returns
-## the nearest one that validates, so NO_ORIGIN now means what request_place()
-## has always assumed it means -- the team truly owns no valid point on the
-## whole disk (home flag down and every stack lost) -- and the throw-off-the-
-## map fallback is reachable only in that genuine case.
+## When the ring search comes up empty, `_scan_disk_for_closest_valid_point()`
+## scans every in-disk cell, so a team whose only territory lies beyond
+## auto_drop_search_max_radius is still relocated.
 ##
-## DECISION (core/rules/PlacementRules.gd): rather than raise
-## or repurpose auto_drop_search_max_radius, it keeps its old meaning -- the
-## radius of the cheap, sub-cell-accurate ring search below -- and the disk
-## scan is a second, unconditional fallback with no tunable of its own. A
-## bigger max_radius only makes the common near-miss case (a few metres off)
-## keep costing a ring walk instead of a full scan; it does not change what
-## the search can ultimately reach, since the scan below already covers the
-## whole disk. tuning_panel_hints.tres's entry for this field is reworded to
-## match (it no longer means "or the block is thrown").
+## DECISION (core/rules/PlacementRules.gd): auto_drop_search_max_radius is the
+## radius of the cheap, sub-cell-accurate ring search only; the disk scan is a
+## second, unconditional fallback with no tunable of its own. A bigger max_radius
+## only makes the common near-miss case (a few metres off) keep costing a ring
+## walk instead of a full scan; it does not change what the search can reach,
+## since the scan already covers the whole disk.
 ##
 ## A widening-ring search over auto_drop_search_step / auto_drop_search_max_radius, one point
 ## per candidate -- ownership at a candidate is pure math once the raster is filled, so no
@@ -264,11 +245,10 @@ static func closest_valid_point(
 ## expired ghost still gets relocated instead of burned.
 ##
 ## Cost: one validate_point() per in-disk cell (CellGrid.in_disk_cells(),
-## cached after the first call). At MapDef's default cell_size = 1 m this is
-## about 11.5k cells on a 60 m disc (field_radius 60: res 121, res^2 = 14641
-## cells, times roughly pi/4 in disk), a handful of array lookups each --
-## a single scan on an expiry auto-drop, not a per-frame cost, so brute force
-## here is cheap enough not to need CellGrid's spatial hash.
+## cached after the first call): about res^2 * pi/4 cells, 6.5k at the default
+## 45 m radius with cell_size = 1 m and 11.5k at 60 m, a handful of array lookups
+## each. It runs once per expiry auto-drop, not per frame, so brute force is cheap
+## enough not to need CellGrid's spatial hash.
 static func _scan_disk_for_closest_valid_point(
 	desired: Vector2, raster: TerritoryRaster, team_id: int
 ) -> Vector2:

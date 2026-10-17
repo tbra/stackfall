@@ -372,8 +372,8 @@ static func apply_human_pref(seats: Dictionary, peer_id: int, color_index: int, 
 ## forms exactly one slot and no vacant one. Reports an error instead of a
 ## layout when there are more than 8 seats or a human's real slot is not below the
 ## trailing bot slots (two seats in one slot: Net reuses the lowest free slot for a
-## joiner and compacts the lobby's slots after every leave/kick, plan R4, so this
-## guards a stale or hand-built table).
+## joiner and compacts the lobby's slots after every leave/kick, so this guards a
+## stale or hand-built table).
 static func layout(seats: Dictionary, slot_of_peer: Dictionary = {}) -> Layout:
 	var plan: Layout = Layout.new()
 	var data: Dictionary = normalize(seats)
@@ -480,7 +480,7 @@ static func flatten_to_config(seats: Dictionary, slot_of_peer: Dictionary, confi
 
 # --- Roster entry wire (one owner for Net's peer table) ---------------------------
 
-## One roster entry exactly as Net has always built it. `name_auto` is only written
+## One roster entry in the shape Net's peer table uses. `name_auto` is only written
 ## when `with_name_auto` (joiner entries); the host's own entry omits the key.
 static func entry_to_wire(
 	peer_id: int, slot_id: int, display_name: String, ready: bool, ping_ms: float, build: String,

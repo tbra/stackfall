@@ -1,17 +1,15 @@
 class_name ReachSkyObjective
 extends ModeObjective
-## Reach the Sky. Each player's
-## record is the highest top of one of their own blocks, measured along the
-## disk normal and sampled when that block SETTLES after placement (the
-## BlockRegistry sleep rule), so a block balanced for an instant and then
-## falling never counts. A record only ever rises: a later collapse cannot
-## lower it. The highest team record at the round timer wins; a team's value is
-## its best member's or the sum of its members' (sum_members). Ties go to the
-## team that reached its final value first. Classic all-goal victory is not
-## used. the first team whose settled block reaches
-## `target_height` wins at once (record_height() latches the winner, which the
-## existing mode-objective winner path in MatchTerritory turns into the match
-## end); if the timer ends first the highest record wins as above.
+## Reach the Sky. Each player's record is the highest top of one of their own
+## blocks, measured along the disk normal and sampled when that block SETTLES after
+## placement (the BlockRegistry sleep rule), so a block balanced for an instant and
+## then falling never counts. A record only ever rises: a later collapse cannot
+## lower it. A team's value is its best member's or the sum of its members'
+## (sum_members). The first team whose settled block reaches `target_height` wins
+## at once (record_height() latches the winner, which the mode-objective winner
+## path in MatchTerritory turns into the match end); if the timer ends first, the
+## highest team record wins and ties go to the team that reached its final value
+## first. Classic all-goal victory is not used.
 ##
 ## DECISION (single source of truth): the target is owned by
 ## NetConfig.build_height_target_m (the same number the network position band is
