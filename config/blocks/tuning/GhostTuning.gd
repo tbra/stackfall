@@ -40,7 +40,8 @@ extends Resource
 ## BlockOrientations.step_yaw_cw() snap; at or above it motion drives the free
 ## rotation and release does nothing extra.
 ## DECISION: ~6 px, so a deliberate drag crosses it on its first mouse-motion
-## event while a click with jitter stays under it.
+## event while a click with jitter stays under it (existing rotate_drag tests use
+## 20-130 px single-event motions).
 @export var rotate_tap_max_motion_px: float = 6.0
 
 ## Radians per second at full left-stick deflection while rotate_drag_pad (RT) is
@@ -79,8 +80,10 @@ extends Resource
 ## core/net/Quantize.gd can replicate and net/MatchNet.gd accepts (~147.7 m of
 ## offset on a flat disk). The default sits above anything the band allows, so it
 ## never fires on its own.
-## DECISION: the F4 slider is capped below the wire ceiling too (see the DECISION in
-## config/ui/tuning_panel_hints.tres).
+## DECISION: the default sits above the wire band instead of mirroring it, so the
+## band, not this field, stays the real limit.
+## DECISION: the F4 slider range (0-200 m) matches the default, so lowering it is
+## purely a designer choice.
 @export var hover_manual_max: float = 200.0
 ## Meters kept between the held ghost's origin and NetConfig.pos_max_y, so a
 ## pose at the very top of the raise still quantizes inside the wire band
