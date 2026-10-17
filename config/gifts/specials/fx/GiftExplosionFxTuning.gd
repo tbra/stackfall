@@ -4,13 +4,13 @@ extends Resource
 ## every peer. Loaded from config/gifts/specials/fx/gift_explosion_fx_tuning.tres. Visual-only:
 ## not in the F4 tuning panel, so no tuning_panel_hints entries (same as GiftBlinkTuning).
 ##
-## "more cartoony": the blast is a CartoonBlast -- a star flash,
+## The blast is a CartoonBlast: a star flash,
 ## a cluster of cel-shaded, outlined fireball puffs that pop in with overshoot and cool
 ## from yellow through orange to smoke, a ground shock ring and a few flung debris
-## chunks -- over the original dust flipbook, which stays as a ground layer.
+## chunks -- over a dust flipbook that stays as a ground layer.
 ## Sizes marked "per blast radius" scale with the special's ExplosionTuning.radius_m.
 
-# --- Dust flipbook layer (the original puff) ---------------------------------
+# --- Dust flipbook layer ---------------------------------
 
 ## Draw the impact flipbook under the cartoon blast.
 @export var dust_enabled: bool = true
