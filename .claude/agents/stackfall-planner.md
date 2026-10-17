@@ -36,3 +36,4 @@ gameplay ambiguity or player-facing rule changes to the orchestrator. `docs/SPEC
 and the user's answered decisions take precedence over older plans. Return the plan, its
 code anchors, risks and dispatch-ready briefs. Do not implement game code or create
 an alternative TODO ledger.
+Before handback, run `python tools/check_packages.py <packages file>` on any packages file you write.
