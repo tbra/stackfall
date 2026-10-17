@@ -1,7 +1,7 @@
 class_name ScoreboardOverlay
 extends CanvasLayer
-## (: "a glanceable score tracker players can bring
-## up during the game ... tab / r-stick click by default (shows while held down)").
+## A glanceable score tracker players can bring up during the game: tab / r-stick click
+## by default (shows while held down).
 ##
 ## Shown while the `show_scores` action is held during a live round, hidden on
 ## release, focus loss, pause, a non-live state or a sandbox. It draws the same

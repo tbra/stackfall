@@ -1,6 +1,6 @@
 class_name LobbySeatVariants
 extends RefCounted
-## The lobby players row's switchable looks (round 2). One shared LobbySeatRow
+## The lobby players row's switchable looks. One shared LobbySeatRow
 ## builds every look for BOTH the vs-bots and the hosted lobby; the panel arranges the rows
 ## (flat list, team groups, a two-column card grid). Only CLASSIC ships: the others are chosen
 ## from the debug-only "Row style" dropdown at the top of the Players panel (DebugMode on).

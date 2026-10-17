@@ -1,48 +1,28 @@
 class_name Minimap
 extends PanelContainer
-## Top-down minimap,
-## rebuilt for (feedback/graphics_feedback.md:
-## "the minimap especially has a bunch of graphical problems where it's
-## reflecting the sky depending on the camera angle").
+## Top-down minimap, drawn in 2D from Match's own TerritoryRaster/MapDef/PlayerSlot state.
 ##
-## DECISION (ui/hud/Minimap.gd): the original M7 P5 design used a
-## live orthographic SubViewport + Camera3D looking straight down at the
-## shared World3D.
-## In practice that camera also framed the removed DiscMirror's planar-reflection
-## quad -- a real 3D plane sitting on the disk -- and a top-down camera's own
-## viewing angle relative to that mirror plane changes with match state (disk
-## tilt, camera height reframing per MapDef), so the mirror sometimes bounced
-## sky/cloud color into the minimap and sometimes didn't: exactly the "graphical
-## problems ... reflecting the sky depending on the camera angle" report,
-## which per-camera Environment overrides ('s earlier fix, see
-## this file's git history) could not solve because the mirror itself is a
-## reflective 3D surface, not a post-process. This file paints the minimap
-## directly from Match's own TerritoryRaster/MapDef/PlayerSlot state -- no
-## Camera3D, no SubViewport, so there is no "camera angle" left for it to
-## depend on, ever.
+## DECISION (ui/hud/Minimap.gd): no SubViewport or Camera3D. A top-down camera over the
+## shared World3D also framed the disc's planar-reflection quad, whose viewing angle
+## changed with match state (disk tilt, camera height reframing per MapDef), so the
+## minimap sometimes mirrored the sky depending on camera angle. Painting it directly
+## leaves no "camera angle" to depend on.
 ##
-## DECISION (ui/hud/Minimap.gd): drawn
-## **camera-relative** ("up" on the minimap = the main gameplay camera's own
-## forward direction, mockup 08's behaviour) rather than the earlier north-up
-## choice -- the compared the overview capture's 3D framing
-## (red home on the LEFT) against the minimap (blue on the left) and called
-## that out as a mismatch: "the minimap must match what the player sees".
-## set_camera_forward() below takes the horizontal (x, z) component of
-## whichever Camera3D is `current` and rotates every world-space point into
-## screen space around it every rebuild; the default (1, 0)/(0, 1) basis
-## (identity, i.e. north-up) is unchanged when nothing ever calls it, which
-## keeps tests/unit/ui/test_hud.gd's existing fixtures deterministic. ui/hud/HUD.gd
-## is the caller (see its own DECISION on why it reads the camera through
-## Viewport.get_camera_3d() rather than a node path/new Events signal).
+## DECISION (ui/hud/Minimap.gd): drawn **camera-relative** ("up" on the minimap = the
+## main gameplay camera's own forward direction) rather than north-up, so the minimap
+## matches what the player sees. set_camera_forward() below takes the horizontal (x, z)
+## component of whichever Camera3D is `current` and rotates every world-space point into
+## screen space around it every rebuild; the default (1, 0)/(0, 1) basis (identity,
+## north-up) is unchanged when nothing calls it, which keeps tests/unit/ui/test_hud.gd's
+## fixtures deterministic. ui/hud/HUD.gd is the caller (it reads the camera through
+## Viewport.get_camera_3d() rather than a node path or new Events signal).
 ##
-## ui/hud/HUD.gd owns one of these (instanced directly in ui/hud/HUD.tscn, script-
-## built rather than its own .tscn) and calls set_map_def() once per match
-## (framing) plus set_match_state() every Events.territory_share_changed tick
-## (cheap reference stores; the actual per-pixel image rebuild is throttled by
-## tuning.minimap_refresh_hz's own Timer below, same cadence the old
-## SubViewport had). Stays invisible until the first set_map_def() with a
-## non-null MapDef -- a menu/no-match HUD instance renders nothing and costs
-## nothing, per the original brief's acceptance check.
+## ui/hud/HUD.gd owns one of these (instanced directly in ui/hud/HUD.tscn, script-built
+## rather than its own .tscn) and calls set_map_def() once per match (framing) plus
+## set_match_state() every Events.territory_share_changed tick (cheap reference stores;
+## the actual image rebuild is throttled by tuning.minimap_refresh_hz's Timer below).
+## Stays invisible until the first set_map_def() with a non-null MapDef, so a
+## menu/no-match HUD instance renders nothing and costs nothing.
 
 @export var tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
 
@@ -51,8 +31,7 @@ var _refresh_timer: Timer = null
 
 var _map_def: MapDef = null
 ## Half the meters-wide square the minimap frames, in disk-local space:
-## MapDef.field_radius + tuning.minimap_zoom_margin_m. Replaces the old
-## Camera3D.size as the thing tests assert framing against.
+## MapDef.field_radius + tuning.minimap_zoom_margin_m; tests assert framing against it.
 var _half_extent: float = 1.0
 var _field_radius: float = 1.0
 
@@ -63,7 +42,7 @@ var _raster: TerritoryRaster = null
 ## MatchConfig.territory_colors().
 var _team_colors: PackedColorArray = PackedColorArray()
 ## Colour per SLOT id (home beacons only). Empty = the beacons use _team_colors
-## (the pre-lobby-rework behaviour, where team ids equal slot ids).
+## (team ids equal slot ids).
 var _slot_colors: PackedColorArray = PackedColorArray()
 var _home_positions: PackedVector2Array = PackedVector2Array()
 ## Host and client both expose disk-local gift positions through Match.gift_states().
@@ -86,7 +65,7 @@ var _camera_forward: Vector2 = Vector2(0.0, 1.0)
 ## Basis the cached image was rasterized with. The image is rebuilt at
 ## minimap_refresh_hz, but the basis changes every frame while the camera
 ## orbits, so _on_canvas_draw() rotates the cached texture by the difference
-## (territory used to lag behind the beacons and the camera).
+## (so the territory does not lag behind the beacons and the camera).
 var _image_right: Vector2 = Vector2(1.0, 0.0)
 var _image_forward: Vector2 = Vector2(0.0, 1.0)
 
@@ -127,13 +106,11 @@ func _ready() -> void:
 	style.bg_color = tuning.minimap_backdrop_color
 	style.border_color = tuning.minimap_frame_color
 	style.set_border_width_all(int(tuning.minimap_frame_border_width_px))
-	# A square panel whose corner radius is half its own size renders as a
-	# circle -- the minimap's whole circular frame/backdrop, with no separate
-	# clip node needed. _rebuild_image() below leaves every off-disk pixel of
-	# the drawn image fully transparent, so this circular backdrop is what
-	# shows through in the corners.
+	# A square panel whose corner radius is half its own size renders as a circle: the
+	# minimap's circular frame/backdrop with no separate clip node. _rebuild_image() leaves
+	# every off-disk pixel transparent, so this backdrop shows through in the corners.
 	style.set_corner_radius_all(int(_size_px * 0.5))
-	# Stackfall Arcade: the disc-900 frame's 3 px rim ring casts a soft rim glow,
+	# The disc-900 frame's 3 px rim ring casts a soft rim glow,
 	# echoing the arena's own glowing gold edge; it is the one place the HUD glows.
 	style.shadow_color = Color(tuning.minimap_frame_color, tuning.minimap_glow_alpha)
 	style.shadow_size = int(tuning.minimap_glow_size_px)
@@ -182,8 +159,7 @@ func set_local_slot(slot_id: int) -> void:
 
 ## Frames the minimap from `map_def`'s own radius plus tuning.
 ## minimap_zoom_margin_m, and (re)starts the refresh timer. Passing null
-## disables the minimap entirely (no match loaded) -- the menu/no-match state
-## the brief requires costs nothing.
+## disables the minimap entirely (no match loaded), which costs nothing.
 func set_map_def(map_def: MapDef) -> void:
 	_map_def = map_def
 	if map_def == null:
@@ -210,19 +186,15 @@ func set_map_def(map_def: MapDef) -> void:
 
 ## The live TerritoryRaster/slot colors/home positions to draw, refreshed by
 ## ui/hud/HUD.gd every Events.territory_share_changed tick. Cheap: stores
-## references only (a TerritoryRaster is mutated in place by Match's own
-## solve loop, the same live object every other territory reader -- e.g.
-## game/field/TerritoryOverlay.gd -- re-reads each tick), so calling this often is
-## exactly as costly as calling it once. `team_colors`, indexed by team id,
-## is `MatchConfig.territory_colors()` -- the identical array/convention
-## game/main/Main.gd already hands TerritoryOverlay.set_source() and
-## game/field/Field.gd's own shader upload use, so the minimap and the disk itself
-## can never disagree about which color a team is.
+## references only (a TerritoryRaster is mutated in place by Match's solve loop, the
+## same live object every other territory reader re-reads each tick). `team_colors`,
+## indexed by team id, is `MatchConfig.territory_colors()`, the same array
+## game/main/Main.gd hands TerritoryOverlay.set_source() and game/field/Field.gd uploads,
+## so the minimap and the disk can never disagree about a team's color.
 ##
-## Lobby rework (review F3): team ids no longer equal slot ids
-## once the lobby resolved its teams, so the home beacons (one per SLOT) take
-## their own `slot_colors` (MatchConfig.player_colors, indexed by slot id).
-## Omitted/empty keeps the old single-array behaviour: beacons use `team_colors`.
+## Team ids no longer equal slot ids once the lobby resolved its teams, so the home
+## beacons (one per SLOT) take their own `slot_colors` (MatchConfig.player_colors,
+## indexed by slot id). Omitted/empty: beacons use `team_colors`.
 func set_match_state(
 	raster: TerritoryRaster, team_colors: PackedColorArray, home_positions: PackedVector2Array,
 	slot_colors: PackedColorArray = PackedColorArray()
@@ -271,17 +243,14 @@ func set_gift_states(states: Array[Dictionary]) -> void:
 ## The main gameplay camera's own horizontal right/forward directions (world
 ## x, z of Camera3D.global_transform.basis.x / -basis.z), neither needing to
 ## be pre-normalized. ui/hud/HUD.gd calls this every frame from whichever
-## Camera3D Viewport.get_camera_3d() currently reports (see its own DECISION
-## for why it reads the camera that way instead of a node path). Rotates the
-## minimap so it always matches what that camera is showing on screen ("the minimap must match what the player sees"): right
-## reads as right, forward as up. DECISION: takes both vectors straight from
-## the camera's own basis rather than deriving `right` from `forward` with an
-## assumed perpendicular/no-roll rotation -- reading the real basis.x is
-## exact for any camera (including the capture tool's own off-axis
-## three-quarter framing, a script removed in (see git history)'s _frame_overview()) with
-## no cross-product sign convention to get wrong. A near-zero vector (no
-## camera, or one looking/rolled straight along an axis) is ignored, leaving
-## whatever basis was last set.
+## Camera3D Viewport.get_camera_3d() currently reports. Rotates the minimap so it
+## always matches what that camera shows on screen: right reads as right, forward as
+## up. DECISION: takes both vectors straight from the camera's own basis rather than
+## deriving `right` from `forward` with an assumed perpendicular/no-roll rotation;
+## reading the real basis.x is exact for any camera (including an off-axis
+## three-quarter framing) with no cross-product sign convention to get wrong. A
+## near-zero vector (no camera, or one looking/rolled straight along an axis) is
+## ignored, leaving whatever basis was last set.
 func set_camera_basis(right_xz: Vector2, forward_xz: Vector2) -> void:
 	if right_xz.length_squared() < 0.0001 or forward_xz.length_squared() < 0.0001:
 		return
@@ -348,10 +317,9 @@ func _refresh_interval() -> float:
 func _on_refresh_timeout() -> void:
 	if _map_def == null:
 		return
-	# the pixel loop in _rebuild_image() costs ~60 ms of
-	# GDScript; at minimap_refresh_hz that was an 8 Hz frame hitch even with a
-	# completely settled board. DECISION: rebuild only when the image inputs
-	# changed. Camera rotation alone is covered by image_to_current_transform()
+	# The pixel loop in _rebuild_image() costs ~60 ms of GDScript; at minimap_refresh_hz
+	# that was an 8 Hz frame hitch even with a settled board. DECISION: rebuild only
+	# when the image inputs changed. Camera rotation alone is covered by image_to_current_transform()
 	# (the cached texture is rotated on draw), so it does not force a rebuild.
 	if not _image_inputs_changed():
 		return
@@ -380,8 +348,8 @@ func _world_to_px(world: Vector2, px_per_m: float) -> Vector2:
 	return Vector2((u + _half_extent) * px_per_m, (_half_extent - v) * px_per_m)
 
 
-## Uploads the live TerritoryRaster to the territory shader. 
-## the former 160x160 GDScript per-pixel loop (55-100 ms) now lives only in
+## Uploads the live TerritoryRaster to the territory shader. The per-pixel GDScript
+## loop (55-100 ms) lives only in
 ## debug_image() for tests; here the per-cell data goes up as native-copied
 ## textures and shaders/territory/minimap_territory.gdshader colours it at draw time,
 ## camera-relative (see class doc DECISION), entirely in 2D -- no Camera3D/

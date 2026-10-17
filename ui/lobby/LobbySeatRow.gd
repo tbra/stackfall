@@ -1,8 +1,6 @@
 class_name LobbySeatRow
 extends PanelContainer
-## One seat of the lobby's right-hand panel (package PL1a, docs/
-## the lobby layout's "Right panel"):
-## now carrying the host's per-seat controls --
+## One seat of the lobby's right-hand panel, carrying the host's per-seat controls --
 ##   [colour box] [name / subtitle] [team number] [difficulty] [x] [ready badge]
 ## - the colour box is a Button: a click / ui_accept asks for the next palette colour,
 ##   a right click the previous one (ui_left / ui_right only move focus; the panel applies it through
@@ -19,13 +17,14 @@ extends PanelContainer
 ##
 ## The row is a view: it never touches the seat table. It reports what the player
 ## asked for through the four request signals and the LobbyPlayersPanel (which owns
-## the table) applies it and redraws -- or, for a client's own row, sends it to the host. A row is immutable once built(); a change of
-## seat, colour, team mode or editable state is a fresh row.
+## the table) applies it and redraws -- or, for a client's own row, sends it to the host.
+## A row is immutable once built(); a change of seat, colour, team mode or editable
+## state is a fresh row.
 ##
 ## Gamepad / keyboard: every control the player may use is focusable (the panel hands
 ## them to the Lobby's focus loop through focus_entries()); ui_accept presses and
-## a right click goes back; ui_left / ui_right (held, echoed or pad) only move focus
-## , as do ui_up / ui_down through the loop. Every control's left / right
+## a right click goes back; ui_left / ui_right (held, echoed or pad) only move focus,
+## as do ui_up / ui_down through the loop. Every control's left / right
 ## neighbours are the row's previous / next control.
 
 ## Cycle the seat's colour; `backwards` = previous colour.
@@ -74,7 +73,7 @@ var is_ready: bool = false
 ## slot shows a crown instead of the Ready / Not ready pill.
 var is_host: bool = false
 ## The controls work: the host's on every seat, a client's on its OWN row only (colour and
-## team; PL1b -- the panel turns its clicks into Net.request_seat_pref). Anyone else's row
+## team; the panel turns its clicks into Net.request_seat_pref). Anyone else's row
 ## is the same row, read-only.
 var editable: bool = false
 ## Some row of the list is a bot's: a human row keeps the empty room of the bot's difficulty and
@@ -132,11 +131,10 @@ static func team_text(pick: int) -> String:
 		return TEAM_RANDOM_TEXT
 	return str(pick)
 
-
-## with clip_text the label's own minimum width is 0, so on a narrow card the
-## fixed-width controls took every pixel and a short bot name ("Velocity") showed as one
-## letter. Once in the tree (the theme font is known) the name asks for its own text width,
-## capped by seat_name_max_width_px; only a longer name still ends in an ellipsis.
+## With clip_text the label's own minimum width is 0, so on a narrow card the
+## fixed-width controls would take every pixel and a short bot name ("Velocity") would
+## show as one letter. Once in the tree (the theme font is known) the name asks for its
+## own text width, capped by seat_name_max_width_px; only a longer name ends in an ellipsis.
 func _ready() -> void:
 	if name_label == null or _layout_tuning == null:
 		return
@@ -486,7 +484,7 @@ func _build_badge() -> void:
 		crown.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		crown.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		crown.custom_minimum_size = Vector2.ONE * float(table.lobby_icon_px)
-		# The badge face is bright (rim): ink, never the cream the menu ink token now resolves to.
+		# The badge face is bright (rim): ink, never the cream the menu ink token resolves to.
 		crown.modulate = MenuStyleFactory.ink_for_face(UiStatusBadge.face_for(UiStatusBadge.Look.HOST))
 		crown.name = "HostCrown"
 		badge.custom_minimum_size = badge_size

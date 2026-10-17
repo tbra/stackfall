@@ -1,22 +1,13 @@
 class_name HUD
 extends CanvasLayer
-## Spec 1.10's HUD, scoped to what M2/ need: a timer ring around
-## the held-block preview, a separate next-block preview, max height,
-## per-player territory share, capture ring, a greyed locked ring, and a
-## hot-seat turn indicator. (M4 P2b-ii) adds a small pending-
-## special queue indicator beside the next-shape preview. M7 P5 adds the
-## live minimap (ui/hud/Minimap.gd) restyles the whole HUD
-## (per-player diamond+bar rows top-left, a numeral in the timer ring top-center, a
-## circular minimap bottom-right) and rebuilds the minimap as a 2D draw off
-## the live TerritoryRaster instead of a 3D camera (see ui/hud/Minimap.gd's own
-## class doc for why). ("Held/next previews
-## should be grouped and moved to the bottom left corner") moves the
-## held-shape and next-shape cards off the top edge into one grouped
-## %HeldNextPanel in the bottom-left corner (clear of both the top-left
-## per-player cluster and the bottom-right minimap). replaces
-## the procedural cube drawing with pre-rendered actual mesh thumbnails.
+## Spec 1.10's HUD: a timer ring numeral, held-block and next-block previews, max height,
+## per-player territory share rows (diamond + bar, top-left), a capture ring, a greyed
+## locked ring, a hot-seat turn indicator, a pending-special queue indicator and the
+## live minimap (ui/hud/Minimap.gd, a 2D draw off the live TerritoryRaster; see its
+## class doc). The held and next cards sit in one grouped %HeldNextPanel in the
+## bottom-left corner, and the previews are pre-rendered mesh thumbnails.
 ##
-## outside hot-seat there is no "turn" — every slot plays at
+## Outside hot-seat there is no "turn" — every slot plays at
 ## once (spec 1.4 "[ORIGINAL target]") — so this HUD shows **the local
 ## player's own status** instead of a turn banner. `_active_slot` doubles as
 ## "whichever slot this HUD's widgets currently read": in hot-seat it is
@@ -42,28 +33,15 @@ extends CanvasLayer
 ## hatch scale) already lives in GhostTuning (which parks the HUD
 ## tunables there too). Pure screen-space drawing geometry for this
 ## placeholder layout — ring line width, background alpha, the preview's
-## cell size in pixels — stays inline: M7 replaces this whole visual with
-## real art, and CLAUDE.md's "no magic numbers" is about tunables that affect
-## gameplay feel, not every pixel constant behind a first-pass debug HUD.
-##
+## cell size in pixels — stays inline: CLAUDE.md's "no magic numbers" is about
+## tunables that affect gameplay feel, not every pixel constant behind a debug HUD.
 
 
-## "bar ~22-25% of screen width":
-## 300px is 23.4% of the 1280px reference width a script removed in (see git history)
-## and every other fixed HUD offset in this file already assume.
 const SHARE_BAR_MAX_WIDTH: float = 200.0
 const SHARE_BAR_HEIGHT: float = 14.0
 const SKY_NET_CONFIG: NetConfig = preload("res://config/net/net_config.tres")
-## ("thicker ring (~8 px)").
 const RING_LINE_WIDTH: float = 8.0
-## Stackfall Arcade: the ring's empty track is disc-500 (ArcadeVisualTuning).
-## the bold numeral drawn in the middle of the timer ring
-## (mockup 08's "6"), pure screen-space geometry like every other constant in
-## this section (this file's own pre-M7 DECISION above). 
-## grew the ring itself to ~84-96px; the numeral grows with it.
-## (The size now comes from ArcadeVisualTuning.font_size_timer_px.)
-## ("subtle drop shadow"), shared by
-## the timer ring's disc.
+## Subtle drop shadow shared by the timer ring's disc.
 const DROP_SHADOW_OFFSET: Vector2 = Vector2(2.0, 3.0)
 const DROP_SHADOW_COLOR: Color = Color(0.0, 0.0, 0.0, 0.35)
 const ELIMINATED_COLOR: Color = Color(0.4, 0.4, 0.4, 0.5)
@@ -84,14 +62,11 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## before it can load a .tres whose script is MatchConfig, which made the
 ## constant null and the parse fail.
 @export var default_palette: MatchConfig = preload("res://config/match/match_defaults.tres")
-## The minimap's camera framing and the reskinned
-## panels' colours — see config/ui/HUDVisualTuning.gd's own class doc for why
-## this is the one Resource this file adds (everything else here stays the
-## pre-M7 "pure screen-space geometry is inline" DECISION above).
+## The minimap's camera framing and the panels' colours; see config/ui/HUDVisualTuning.gd's
+## class doc. Pure screen-space geometry stays inline (DECISION above).
 @export var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
 ## DECISION (ui/hud/HUD.gd): a Variant test seam for the same reason
-## PlayerController has one — GUT can't double a plain autoload, and P2's
-## real Match hasn't landed on this branch yet. Defaults to the real
+## PlayerController has one: GUT can't double a plain autoload. Defaults to the real
 ## autoload; tests overwrite it with a fake after add_child().
 var match_provider: Variant = null
 ## where a human seat's replicated name comes from, anything
@@ -120,21 +95,12 @@ var _round_played_s: float = 0.0
 @onready var _reject_icon: TextureRect = %RejectIcon
 @export var feedback_icons: HudFeedbackIconTable = preload("res://config/ui/hud_feedback_icon_table.tres")
 @onready var _winner_label: Label = %WinnerLabel
-## mockup 08 restyle: the next-shape card's own backing
-## panel, and the live minimap. Added as new HUD.tscn nodes; every
-## pre-existing %UniqueName above keeps the exact same path it always had.
-## The M7 P5 status/shares boxy backing panels (StatusPanel/SharesPanel) are
-## gone -- feedback/graphics_feedback.md + ("top-left HUD
-## unreadable"): mockup 08 has no panel behind the top-left readouts at all,
-## just outlined text and slim bars (Stackfall Arcade now puts them on one plate).
+## The next-shape card's own backing panel. The top-left readouts have no boxy
+## backing panel of their own: just outlined text and slim bars, on one arcade plate.
 @onready var _next_shape_card: Panel = %NextShapeCard
-## the held-shape icon's own
-## labeled card, styled the same as _next_shape_card -- previously an
-## unlabeled flat icon floating loose beside the timer ring, which the
-## review correctly read as a stray leftover glyph.
+## The held-shape icon's own labeled card, styled the same as _next_shape_card.
 @onready var _held_shape_card: Panel = %HeldShapeCard
-## "Held/next previews should be grouped and
-## moved to the bottom left corner": the outer frame around both
+## The outer frame around both
 ## %HeldShapeCard and %NextShapeCard (ui/hud/HUD.tscn's HeldNextRow), styled the
 ## same as those two inner cards so the group reads as one panel rather than
 ## two loose cards -- DECISION: keeps the inner cards' own borders too
@@ -189,7 +155,7 @@ var _share_rows: Array = []
 var _share_bars: Array = []
 var _share_labels: Array = []
 ## the ellipsized player-name label of each row, parallel to _share_labels
-## (which now holds only the mode-specific value text).
+## (which holds only the mode-specific value text).
 var _share_name_labels: Array = []
 ## Last values fed to the rows, so a mode-state or roster change can repaint them.
 var _last_shares: PackedFloat32Array = PackedFloat32Array()
@@ -207,7 +173,7 @@ var _share_mult_labels: Array = []
 ## poll (or a test's direct set_feed_seconds() call) has a real value, so a
 ## bare HUD-only instance draws no numeral at all.
 var _feed_seconds_left: float = -1.0
-## M7 P5: last MapDef pushed to the minimap, so repeated territory_share_changed
+## Last MapDef pushed to the minimap, so repeated territory_share_changed
 ## ticks (every placement) don't re-frame its camera when the map hasn't
 ## actually changed.
 var _last_map_def: MapDef = null
@@ -285,9 +251,7 @@ func _ready() -> void:
 	_style_panel(_held_shape_card, true)
 	_lock_fade_nodes = [_held_shape_card, _next_shape_card]
 	_build_gift_slot_column()
-	# the status pill keeps only the
-	# locked/special/toast rows; the name header, tower/block line and
-	# experiments line are gone from the HUD.
+	# The status pill keeps only the locked/special/toast rows.
 	_turn_label.visible = false
 	_height_label.visible = false
 	for label: Label in [
@@ -411,18 +375,11 @@ func _process(delta: float) -> void:
 	_update_countdown_label(delta)
 	if Net.is_client() and Match.is_live(Match.state()):
 		extrapolate_capture(delta, Match._territory_tuning.capture_hold)
-	# ("the minimap must match what
-	# the player sees -- rotate it with the camera yaw"). DECISION (ui/hud/HUD.gd):
-	# reads Viewport.get_camera_3d() (whichever Camera3D currently has
-	# `current = true`) rather than a node path into game/player/CameraRig.gd or a
-	# new Events signal -- this package owns ui/hud/HUD.gd and ui/hud/Minimap.gd only,
-	# not game/player/CameraRig.gd or autoload/Events.gd (see the assignment's file
-	# ownership), and Viewport.get_camera_3d() is a generic engine query, not
-	# a hardcoded path into Main.tscn's node tree, so it does not reintroduce
-	# the deep-node-path pattern the class doc's "connects to Events only"
-	# DECISION warns against. Runs unconditionally (before the active-slot
-	# gate below) so the minimap keeps tracking the camera even between
-	# active-slot changes; a null camera (tests, no 3D scene) leaves
+	# DECISION (ui/hud/HUD.gd): the minimap rotates with the camera yaw, read from Viewport.get_camera_3d() rather
+	# than a node path into the camera rig or a new Events signal: a generic engine query
+	# does not reintroduce the deep-node-path pattern the class doc warns against. Runs
+	# unconditionally (before the active-slot gate) so the minimap keeps tracking the
+	# camera between active-slot changes; a null camera (tests, no 3D scene) leaves
 	# Minimap's basis at whatever it last was (its own no-op guard).
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera != null:
@@ -441,11 +398,9 @@ func _process(delta: float) -> void:
 			_qol_paused = paused_now
 			_timer_ring.queue_redraw()
 		_qol_backlog = int(match_provider.qol_backlog_count(_active_slot))
-	# the timer ring's numeral (mockup 08's "6"). Guarded by
-	# has_method() the same way _update_minimap()'s raster() read is --
-	# tests/support/FakeMatch.gd (and any other Variant double) has no
-	# feed_time_left(), and a bare HUD-only instance should draw no numeral
-	# at all rather than error.
+	# The timer ring's numeral. Guarded by has_method() like _update_minimap()'s raster()
+	# read: Variant doubles (FakeMatch) have no feed_time_left(), and a bare HUD-only
+	# instance should draw no numeral rather than error.
 	if match_provider.has_method(&"feed_time_left"):
 		set_feed_seconds(float(match_provider.feed_time_left(_active_slot)))
 	var tower_m: float = match_provider.max_height_for_slot(_active_slot)
@@ -458,8 +413,7 @@ func _process(delta: float) -> void:
 	_refresh_special_indicator()
 
 
-## "Need a round timer component": the match clock on a hud-plate.
-## the round timer sits in the top-right corner, its top aligned with the
+## The match clock on a hud-plate, in the top-right corner: its top aligned with the
 ## player-stats backplate and its right edge with the minimap (read from those nodes).
 func _build_round_timer() -> void:
 	var slot: Control = Control.new()
@@ -504,12 +458,11 @@ func timer_ring_bottom_px() -> float:
 	return _timer_ring.offset_bottom * _scale_root.scale.y
 
 
-# --- Public API ("implement exactly" adds
-# set_local_slot/set_held_shape/set_locked) -----------------------------------
+# --- Public API ------------------------------------------------------------------
 
 ## Hot-seat only: whoever's turn it is right now. Shows the "Player N's
-## turn" wording — the one place in the game a "turn" still exists (spec
-## Part 4 M2: hot-seat is a test harness, not the shipped cadence).
+## turn" wording, the one place in the game a "turn" still exists (spec
+## Part 4: hot-seat is a test harness, not the shipped cadence).
 func set_active_slot(slot_id: int, color: Color) -> void:
 	_active_slot = slot_id
 	_active_color = color
@@ -553,20 +506,11 @@ func set_local_slot(slot_id: int) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-## ("It must show the actual
-## upcoming/held block for the local player ... If it's genuinely empty at
-## capture time in sandbox, find out why"). ROOT CAUSE: the held/next
-## previews previously only ever updated from Events.feed_block_issued
-## (_on_feed_block_issued() below), which fires once, the moment Match first
-## feeds a slot -- almost always *before* this HUD instance's set_local_slot/
-## set_active_slot ever runs (the sandbox and MatchNet wire the local
-## slot in only after Match.start_match() has already fed it), so the signal
-## this HUD needed had already fired and gone by the time anyone was
-## listening for it: `_held_shape`/`_next_shape` stayed at their `null`
-## default for the rest of the match. Calling this from both set_active_slot()
-## and set_local_slot() pulls whatever `match_provider` is holding for
-## `slot_id` *right now*, independent of signal timing, and every later
-## Events.feed_block_issued tick still keeps it current as before.
+## Pulls whatever `match_provider` holds for `slot_id` right now. Events.feed_block_issued
+## fires once, when Match first feeds a slot, usually before set_local_slot/
+## set_active_slot runs (the sandbox and MatchNet wire the local slot in after
+## Match.start_match()), so the held/next previews would otherwise stay null for the
+## whole match. Called from both setters; later feed_block_issued ticks keep it current.
 func _pull_current_shapes(slot_id: int) -> void:
 	if match_provider == null:
 		return
@@ -586,8 +530,7 @@ func set_next_shape(shape: BlockShape) -> void:
 
 ## Spec 1.4's release-locked state (Match.is_release_locked): the held
 ## piece may be aimed but not released again until the interval boundary.
-## Greys the ring out (no LOCKED text, "locked
-## text still exists, get rid of it"); a no-op call when nothing changed,
+## Greys the ring out (no LOCKED text); a no-op call when nothing changed,
 ## matching set_capture's shape.
 func set_locked(locked: bool) -> void:
 	if _locked == locked:
@@ -608,9 +551,8 @@ func set_feed_progress(fraction: float) -> void:
 	_timer_ring.queue_redraw()
 
 
-## seconds left on the block timer, shown as the bold
-## numeral inside the timer ring (mockup 08's "6"). A negative value (the
-## -1.0 default, or a caller's own choice) draws no numeral at all.
+## Seconds left on the block timer, shown as the bold numeral inside the timer ring.
+## A negative value (the -1.0 default, or a caller's own choice) draws no numeral.
 func set_feed_seconds(seconds: float) -> void:
 	if is_equal_approx(seconds, _feed_seconds_left):
 		return
@@ -659,12 +601,10 @@ static func sky_target_suffix(state: Dictionary) -> String:
 	return " / %.0f m" % SKY_NET_CONFIG.build_height_target_m
 
 
-## "there is still a maximum height the block cannot
-## be raised": the old single "Height" readout is the slot's tallest
-## *placed* structure (Match.max_height_for_slot()), which does not move
-## while the held block is wheeled up -- and the follow camera keeps the
-## ghost fixed at screen centre -- so raising looked capped. While a local
-## block is held the label names both numbers explicitly.
+## The held-height readout names both numbers while a local block is held: the slot's
+## tallest *placed* structure (Match.max_height_for_slot()) does not move while the held
+## block is wheeled up, and the follow camera keeps the ghost fixed at screen centre,
+## so raising would otherwise look capped.
 func set_tower_and_block_height(tower_meters: float, block_meters: float) -> void:
 	_set_height_text("Tower: %.2f m%s   Block: %.1f m" % [tower_meters, sky_target_suffix(_mode_state), block_meters])
 
@@ -700,22 +640,15 @@ func show_reject(reason: StringName) -> void:
 	_play_reject_icon(HudFeedbackIconTable.Feedback.REJECTED, ghost_tuning.hud_reject_fade_duration)
 
 
-## "if I'm hovering over another
-## player's area I get the rejected message but the block still drops more or
-## less in place": a manual click over enemy territory is correctly refused
-## (show_reject() above, nothing spawns) -- the "drops more or less in place"
-## half of the report is a *separate*, later event: the interval boundary
-## still auto-drops that same held piece, and PlacementRules.
-## closest_valid_point() relocates it into the player's own territory, often
-## only a couple of metres from the spot they were just refused at. Until now
-## nothing distinguished that forced auto-drop from silence, so it read as
-## "the rejected placement still happened". Reuses show_reject()'s own label/
-## tween shape (hold, then fade) but its own wording, colour (the same bluish-
-## white as GhostTuning.auto_drop_flash_color, tying it visually to the
-## auto-drop flash game/GhostPreview.play_auto_drop_flash() already plays for
-## this same event) and durations (hud_relocated_message_duration/
-## hud_relocated_fade_duration), so tuning the reject message never silently
-## detunes this one.
+## A manual click over enemy territory is refused (show_reject(), nothing spawns), but
+## the interval boundary still auto-drops the held piece and
+## PlacementRules.closest_valid_point() relocates it into the player's own territory,
+## often only metres from the refused spot; without a message that read as "the
+## rejected placement still happened". Reuses show_reject()'s label/tween shape (hold,
+## then fade) with its own wording, colour (the bluish-white of
+## GhostTuning.auto_drop_flash_color, tying it to the auto-drop flash) and durations
+## (hud_relocated_message_duration/hud_relocated_fade_duration), so tuning the reject
+## message never detunes this one.
 func show_relocated() -> void:
 	# DECISION: the forced auto-drop is a neutral correction, not a refusal, so it
 	# takes the mint Callout face with a check; a refusal stays alert + cross.
@@ -726,28 +659,21 @@ func show_relocated() -> void:
 	_play_reject_icon(HudFeedbackIconTable.Feedback.RELOCATED, ghost_tuning.hud_relocated_fade_duration)
 
 
-## DECISION (ui/hud/HUD.gd): a separate results screen (built
-## elsewhere) now owns the "who won" announcement, so this in-HUD banner must
-## no longer appear. Keeps computing/storing the text and tint (harmless, and
-## a cheap seam for a future results-screen consumer that might want to read
-## %WinnerLabel's text instead of duplicating this formatting) but no longer
-## flips `visible` -- Events.match_won -> _on_match_won() -> show_winner()
-## still fires every time exactly as before, it just no longer has any
-## on-screen effect. %WinnerLabel itself is left in ui/hud/HUD.tscn rather than
-## deleted so a future revert or the results-screen work doesn't need to
-## re-add the node.
+## DECISION (ui/hud/HUD.gd): a separate results screen owns the "who won"
+## announcement, so this in-HUD banner never appears. Keeps computing/storing the text
+## and tint (a cheap seam for a results-screen consumer) but never flips `visible`:
+## Events.match_won -> _on_match_won() -> show_winner() still fires with no on-screen
+## effect. %WinnerLabel stays in ui/hud/HUD.tscn so reviving the banner needs no new node.
 func show_winner(team_id: int, color: Color) -> void:
 	_winner_label.text = PlayerNames.winner_text(ResultsScreen.team_number_in(_resolved_team_numbers(), team_id))
 	_winner_label.modulate = color
 	_winner_label.visible = false
 
 
-## the local player's own claim feedback beside the pending-
-## special indicator (_refresh_special_indicator() above) -- same fade shape
-## as show_reject() (a hold, then a fade), but its own durations
-## (GiftConfig.claim_toast_visible_duration_s/claim_toast_fade_duration_s)
-## since a claim toast and a rejection message read very differently and
-## shouldn't be forced to share one timing.
+## The local player's own claim feedback beside the pending-special indicator
+## (_refresh_special_indicator() above): same fade shape as show_reject() but its own
+## durations (GiftConfig.claim_toast_visible_duration_s/claim_toast_fade_duration_s),
+## since a claim toast and a rejection read differently and shouldn't share one timing.
 func show_gift_toast(special_id: StringName) -> void:
 	_toasts.push(
 		("Special queued: %s" % _special_display_name(special_id)).to_upper(),
@@ -758,12 +684,10 @@ func show_gift_toast(special_id: StringName) -> void:
 
 # --- Events reactions --------------------------------------------------------
 
-## in hot-seat this really is a turn changing hands
-## (Match.advance_turn()); outside hot-seat net/MatchNet.gd's own
-## EVENT_TURN_CHANGED handler already substitutes this instance's local slot
-## before re-emitting the signal (see its DECISION), so either way `slot_id`
-## is exactly the slot this HUD should now read — the gate below only picks
-## which wording it shows.
+## In hot-seat this really is a turn changing hands (Match.advance_turn()); outside
+## hot-seat net/MatchNet.gd's EVENT_TURN_CHANGED handler already substitutes this
+## instance's local slot before re-emitting, so either way `slot_id` is the slot this
+## HUD should read; the gate below only picks which wording it shows.
 func _on_turn_changed(slot_id: int) -> void:
 	if _hot_seat_active():
 		set_active_slot(slot_id, _color_for_slot(slot_id))
@@ -790,10 +714,8 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	show_reject(reason)
 
 
-## same per-viewer-HUD filter as _on_placement_rejected() above
-## -- every other slot's own relocation is none of this instance's business.
-## `point` (the disk-local landing spot) is not shown; the message text alone
-## already says everything this placeholder HUD needs to (M7 owns richer art).
+## Same per-viewer-HUD filter as _on_placement_rejected() above. `point` (the
+## disk-local landing spot) is not shown; the message text alone says what this HUD needs.
 func _on_placement_relocated(slot_id: int, _point: Vector2) -> void:
 	if slot_id != _active_slot:
 		return
@@ -808,9 +730,9 @@ func _on_territory_share_changed(shares: PackedFloat32Array) -> void:
 ## Pure formatting of a replicated mode state: "1: 3.5  2: 1.0   2:05", or ""
 ## when the state has no scores. Static so tests need no scene.
 ##
-## Lobby rework: `team_numbers` is MatchConfig.team_numbers of a
-## match whose lobby teams were host-resolved (dense team id -> the number the
-## team had in the lobby); empty = the "team id + 1" label.
+## `team_numbers` is MatchConfig.team_numbers of a match whose lobby teams were
+## host-resolved (dense team id -> the number the team had in the lobby); empty = the
+## "team id + 1" label.
 static func mode_score_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var scores: Array = state.get("scores", []) as Array
 	if scores.is_empty():
@@ -862,8 +784,8 @@ static func row_value_text(state: Dictionary, team: int, share: float) -> String
 
 
 ## the line under the rows. CTF and Reach the Sky put their score in the rows, so
-## nothing is left for them; Domination and Elimination keep their existing summary line. The round
-## clock is no longer part of it: UiRoundTimer in the top-right corner owns it. Pure.
+## nothing is left for them; Domination and Elimination keep their summary line. The
+## round clock is UiRoundTimer's, not part of it. Pure.
 static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array = PackedInt32Array()) -> String:
 	var mode_id: int = int(state.get("mode_id", -1))
 	if mode_id != MatchConfig.GameMode.CAPTURE_THE_FLAG and mode_id != MatchConfig.GameMode.REACH_THE_SKY:
@@ -906,9 +828,8 @@ func extrapolate_capture(delta: float, hold_seconds: float) -> void:
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
 ## winners list. Single-winner payloads leave show_winner()'s text untouched.
 func _on_match_results_ready(results: Dictionary) -> void:
-	# the results screen owns the end of a match; the whole HUD
-	# (previews, stats, timer ring, countdown, minimap) steps aside so nothing
-	# draws over its card.
+	# The results screen owns the end of a match; the whole HUD (previews, stats, timer
+	# ring, countdown, minimap) steps aside so nothing draws over its card.
 	visible = false
 	var shared: String = ResultsScreen.shared_winners_text(results, _resolved_team_numbers())
 	if not shared.is_empty():
@@ -953,18 +874,15 @@ func show_eliminated_banner(slot_id: int) -> void:
 	_eliminated_label.visible = true
 
 
-## an instant refresh for the local slot the moment it claims
-## a crate, rather than waiting up to one frame for _process()'s poll below.
-## _refresh_special_indicator() re-reads Match itself (not the signal's own
-## special_id) so this handler and the per-frame poll can never disagree about
-## what the queue currently holds.
+## An instant refresh for the local slot the moment it claims a crate, rather than
+## waiting up to one frame for _process()'s poll below.
+## _refresh_special_indicator() re-reads Match itself (not the signal's special_id) so
+## this handler and the per-frame poll can never disagree about the queue.
 ##
-## "b": Events.gift_claimed's second argument
-## is the RESOLVED RECIPIENT slot -- the one teammate nearest the crate, not
-## every teammate. This HUD toast is still a team-wide notification (a
-## teammate should see "your team claimed a special" even on the frame they
-## don't hold it), so both sides of the comparison go through
-## _team_of_slot(): the active slot's own team against the recipient's team.
+## Events.gift_claimed's second argument is the RESOLVED RECIPIENT slot -- the one
+## teammate nearest the crate, not every teammate. This toast is still a team-wide
+## notification (a teammate should see "your team claimed a special" even on the frame
+## they don't hold it), so both sides of the comparison go through _team_of_slot().
 func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_update_gift_markers()
 	if slot_id == _active_slot and match_provider != null:
@@ -992,12 +910,11 @@ func _update_gift_markers() -> void:
 
 # --- Helpers -----------------------------------------------------------------
 
-## whether Events.turn_changed still means "it is this slot's
-## turn" (set_active_slot(), "Player N's turn" wording) rather than "this is
-## the local slot" (set_local_slot(), no turn wording). config == null (no
-## match built yet, or a bare HUD-only test with no FakeMatch.config set)
-## behaves like real-time play, matching every other read of Match.config
-## elsewhere in this file (_color_for_slot, _is_slot_eliminated).
+## Whether Events.turn_changed still means "it is this slot's turn"
+## (set_active_slot(), "Player N's turn" wording) rather than "this is the local slot"
+## (set_local_slot(), no turn wording). config == null (no match built yet, or a bare
+## HUD-only test) behaves like real-time play, like every other read of Match.config
+## in this file.
 func _hot_seat_active() -> bool:
 	if match_provider == null:
 		return false
@@ -1005,23 +922,17 @@ func _hot_seat_active() -> bool:
 	return running_config != null and bool(running_config.hot_seat)
 
 
-## Forwards the running match's MapDef to the minimap
-## "P5 -- HUD minimap + reskin", "no new signal needed" — Events.
-## territory_share_changed already fires once the match's territory state
-## exists, which is after MatchConfig is set). Null-safe the same way
-## _hot_seat_active()/_team_of_slot() are: match_provider == null or no config
-## yet (pre-match, or a bare HUD-only test with no FakeMatch.config set) just
-## leaves the minimap in its initial hidden/disabled state. Only pushes
-## set_map_def() when the map actually changed, so this doesn't re-frame the
-## minimap on every placement's territory-share tick.
+## Forwards the running match's MapDef to the minimap. Null-safe like
+## _hot_seat_active()/_team_of_slot(): match_provider == null or no config yet
+## (pre-match, or a bare HUD-only test) leaves the minimap in its initial
+## hidden/disabled state. Only pushes set_map_def() when the map actually changed, so
+## a placement's territory-share tick doesn't re-frame the minimap.
 ##
-## also forwards the live TerritoryRaster/player colors/home
-## positions every tick (Minimap.set_match_state(), cheap reference stores —
-## see its own doc), guarded by has_method(&"raster") the same way
-## set_feed_seconds()'s feed_time_left() read is: the real Match autoload has
-## raster(), tests/support/FakeMatch.gd does not, and a bare HUD-only
-## instance should just leave the minimap showing whatever it already had
-## rather than error.
+## Also forwards the live TerritoryRaster/player colors/home positions every tick
+## (Minimap.set_match_state(), cheap reference stores), guarded by has_method(&"raster")
+## like set_feed_seconds()'s feed_time_left() read: the real Match autoload has
+## raster(), tests/support/FakeMatch.gd does not, and a bare HUD-only instance should
+## leave the minimap as it was rather than error.
 func _update_minimap() -> void:
 	if match_provider == null:
 		return
@@ -1182,7 +1093,7 @@ func _resize_top_left_backplate() -> void:
 	)
 
 
-## H1: every transient HUD message (reject, relocated, gift claimed) goes through
+## Every transient HUD message (reject, relocated, gift claimed) goes through
 ## the one bottom-centre ToastStack, which sits above the HELD/NEXT card row so it never covers the
 ## cards, the gift card's key prompt or the minimap. Audit: the 3-2-1/GO numeral is a persistent
 ## state display (stays centred); the winner banner is hidden (the results screen owns it); the
@@ -1204,7 +1115,7 @@ func _style_toast(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 	_set_callout(label, face, glyph)
 
 
-## / Stackfall Arcade: the one Callout look every transient HUD
+## The one Callout look every transient HUD
 ## message shares (claim toast, refusal, relocation): a block face (alert / mint / rim) with a
 ## dark lip, an ink icon tile on its left (HudCallout) and uppercase ink text. The face is the
 ## label's own "normal" stylebox, so a single modulate fade fades face, tile and text together.
@@ -1251,10 +1162,9 @@ func _set_callout(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 		tile.glyph = glyph
 
 
-## Spec M2 3: no dedicated Events signal exists for "home flag
-## lost", so — like PlayerController — the HUD reads the already-documented
-## PlayerSlot.home_flag_alive straight off Match.slot() instead of inventing
-## a signal on a contract this package doesn't own.
+## No dedicated Events signal exists for "home flag lost", so, like PlayerController,
+## the HUD reads the already-documented PlayerSlot.home_flag_alive straight off
+## Match.slot().
 func _is_slot_eliminated(slot_id: int) -> bool:
 	if match_provider == null:
 		return false
@@ -1289,8 +1199,7 @@ func _resolved_team_numbers() -> PackedInt32Array:
 
 ## Colour of TEAM `team_id` (goal capture ring, winner banner, share bars). With
 ## host-resolved lobby teams a team shows territory_colors()[team] (its lowest
-## slot's colour); otherwise team id t is slot t, exactly the old
-## _color_for_slot(team_id) read.
+## slot's colour); otherwise team id t is slot t, so _color_for_slot(team_id).
 func _color_for_team(team_id: int) -> Color:
 	if match_provider != null:
 		var running_config: Variant = match_provider.config
@@ -1302,8 +1211,7 @@ func _color_for_team(team_id: int) -> Color:
 
 
 ## Whether team `team_id` is out. Resolved lobby teams: every slot of the team has
-## lost its home flag (team ids no longer equal slot ids); otherwise the old
-## "slot t is team t" read.
+## lost its home flag (team ids no longer equal slot ids); otherwise "slot t is team t".
 func _is_team_eliminated(team_id: int) -> bool:
 	if match_provider == null:
 		return false
@@ -1329,14 +1237,12 @@ func _color_for_slot(slot_id: int) -> Color:
 	return SlotColors.resolve(slot_id, live_color, default_palette.player_colors)
 
 
-## PlayerSlot.display_name when Match has built one, otherwise
-## the same "Player N" fallback set_active_slot always used — pre-match (no
-## slots exist yet) and in a bare HUD-only test with no FakeMatch.slots_by_id
-## entry.
+## PlayerSlot.display_name when Match has built one, otherwise the "Player N" fallback
+## (pre-match, and in a bare HUD-only test with no FakeMatch.slots_by_id entry).
 ##
-## a human seat's replicated roster name wins over the slot's own
-## label (the host never copies roster names onto its PlayerSlots, so its slots
-## still read "Player N"); bots keep their slot label.
+## A human seat's replicated roster name wins over the slot's own label (the host never
+## copies roster names onto its PlayerSlots, so its slots still read "Player N"); bots
+## keep their slot label.
 func _name_for_slot(slot_id: int) -> String:
 	var peer_name: String = String(_names().name_for_slot(slot_id))
 	if match_provider != null:
@@ -1366,15 +1272,12 @@ func _names() -> Variant:
 	return name_provider if name_provider != null else Net
 
 
-## The pending-special queue
-## indicator, next to the next-shape preview. Reads `_active_slot` the exact
-## same way the previews do (set_active_slot/set_local_slot both drive it, so
-## this follows hot-seat's acting slot or the local slot outside hot-seat,
-## whichever _active_slot currently is) rather than tracking a slot of its
-## own. No dedicated "a special was consumed at spawn" signal exists yet
-## (P2c, not landed on this branch) so, like set_feed_progress/set_height/
-## set_locked above, _process() polls it every frame; _on_gift_claimed()
-## above only shortcuts the wait for the specific claim case.
+## The pending-special queue indicator, next to the next-shape preview. Reads
+## `_active_slot` the same way the previews do (hot-seat's acting slot, or the local
+## slot outside hot-seat) rather than tracking a slot of its own. No dedicated "a
+## special was consumed at spawn" signal exists, so, like set_feed_progress/set_height/
+## set_locked above, _process() polls it every frame; _on_gift_claimed() above only
+## shortcuts the wait for the specific claim case.
 func _refresh_special_indicator() -> void:
 	_refresh_gift_slot()
 	if match_provider == null or _active_slot < 0:
@@ -1430,22 +1333,19 @@ func _special_display_text(head_id: StringName, count: int) -> String:
 	return display_name
 
 
-## MatchGifts.PENDING_SPECIAL_ID is the placeholder every claim draws until
-## P2c installs the real weighted SpecialDef pick (autoload/match/
-## MatchGifts.gd's own DECISION) -- shown as the generic "Special" rather than
-## its literal id ("special_pending".capitalize() would misleadingly read
-## "Special Pending"). A real special's id is shown as its own
-## String.capitalize() (snake_case -> Title Case), e.g. "jumping_bean" ->
-## "Jumping Bean" -- placeholder art only, M7 replaces this with real icons.
+## MatchGifts.PENDING_SPECIAL_ID is the placeholder every claim draws until the real
+## weighted SpecialDef pick is installed (autoload/match/MatchGifts.gd's own DECISION);
+## shown as the generic "Special" rather than its literal id ("special_pending"
+## .capitalize() would misleadingly read "Special Pending"). A real special's id is
+## shown as its own String.capitalize() (snake_case -> Title Case), e.g. "jumping_bean"
+## -> "Jumping Bean".
 func _special_display_name(head_id: StringName) -> String:
 	return DisplayNames.special(head_id)
 
 
-## mockup 08: one row per player, a small team-colored
-## diamond glyph (the shared SlotDiamond) beside a slim rounded
-## territory-share bar. each bar is ONE ui/menus/ShareBar.gd control
-## drawing its track, the team-colored fill inside it and a sheen. Replaces
-## the old boxy SharesPanel background entirely.
+## One row per player: a small team-colored diamond glyph (the shared SlotDiamond)
+## beside a slim rounded territory-share bar. Each bar is ONE ui/menus/ShareBar.gd
+## control drawing its track, the team-colored fill inside it and a sheen.
 func _ensure_share_row_count(count: int) -> void:
 	while _share_rows.size() < count:
 		var row: HBoxContainer = HBoxContainer.new()
@@ -1557,13 +1457,12 @@ func _on_timer_ring_draw() -> void:
 	var size: Vector2 = _timer_ring.size
 	var radius: float = minf(size.x, size.y) * 0.5 - RING_LINE_WIDTH
 	var center: Vector2 = size * 0.5
-	# "subtle drop shadow": a soft
-	# offset dark disc behind everything else, then the round hud-plate itself
+	# A soft offset dark disc behind everything else, then the round hud-plate itself
 	# so the numeral always has contrast against a bright sky.
 	_timer_ring.draw_circle(center + DROP_SHADOW_OFFSET, radius - RING_LINE_WIDTH * 0.5, DROP_SHADOW_COLOR)
 	_timer_ring.draw_circle(center, radius - RING_LINE_WIDTH * 0.5, hud_visual_tuning.panel_background_color)
 	var locked: bool = _locked or _qol_paused
-	# Stackfall Arcade (FeedTimer): the active player's colour counts down around a
+	# FeedTimer: the active player's colour counts down around a
 	# disc-500 track; the last `timer_hurry_seconds` turn ring and number rim gold; a release lock
 	# draws one full `locked` circle (disc-500), with no text.
 	var hurry: bool = _feed_seconds_left >= 0.0 and _feed_seconds_left <= hud_visual_tuning.timer_hurry_seconds
@@ -1654,11 +1553,11 @@ func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 		_set_glue_active(false)
 
 
-## the player-stat rows and minimap otherwise fill in only on
-## the first territory_share_changed, which the solver emits once play begins, so
-## the countdown showed an empty stats panel and no minimap. Called on
-## LOADING/COUNTDOWN (the HUD is loaded behind the Ready screen): builds one
-## zero-share row per team and pushes the map/raster/homes to the minimap.
+## The player-stat rows and minimap otherwise fill in only on the first
+## territory_share_changed, which the solver emits once play begins, so the countdown
+## would show an empty stats panel and no minimap. Called on LOADING/COUNTDOWN (the
+## HUD is loaded behind the Ready screen): builds one zero-share row per team and
+## pushes the map/raster/homes to the minimap.
 func prime_pregame_widgets() -> void:
 	if match_provider == null:
 		return

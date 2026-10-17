@@ -1,10 +1,8 @@
 class_name GraphicsSettingsTab
 extends FocusScrollContainer
-## the Options "Graphics" page
-## (UiSection / UiRow / UiDropdown / UiToggle / UiSegmentMeter).
+## The Options "Graphics" page (UiSection / UiRow / UiDropdown / UiToggle / UiSegmentMeter).
 ##
-## DECISION ("limit it to the options games usually include", research delegated to
-## the orchestrator): the page shows the common PC-game set only -- Graphics preset, Anti-aliasing,
+## DECISION: the page shows the common PC-game set only -- Graphics preset, Anti-aliasing,
 ## Render scale, Upscaler, Shadows, Reflections, Bloom, Volumetric fog, Environment detail, Block
 ## outlines, Frame cap (+ Fixed fps while the cap is Fixed). Shadows, Reflections and Environment
 ## detail are COMBINED rows: one tier writes several GraphicsPreset fields at once (tables in
