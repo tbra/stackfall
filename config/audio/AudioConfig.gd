@@ -1,25 +1,21 @@
 class_name AudioConfig
 extends Resource
-## Typed event -> filename mapping for autoload/Sfx.gd's sound effects
-## (assets-audio package). Filenames are lowercase so this file never has to
-## special-case casing at runtime.
-##
+## Typed event -> filename mapping for autoload/Sfx.gd's sound effects.
+## Filenames are lowercase so this file never has to special-case casing at
+## runtime.
 ## Loaded once as config/audio/audio_config.tres. SFX live in assets/audio/sfx/ and
 ## are referenced by filename only; a missing file is a silent no-op. Owner-created
 ## music is imported and committed under assets/audio/music/, referenced by the
 ## typed AudioStream playlists below, and included in exported builds.
 
-## Random thud on block impact (game/blocks/Block.gd's contact signal), one of five
-## originals so repeated landings don't sound identical.
+## Random thud on block impact (game/blocks/Block.gd's contact signal), one of
+## several originals so repeated landings don't sound identical.
 @export var thud_files: Array[String] = [
 	"thud1.wav", "thud2.wav", "thud3.wav", "thud4.wav",
 ]
 @export var rejected_file: String = "placement_rejected_pcm.wav"
-## Menu select/hover (a script removed in (see git history)) replace select.wav
-## and button_hover_pcm.wav. The drop cue replaced block_placed.wav (a sustained
-## tone that read as a sharp note over the music); after the
-## round-two candidates block_drop_a/b.wav (a script removed in (see git history)) replace
-## block_release.wav. Unused candidates stay in assets/audio/sfx for A/B.
+## Menu select / hover / block-drop cues. Unused candidate files stay in
+## assets/audio/sfx for A/B.
 @export var click_file: String = "ui_select.wav"
 @export var start_game_file: String = "start_game.mp3"
 @export var hover_file: String = "ui_hover.wav"
@@ -89,17 +85,14 @@ func playlist_track_count(context: StringName) -> int:
 ## gets close to capturing"). Sfx.gd crossfades between
 ## this and music_stem_tense_file as Events.goal_capture_progress moves past
 ## music_tense_progress_threshold. Defaults to the same file as music_file
-## (still EVENT_MUSIC's own source below) so a checkout with no tense asset
-## installed sounds identical to before this field existed.
+## (EVENT_MUSIC's source below) so a checkout with no tense asset installed sounds
+## unchanged.
 @export var music_stem_calm_file: String = "music_calm.mp3"
 
-## DECISION (config/audio/AudioConfig.gd): no real "tense" mix of
-## the original score has shipped yet (asset risk:
-## note) -- this points at a filename nothing installs today so
-## Sfx.tense_stem_available() is false out of the box and the adaptive
-## crossfade quietly does nothing until a real file lands here, the same
-## "supported absence" this file's own header documents for the whole
-## assets-audio package.
+## DECISION: no real "tense" mix of the original score has shipped, so this names
+## a file nothing installs: Sfx.tense_stem_available() is false and the adaptive
+## crossfade does nothing until a real file lands, the same "supported absence"
+## this file's header documents.
 @export var music_stem_tense_file: String = "music_tense.mp3"
 
 ## Crossfade duration (seconds) for Sfx's Tween between the calm and tense
@@ -116,8 +109,7 @@ func playlist_track_count(context: StringName) -> int:
 ## tense stem is active, so progress hovering right at the threshold doesn't
 ## flap the crossfade back and forth every frame. The *rising* edge (calm ->
 ## tense) always uses the plain threshold above; only the falling edge
-## (tense -> calm) is relaxed by this margin. 0.0 reproduces the old
-## single-threshold behaviour exactly.
+## (tense -> calm) is relaxed by this margin. 0.0 gives a single threshold.
 @export var music_tense_release_margin: float = 0.1
 
 ## DECISION (config/audio/AudioConfig.gd): the local slot's own gift
@@ -166,8 +158,7 @@ func playlist_track_count(context: StringName) -> int:
 ## Pitch multiplier while a RIVAL holds (<1 = lower, darker).
 @export_range(0.5, 1.0) var claim_rival_pitch_scale: float = 0.9
 
-## M4 specials (spec 1.6): registered now so the event map is complete, no
-## hooks call these yet -- the specials themselves aren't implemented.
+## Event-map files for the specials (spec 1.6).
 @export var bomb_file: String = "bomb.wav"
 @export var rocket_file: String = "rocket.wav"
 @export var volcano_file: String = "volcano.wav"
@@ -176,18 +167,17 @@ func playlist_track_count(context: StringName) -> int:
 @export var breakage_file: String = "eliminated.wav"
 @export var creak_file: String = "creak.wav"
 
-## Special activation cues (spec 1.10 "Specials have distinct warning sounds",
-## ): SpecialDef.id -> filename in assets/audio/sfx, played on
-## Events.special_triggered on the host and on every client. An id with no
-## entry, or a missing file, is silent. Rendered by a script removed in (see git history).
-## DECISION: special_triggered fires on the Rocket's detonation,
-## not its launch, so the Rocket gets a blast cue; rocket.wav (a launch
-## whistle) stays registered under EVENT_ROCKET with no caller.
-## DECISION: Earthquake, Magnet and Jumping Bean are
-## timed specials whose special_triggered marks the END of their window, so they
-## have no entry here: Earthquake and Magnet loop for the whole window
-## (special_loop_files) and the bean sounds on every hop (bean_hop_file).
-## Bomb, Rocket and Paintball use the round-two "_a" candidates.
+## Special activation cues (spec 1.10 "Specials have distinct warning sounds"):
+## SpecialDef.id -> filename in assets/audio/sfx, played on Events.special_triggered
+## on the host and on every client. An id with no entry, or a missing file, is
+## silent.
+## DECISION: special_triggered fires on the Rocket's detonation, not its launch, so
+## the Rocket gets a blast cue; rocket.wav (a launch whistle) stays registered
+## under EVENT_ROCKET with no caller.
+## DECISION: Earthquake, Magnet and Jumping Bean are timed specials whose
+## special_triggered marks the END of their window, so they have no entry here:
+## Earthquake and Magnet loop for the whole window (special_loop_files) and the
+## bean sounds on every hop (bean_hop_file).
 @export var special_cue_files: Dictionary[StringName, String] = {
 	&"anvil": "anvil.wav",
 	&"black_hole": "black_hole.wav",
@@ -236,14 +226,11 @@ func playlist_track_count(context: StringName) -> int:
 ## Decibel offset applied to a thud at or above impact_speed_loud.
 @export var impact_loud_db_offset: float = 0.0
 
-## DECISION: effects were near-inaudible because the bundled
-## wavs sat at -29..-12 dBFS window-RMS AND this baseline was -16 dB (6 dB
-## below the music's). a script removed in (see git history) --normalize now brings every
-## bundled wav to -16 dBFS short-window RMS (peak <= -1 dBFS); with this -3 dB
-## baseline a full-scale cue lands near -19 dBFS RMS, ~5 dB above the music bed
-## (music_volume_db below on ~-14 dBFS-RMS mastered tracks, never measured:
-## no ffmpeg here). There is no AudioServer bus layout and Sfx uses plain 2D
-## AudioStreamPlayers, so there is no bus or distance attenuation on top.
+## DECISION: bundled wavs are normalised to -16 dBFS short-window RMS (peak <= -1
+## dBFS), so with this -3 dB baseline a full-scale cue lands near -19 dBFS RMS,
+## ~5 dB above the music bed (music_volume_db below, on ~-14 dBFS-RMS mastered
+## tracks; never measured, no ffmpeg here). There is no AudioServer bus layout and
+## Sfx uses plain 2D AudioStreamPlayers, so no bus or distance attenuation on top.
 @export var sfx_volume_db: float = -3.0
 @export var music_volume_db: float = -10.0
 
@@ -295,12 +282,9 @@ func playlist_track_count(context: StringName) -> int:
 @export var max_simultaneous: int = 8
 
 ## Kill switch for impact-thud detection (game/blocks/Block.gd's velocity-based
-## _physics_process check, no contact_monitor -- an earlier revision's
-## contact_monitor approach cost ~5-7 ms/physics step at 300 blocks
-## (tests/bench/bench_rain.gd), well over budget, and was replaced by
-## comparing frame-to-frame linear_velocity instead, which re-measured within
-## noise. This flag stays as a plain kill switch in case that ever needs
-## disabling again without another Block.gd edit.
+## _physics_process check, no contact_monitor: contact_monitor cost ~5-7 ms/physics
+## step at 300 blocks, tests/bench/bench_rain.gd). Disables it without a Block.gd
+## edit.
 @export var impacts_enabled: bool = true
 
 const EVENT_THUD: StringName = &"thud"
