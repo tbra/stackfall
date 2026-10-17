@@ -488,11 +488,6 @@ func clear_circles() -> void:
 	)
 
 
-## Circles currently uploaded (the shader's circle_count uniform).
-func circle_count() -> int:
-	return _circle_count
-
-
 ## Goal discs currently uploaded (the shader's goal_count uniform).
 func goal_count() -> int:
 	return _goal_count

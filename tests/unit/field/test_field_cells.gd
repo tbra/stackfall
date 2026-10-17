@@ -163,11 +163,8 @@ func test_set_hole_cells_opens_the_named_cells() -> void:
 	assert_gt(opened.size(), 0)
 
 	field.set_hole_cells(opened, PackedInt32Array())
-	assert_eq(
-		field.pending_toggle_count(),
-		opened.size(),
-		"Nothing is applied until the backlog drains."
-	)
+	for cell: int in opened:
+		assert_false(field.is_hole_cell(cell), "Cell %d: nothing is applied until the backlog drains." % cell)
 	await wait_physics_frames(1)
 
 	for cell: int in opened:

@@ -254,10 +254,6 @@ func set_tilt_enabled(enabled: bool) -> void:
 		_push_level_pose_to_physics()
 
 
-func tilt_enabled() -> bool:
-	return _tilt_enabled
-
-
 ## PHYSICAL_BALANCE tilt (M6 B5, spec 1.7/1.2). autoload/match/MatchLifecycle.gd's
 ## _apply_tilt_mode() is the only caller; a no-op combination with
 ## _tilt_enabled left false, same as apply_tilt_impulse() above.
@@ -522,16 +518,6 @@ func _physical_balance_torque_accel() -> Vector2:
 			torque += Vector2(sample.z, -sample.x) * sample.y
 		_physical_balance_torque = torque
 	return _physical_balance_torque * tilt_tuning.physical_balance_torque_gain
-
-
-## Read-only: the latched torque sum _physical_balance_torque_accel() above
-## last computed from a non-empty settled_torque_samples() (follow-up; see that function's DECISION). Tests use this to check the latch
-## holds or zeroes without waiting out a real wake/resettle cycle; nothing in
-## game code reads it -- Field's own spring already gets it, scaled by
-## tilt_tuning.physical_balance_torque_gain, through
-## _physical_balance_torque_accel()'s return value.
-func physical_balance_torque() -> Vector2:
-	return _physical_balance_torque
 
 
 ## Clamps _tilt's magnitude to tilt_tuning.max_tilt_deg regardless of how many
@@ -847,17 +833,12 @@ func _enqueue_toggle(cell: int, disabled: bool) -> void:
 ## requested or the applied state. It reports the *applied* one — a cell the
 ## raster opened this frame still reads false while it waits in the backlog —
 ## because that is the only question this node can answer that TerritoryRaster
-## cannot, and pending_toggle_count() exists precisely to expose the gap. No
+## cannot. No
 ## rule reads it; rule code asks TerritoryRaster.is_hole_index().
 func is_hole_cell(index: int) -> bool:
 	if index < 0 or index >= _hole_applied.size():
 		return false
 	return _hole_applied[index] == 1
-
-
-## Toggles requested but not yet applied.
-func pending_toggle_count() -> int:
-	return _toggle_cells.size() - _toggle_head
 
 
 func _drain_toggles() -> void:
@@ -1115,7 +1096,8 @@ func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int
 		flag.visuals = visuals
 		flag.position = Vector3(local.x, 0.0, local.y)
 		add_child(flag)
-		flag.set_claim_ring(MatchContext.current().goal_zone_visual_radius())  # always drawn (claim radius with the experiment on, else goal_zone_radius)
+		var context: MatchContext = MatchContext.current()
+		flag.set_claim_ring(context.goal_zone_visual_radius())  # always drawn (claim radius with the experiment on, else goal_zone_radius)
 		_configure_goal_timer(flag)
 		_goal_flags.append(flag)
 
@@ -1159,10 +1141,6 @@ func _ensure_beacon_body() -> AnimatableBody3D:
 		material.friction = tuning.disk_friction
 		_beacon_body.physics_material_override = material
 		add_child(_beacon_body)
-	return _beacon_body
-
-
-func beacon_body() -> AnimatableBody3D:
 	return _beacon_body
 
 

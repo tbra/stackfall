@@ -245,16 +245,17 @@ static func _capture_field(main: Node, out: Dictionary) -> void:
 	var field_kinds: Array = _child_kinds(field)
 	field_kinds.erase("AnimatableBody3D")
 	out["field.children"] = field_kinds
-	var beacon_body: Node = field.beacon_body()
+	var beacon_body: Node = field.get_node_or_null("BeaconBody")
 	out["field.beacon_shapes"] = _child_kinds(beacon_body).size() if beacon_body != null else 0
 	out["field.tilt"] = _v2(field.tilt_vector())
-	out["field.tilt_enabled"] = field.tilt_enabled()
+	out["field.tilt_enabled"] = _bp(field, &"_tilt_enabled")
 	out["field.mirrored"] = _bp(field, &"_mirrored")
 	out["field.physical_balance"] = _bp(field, &"_physical_balance_enabled")
-	out["field.balance_torque"] = _v2(field.physical_balance_torque())
+	out["field.balance_torque"] = _v2(_p(field, &"_physical_balance_torque") as Vector2)
 	out["field.registry_linked"] = _p(field, &"_registry") != null
 	out["field.applied_holes"] = field.applied_hole_count()
-	out["field.pending_toggles"] = field.pending_toggle_count()
+	var queued_toggles: PackedInt32Array = _p(field, &"_toggle_cells") as PackedInt32Array
+	out["field.pending_toggles"] = queued_toggles.size() - int(_p(field, &"_toggle_head"))
 	out["field.home_flags"] = field.home_flags().size()
 	out["field.goal_flags"] = field.goal_flags().size()
 	out["field.origin"] = _v3(field.global_transform.origin)
@@ -264,7 +265,7 @@ static func _capture_field(main: Node, out: Dictionary) -> void:
 	if overlay != null:
 		out["field.overlay_wet"] = _fp(overlay, &"_wet_amount")
 		out["field.overlay_wet_sheen"] = _fp(overlay, &"_wet_sheen_add")
-		out["field.overlay_circles"] = overlay.circle_count()
+		out["field.overlay_circles"] = int(_p(overlay, &"_circle_count"))
 		out["field.overlay_goals"] = overlay.goal_count()
 		out["field.overlay_has_raster"] = _p(overlay, &"_raster") != null
 		out["field.overlay_churning"] = _bp(overlay, &"_churning")
@@ -528,7 +529,7 @@ static func _capture_wiring(main: Node, out: Dictionary) -> void:
 	var counts: Dictionary = {}
 	if main.is_inside_tree():
 		var field: Field = _p(main, &"_field") as Field
-		var skip: Node = field.beacon_body() if field != null else null
+		var skip: Node = field.get_node_or_null("BeaconBody") if field != null else null
 		_count_nodes(main, "", skip, counts)
 	for key: Variant in counts.keys():
 		out["wiring.node.%s" % key] = counts[key]

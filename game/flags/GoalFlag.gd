@@ -451,18 +451,6 @@ func set_multiplier(held_count: int) -> void:
 	_refresh_timer_text()
 
 
-func timer_text() -> String:
-	if _timer_label == null:
-		return ""
-	return _timer_label.text if _timer_label.visible else ""
-
-
-func multiplier_chip_text() -> String:
-	if _multiplier_label == null:
-		return ""
-	return _multiplier_label.text if _multiplier_label.visible else ""
-
-
 func _tick_timer(delta: float) -> void:
 	if _timer_counts_up:
 		if _control >= 0:
