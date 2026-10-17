@@ -94,13 +94,45 @@ class HandbackTests(unittest.TestCase):
     def test_oversized_success_is_denied(self):
         message = json.dumps({"bead": "Bontago-123", "verdict": "done",
                               "candidate": "/work/wt/a@abc123", "files": "core/rules.gd",
-                              "checks": "test_rules: 12/12 pass", "finding": "x" * 1100,
+                              "checks": "test_rules: 12/12 pass", "finding": "x" * 1800,
                               "next": "integrate", "record": "bd:Bontago-123"})
         result = run_hook("validate_worker_handback.py", {
             "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
             "tool_input": {"message": message},
         })
         self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def _denied(self, report):
+        result = run_hook("validate_worker_handback.py", {
+            "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+            "tool_input": {"message": json.dumps(report)},
+        })
+        return result is not None and result["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def _base(self, **over):
+        base = {"bead": "Bontago-123", "verdict": "done", "candidate": "/work/wt/a@abc123",
+                "files": "core/rules.gd", "checks": "test_rules: 12/12 pass",
+                "finding": "Fixed overlap scoring", "next": "integrate", "record": "bd:Bontago-123"}
+        base.update(over)
+        return base
+
+    def test_multi_bead_shapes_pass(self):
+        for bead, record in (("Bontago-epic.30,Bontago-epic.34,Bontago-epic.31", "bd:Bontago-epic.34"),
+                             ("Bontago-epic.39+Bontago-epic.37", "bd:Bontago-epic.39,bd:Bontago-epic.37"),
+                             ("Bontago-epic.38 + Bontago-epic.29", "bd:Bontago-epic.38;bd:Bontago-epic.29"),
+                             ("Bontago-epic.60-64", "bd:Bontago-epic.60"),
+                             ("Bontago-epic.43", "bd:Bontago-epic.43 and bd:Bontago-epic.28"),
+                             ("Bontago-epic.27", "bd:Bontago-epic.27 (also commented on epic.36)")):
+            self.assertFalse(self._denied(self._base(bead=bead, record=record)), bead)
+
+    def test_multi_bead_record_must_still_point_at_an_assigned_bead(self):
+        self.assertTrue(self._denied(self._base(bead="Bontago-1,Bontago-2", record="bd:Bontago-3")))
+        self.assertTrue(self._denied(self._base(record="bd:Bontago-123 and a long story " + "y" * 200)))
+
+    def test_raised_caps_accept_mid_size_reports(self):
+        self.assertFalse(self._denied(self._base(finding="x" * 1500)))
+        self.assertFalse(self._denied(self._base(verdict="partial", finding="x" * 2000)))
+        self.assertTrue(self._denied(self._base(verdict="partial", finding="x" * 2400)))
 
     def test_plain_stop_blocks_once(self):
         event = {"hook_event_name": "SubagentStop", "last_assistant_message": "verbose report"}

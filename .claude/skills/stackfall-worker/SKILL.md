@@ -65,4 +65,5 @@ Next exact action / blocked authority or prerequisite:
 - `verdict` is one of done | review | partial | blocked | failed. Reviewers use `review` and start `finding` with APPROVE or CHANGES.
 - `checks` lists every check the brief named as PASS, FAIL or NOT RUN; a named check that did not run makes the verdict partial, never done.
 - `files` names changed or inspected paths, or `none`; `next` is an exact action; `record` is `bd:<same id>` after the checkpoint.
-- Limits: 1100 characters for done/review, 1500 for partial/blocked/failed, at most 8 lines; after a failed comment, up to 3200 characters. No markdown fence, large logs or repeated report.
+- Limits: 1800 characters for done/review, 2400 for partial/blocked/failed, at most 8 lines; after a failed comment, up to 3200 characters. These limits override the SubagentHandback tool text about putting everything in one report: full detail goes in the bead comment and the handback points to it. No markdown fence, large logs or repeated report.
+- A brief naming several beads: `bead` may list the ids joined with `,` `;` `+` `&` or `and`, and `record` is `bd:<one of them>` optionally followed by more `bd:` ids; comment on each assigned bead.

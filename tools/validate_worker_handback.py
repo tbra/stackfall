@@ -19,6 +19,24 @@ VERDICTS = FAILURE_VERDICTS | {"done", "review"}
 # verdict, candidate, next and record stay plain strings because they are matched.
 STRUCTURED = ("files", "checks", "finding")
 ALIASES = {"finding": ("findings", "decisive_finding"), "next": ("next_action",)}
+# DECISION (handback caps): replaying 84 first handbacks, 59 were denied as oversize
+# (done median 1800 chars, review 1250, partial 1950; p75 done 1950, partial 2200) and
+# 9 for multi-bead briefs. The eight required keys with paths and named checks already
+# take ~700-1000 chars, so 1100 was below legitimate content, not below log dumps.
+# Caps are now 1800 done/review and 2400 partial/blocked/failed (about the 60th and
+# 85th percentile of recorded reports): still ~2-3x smaller than a log dump, and
+# anything longer must move to the bead comment. comment-failed keeps 3200.
+# Multi-bead briefs may name several ids in `bead` (separated by , ; + & / and) or a
+# range like Bontago-epic.60-64; `record` must begin with bd:<one of those ids>, optionally
+# followed by more bd: ids and one short parenthetical.
+LIMIT_OK = 1800
+LIMIT_FAIL = 2400
+LIMIT_COMMENT_FAILED = 3200
+MAX_LINES = 8
+_ID = r"Bontago-[A-Za-z0-9.]+?(?:-\d+)?"
+_SEP = r"\s*(?:,|;|\+|&|/|and)?\s*"
+_BEADS = re.compile(r"(%s)(?:%s%s)*" % (_ID, _SEP, _ID))
+_RECORD_TAIL = re.compile(r"(?:%s(?:bd:)?%s)*(?:\s*\(.{0,120}\))?" % (_SEP, _ID))
 _FENCE = re.compile(r"^```[A-Za-z]*[ \t]*\r?\n(.*?)\r?\n```$", re.S)
 
 
@@ -54,18 +72,22 @@ def problem(message):
     missing = [key for key in REQUIRED if not _filled(_field(report, key), key in STRUCTURED)]
     if missing:
         return "Missing nonempty fields: %s (use these exact key names; files, checks and finding may be strings or short lists)." % ", ".join(missing)
-    if not re.fullmatch(r"Bontago-[A-Za-z0-9.]+", report["bead"]):
-        return "The bead field must name the assigned Bontago issue."
+    bead = _BEADS.fullmatch(report["bead"].strip())
+    if not bead:
+        return "The bead field must name the assigned Bontago issue (several ids may be joined with , ; + & / or 'and')."
+    ids = re.findall(r"Bontago-[A-Za-z0-9.]+?(?=-\d+(?:\s|,|;|\+|&|/|$)|[\s,;+&/]|$)", report["bead"].strip())
     verdict = report["verdict"].lower()
     if verdict not in VERDICTS:
         return "Verdict must be done, review, partial, blocked, or failed."
     comment_failed = report["record"].startswith("comment-failed:") and len(report["record"]) > len("comment-failed:")
-    if report["record"] != "bd:" + report["bead"] and not (comment_failed and verdict in FAILURE_VERDICTS):
-        return "Record must be bd:<assigned-issue-id> after commenting, or comment-failed:<error> for a failed handback."
-    limit = 3200 if comment_failed else 1500 if verdict in FAILURE_VERDICTS else 1100
+    record = report["record"].strip()
+    record_ok = any(record.startswith("bd:" + one) and _RECORD_TAIL.fullmatch(record[len("bd:" + one):]) is not None for one in ids)
+    if not record_ok and not (comment_failed and verdict in FAILURE_VERDICTS):
+        return "Record must be bd:<assigned-issue-id> (extra bd: ids allowed for a multi-bead brief) after commenting, or comment-failed:<error> for a failed handback."
+    limit = LIMIT_COMMENT_FAILED if comment_failed else LIMIT_FAIL if verdict in FAILURE_VERDICTS else LIMIT_OK
     if len(message) > limit:
         return "Handback is %d characters; limit is %d for verdict=%s. Keep decisive candidate, files, checks, finding and next action here; put full detail in the Bead comment. If the comment failed, use verdict=blocked and record=comment-failed:<error>." % (len(message), limit, verdict)
-    if message.count("\n") > 8:
+    if message.count("\n") > MAX_LINES:
         return "Use compact JSON (at most 8 lines)."
     return None
 

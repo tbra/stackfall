@@ -26,13 +26,13 @@ class LintInstructionsTest(unittest.TestCase):
 
     def test_marker_in_its_home_passes(self):
         self.write("CLAUDE.md", "pass `--windowed --position 10000,10000` always\n")
-        self.write(".claude/skills/stackfall-worker/SKILL.md", "Limits: 1100 characters\n")
+        self.write(".claude/skills/stackfall-worker/SKILL.md", "Limits: 1800 characters\n")
         self.assertEqual(self.rules(), [])
 
     def test_restated_marker_outside_its_home_fails(self):
         self.write("CLAUDE.md", "--position 10000,10000\n")
         self.write(".claude/agents/stackfall-implementer.md", "x\n--position 10000,10000\n")
-        self.write(".claude/skills/stackfall-auto-run/SKILL.md", "fit 1100 characters\n")
+        self.write(".claude/skills/stackfall-auto-run/SKILL.md", "fit 1800 characters\n")
         self.assertEqual(sorted(self.rules()), [
             ("handback limits", ".claude/skills/stackfall-auto-run/SKILL.md"),
             ("off-screen window flags", ".claude/agents/stackfall-implementer.md"),
@@ -48,7 +48,7 @@ class LintInstructionsTest(unittest.TestCase):
 
     def test_only_instruction_files_are_scanned(self):
         self.write("README.md", "--position 10000,10000\n")
-        self.write("docs/NOTES.md", "1100 characters\n")
+        self.write("docs/NOTES.md", "1800 characters\n")
         self.assertEqual(self.rules(), [])
         self.assertEqual(lint_instructions.main(["--path", self.root]), 0)
 
@@ -57,7 +57,7 @@ class LintInstructionsTest(unittest.TestCase):
         import hook_lint_instructions as hook
         self.write("CLAUDE.md", "--position 10000,10000\n")
         self.write(".claude/agents/stackfall-implementer.md", "--position 10000,10000\n")
-        self.write(".claude/skills/stackfall-auto-run/SKILL.md", "fit 1100 characters\n")
+        self.write(".claude/skills/stackfall-auto-run/SKILL.md", "fit 1800 characters\n")
         found = hook.findings_for(os.path.join(self.root, ".claude", "agents", "stackfall-implementer.md"))
         self.assertEqual([rule for rule, _line, _homes in found], ["off-screen window flags"])
         self.assertEqual(hook.findings_for(os.path.join(self.root, "CLAUDE.md")), [])
