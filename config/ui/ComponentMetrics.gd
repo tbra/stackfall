@@ -6,7 +6,7 @@ extends Resource
 ## the tokens do not name. Not an F4 tuning-panel class (no tuning_panel_hints entry needed).
 
 ## The one height of every row item (button, icon button, toggle, stepper, dropdown, badge,
-## meter). Replaces LobbyLayoutTuning.row_control_height_px (36) and seat_control_height_px (32).
+## meter).
 @export var row_height_px: int = 36
 ## Width of the label column of a UiRow.
 @export var row_label_width_px: int = 180

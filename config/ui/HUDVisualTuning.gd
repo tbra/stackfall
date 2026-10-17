@@ -1,26 +1,19 @@
 class_name HUDVisualTuning
 extends Resource
-## Tunables for the HUD minimap and reskin, and its
-## restyle: the minimap's framing/refresh cadence and the
-## layered-pastel/coral -> mockup-08 palette used to restyle ui/hud/HUD.tscn
-## CLAUDE.md: "No magic
-## numbers... every tunable value belongs in a Resource under res://config/".
+## Tunables for the HUD minimap and reskin: the minimap's framing/refresh
+## cadence and the palette used to restyle ui/hud/HUD.tscn.
 ##
 ## This is presentation only, same split TerritoryVisuals.gd documents for
 ## the disk: nothing here changes a rule. HUD.gd's own layout geometry
 ## (offset_left/offset_top pixel positions in ui/hud/HUD.tscn) stays inline,
-## following that scene's own pre-M7 DECISION that pure screen-space drawing
+## following that scene's own DECISION that pure screen-space drawing
 ## geometry is not worth resourcing -- only the minimap's world-space
-## framing and the reskin's *colors* (the part the mockups actually specify)
-## live here.
+## framing and the reskin's *colors* live here.
 ##
 ## Loaded once as config/ui/hud_visual_tuning.tres.
 
-## -- Minimap (minimap "reflecting the sky depending
-## on the camera angle" -- see ui/hud/Minimap.gd's own class doc DECISION for the
-## fix: a 2D draw straight from the live TerritoryRaster, camera-relative, no
-## SubViewport/Camera3D at all, so there is no camera angle for it to depend
-## on) -----------------------------------------------------------------------
+## -- Minimap (a 2D draw straight from the live TerritoryRaster, camera-relative,
+## no SubViewport/Camera3D; see ui/hud/Minimap.gd's class DECISION) ------------
 ## Square pixel size of the minimap's rendered image/Control in the HUD
 ## corner.
 @export var minimap_size_px: int = 168
@@ -29,9 +22,8 @@ extends Resource
 ## never clipped at the minimap's edge.
 @export var minimap_zoom_margin_m: float = 6.0
 ## How often the minimap's image is rebuilt from the live TerritoryRaster, in
-## Hz. Throttled the same way the old SubViewport was (a corner-of-the-screen
-## top-down readout does not need every-frame freshness), just driving a CPU
-## image rebuild now instead of a render pass.
+## Hz. Throttled because a corner-of-the-screen top-down readout does not need
+## every-frame freshness.
 @export var minimap_refresh_hz: float = 8.0
 ## Radius, in HUD pixels, of the small diamond beacon glyph the minimap
 ## draws at each slot's home-flag position.
@@ -46,8 +38,7 @@ extends Resource
 @export var minimap_gift_landed_color: Color = Color(1.0, 0.69, 0.27)
 @export var minimap_gift_outline_color: Color = Color(0.08, 0.09, 0.12, 0.95)
 ## Border stroke width, in pixels, of the minimap's own frame ring --
-## a thin rim ("thin light-grey rim (~2px)", not a
-## thick gold ring).
+## a thin rim, not a thick gold ring.
 @export var minimap_frame_border_width_px: float = 3.0
 ## Stackfall Arcade: the minimap's soft rim glow, the one place the HUD glows. Blur
 ## size in pixels and opacity of the glow cast by the gold rim ring.
@@ -66,8 +57,7 @@ extends Resource
 @export var panel_corner_radius_px: float = 16.0
 ## Border stroke width, in pixels, for every reskinned HUD panel.
 @export var panel_border_width_px: float = 2.0
-## Thin light-grey rim color framing the minimap (
-## replaces the earlier thick amber ring).
+## Thin light-grey rim color framing the minimap.
 @export var minimap_frame_color: Color = Color(0.85, 0.87, 0.90, 0.85)
 ## Dark, semi-translucent void behind the minimap's rendered disk, matching
 ## the disk's own base tone. Used both as the minimap panel's backdrop
@@ -82,11 +72,11 @@ extends Resource
 ## How much brighter/more saturated a team's territory fill is drawn on the
 ## minimap than its own base color (HSV value/saturation multipliers), so
 ## even a small owned patch reads clearly at minimap scale (
-## "brighter/more saturated fill... so even small shares read").
+## brighter/more saturated fill, so even small shares read.
 @export var minimap_territory_saturation_boost: float = 1.2
 @export var minimap_territory_value_boost: float = 1.15
 
-## -- Top-left per-player rows (mockup 08: two-tone diamond glyph + slim
+## -- Top-left per-player rows (two-tone diamond glyph + slim
 ## share bar, no boxy panel) --------------------------------------------------
 ## Side length, in pixels, of the small faceted diamond glyph drawn beside
 ## each player's territory-share bar ("~20 px tall").
@@ -107,12 +97,11 @@ extends Resource
 ## Subtle light sheen drawn across the top of every share bar's track, for
 ## the same soft-highlight read the mockup's bars have.
 @export var hud_share_bar_highlight_color: Color = Color(1.0, 1.0, 1.0, 0.18)
-## Thin light inner border stroke around each share bar's track ("thin light inner border").
+## Thin light inner border stroke around each share bar's track.
 @export var hud_share_bar_border_color: Color = Color(1.0, 1.0, 1.0, 0.22)
 
-## subdued, low-contrast dark-glass cards with light ink, so
-## the persistent HUD never competes with the 3D scene (the bright
-## backgrounds behind previews and stats were distracting).
+## Subdued, low-contrast dark-glass cards with light ink, so
+## the persistent HUD never competes with the 3D scene.
 @export var surface_color: Color = Color(0.04, 0.06, 0.09, 0.42)
 @export var surface_border_color: Color = Color(1.0, 1.0, 1.0, 0.12)
 @export var ink_color: Color = Color(0.96, 0.95, 0.90)
