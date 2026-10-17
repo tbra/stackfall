@@ -17,6 +17,11 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               tools/run_gut.ps1, .gutconfig.json, addons/gut/) the candidate tree's own
               <wt>/tools/full_gate.py is ALSO run on the temp worktree ("gate2"); both must be GREEN
               and both verdict lines are reported.
+  5b enet     after a GREEN gate, when the merged diff (base..merge) touches net/ or tests/enet/ (ENET_PATHS),
+              tools/run_enet_set.py runs the ENet harness set on the temp worktree (one tree-killing
+              wall-clock limit and godot_slots slots per harness); any harness FAIL, missing `ENET RESULT`
+              line or timeout fails step `enet` like a red gate. Skipped when nothing there changed or
+              with --no-game-code; `--skip-enet "<reason>"` skips it and logs the reason.
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
@@ -54,6 +59,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import probe_lint  # noqa: E402
+import run_enet_set  # noqa: E402
 import prune_worktrees  # noqa: E402
 import repo_paths  # noqa: E402
 
@@ -372,6 +378,36 @@ def touches_gate_runner(paths):
     return False
 
 
+ENET_PATHS = ("net/", "tests/enet/")
+
+
+def touches_enet(paths):
+    """True when any changed path is under net/ or tests/enet/."""
+    for p in paths:
+        p = p.strip().replace("\\", "/")
+        if p.startswith(ENET_PATHS):
+            return True
+    return False
+
+
+def enet_step(ctx, wt, changed, skip_reason, say):
+    """Step 5b: run the ENet harness set when the merged diff touches net/ or tests/enet/.
+    Raises StepFailed('enet') on any non-PASS harness or an empty set."""
+    if not touches_enet(changed):
+        say("enet      skip merged diff does not touch net/ or tests/enet/")
+        return
+    if skip_reason:
+        say("enet      skip REQUESTED: %s" % skip_reason)
+        return
+    out_dir = os.path.join(ctx.log_dir, "enet")
+    results = run_enet_set.run_set(wt, out_dir, say=lambda l: say("  " + l))
+    green, line = run_enet_set.summary(results)
+    say("enet      %s %s" % ("ok  " if green else "FAIL", line))
+    if not green:
+        bad = ["%s (%s)" % (r[0], r[2] or r[1]) for r in results if r[1] != "PASS"] or ["no harnesses found"]
+        raise StepFailed("enet", "%s; logs %s" % ("; ".join(bad)[:400], out_dir))
+
+
 def parse_verdict(text):
     """GREEN only when every verdict line is `FULL GATE GREEN`; a missing line is RED."""
     found = VERDICT_RE.findall(text)
@@ -624,6 +660,7 @@ def integrate(args, ctx, say, res):
                 raise StepFailed("gate", "candidate gate runner verdict %s; log %s" % (verdict2, log2))
         else:
             say("gate2     skip merged diff does not touch the gate runner")
+        enet_step(ctx, wt, changed, getattr(args, "skip_enet", ""), say)
     else:
         say("gate      skip not game code")
     res["verdict"] = verdict
@@ -734,6 +771,8 @@ def main(argv):
     # the gate defaults to 2 shards instead of full_gate.py's cpu-based auto count.
     ap.add_argument("--gate-shards", type=int, default=2,
                     help="parallel Godot shards for the full gate (default 2; 0 = full_gate.py auto)")
+    ap.add_argument("--skip-enet", default="", metavar="REASON",
+                    help="skip the ENet harness set (step enet) for a net-touching batch; the reason is logged")
     ap.add_argument("--allow-probes", action="store_true",
                     help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
     # DECISION: opt-in rather than automatic, so a bead held by a live

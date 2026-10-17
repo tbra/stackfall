@@ -261,6 +261,65 @@ class Tests(unittest.TestCase):
         err, _, _ = run(fake)
         self.assertEqual(err.step, "ff")
 
+    def _enet(self, changed, results, **kw):
+        fake = Fake({"gate_touched": (0, changed)})
+        out, res, err = [], {}, None
+        with mock.patch.object(ib, "run_cmd", fake),                 mock.patch.object(ib.run_enet_set, "run_set", return_value=results) as rs:
+            try:
+                ib.integrate(args_for(dry_run=True, **kw), ib.Ctx(tempfile.gettempdir()), out.append, res)
+            except ib.StepFailed as e:
+                err = e
+        return err, out, rs
+
+    PASS2 = [("qol", "PASS", "", 1.0, "/l"), ("rocket", "PASS", "", 1.0, "/l")]
+
+    def test_enet_runs_when_net_touched(self):
+        for changed in ("net/session.gd\n", "tests/enet/qol_enet.gd\n"):
+            err, out, rs = self._enet(changed, self.PASS2)
+            self.assertIsNone(err)
+            rs.assert_called_once()
+            self.assertTrue([l for l in out if "ENET SET GREEN" in l])
+
+    def test_enet_skipped_when_not_touched(self):
+        err, out, rs = self._enet("core/a.gd\nui/net_panel.gd\n", self.PASS2)
+        self.assertIsNone(err)
+        rs.assert_not_called()
+        self.assertTrue([l for l in out if l.startswith("enet") and "skip" in l])
+
+    def test_enet_fail_line_fails_step(self):
+        err, _, _ = self._enet("net/a.gd\n", [("qol", "PASS", "", 1.0, "/l"), ("rocket", "FAIL", "host: fail marker", 2.0, "/l")])
+        self.assertEqual(err.step, "enet")
+        self.assertIn("rocket", err.detail)
+
+    def test_enet_missing_result_line_fails_step(self):
+        v, d = ib.run_enet_set.parse_result("RKTENET host result=PASS\n")
+        self.assertEqual((v, d), ("FAIL", "no ENET RESULT line"))
+        err, _, _ = self._enet("net/a.gd\n", [("qol", v, d, 1.0, "/l")])
+        self.assertEqual(err.step, "enet")
+
+    def test_enet_empty_set_fails(self):
+        err, _, _ = self._enet("net/a.gd\n", [])
+        self.assertEqual(err.step, "enet")
+
+    def test_enet_skip_flag_logs_reason(self):
+        err, out, rs = self._enet("net/a.gd\n", self.PASS2, skip_enet="harness host busy")
+        self.assertIsNone(err)
+        rs.assert_not_called()
+        self.assertTrue([l for l in out if "harness host busy" in l])
+
+    def test_enet_not_run_after_red_gate(self):
+        fake = Fake({"gate_touched": (0, "net/a.gd\n"), "gate": (1, "FULL GATE RED: 1/2\n")})
+        with mock.patch.object(ib, "run_cmd", fake), mock.patch.object(ib.run_enet_set, "run_set") as rs:
+            with self.assertRaises(ib.StepFailed) as cm:
+                ib.integrate(args_for(dry_run=True), ib.Ctx(tempfile.gettempdir()), lambda l: None, {})
+        self.assertEqual(cm.exception.step, "gate")
+        rs.assert_not_called()
+
+    def test_enet_result_parsing(self):
+        p = ib.run_enet_set.parse_result
+        self.assertEqual(p("x\nENET RESULT PASS\n"), ("PASS", ""))
+        self.assertEqual(p("ENET RESULT FAIL: host: no pass marker\n"), ("FAIL", "host: no pass marker"))
+
     def test_dry_run_and_no_game_code(self):
         fake = Fake()
         err, _, _ = run(fake, dry_run=True)
