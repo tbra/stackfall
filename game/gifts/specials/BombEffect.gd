@@ -5,10 +5,9 @@ extends SpecialEffect
 ## blocks flying away from the centre of the explosion." Impacts never set it off; a
 ## chain trigger from a neighbouring blast still detonates it early.
 ##
-## Timeline: the Bomb blinks for
-## `blink_duration_s` from the moment it is dropped, then ExplosionFx blasts. That is
-## `behavior.age() >= blink_duration_s` on the host; the blink visual is derived from
-## the same clock on every peer (GiftBlink.start_for_gift, no RPC).
+## Timeline: the Bomb blinks for `blink_duration_s` from the moment it is dropped, then
+## ExplosionFx blasts (`behavior.age() >= blink_duration_s` on the host); the blink visual
+## is derived from the same clock on every peer (GiftBlink.start_for_gift, no RPC).
 ##
 ## DECISION: the clock starts at the drop (spawn), not at landing.
 ## Clients cannot see a landing (their copy of the body is frozen kinematic and reports
@@ -32,7 +31,7 @@ extends SpecialEffect
 @export var blink_tuning: GiftBlinkTuning = preload("res://config/gifts/specials/fx/gift_blink_tuning.tres")
 
 ## Blast shape: radius, peak delta-v, falloff, upward bias, per-body cap. Mass independent
-## (ExplosionFx), unlike the old kg*m/s impulse that did nothing to an 8 kg block.
+## (ExplosionFx).
 @export var blast: ExplosionTuning = ExplosionTuning.new()
 
 ## block.set_meta() key: the host-side blink was already started for this carrier, so the

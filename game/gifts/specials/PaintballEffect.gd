@@ -3,11 +3,10 @@ extends SpecialEffect
 ## The gift is the host-simulated glob. Its impact/fuse splashes a
 ## bounded sphere of real block colliders and converts each by net ID.
 ##
-## : a Paintball is not thrown. When the intent carried
-## a validated camera forward (MatchPlacement -> set_launch_direction) the glob flies a straight
-## line along it at `flight_speed_mps` once armed and splashes on its first contact (probe, as
-## RocketEffect). Without a direction (bots, plain drop) it behaves exactly as before: velocity
-## drop impact or fuse.
+## Aimed launch: when the intent carries a validated camera forward (MatchPlacement ->
+## set_launch_direction) the glob flies a straight line along it at `flight_speed_mps`
+## once armed and splashes on its first contact (probe, as RocketEffect). Without a
+## direction (bots, plain drop) it splashes on a velocity-drop impact or the fuse.
 
 @export_range(0.5, 20.0, 0.1) var splash_radius_m: float = 3.5
 

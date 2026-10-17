@@ -4,12 +4,11 @@ extends SpecialEffect
 ## hops").
 ##
 ## Lifecycle: needs_landing() makes SpecialBehavior run a LandedProbe and call
-## physics_tick() only once the carrier has landed. The old `block.sleeping` gate
-## is gone: on a tilting disc with an awake island Jolt never sleeps the body, so
-## the bean never started and the fuse ended it silently. Once landed, every
+## physics_tick() only once the carrier has landed (not Jolt `sleeping`: on a tilting
+## disc with an awake island the body never sleeps). Once landed, every
 ## hop_interval_s of landed time (frame-rate independent: driven by
 ## behavior.landed_age()) the bean punches a territory hole at the position it is
-## about to leave through HolePunch (a no-op under HoleMode.OFF, 
+## about to leave through HolePunch (a no-op under HoleMode.OFF;
 ## the dissolve of blocks over the hole is HoleDissolver's job) and
 ## kicks itself into the next hop. The effect ends effect_lifetime_s() after
 ## landing; detonate() is a no-op because the hopping already ran tick by tick.
@@ -30,7 +29,7 @@ extends SpecialEffect
 ## nothing needs it to be).
 ##
 ## DECISION (config/gifts/specials/jumping_bean.tres): arm_impulse is 10.0 and
-## fuse_timeout_s 20.0, kept from review fix. impact_triggers()
+## fuse_timeout_s 20.0. impact_triggers()
 ## vetoes decel-based impact activation entirely, so a hop's own
 ## landing can never trigger the bean; a nearby explosion still chains into it.
 
@@ -39,10 +38,10 @@ extends SpecialEffect
 
 ## Horizontal speed (m/s) applied in a random direction on every hop, one physics
 ## tick AFTER the vertical kick (written while still touching the
-## disc, the contact friction ate it and the bean hopped straight up).
+## disc, contact friction would eat it and the bean would hop straight up).
 @export var hop_horizontal_speed: float = 11.0
 
-## Seconds from landing to the FIRST hop (the owner saw ~5 s idle).
+## Seconds from landing to the FIRST hop.
 @export var first_hop_delay_s: float = 0.6
 
 ## Seconds between the following hops.
@@ -66,8 +65,8 @@ extends SpecialEffect
 @export var centre_spread_deg: float = 70.0
 
 ## Bean-specific landing probe: a bouncing/rolling bean on a tilting
-## disc never drops below LandedProbe's default 0.5 m/s, so it only "landed" at the 5 s
-## timeout. Looser speed, shorter hold and a 1 s ceiling start the hopping promptly.
+## disc never drops below LandedProbe's default 0.5 m/s, so it would only "land" at the
+## 5 s timeout. Looser speed, shorter hold and a 1 s ceiling start the hopping promptly.
 @export var landed: LandedTuning = LandedTuning.new()
 
 ## block.set_meta() key: landed-age from which the next hop may start (while grounded).

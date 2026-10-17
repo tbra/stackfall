@@ -48,13 +48,12 @@ func try_bond(other: Node3D) -> bool:
 	return true
 
 
-## DECISION (follow-up A): the old joint version bonded the charged block
-## to every body it touched, so a block bridging two stacks stuck to both. After the first fuse
-## the block is a shapeless follower, so for `fuse_window_s` the contacts of the CHARGED block's
-## own shapes on the carrier are fused too (default 0.25 s ~ the first settle; 0 = first tick
-## only), then GlueDrops frees itself. Only the charged block's shapes count (joint parity): a
-## body touching some other member of the group is not fused, and the disc anchors the group
-## only when the charged block's own shape touches it.
+## DECISION: bonding to every touched body would glue a block bridging two stacks to
+## both. After the first fuse the block is a shapeless follower, so for `fuse_window_s`
+## the contacts of the CHARGED block's own shapes on the carrier are fused too (default
+## 0.25 s ~ the first settle; 0 = first tick only), then GlueDrops frees itself. Only the
+## charged block's shapes count: a body touching some other member of the group is not
+## fused, and the disc anchors the group only when the charged block's own shape touches it.
 func _begin_window() -> void:
 	if _window_left >= 0.0:
 		return
@@ -129,7 +128,7 @@ func _other_window_open(carrier: FusedBody) -> bool:
 	return false
 
 
-## "Bonded" now means "already in the same fused body".
+## A bond means "already in the same fused body".
 func _has_bond(a: Block, b: PhysicsBody3D) -> bool:
 	var carrier: RigidBody3D = a.fused_carrier()
 	if carrier == null:

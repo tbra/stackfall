@@ -10,7 +10,7 @@ extends SpecialEffect
 ## no per-activation state; the release Timer is a child node of each frozen
 ## block (a second Freeze on an already frozen block restarts that timer).
 ##
-## DECISION (explosions/Magnet): Freeze deliberately wins. The hold is keyed
+## DECISION: Freeze deliberately wins. The hold is keyed
 ## by FREEZE_REASON, and SpecialPhysics.wake_and_impulse() releases only
 ## Block.FREEZE_REASON_STABLE, so a frozen block ignores blasts and pulls (an
 ## impulse on a STATIC body is a no-op; wake_and_impulse() skips it) until the
@@ -25,15 +25,15 @@ const TIMER_NAME: StringName = &"FreezeReleaseTimer"
 const RIDER_NAME: StringName = &"FreezeFieldRider"
 
 
-## DECISION (review): the Freeze hold is KINEMATIC, not STATIC,
+## DECISION: the Freeze hold is KINEMATIC, not STATIC,
 ## and rides the Field. A STATIC body does not follow the tilting
 ## AnimatableBody3D disc, so held blocks floated or were swept. Each held
 ## block stores its field-local transform at hold time and this child
 ## re-applies field.global_transform * local every physics tick the disc moved.
 ## Unlike the stable-block hold (StableBlockManager releases it on any disc
 ## motion, spec 2.7), a Freeze hold is NOT released by a tilt: Freeze is
-## defensive, so the tower tilts with the disc as one rigid piece. Moved from
-## _physics_process, the node's interpolated visual follows without jitter.
+## defensive, so the tower tilts with the disc as one rigid piece. The rider runs
+## from _physics_process so the node's interpolated visual follows without jitter.
 class FieldRider:
 	extends Node
 	var field: Node3D

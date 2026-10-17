@@ -65,18 +65,10 @@ func tick(delta: float) -> void:
 	_sweep_capture(space, delta, radius_scale)
 
 
-## reproduced in the real gift demo flow, tests/unit/
-## test_black_hole_gift_demo_flow.gd: the old capture was RadialPull's 3D sphere of
-## a 0.8 m core radius around the hole, measured to each block's ORIGIN. The hole sits at
-## the carrier's origin, i.e. on the disc surface, and a Block's origin is the middle
-## of its BOTTOM face (BlockFactory: colliders are built above the shape's
-## bottom_center() pivot). Pulled cubes tumble, so their origin rides 0.5 m (on a side)
-## to 1.0 m (upside down) above the disc, and a second layer is 1.0 m+ up: once the
-## first few cubes dissolved, the rest jammed in the core with their origins 1.1-1.5 m
-## from the centre and were pulled forever. The capture volume is therefore a
-## horizontal radius plus a vertical band around the centre, measured to each block's
-## collision centre (orientation independent), and a body must stay inside
-## capture_hold_s.
+## Capture is a horizontal radius plus a vertical band around the centre, measured to
+## each block's collision centre, and a body must stay inside capture_hold_s. A Block's
+## origin is the middle of its bottom face and tumbling cubes ride 0.5-1.5 m above the
+## disc, so an origin-distance sphere left upper layers jammed in the core forever.
 func _sweep_capture(space: PhysicsDirectSpaceState3D, delta: float, radius_scale: float = 1.0) -> void:
 	var capture_radius: float = _effect.capture_radius_m * radius_scale
 	var capture_height: float = _effect.capture_height_m * radius_scale
