@@ -3,23 +3,19 @@ extends Node
 ## Match configuration and the host-side state machine (spec 2.4).
 ##
 ## Lobby -> Loading -> Countdown(3s) -> Playing -> (SuddenDeath) -> End -> Lobby.
-## M2 implements Lobby, Loading, Countdown, Playing and End; SuddenDeath is
-## M6.
 ##
 ## **This node is the authority.** Spec 2.6: "The host is authoritative, and
 ## only the host runs physics. Clients send intents. The host checks every
 ## intent before acting on it." Everything that decides an outcome lives here
 ## or in core/: the feed timers, the territory solve, the win check, and
-## request_place(). Even in M2's hot-seat, where every player is local, the
+## request_place(). Even in hot-seat, where every player is local, the
 ## controllers do not spawn blocks themselves; they call request_place() and
-## wait. M3a then only has to make request_place() reachable over an RPC,
-## with no rule code to move.
+## wait.
 ##
 ## Signals are emitted on the Events bus rather than declared here, per
 ## CLAUDE.md's "use a global signal bus to decouple systems".
 ##
-## Pure refactor (no behaviour change): the state machine's
-## rules used to all live directly on this Node. They now live in four
+## The state machine's rules live in four
 ## RefCounted controllers under res://autoload/match/ -- MatchFeed (bags,
 ## held/next shapes, feed_seq, interval timers, the replicated feed mirror),
 ## MatchPlacement (request_place, pose validation, spawn/burn), MatchTerritory
@@ -27,23 +23,17 @@ extends Node
 ## territory mirror) and MatchLifecycle (the state machine itself, slots/
 ## teams, disconnect grace, hot-seat turns) -- each wired to this node via
 ## setup(self) in _ready() so none of them ever walks the scene tree to find
-## it. This file keeps every existing public method (and the private/debug
-## seams tests reach) as a one-line forward to whichever controller now owns
-## the logic, so nothing outside autoload/match/ had to change.
+## it. This file keeps every public method (and the private/debug seams tests
+## reach) as a one-line forward to whichever controller owns the logic.
 ##
-## DECISION (autoload/Match.gd): the class_name is
-## `MatchAutoload`, not `Match` -- Godot 4.7 refuses `class_name Match` outright
-## ("Class 'Match' hides an autoload singleton") since project.godot's
-## [autoload] section already binds the global identifier `Match` to this
-## script's singleton instance. `MatchAutoload` is the type every controller's
-## `_match: MatchAutoload` field and `setup(match: MatchAutoload)` uses to stay
-## statically typed (CLAUDE.md's "static typing everywhere"); the global name
-## `Match` is untouched and still resolves to the autoload singleton
-## everywhere it always has, so every existing `Match.foo()` call site outside
-## this package is unaffected.
+## DECISION (autoload/Match.gd): the class_name is `MatchAutoload`, not `Match`:
+## Godot 4.7 refuses `class_name Match` ("Class 'Match' hides an autoload
+## singleton") since the [autoload] section already binds `Match` to this
+## script's singleton. `MatchAutoload` is the type the controllers' `_match`
+## field and `setup(match)` use to stay statically typed.
 
-## Spec 2.4's states. The rules live in core/rules/MatchPhase.gd (D4);
-## the alias and the forwarding statics below keep every existing caller unchanged.
+## Spec 2.4's states. The rules live in core/rules/MatchPhase.gd; the alias
+## and the forwarding statics below keep callers unchanged.
 const State = MatchPhase.State
 
 
@@ -77,10 +67,8 @@ static func is_start_transition(from_state: int, to_state: int) -> bool:
 
 
 ## Spec 2.4: "Countdown(3s)". A fixed part of the state machine's shape, not a
-## lobby setting (spec 1.9's table doesn't list it) — kept as a named constant
-## here rather than in a Resource for the same reason
-## BlockOrientations.ORIENTATION_COUNT is a const: it isn't tunable, it's the
-## architecture (CLAUDE.md's "no magic numbers" targets tunables).
+## lobby setting (spec 1.9's table doesn't list it), so a named constant rather
+## than a Resource, like BlockOrientations.ORIENTATION_COUNT.
 const COUNTDOWN_SECONDS: float = MatchConfig.COUNTDOWN_SECONDS_DEFAULT
 
 ## The config the running match was started with. A duplicate of whatever was
@@ -97,24 +85,22 @@ var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 ## host gate below reads through this seam instead of naming `Net` directly.
 ## null means "the real Net", which is what every shipped build uses; a test
 ## assigns a double to this variable. Net.is_host() is true offline
-## too, so `if not _is_host(): return` changes nothing about M2's hot-seat.
+## too, so `if not _is_host(): return` changes nothing in hot-seat.
 var _net_provider: Variant = null
 
 ## Set by net/MatchNet.gd in its own _ready(). Match never calls rpc() and
-## never names MatchNet as a global (the integrator registers that autoload
-## after this one), so replication is a hook the membrane installs on itself:
-## null means "not networked", which is exactly the M2 and single-player case.
+## never names MatchNet as a global (that autoload is registered after this
+## one), so replication is a hook the membrane installs on itself:
+## null means "not networked" (single-player).
 var _replicator: Variant = null
 
-# DECISION (D5/D8): world nodes are held by their light bases (FieldBody, Node) so
+# DECISION: world nodes are held by their light bases (FieldBody, Node) so
 # this autoload does not compile the Field / BlockRegistry closure; Field-only API is called dynamically.
 var _field: FieldBody = null
 var _registry: Node = null
 var _blocks_parent: Node3D = null
 ## Sandbox may tune the cone projection or pause it for diagnostics. New
-## matches use the user-approved top-height cone projection by default.
-## (Value 0 was the removed linear per-block model, the
-## remaining values keep their numbers.)
+## matches use the top-height cone projection by default.
 const SANDBOX_TERRITORY_CONE: int = 1
 const SANDBOX_TERRITORY_PAUSED: int = 2
 const DEFAULT_TERRITORY_MODE: int = SANDBOX_TERRITORY_CONE
@@ -125,27 +111,26 @@ var _sandbox_cone_height_source: int = SandboxConeExperiment.HEIGHT_TOP
 var _sandbox_cone_base_mode: int = SandboxConeExperiment.BASE_ADDITIVE
 var _territory_cache_enabled: bool = true
 
-## The four controllers this file forwards to. Built and
-## wired in _ready() rather than at field-declaration time, so each one's
-## setup(self) can hand back a fully-constructed Match reference.
-## DECISION (S2c): the controllers are typed RefCounted and built from
-## LateScripts paths in late_activate(), so naming them here no longer compiles their closure into
-## the autoload (calls are dynamic; UNSAFE_* warnings are ignored project-wide).
+## The controllers this file forwards to, built in late_activate() so each
+## one's setup(self) receives a fully-constructed Match.
+## DECISION: they are typed RefCounted and built from LateScripts paths, so
+## naming them here does not compile their closure into the autoload (calls
+## are dynamic; UNSAFE_* warnings are ignored project-wide).
 var _feed: RefCounted = null
 var _placement: RefCounted = null
 var _territory: RefCounted = null
 var _lifecycle: RefCounted = null
 
-## M4 P1b: gift-crate spawn/claim/expire and the per-slot pending-special
+## Gift-crate spawn/claim/expire and the per-slot pending-special
 ## array. See autoload/match/MatchGifts.gd's own header for the split.
 var _gifts: RefCounted = null
 
-## per-slot match statistics and the results-screen payload
+## Per-slot match statistics and the results-screen payload
 ## builder. See autoload/match/MatchStats.gd's own header for the split and
 ## the full results payload contract.
 var _stats: RefCounted = null
 
-## host-scheduled weather events. See autoload/match/MatchWeather.gd.
+## Host-scheduled weather events. See autoload/match/MatchWeather.gd.
 var _weather: RefCounted = null
 var _cat: RigidBody3D = null  # a CatController
 var _gift_fx: Node = null  # a GiftFxPresenter
@@ -187,20 +172,20 @@ func is_late_active() -> bool:
 	return _late_active
 
 
-## facade contract before late_activate(). Read-only getters answer an
+## Facade contract before late_activate(). Read-only getters answer an
 ## idle LOBBY-equivalent default (state LOBBY, slot_count 0, team_of -1, null world objects, ...);
 ## no-op commands (abort_match, set_countdown_held, request_place, ...) do nothing. Mutators that
 ## must build state (start_match and every apply_replicated_*, a replicated packet needs the
 ## controllers) call this and activate synchronously.
 ## DECISION: lazy activation is the safety net; callers that know a match is coming (Host, Join,
-## Play, Sandbox, ...) should activate explicitly first so the cost is not paid mid-flow.
+## Play, Sandbox, ...) activate explicitly first so the cost is not paid mid-flow.
 func _ensure_active() -> void:
 	if not _late_active:
 		late_activate()
 
 
 ## Builds the controllers and the gift presenter (idempotent; Boot calls it through
-## LateScripts.activate_autoloads after prewarming). Same order as the former _ready().
+## LateScripts.activate_autoloads after prewarming).
 func late_activate() -> void:
 	if _late_active:
 		return
@@ -220,9 +205,8 @@ func late_activate() -> void:
 	_stats.setup(self)
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
-	# one presenter owns every per-gift client visual
-	# (Paintball splash, Black hole disc, ...); it subscribes to
-	# Events.special_triggered itself.
+	# One presenter owns every per-gift client visual (Paintball splash,
+	# Black hole disc, ...); it subscribes to Events.special_triggered itself.
 	_gift_fx = LateScripts.script(LateScripts.GIFT_FX_PRESENTER).new()
 	_gift_fx.name = "GiftFxPresenter"
 	add_child(_gift_fx)
@@ -307,16 +291,13 @@ func _on_cat_match_state_changed(_old: int, next: int) -> void:
 			end_cat(cat.activation_id)
 
 
-# --- Test/debug seams --------------------------------------
+# --- Test/debug seams -------------------------------------------------------
 #
-# tests/ and tools/ reach several of these directly (by grep of
-# `Match\._` and `Match\.debug_`): _held_shapes (index-assigned), _raster and
-# _solver (read, then a method called on the returned object), _territory_
-# tuning (unchanged -- see above, never moved off Match), and the private
-# methods below. Each forwards to the controller that now owns the field or
-# method, and — since Array/Object are reference types in GDScript — an
-# index-assignment through a get-only property still mutates the controller's
-# own storage, exactly as before the split.
+# tests/ and tools/ reach these directly: _held_shapes (index-assigned),
+# _raster and _solver (read, then a method called on the returned object) and
+# _territory_tuning. Each forwards to the controller that owns the field and,
+# since Array/Object are reference types in GDScript, an index-assignment
+# through a get-only property still mutates the controller's own storage.
 
 var _held_shapes: Array[BlockShape]:
 	get:
@@ -345,7 +326,7 @@ func _physics_process(delta: float) -> void:
 	elif not _is_host() and _lifecycle != null and is_live(state()):
 		_gifts.tick_client(delta)
 	PerfProbe.stop(&"gifts", probe_gifts)
-	# no-op unless a weather schedule is running.
+	# No-op unless a weather schedule is running.
 	var probe_weather: int = PerfProbe.start()
 	_weather.tick(delta)
 	PerfProbe.stop(&"weather", probe_weather)
@@ -364,8 +345,8 @@ func register_world(field: FieldBody, registry: Node, blocks_parent: Node3D) -> 
 	_blocks_parent = blocks_parent
 	if _registry != null:
 		# Spec 2.6: only the host simulates. A client's registry must not hand
-		# out net_ids of its own — the host's are the only ones that mean
-		# anything — and must not run the settled rule over frozen bodies.
+		# out net_ids of its own (the host's are the only ones that mean
+		# anything) and must not run the settled rule over frozen bodies.
 		_registry.set_host_authority(_is_host())
 
 
@@ -394,8 +375,7 @@ func blocks_parent() -> Node3D:
 
 ## Validity-guarded: Main frees its world without unregistering it, so
 ## between one match world's teardown and the next register_world() these
-## accessors would otherwise hand out a freed node (seen when
-## ui/debug/SandboxPanel.gd and game/player/PlayerController.gd read them from _ready()).
+## accessors would otherwise hand out a freed node.
 func field() -> FieldBody:
 	return _field if is_instance_valid(_field) else null
 
@@ -408,15 +388,14 @@ func set_replicator(replicator: Variant) -> void:
 
 
 ## net/MatchNet.gd, or null in a build with no networking. This is how a
-## scene node reaches the membrane without naming an autoload the integrator
-## registers after this one — and without a get_node("/root/...") path
-## (CLAUDE.md).
+## scene node reaches the membrane without naming an autoload registered
+## after this one, and without a get_node("/root/...") path.
 func replicator() -> Variant:
 	return _replicator
 
 
 ## True on the host **and offline** (Net.is_host()'s contract), so every gate
-## written against it leaves M2's single-PC behaviour exactly as it was.
+## written against it leaves single-PC behaviour unchanged.
 func _is_host() -> bool:
 	if _net_provider != null:
 		return bool(_net_provider.is_host())
@@ -434,7 +413,7 @@ func start_match(match_config: MatchConfig) -> void:
 	_sandbox_cone_height_source = SandboxConeExperiment.HEIGHT_TOP
 	_sandbox_cone_base_mode = SandboxConeExperiment.BASE_ADDITIVE
 	_territory_cache_enabled = true
-	# a forced-special drawer (Sandbox / gift demo) must not
+	# A forced-special drawer (Sandbox / gift demo) must not
 	# leak into a later real match. Sandbox installs its drawer after start,
 	# so resetting here for every non-sandbox start is safe; the weighted
 	# drawer is re-installed lazily at the first claim (_roster_ready reset).
@@ -466,7 +445,7 @@ func countdown_remaining() -> float:
 	return _lifecycle.countdown_remaining()
 
 
-## pause/resume the countdown's run-down (loading hand-off).
+## Pause/resume the countdown's run-down (loading hand-off).
 func set_countdown_held(held: bool) -> void:
 	if not _late_active:
 		return
@@ -503,11 +482,10 @@ func _process(delta: float) -> void:
 	match _lifecycle._state:
 		State.COUNTDOWN:
 			_lifecycle._tick_countdown(delta)
-			# . # DECISION: while Main holds the countdown for the
-			# loading screen, the loading readiness gate still needs its first
-			# applied territory result, which is otherwise only solved in PLAYING
-			# (it used to arrive during the old unconditional 3 s). Solve the
-			# empty field then; with no hold nothing changes.
+			# DECISION: while Main holds the countdown for the loading screen,
+			# the loading readiness gate still needs its first applied
+			# territory result, which is otherwise only solved in PLAYING.
+			# Solve the empty field then; with no hold nothing changes.
 			if _lifecycle.is_countdown_held():
 				_territory._tick_territory(delta)
 		State.PLAYING:
@@ -522,7 +500,7 @@ func _process(delta: float) -> void:
 			_lifecycle._tick_turn_based(delta)
 			_stats._tick(delta)
 		State.SUDDEN_DEATH:
-			# Spec 1.9 sudden death (M6 A3): normal play continues -- the same
+			# Spec 1.9 sudden death: normal play continues -- the same
 			# three ticks PLAYING runs -- plus the gift ramp / disk shrink /
 			# radius-8 tiebreak schedule in MatchLifecycle.
 			_lifecycle._tick_disconnect_grace(delta)
@@ -553,7 +531,7 @@ func slot(slot_id: int) -> PlayerSlot:
 
 
 ## The colour of `slot_id`: the live PlayerSlot.color, else the config palette,
-## else `fallback` (SlotColors.resolve owns the order D1).
+## else `fallback` (SlotColors.resolve owns the order).
 func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
 	var live: PlayerSlot = slot(slot_id) if _lifecycle != null else null
 	var palette: PackedColorArray = config.player_colors if config != null else MatchConfig.default_player_colors()
@@ -598,20 +576,16 @@ func next_shape(slot_id: int) -> BlockShape:
 	return _feed.next_shape(slot_id)
 
 
-## M4 P1b/P2b: the oldest pending special `slot_id` is holding from a claimed
+## The oldest pending special `slot_id` is holding from a claimed
 ## gift crate, or &"" for none (spec 1.6: "your next fed block becomes a
-## special") -- a peek, not a pop. P2c reads this from its own
-## _spawn_block() extension and pops via pop_pending_special() where
-## MatchGifts.on_feed_block_issued()'s unconditional clear used to run. See
-## autoload/match/MatchGifts.gd for the placeholder id the default drawer
-## hands out.
+## special") -- a peek, not a pop.
 func held_special(slot_id: int) -> StringName:
 	if not _late_active:
 		return &""
 	return _gifts.held_special(slot_id)
 
 
-## the claimed gift staged as the block AFTER next, or &"".
+## The claimed gift staged as the block AFTER next, or &"".
 func after_next_special(slot_id: int) -> StringName:
 	if not _late_active:
 		return &""
@@ -626,7 +600,7 @@ func next_special(slot_id: int) -> StringName:
 	return _gifts.next_special(slot_id)
 
 
-## M4 P2b: dequeues and returns `slot_id`'s oldest pending
+## Dequeues and returns `slot_id`'s oldest pending
 ## special, or &"" if its queue is empty. See MatchGifts.pop_pending_special().
 func pop_pending_special(slot_id: int) -> StringName:
 	if not _late_active:
@@ -634,9 +608,9 @@ func pop_pending_special(slot_id: int) -> StringName:
 	return _gifts.pop_pending_special(slot_id)
 
 
-## M4 P2b: how many specials `slot_id` currently has queued (capped at
+## How many specials `slot_id` currently has queued (capped at
 ## GiftConfig.max_pending_specials). ui/hud/HUD.gd's queued-count indicator
-## (not this package) is the only consumer today.
+## is the only consumer.
 func pending_special_count(slot_id: int) -> int:
 	if not _late_active:
 		return 0
@@ -674,19 +648,16 @@ func consume_glue_drop(slot_id: int) -> bool:
 	return _gifts.consume_glue_drop(slot_id)
 
 
-## M4 P2b: installs the real weighted special-type draw P2c wires in once
-## config/gifts/specials/ exists; the default (MatchGifts._default_special_drawer)
-## always returns MatchGifts.PENDING_SPECIAL_ID. See
-## MatchGifts.set_special_drawer().
+## Installs a special-type draw (the default is the weighted SpecialDef pick).
+## See MatchGifts.set_special_drawer().
 func set_special_drawer(drawer: Callable) -> void:
 	_ensure_active()
 	_gifts.set_special_drawer(drawer)
 
 
 ## game/sandbox/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
-## whatever drawer a real match would be running (the weighted SpecialDef
-## pick, or the shipped placeholder). See MatchGifts.restore_default_special_
-## drawer().
+## whatever drawer a real match would be running. See
+## MatchGifts.restore_default_special_drawer().
 func restore_default_special_drawer() -> void:
 	_ensure_active()
 	_gifts.restore_default_special_drawer()
@@ -703,10 +674,9 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	return _gifts.debug_queue_special(slot_id, special_id)
 
 
-## M4 P1b DECISION: "the feed issues a new window" is Events.feed_block_issued
-## -- see MatchGifts.on_feed_block_issued()'s own DECISION for the full
-## reasoning. Connected once in _ready(); this is the one call site both the
-## gift-spawn roll and the held-special clear share.
+## DECISION: "the feed issues a new window" is Events.feed_block_issued -- see
+## MatchGifts.on_feed_block_issued()'s own DECISION. Connected once; this is the
+## one call site both the gift-spawn roll and the held-special clear share.
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
 	_gifts.on_feed_block_issued(slot_id)
 
@@ -725,7 +695,7 @@ func feed_progress(slot_id: int) -> float:
 	return _feed.feed_progress(slot_id)
 
 
-## QoL experiments: blocks queued for `slot_id` (0 when the
+## Blocks queued for `slot_id` (0 when the
 ## backlog toggle is off), and whether its block timer is paused by the pause toggle.
 func qol_backlog_count(slot_id: int) -> int:
 	if not _late_active:
@@ -739,7 +709,7 @@ func qol_timer_paused(slot_id: int) -> bool:
 	return _feed.timer_paused(slot_id)
 
 
-## the goal claim radius in force, in meters: the very value
+## The goal claim radius in force, in meters: the very value
 ## MatchTerritory feeds capture (WinChecker.claim_at), so the beacon's ground ring
 ## (GoalFlag.set_claim_ring) cannot disagree with it. 0.0 when the toggle is off or
 ## no match config exists yet. Reads Match.config.qol, so host and client agree.
@@ -749,7 +719,7 @@ func qol_claim_radius() -> float:
 	return _territory._claim_radius()
 
 
-## the radius of the beacon zone every goal flag draws (GoalFlag.set_claim_ring):
+## The radius of the beacon zone every goal flag draws (GoalFlag.set_claim_ring):
 ## the claim radius while the goal-radius experiment is on, else the goal no-build zone radius
 ## (TerritoryTuning.goal_zone_radius), the area the beacon is claimed from. Visual only; both
 ## sources are replicated config/tuning, so host and clients draw the same disc.
@@ -800,8 +770,8 @@ func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
 	_feed.apply_replicated_qol(slot_id, backlog, paused)
 
 
-## Whether _tick_feed() is currently decrementing timers (
-## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
+## Whether _tick_feed() is currently decrementing timers (true for every real
+## match). ui/debug/SandboxPanel.gd shows this as the timer's
 ## "running"/"paused" state.
 func feed_timer_enabled() -> bool:
 	if not _late_active:
@@ -811,9 +781,7 @@ func feed_timer_enabled() -> bool:
 
 ## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
 ## sandbox is harmless (every real match starts true and nothing else in the
-## shipped game ever calls this), but nothing stops a caller from flipping it
-## — this file does not gate it on config.sandbox, the same way
-## set_process(false) in the test harness is trusted rather than re-checked.
+## shipped game calls this); it is not gated on config.sandbox.
 func set_feed_timer_enabled(enabled: bool) -> void:
 	if not _late_active:
 		return
@@ -841,8 +809,8 @@ func set_sandbox_territory_mode(
 
 ## Every placement in the game goes through here, local or remote. See
 ## autoload/match/MatchPlacement.gd's request_place() for the full contract
-## (origin/orientation/free_quat/auto_drop/feed_seq, burn-on-reject, the M3a
-## RPC wrapping and the -1 feed_seq sentinel for trusted local callers).
+## (origin/orientation/free_quat/auto_drop/feed_seq, burn-on-reject, the RPC
+## wrapping and the -1 feed_seq sentinel for trusted local callers).
 func request_place(
 	slot_id: int,
 	origin: Vector3,
@@ -873,7 +841,7 @@ func request_throw(
 	return _placement.request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
-## host-side last aim (unit camera forward) of a slot; the forced release at
+## Host-side last aim (unit camera forward) of a slot; the forced release at
 ## timer expiry throws a held throwable gift along it. See MatchPlacement.note_aim().
 func note_aim(slot_id: int, forward: Vector3) -> void:
 	if not _late_active:
@@ -881,7 +849,7 @@ func note_aim(slot_id: int, forward: Vector3) -> void:
 	_placement.note_aim(slot_id, forward)
 
 
-## M4 P4-SPAWN: a special effect's own runtime projectile spawn (e.g.
+## A special effect's own runtime projectile spawn (e.g.
 ## Volcano's lava orbs), not a player intent. See
 ## MatchPlacement.spawn_special_projectile() for the full contract
 ## (host-only, no feed/rules check, continuous_cd threshold).
@@ -924,7 +892,7 @@ func feed_seq(slot_id: int) -> int:
 	return _feed.feed_seq(slot_id)
 
 
-## spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s
+## Spec 1.4 cadence: whether `slot_id`'s
 ## currently held piece may be released right now. See MatchFeed.is_release_locked().
 func is_release_locked(slot_id: int) -> bool:
 	if not _late_active:
@@ -971,7 +939,7 @@ func raster() -> TerritoryRaster:
 	return _territory.raster()
 
 
-## mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
+## Mode goal context for a bot slot (see MatchTerritory.bot_mode_goal()).
 func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	if not _late_active:
 		return null
@@ -998,19 +966,18 @@ func winner_team() -> int:
 	return _territory.winner_team()
 
 
-## the weather controller (net/WeatherNet.gd, the HUD cue and
+## The weather controller (net/WeatherNet.gd, the HUD cue and
 ## tests read it; rules never do).
 func weather() -> RefCounted:
 	return _weather
 
 
-# --- Match statistics + results (spec 2.4) ------------------
+# --- Match statistics + results (spec 2.4) ----------------------------------
 
 ## Per-slot stats and the results-payload builder. See
 ## autoload/match/MatchStats.gd's own header for the full contract; the
-## results-screen UI worker reads Events.match_results_ready
-## rather than reaching in here directly, but net/MatchNet.gd's replication
-## and this file's own tests need the object itself.
+## results screen reads Events.match_results_ready rather than reaching in
+## here, but net/MatchNet.gd's replication and tests need the object itself.
 func stats() -> RefCounted:
 	return _stats
 
@@ -1047,7 +1014,7 @@ func circle_wire_radius_max() -> float:
 	return _territory_tuning.influence_max_fraction * config.map_def().field_radius
 
 
-## M4 P5-HOLE: a special effect's own hole, independent of contest. See
+## A special effect's own hole, independent of contest. See
 ## MatchTerritory.punch_special_hole() for the full contract (host-only,
 ## no-op under HoleMode.OFF, disk-local world_pos, home-flag elimination).
 func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
@@ -1101,14 +1068,14 @@ func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
 	_lifecycle.apply_replicated_elimination(slot_id, by_slot)
 
 
-## the slot credited with eliminating `slot_id`, -1 if unknown.
+## The slot credited with eliminating `slot_id`, -1 if unknown.
 func eliminated_by(slot_id: int) -> int:
 	if not _late_active:
 		return -1
 	return _lifecycle.eliminated_by(slot_id)
 
 
-## client mirror of the host's mode-objective state, and the
+## Client mirror of the host's mode-objective state, and the
 ## host's snapshot of it for a reconnecting peer ({} when there is none).
 func apply_replicated_mode_state(state: Dictionary) -> void:
 	_ensure_active()
@@ -1121,8 +1088,7 @@ func mode_state_snapshot() -> Dictionary:
 	return _lifecycle.mode_state_snapshot()
 
 
-## M4 P1b/P2b: net/MatchNet.gd's net_match_event() mirrors for the three gift
-## events. A client only ever builds/frees the crate visual and (for a claim)
+## net/MatchNet.gd's net_match_event() mirrors for the gift events. A client only ever builds/frees the crate visual and (for a claim)
 ## keeps held_special()/pending_special_count() accurate -- it never spawns,
 ## claims or expires anything itself. See autoload/match/MatchGifts.gd's own
 ## client-read-model section.
@@ -1153,9 +1119,8 @@ func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
 	_gifts.apply_replicated_landing(gift_id, landing)
 
 
-## `special_id` is the third EVENT_GIFT_CLAIMED wire argument (Orchestrator
-## amendment 1) -- net/MatchNet.gd's wire check has already rejected a
-## malformed one before this is ever called.
+## `special_id` is the third EVENT_GIFT_CLAIMED wire argument; net/MatchNet.gd's
+## wire check has already rejected a malformed one.
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_ensure_active()
 	_gifts.apply_replicated_claim(gift_id, slot_id, special_id)
@@ -1166,20 +1131,14 @@ func apply_replicated_gift_expired(gift_id: int) -> void:
 	_gifts.apply_replicated_expire(gift_id)
 
 
-## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls
-## this before re-emitting Events.special_consumed -- the spend-side
-## counterpart of apply_replicated_gift_claimed() above. `special_id` is the
-## wire argument net/MatchNet.gd's own _special_id_wire_ok() has already
-## checked before this is ever called.
+## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls this before
+## re-emitting Events.special_consumed -- the spend-side counterpart of
+## apply_replicated_gift_claimed(). `special_id` is the wire argument
+## net/MatchNet.gd's _special_id_wire_ok() has already checked.
 ##
-## DECISION (autoload/Match.gd): this package's own brief did
-## not list autoload/Match.gd among its owned files, but net/MatchNet.gd's
-## dispatch needs an entry point on the same _authority() surface every other
-## apply_replicated_* call already uses (see the three siblings directly
-## above) -- reaching into Match._gifts directly from net/MatchNet.gd would
-## break that established forwarding convention instead. This is a one-line,
-## additive, same-shape stub with no risk of colliding with another
-## package's edits to this file.
+## DECISION (autoload/Match.gd): forwarded here so net/MatchNet.gd keeps using
+## the same _authority() surface as every other apply_replicated_* call rather
+## than reaching into Match._gifts.
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
 	_ensure_active()
 	_gifts.apply_replicated_special_consumed(slot_id, special_id)

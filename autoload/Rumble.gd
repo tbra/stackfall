@@ -5,17 +5,14 @@ extends Node
 ## touches the Steam API directly (CLAUDE.md: never write Steam or
 ## SteamMultiplayerPeer as a bare identifier); rumble goes through Input only.
 ##
-## Listens on Events (CLAUDE.md's global signal bus), the same pattern
-## game/player/CameraRig.gd's Events.block_impacted -> camera shake reaction already
-## uses (config/physics/CameraShakeConfig.gd is this file's config/player/RumbleConfig.gd
-## precedent). Only ever rumbles the joypad that most recently sent a real
+## Listens on Events, the same pattern as game/player/CameraRig.gd's
+## Events.block_impacted -> camera shake reaction. Only ever rumbles the joypad that most recently sent a real
 ## button/axis event (see _input()); a session driven entirely by mouse and
 ## keyboard never buzzes a pad sitting idle nearby, and this is a total no-op
 ## headless or with no pad connected -- there is simply never a
 ## InputEventJoypadButton/Motion to track a device id from in that case.
 ##
-## No class_name: this is the Rumble autoload singleton, the same convention
-## Events/Settings/Net/Match/Sfx already use (see autoload/Net.gd's header).
+## No class_name: this is the Rumble autoload singleton (see autoload/Net.gd's header).
 
 @export var config: RumbleConfig = preload("res://config/player/rumble_config.tres")
 
@@ -23,16 +20,14 @@ const DEVICE_NONE: int = -1
 const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
 
 ## Which joypad most recently sent a real InputEventJoypadButton/Motion (past
-## Settings.JOYPAD_MOTION_DEVICE_THRESHOLD for motion, reusing that same
-## deadzone constant rather than duplicating it here -- DECISION,
-## autoload/Rumble.gd). DEVICE_NONE until the first such event ever arrives.
+## Settings.JOYPAD_MOTION_DEVICE_THRESHOLD for motion, reusing that deadzone
+## constant rather than duplicating it; DECISION). DEVICE_NONE until the first such event ever arrives.
 var _last_device_id: int = DEVICE_NONE
 
 ## Which device FAMILY (Settings.DEVICE_GAMEPAD/DEVICE_KEYBOARD_MOUSE) most
 ## recently sent real input, tracked independently of autoload/Settings.gd's
-## own _active_device (both are plain Nodes reacting to the same _input()
-## dispatch; there is no ordering dependency between the two, only a shared
-## pair of StringName constants reused for DRY).
+## own _active_device (both react to the same _input() dispatch; there is no
+## ordering dependency between the two).
 var _last_family: StringName = &""
 
 ## Swappable vibration calls (tests record them instead of touching hardware).
@@ -48,14 +43,12 @@ func _ready() -> void:
 	Events.player_eliminated.connect(_on_player_eliminated)
 	Events.match_won.connect(_on_match_won)
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
-	# a world build/teardown never leaves a pad buzzing into the next match.
+	# A world build/teardown never leaves a pad buzzing into the next match.
 	Events.match_scope_reset.connect(stop_all)
 
 
-## Runs for every node in the tree (plain autoload Node, same as
-## autoload/Settings.gd's own _input()) -- only ever classifies the raw event
-## into "which pad last spoke" / "keyboard-mouse last spoke", never acts on it
-## directly.
+## Only classifies the raw event into "which pad last spoke" /
+## "keyboard-mouse last spoke", never acts on it directly.
 func _input(event: InputEvent) -> void:
 	if event is InputEventJoypadButton:
 		_last_device_id = (event as InputEventJoypadButton).device
@@ -69,9 +62,8 @@ func _input(event: InputEvent) -> void:
 		_last_family = Settings.DEVICE_KEYBOARD_MOUSE
 
 
-## Stops whatever the last-tracked pad is currently doing. Called by
-## ui/menus/PauseMenu.gd's own pause_menu_opened (via _on_pause_menu_opened below)
-## and by this file's own match-end handler, so a mid-decay rumble never
+## Stops whatever the last-tracked pad is currently doing. Called on
+## pause_menu_opened and by the match-end handler, so a mid-decay rumble never
 ## keeps buzzing into a menu or the results screen.
 func stop_all() -> void:
 	if _last_device_id != DEVICE_NONE:
@@ -83,9 +75,8 @@ func _on_pause_menu_opened() -> void:
 
 
 func _on_block_impacted(speed: float) -> void:
-	# Bontago (rumble package): no slot on this signal at all (game/blocks/Block.gd
-	# never passes one -- confirmed by reading Block.gd), so this reacts for
-	# every instance unconditionally, exactly like game/player/CameraRig.gd's own
+	# No slot on this signal (game/blocks/Block.gd never passes one), so this
+	# reacts for every instance unconditionally, like game/player/CameraRig.gd's
 	# camera-shake reaction to the same signal.
 	if speed < config.impact_speed_threshold:
 		return
@@ -94,8 +85,8 @@ func _on_block_impacted(speed: float) -> void:
 	_trigger(config.impact_weak_magnitude * t, config.impact_strong_magnitude * t, config.impact_duration_s)
 
 
-## also silent for a bot seat -- offline, Net.is_local_slot() is
-## true for every slot, bots included (autoload/match/LocalFeedback.gd).
+## Silent for a bot seat: offline, Net.is_local_slot() is true for every slot,
+## bots included (autoload/match/LocalFeedback.gd).
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if not LocalFeedback.is_own_human_slot(slot_id):
 		return
@@ -106,22 +97,17 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	)
 
 
-## DECISION (autoload/Rumble.gd): Events.gd has no "you just placed a block"
-## signal carrying a slot id -- block_placed(block, shape_id) is global with
-## no slot at all (confirmed by reading Events.gd/MatchPlacement.gd
-## directly), and placement_relocated only fires for the rarer auto-drop
-## relocation case. feed_block_issued(slot_id, ...) is the closest available
+## DECISION (autoload/Rumble.gd): there is no "you just placed a block" signal
+## carrying a slot id (block_placed has no slot; placement_relocated only fires
+## for auto-drop relocation). feed_block_issued(slot_id, ...) is the closest
 ## per-slot signal: MatchFeed.gd emits it the instant a slot's held block is
 ## consumed and the next one is handed over, so it doubles as "your last drop
-## landed, here's your next piece" for every placement after the first. It
-## also fires once at match start before any placement has happened, so the
-## very first block issued to a slot ticks too -- accepted as the simplest
-## reasonable option per CLAUDE.md's minor-ambiguity rule (a "new block
-## ready" light tick reads fine even at match start).
+## landed". It also fires once at match start, so the first block issued to a
+## slot ticks too, which reads fine as a "new block ready" tick.
 ##
-## personal feedback, so only a human seat driven from this
-## machine (autoload/match/LocalFeedback.gd) -- offline Net.is_local_slot() is
-## true for every slot, so without the bot check each bot's feed buzzed the pad.
+## Personal feedback, so only a human seat driven from this machine
+## (autoload/match/LocalFeedback.gd); offline Net.is_local_slot() is true for
+## every slot, so without the bot check each bot's feed buzzed the pad.
 func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: StringName) -> void:
 	if not LocalFeedback.is_own_human_slot(slot_id):
 		return
@@ -132,9 +118,8 @@ func _on_feed_block_issued(slot_id: int, _shape_id: StringName, _next_shape_id: 
 	)
 
 
-## No slot on this signal (Events.gd's own doc comment: only net_id/def_id/
-## position/chain_depth) -- treated the same as block_impacted above, a
-## global world event every instance reacts to regardless of locality.
+## No slot on this signal; treated like block_impacted above, a global world
+## event every instance reacts to regardless of locality.
 func _on_special_triggered(_net_id: int, _def_id: StringName, _position: Vector3, _chain_depth: int) -> void:
 	_trigger(
 		config.special_triggered_weak_magnitude,
@@ -143,7 +128,7 @@ func _on_special_triggered(_net_id: int, _def_id: StringName, _position: Vector3
 	)
 
 
-## only the eliminated player's own pad (a human seat on this
+## Only the eliminated player's own pad (a human seat on this
 ## machine), never a bot's or another peer's elimination.
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	if not LocalFeedback.is_own_human_slot(slot_id):
@@ -155,19 +140,16 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	)
 
 
-## DECISION (autoload/Rumble.gd): Events.gd has one match-end signal,
-## match_won(team_id) -- there is no separate "you lost" signal, so this
-## derives win/lose per local slot by comparing team_of_slot() the same way
-## autoload/Sfx.gd's _on_gift_claimed()/_team_of_slot() already does for a
-## null Match.config (offline/hot-seat: every slot is its own team, so a
-## match_won team_id that matches a local slot's own id reads as a win for
-## that slot). Stops any lingering rumble first (this doubles as "the match
-## ends" stop point the brief asks for) before playing the appropriate pulse.
+## DECISION (autoload/Rumble.gd): the only match-end signal is
+## match_won(team_id); there is no "you lost" signal, so win/lose is derived per
+## local slot by comparing team_of_slot() the way autoload/Sfx.gd does for a
+## null Match.config (offline/hot-seat: every slot is its own team). Stops any
+## lingering rumble first, then plays the appropriate pulse.
 func _on_match_won(team_id: int) -> void:
 	stop_all()
 	var slot_count: int = maxi(Match.slot_count(), team_id + 1)
 	for slot_id: int in range(slot_count):
-		# the first HUMAN seat on this machine decides win or
+		# The first HUMAN seat on this machine decides win or
 		# loss; a bot seat (every slot is local offline) never does.
 		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
@@ -178,9 +160,8 @@ func _on_match_won(team_id: int) -> void:
 		return
 
 
-## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot() -- Match.config
-## is null before a match starts, matching autoload/Sfx.gd's own
-## _team_of_slot() helper.
+## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot(): Match.config
+## is null before a match starts.
 func _team_of_slot(slot_id: int) -> int:
 	if Match.config == null:
 		return slot_id
@@ -200,17 +181,14 @@ func _trigger(weak_magnitude: float, strong_magnitude: float, duration_s: float)
 	start_vibration_fn.call(_last_device_id, scaled_weak, scaled_strong, duration_s)
 
 
-## Bontago (options package): a short "test" pulse ui/menus/OptionsMenu.gd's rumble
-## intensity slider nudges (when the slider is released or the rumble toggle
-## is turned on) so the player can feel the current intensity without
-## needing to trigger a real match event first. Reuses config.impact_weak_
-## magnitude/impact_strong_magnitude/impact_duration_s -- the same "moderate
-## hit" pulse _on_block_impacted() already produces at full impact speed --
-## rather than inventing a new RumbleConfig field for a UI-only nudge
-## (config/player/RumbleConfig.gd sits outside this package's owned files).
-## DECISION (autoload/Rumble.gd). Goes through the same _trigger() gating as
-## every other rumble reaction, so it is silent unless rumble is enabled and
-## a gamepad is the last-active device.
+## A short "test" pulse ui/menus/OptionsMenu.gd's rumble intensity slider
+## nudges (when the slider is released or the rumble toggle is turned on) so
+## the player can feel the current intensity without a real match event.
+## DECISION (autoload/Rumble.gd): reuses config.impact_weak_magnitude/
+## impact_strong_magnitude/impact_duration_s (the "moderate hit" pulse of
+## _on_block_impacted() at full speed) rather than a new RumbleConfig field.
+## Goes through the same _trigger() gating as every other reaction, so it is
+## silent unless rumble is enabled and a gamepad is the last-active device.
 func trigger_test_pulse() -> void:
 	_trigger(config.impact_weak_magnitude, config.impact_strong_magnitude, config.impact_duration_s)
 

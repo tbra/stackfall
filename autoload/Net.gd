@@ -3,7 +3,7 @@ extends Node
 ## (spec 2.6).
 ##
 ## Gameplay code only ever talks to MultiplayerAPI; this node decides whether
-## the peer underneath is ENet (LAN, direct IP, tests — M3a) or Steam (M3b).
+## the peer underneath is ENet (LAN, direct IP, tests) or Steam.
 ## **Swapping the transport must be a change to _make_host_peer() /
 ## _make_client_peer() and nothing else** — no other file in the project may
 ## name ENetMultiplayerPeer, an IP address, or a port.
@@ -20,7 +20,7 @@ extends Node
 ## code should prefer.
 
 ## What this instance is. OFFLINE covers the main menu and every single-PC
-## mode including M2's hot-seat, and is_host() is true in it, so rule code
+## mode including hot-seat, and is_host() is true in it, so rule code
 ## written as `if not Net.is_host(): return` behaves identically offline.
 enum Mode { OFFLINE, HOST, CLIENT }
 
@@ -35,16 +35,16 @@ enum LeaveReason { GRACEFUL, TIMEOUT, KICKED, HOST_SHUTDOWN }
 const HOST_PEER_ID: int = 1
 
 ## Key the LAN advert carries so a stray UDP broadcast on 47777 is ignored.
-## Moved to core/net/NetIds.gd (autoload decoupling S3a); aliased here.
+## Defined in core/net/NetIds.gd; aliased here.
 const DISCOVERY_MAGIC: StringName = NetIds.DISCOVERY_MAGIC
 
 ## Steam's public test app ("Spacewar"), passed directly into
-## Steam.steamInitEx() (the spike showed that no steam_appid.txt is
-## needed once the app id is passed as an argument). Named here, not in
+## Steam.steamInitEx() (no steam_appid.txt is needed once the app id is
+## passed as an argument). Named here, not in
 ## net/SteamClient.gd, per the tunables table in config/net/NetConfig.gd.
 const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 
-## size of a rejoin token (random bytes; hex doubles it) and
+## Size of a rejoin token (random bytes; hex doubles it) and
 ## the longest token string the handshake will even look up. Architecture,
 ## not tunables, like HOST_PEER_ID.
 const REJOIN_TOKEN_BYTES: int = 16
@@ -102,12 +102,11 @@ var _next_slot_id: int = 1
 ## Host only: whether _rpc_handshake may still seat a new peer. True in the
 ## lobby, false once the match flow leaves it (see set_accepting_joins()).
 var _accepting_joins: bool = true
-## true for a private loopback host (host_game(..., advertise=false), the
+## True for a private loopback host (host_game(..., advertise=false), the
 ## Vs bots session); lets the lobby badge say so instead of "LAN". Cleared by leave().
 var _private_session: bool = false
 
-## -- Mid-match join and reconnect (spec 2.6 "Late join /
-## reconnect") ------------------------------------------------------------
+## -- Mid-match join and reconnect (spec 2.6 "Late join / reconnect") ----------
 ## Host only: true while the match flow is past the lobby (game/main/Main.gd sets
 ## it next to set_accepting_joins()). Decides which seat a handshake gets: the
 ## next lobby slot, or a seat-policy choice / spectator seat mid-match.
@@ -133,9 +132,8 @@ var _can_reclaim_seat: Callable = Callable()
 ## a connection loss on purpose (leave(false)), so a dropped player who joins
 ## the same host again (the direct-IP field, the LAN browser or the Steam
 ## lobby) quotes it and gets its slot back. A deliberate leave() clears it, and
-## it is only ever sent to the host it came from (_rejoin_scope). DECISION
-## : memory only -- a crashed and
-## restarted client has no token and rejoins as a new late joiner. Persisting
+## it is only ever sent to the host it came from (_rejoin_scope). DECISION:
+## memory only -- a crashed and restarted client has no token and rejoins as a new late joiner. Persisting
 ## it would write a bearer credential to disk for a window that is only
 ## NetConfig.disconnect_grace long.
 var _rejoin_token: String = ""
@@ -168,7 +166,7 @@ var _own_ping_ms: float = 0.0
 var _lobby_data: Dictionary = {}
 var _lan: LanDiscovery
 
-## router port opening (UPnP) for non-Steam internet hosting. The real backend is
+## Router port opening (UPnP) for non-Steam internet hosting. The real backend is
 ## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
 ## to a Callable returning a fake UpnpBackend and never touch a router.
 signal upnp_state_changed(state: int)
@@ -176,21 +174,18 @@ var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
 
-## `--match-config=<res path>` (deferred from):
-## host-only override for the MatchConfig a `--headless-host` match starts
-## from. Null (the ordinary case) means "no override" -- game/main/Main.gd's own
-## _build_headless_bot_config() then falls back to its preloaded
-## config/match/match_defaults.tres exactly as before this flag existed. Set only
-## from inside _apply_command_line_args()'s host branch (see
-## _load_match_config_override() below), never touched by --join, so a client
-## passing this flag by accident is silently ignored -- this is a host-only
-## concern (spec 2.6: only the host's MatchConfig ever matters).
+## `--match-config=<res path>`: host-only override for the MatchConfig a
+## `--headless-host` match starts from. Null means "no override" --
+## game/main/Main.gd's _build_headless_bot_config() then falls back to its
+## preloaded config/match/match_defaults.tres. Set only from
+## _apply_command_line_args()'s host branch (see _load_match_config_override()),
+## never by --join, so a client passing this flag is silently ignored (spec
+## 2.6: only the host's MatchConfig ever matters).
 var _match_config_override: MatchConfig = null
 
-## The Steam-facing seam, exactly the net_provider/
-## match_provider pattern ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and
-## ui/debug/NetDebugOverlay.gd already use. Set to a real SteamClient in _ready();
-## tests overwrite it with a FakeSteam.
+## The Steam-facing seam, the same net_provider/match_provider pattern
+## ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and ui/debug/NetDebugOverlay.gd use.
+## Set to a real SteamClient in _ready(); tests overwrite it with a FakeSteam.
 var steam_provider: Variant = null
 ## True only once host_online()/join_lobby() has an active peer (see
 ## is_steam_session()); reset in leave().
@@ -206,7 +201,7 @@ var _steam_pending_name: String = ""
 ## Cache backing discovered_lobbies(); refreshed by _on_steam_lobby_match_list.
 var _discovered_lobbies: Array[Dictionary] = []
 ## Which steam_provider instance _wire_steam_signals() has already connected
-## to, so swapping in a FakeSteam after _ready() (every P1 test does this)
+## to, so swapping in a FakeSteam after _ready() (tests do this)
 ## gets its own signals wired the next time host_online()/join_lobby()/
 ## refresh_lobby_list()/init_steam() runs, without double-connecting the same
 ## provider repeatedly.
@@ -216,29 +211,22 @@ var _steam_signals_wired: Variant = null
 var _steam_initialized: bool = false
 ## True only once steam_provider's init_result reports status 0 (steamInitEx
 ## actually succeeded). Both steam_available() and the two _make_steam_*_peer()
-## factories require this — see the crash this guards against, documented at
-## _make_steam_host_peer().
+## factories require this (see the crash documented at _make_steam_host_peer()).
 var _steam_ready: bool = false
-## independent-review finding B: _mode stays OFFLINE for the
-## whole time a host_online()/join_lobby() Steam answer is pending, so a
-## second call in the meantime used to sail past the "if _mode != Mode.OFFLINE:
-## leave()" guard and issue a second Steam request. Both entry points refuse a
-## second call outright while a request of the *current* generation (see
-## below) is still outstanding — _steam_request_pending() at the bottom of
-## this block is the single predicate both use.
+## _mode stays OFFLINE for the whole time a host_online()/join_lobby() Steam
+## answer is pending, so a second call in the meantime would sail past the
+## "if _mode != Mode.OFFLINE: leave()" guard and issue a second Steam request.
+## Both entry points refuse a second call outright while a request of the
+## *current* generation (see below) is still outstanding;
+## _steam_request_pending() is the single predicate both use.
 ##
-## a single pending bool fixed the case above but broke
-## leave() -> host_online()/join_lobby() done twice before the first
-## attempt's own answer lands: the second call set the (single, shared) flag
-## true again, so the FIRST attempt's late answer was consumed by
-## _on_steam_lobby_created()/_on_steam_lobby_joined() as if it were the
-## SECOND attempt's own answer — and the second attempt's real, later answer
-## was then dropped as stale in its place (see `bd show`).
-## GodotSteam's lobby_created/lobby_joined signals carry no per-call id to
-## tell two outstanding requests' eventual answers apart, so a bool alone
-## cannot distinguish them once a second request is in flight.
+## A single pending bool is not enough: GodotSteam's lobby_created/lobby_joined
+## signals carry no per-call id, so after leave() -> host_online()/join_lobby()
+## twice before the first answer lands, the FIRST attempt's late answer would
+## be consumed as the SECOND attempt's and the real second answer dropped as
+## stale.
 ##
-## Fixed with a monotonically increasing generation, bumped by leave(), plus
+## So: a monotonically increasing generation, bumped by leave(), plus
 ## a FIFO queue of the generation each still-unanswered host_online()/
 ## join_lobby() call was issued under. Every lobby_created/lobby_joined
 ## answer pops the oldest still-outstanding entry and compares it against the
@@ -259,7 +247,7 @@ var _steam_request_generation: int = 0
 ## host_online()/join_lobby() call was issued under. See
 ## _steam_request_generation's doc comment above.
 var _steam_pending_generations: Array[int] = []
-## parallel to _steam_pending_generations — the lobby id each
+## Parallel to _steam_pending_generations: the lobby id each
 ## pending join_lobby() targets, or _STEAM_CREATE_REQUEST (-1: Steam lobby ids
 ## are positive) for host_online().
 ## lobby_created resolves the oldest pending create, lobby_joined the pending
@@ -267,17 +255,17 @@ var _steam_pending_generations: Array[int] = []
 ## be consumed as some other request's answer.
 var _steam_pending_targets: Array[int] = []
 const _STEAM_CREATE_REQUEST: int = -1
-## every lobby this process created (live or abandoned).
+## Every lobby this process created (live or abandoned).
 ## Steamworks answers a successful CreateLobby with lobby_created AND a
 ## lobby_joined (LobbyEnter_t) for the creator; that echo is not a join answer
-## and must never reach the stray-answer leave_lobby() (it used to: the host
-## left, and so destroyed, its own fresh lobby). One int per created lobby.
+## and must never reach the stray-answer leave_lobby() (the host would destroy
+## its own fresh lobby). One int per created lobby.
 var _steam_created_lobbies: Dictionary = {}
 ## Tests only: _make_steam_host_peer() hands this out instead of building a
 ## SteamMultiplayerPeer (never built for a FakeSteam provider, crash safety),
 ## so a FakeSteam test can reach the live Steam HOST state.
 var steam_host_peer_override: MultiplayerPeer = null
-## diagnostics: seconds between `STEAM SELFCHECK` lines while a
+## Seconds between `STEAM SELFCHECK` lines while a
 ## Steam session is live (diagnostic cadence, not a gameplay knob).
 const STEAM_SELFCHECK_PERIOD_S: float = 10.0
 var _steam_selfcheck_accum: float = 0.0
@@ -305,14 +293,14 @@ var _stats_accum: float = 0.0
 
 
 func _ready() -> void:
-	# review F3: the shipped resource goes through the same clamps
-	# every other config does, so a hand-edited net_config.tres (a zero
+	# The shipped resource goes through the same clamps every other config
+	# does, so a hand-edited net_config.tres (a zero
 	# seat_pref_burst, a tiny packet cap) cannot lock clients out or break the wire.
 	config.sanitize()
-	# keep transport/Steam/UPnP/handshake/ping polling alive while the offline
+	# Keep transport/Steam/UPnP/handshake/ping polling alive while the offline
 	# pause menu has paused the tree, so a peer joining during a solo pause still gets through.
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# Autoload decoupling S3a: SnapshotSync reaches Net through this binding
+	# SnapshotSync reaches Net through this binding
 	# instead of naming the autoload (globals exist before any _ready).
 	# Only the real autoload binds: tests build extra Net instances under test nodes.
 	if get_parent() == get_tree().root:
@@ -329,7 +317,7 @@ func _ready() -> void:
 	_lan.game_seen.connect(_on_lan_advert_changed)
 	_lan.game_expired.connect(_on_lan_advert_expired)
 	steam_provider = SteamClient.new()
-	# the host mirrors the loading-screen ready gate to clients.
+	# The host mirrors the loading-screen ready gate to clients.
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	chat_config.sanitize()
@@ -343,8 +331,8 @@ func _process(delta: float) -> void:
 		upnp_state_changed.emit(int(_upnp.state))
 	# Steamworks is a manual-dispatch API: every async Steam signal (lobby
 	# creation, the lobby list, joins, invite-accepts) is queued internally
-	# and never fires without this (see net/SteamClient.gd's run_callbacks()
-	# doc comment for how this was found). Gated on _steam_ready, not
+	# and never fires without this (see net/SteamClient.gd's run_callbacks()).
+	# Gated on _steam_ready, not
 	# steam_available()/is_steam_session(), because a caller can legitimately
 	# call refresh_lobby_list() or join_lobby() from the main menu before any
 	# session exists — those need callbacks pumped too.
@@ -382,7 +370,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 			return ERR_CANT_CREATE
 	# Agent runs (AgentProbe: tool/bench scenes, --agent-probe) host on a random
 	# free port unless one was given, so parallel benches and the ENet harness
-	# never fight over the default port (session).
+	# never fight over the default port.
 	if port <= 0 and AgentProbe.is_active() and not AgentProbe.has_cli_port(OS.get_cmdline_user_args()):
 		var free_port: int = AgentProbe.free_udp_port()
 		if free_port > 0:
@@ -397,7 +385,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	_host_port = use_port
 	_host_build_version = build_version()
 	_peers.clear()
-	# the host's own name goes through the same check a joiner's
+	# The host's own name goes through the same check a joiner's
 	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
 	var host_name: String = PlayerNames.sanitize(resolve_local_name(player_name), config.max_player_name_length, 0)
 	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
@@ -430,7 +418,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_peer = peer
 	_mode = Mode.CLIENT
 	_peers.clear()
-	# cleaned here so a bad name is never sent; "" stays "" (the
+	# Cleaned here so a bad name is never sent; "" stays "" (the
 	# host seats the joiner as "Player N"). The host re-checks it regardless.
 	_pending_join_name = PlayerNames.clean(resolve_local_name(player_name), config.max_player_name_length)
 	_join_scope = "enet:%s:%d" % [address, use_port]
@@ -445,8 +433,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 ## LeaveReason.HOST_SHUTDOWN first. A deliberate leave forgets the rejoin
 ## token; the connection-lost and failed-join paths pass false to keep it.
 func leave(forget_rejoin: bool = true) -> void:
-	# DECISION (finding B, generation added for):
-	# bumped unconditionally, before the OFFLINE early-return below, because a
+	# DECISION: bumped unconditionally, before the OFFLINE early-return below, because a
 	# pending host_online()/join_lobby() attempt never moves _mode off OFFLINE
 	# until its Steam answer actually lands — so a caller cancelling mid-
 	# attempt (e.g. leaving the menu while a lobby is still being created)
@@ -503,7 +490,7 @@ func mode() -> Mode:
 ## True on the host **and offline**. This is the single predicate that gates
 ## host-only work (Match's solve and feed, Field's kill plane, SnapshotSync's
 ## sender). Never branch on multiplayer.is_server() directly: with no peer set
-## its answer depends on engine internals, and it says nothing about M3b.
+## its answer depends on engine internals, and it says nothing about Steam.
 func is_host() -> bool:
 	return _mode == Mode.HOST or _mode == Mode.OFFLINE
 
@@ -516,7 +503,7 @@ func is_offline() -> bool:
 	return _mode == Mode.OFFLINE
 
 
-## "Pausing in an offline mode should freeze everything": true when
+## True when
 ## no remote human shares this session, so ui/menus/PauseMenu.gd may pause the whole tree.
 func is_solo_session() -> bool:
 	return solo_session_rule(is_offline(), is_client(), peer_ids(), local_peer_id())
@@ -540,7 +527,7 @@ static func solo_session_rule(offline: bool, client: bool, peers: PackedInt32Arr
 func local_peer_id() -> int:
 	if _mode == Mode.OFFLINE:
 		return HOST_PEER_ID
-	# while the transport is already closed (the server_disconnected
+	# While the transport is already closed (the server_disconnected
 	# path emits net_peer_left before leave() runs, and listeners such as Sfx ask
 	# "was that me?"), get_unique_id() is an engine error ("The multiplayer
 	# instance isn't currently active"). Answer with the last live id instead.
@@ -589,8 +576,8 @@ func slot_of_peer(peer_id: int) -> int:
 	return int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
 
 
-## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat, or a
-## bot's from M5). A negative slot_id is never a seat: spectators all hold -1, so it must not match the first of them.
+## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat or a
+## bot's). A negative slot_id is never a seat: spectators all hold -1, so it must not match the first of them.
 func peer_of_slot(slot_id: int) -> int:
 	if slot_id < 0:
 		return -1
@@ -600,7 +587,7 @@ func peer_of_slot(slot_id: int) -> int:
 	return -1
 
 
-## the replicated name of the human peer seated at `slot_id`, or
+## The replicated name of the human peer seated at `slot_id`, or
 ## "" when no peer holds it (a bot, an empty seat, a departed player). Host and
 ## client read the same roster, so the loading screen and HUD show one name per
 ## slot on both sides; late joiners and rejoiners get theirs from the roster
@@ -624,8 +611,8 @@ func local_slot() -> int:
 
 ## True when `slot_id` is driven by this instance's own input. The one check
 ## PlayerController and the HUD use to decide "is this me?"; it is also true
-## for **every** slot in offline hot-seat, which is what keeps M2's strict
-## alternation working unchanged.
+## for **every** slot in offline hot-seat, which keeps the strict turn
+## alternation working.
 func is_local_slot(slot_id: int) -> bool:
 	if _mode == Mode.OFFLINE:
 		return true
@@ -675,7 +662,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	if transport != null and multiplayer.get_peers().has(peer_id):
 		_disconnecting_peers[peer_id] = true
 		transport.disconnect_peer(peer_id)
-	# review F2: compact BEFORE announcing the departure, as the
+	# Compact BEFORE announcing the departure, as the
 	# disconnect path does, so a listener of net_peer_left (the lobby republishing
 	# its data) already reads the closed-up slot ids.
 	_compact_lobby_slots()
@@ -723,19 +710,17 @@ func ping_ms(peer_id: int = 0) -> float:
 # data"; over ENet the host broadcasts the same Dictionary reliably) ---------
 
 ## Host only: publishes the lobby settings. ui/lobby/Lobby.gd passes
-## MatchConfig.to_dict(); M3b writes the same Dictionary into Steam lobby data
-## with no change on this side of the call.
+## MatchConfig.to_dict(); the same Dictionary is also written into Steam lobby
+## data.
 func set_lobby_data(data: Dictionary) -> void:
 	if not is_host():
 		return
 	_lobby_data = data.duplicate(true)
 	Events.net_lobby_data_changed.emit(_lobby_data)
-	# review: same teardown hazard as _broadcast_roster().
+	# Same teardown hazard as _broadcast_roster().
 	for peer_id: int in _broadcast_targets():
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
-	# Tee the same Dictionary into Steam
-	# lobby data, under one JSON key, every time this is called — the exact
-	# call site ui/lobby/Lobby.gd already has, so it needs no change of its own.
+	# Tee the same Dictionary into Steam lobby data, under one JSON key.
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
 		steam_provider.set_lobby_data(
 			_steam_lobby_id, String(SteamClient.KEY_MATCH_CONFIG), SteamClient.encode_match_config(_lobby_data)
@@ -750,7 +735,7 @@ func lobby_data() -> Dictionary:
 
 # --- Steam session (spec 2.6) --------------------------------------------------
 #
-# M3b is a peer swap, not a new architecture: host_online()/join_lobby() are
+# Steam is a peer swap, not a new architecture: host_online()/join_lobby() are
 # the Steam-shaped host_game()/join_game(), but Steam's own matchmaking calls
 # are asynchronous (create_lobby/join_lobby fire a signal later), unlike
 # ENet's synchronous create_server()/create_client(). These two therefore
@@ -758,18 +743,10 @@ func lobby_data() -> Dictionary:
 # actual _mode transition and multiplayer.multiplayer_peer assignment happen
 # in _on_steam_lobby_created()/_on_steam_lobby_joined() once Steam answers.
 # From that point on _rpc_handshake, the roster RPCs and _on_connected_to_
-# server() all run completely unmodified (the version check
-# needs no new code") because they only ever touch MultiplayerAPI, never a
-# concrete peer type.
+# server() run unmodified, because they only ever touch MultiplayerAPI, never
+# a concrete peer type.
 
-## False whenever the addon was never installed in this checkout (most
-## worktrees, see the spike results) OR Steam.steamInitEx()
-## has not yet succeeded (status != 0 — client not running, out of date, or
-## init_steam() simply hasn't been called yet). The design notes
-## notes": "addon not installed" and "status != 0" are logged with different
-## messages but collapse to this one false for every UI purpose — the whole
-## point being a caller never needs to ask which case it is.
-## single owner of "which name does the local player go by".
+## Single owner of "which name does the local player go by".
 ## DECISION (names come from Steam, the name setting is the fallback):
 ## (1) while Steam is initialised and reports a non-empty persona name, the
 ## persona wins; (2) otherwise the typed/saved name (`typed`, the Settings name;
@@ -785,12 +762,16 @@ func resolve_local_name(typed: String) -> String:
 	return typed
 
 
+## False whenever the addon was never installed in this checkout OR
+## Steam.steamInitEx() has not yet succeeded (status != 0: client not running,
+## out of date, or init_steam() not called yet). The two cases are logged with
+## different messages but collapse to this one false for every UI purpose.
 func steam_available() -> bool:
 	return steam_provider != null and bool(steam_provider.is_available()) and _steam_ready
 
 
 ## Calls Steam.steamInitEx() through steam_provider and emits
-## Events.net_steam_status_changed once it answers. Idempotent — safe for
+## Events.net_steam_status_changed once it answers. Idempotent, safe for
 ## game/main/Main.gd to call unconditionally at boot even if something else
 ## already did. A no-op (not an error) when steam_provider is null, which
 ## only happens if this is called before _ready() has run.
@@ -804,14 +785,14 @@ func init_steam() -> void:
 	steam_provider.init()
 
 
-## True only once host_online()/join_lobby() has produced a live
-## SteamMultiplayerPeer — false offline, false mid-ENet-session, and false
-## while a Steam lobby_created/lobby_joined callback is still pending.
 ## True for the private local host a Vs bots game runs on (nobody can join).
 func is_private_session() -> bool:
 	return _private_session
 
 
+## True only once host_online()/join_lobby() has produced a live
+## SteamMultiplayerPeer: false offline, false mid-ENet-session, and false
+## while a Steam lobby_created/lobby_joined callback is still pending.
 func is_steam_session() -> bool:
 	return _steam_session
 
@@ -821,17 +802,14 @@ func is_steam_session() -> bool:
 ## only means "the attempt started" — Steam's create_lobby() answers later
 ## through _on_steam_lobby_created(), which is what actually flips _mode to
 ## HOST. A caller that needs to know when hosting is actually live should
-## watch Events.net_mode_changed, exactly as every other caller of is_host()
-## already must for the async multi-frame join handshake too.
+## watch Events.net_mode_changed.
 func host_online(player_name: String = "") -> Error:
 	_wire_steam_signals()
 	if not steam_available():
 		return ERR_UNAVAILABLE
-	# finding B: refuse a second concurrent attempt rather than
-	# issue a second Steam create_lobby() request while the first is still
-	# awaiting its own lobby_created answer — see _steam_request_generation's
-	# doc comment for the orphaned-lobby / misattributed-answer races this
-	# prevents.
+	# Refuse a second concurrent attempt rather than issue a second Steam
+	# create_lobby() request while the first is still awaiting its answer
+	# (see _steam_request_generation for the races this prevents).
 	if _steam_request_pending():
 		return ERR_BUSY
 	if _mode != Mode.OFFLINE:
@@ -873,7 +851,7 @@ func discovered_lobbies() -> Array[Dictionary]:
 ## Asks Steam for the current lobby list, filtered to this game and this
 ## exact build version (spec 2.6: "Compare the version when joining a
 ## lobby..."; a stale build should not even appear in the list). Pull-based,
-## unlike LAN's push advert — ui/menus/MainMenu.gd (P3) is expected to call this on
+## unlike LAN's push advert -- ui/menus/MainMenu.gd calls this on
 ## a config.steam_lobby_list_refresh_s timer. Results arrive later as
 ## Events.net_steam_lobbies_discovered.
 func refresh_lobby_list() -> void:
@@ -905,9 +883,9 @@ func invite_friends() -> void:
 ## Connects to steam_provider's signals exactly once per provider instance.
 ## Called at the top of every entry point that can kick off Steam work
 ## (host_online, join_lobby, refresh_lobby_list, init_steam) rather than only
-## in _ready(), because every P1/P3 test overwrites `steam_provider` with a
-## FakeSteam *after* the node's own _ready() already ran — connecting only
-## once in _ready() would leave that replacement's signals unwired.
+## in _ready(), because tests overwrite `steam_provider` with a FakeSteam
+## *after* _ready() ran; connecting only in _ready() would leave that
+## replacement's signals unwired.
 func _wire_steam_signals() -> void:
 	if steam_provider == null or steam_provider == _steam_signals_wired:
 		return
@@ -965,7 +943,7 @@ func _steam_first_pending_join_index() -> int:
 	return -1
 
 
-## true for Steam's LobbyEnter echo of a lobby this process
+## True for Steam's LobbyEnter echo of a lobby this process
 ## created (or a repeat enter of the lobby it is already in) — a success no
 ## join_lobby() asked for. Arrives after lobby_created in every probe log, but
 ## the order is not relied on: an echo while a create is still pending counts.
@@ -983,19 +961,15 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	SteamClient.log_line("lobby_created: result=%d lobby_id=%d" % [result, lobby_id])
 	if result == 1:
 		_steam_created_lobbies[lobby_id] = true
-	# finding B / consume this request's
-	# generation first; a stale answer abandons whatever lobby Steam actually
+	# Consume this request's generation first; a stale answer abandons whatever lobby Steam actually
 	# created rather than let the guard below silently drop it and orphan it.
 	if _consume_steam_answer_is_stale(_steam_pending_index(_STEAM_CREATE_REQUEST), result == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
 		return
 	# Steamworks EResult k_EResultOK == 1. DECISION: a well-known, stable
-	# Steamworks constant (unchanged since the SDK's introduction; also the
-	# value GodotSteam's own docs describe for this exact signal), not
-	# re-verified against isteamclient.h/steamtypes.h in this checkout — no
-	# Steamworks SDK headers are bundled in the downloaded GDExtension zip
-	# (see the spike results).
+	# Steamworks constant (also the value GodotSteam's docs describe for
+	# this signal); no SDK headers are bundled to check it against.
 	if result != 1:
 		Events.net_join_failed.emit(JoinError.TRANSPORT, "Steam lobby creation failed (result %d)" % result)
 		return
@@ -1004,12 +978,10 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 		resolve_local_name(_steam_pending_name), config.max_player_name_length, 0
 	)
 	# Tag the lobby *before* attempting to instantiate the transport peer.
-	# ClassDB.instantiate(&"SteamMultiplayerPeer") succeeding is explicitly
-	# unverifiable by GUT (see the testing notes below and the known limitations) on any checkout that hasn't installed the addon, but the
-	# limitations") on any checkout that hasn't installed the addon, but the
-	# lobby-data write itself only needs steam_provider, so ordering it first
-	# keeps this half of host_online()'s contract testable with FakeSteam
-	# alone regardless of whether the addon is present.
+	# Instantiating SteamMultiplayerPeer cannot be tested by GUT on a
+	# checkout without the addon, but the lobby-data write only needs
+	# steam_provider, so ordering it first keeps this half of host_online()'s
+	# contract testable with FakeSteam alone.
 	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_GAME), String(DISCOVERY_MAGIC))
 	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_VERSION), build_version())
 	steam_provider.set_lobby_data(lobby_id, String(SteamClient.KEY_MAP), "")
@@ -1045,20 +1017,19 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 
 
 func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
-	# root cause: Steam also sends the creator a lobby_joined for
-	# its own new lobby. With the create already answered, the stray-answer
-	# branch below used to leave_lobby() it, so every game-hosted lobby died
-	# instantly and was never found by another account's search.
+	# Steam also sends the creator a lobby_joined for its own new lobby; the
+	# stray-answer branch below would leave_lobby() it and kill every
+	# game-hosted lobby instantly.
 	if _is_own_lobby_enter_echo(lobby_id, response):
 		SteamClient.log_line("lobby_joined: lobby=%d is this process's own lobby enter (creator echo); ignored" % lobby_id)
 		return
 	var index: int = _steam_pending_index(lobby_id)
 	if index < 0:
 		# DECISION: an answer whose lobby id matches no pending join resolves
-		# the oldest pending join (the pre-1pi.48 FIFO rule), never a create.
+		# the oldest pending join (FIFO), never a create.
 		index = _steam_first_pending_join_index()
 	# Same stale-answer handling as _on_steam_lobby_created() above, and for
-	# the same reason (finding B /).
+	# the same reason.
 	if _consume_steam_answer_is_stale(index, response == 1, lobby_id):
 		return
 	if _mode != Mode.OFFLINE:
@@ -1071,21 +1042,13 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	var owner_id: int = steam_provider.lobby_owner(lobby_id)
 	var peer: MultiplayerPeer = _make_steam_client_peer(owner_id)
 	if peer == null:
-		# independent-review finding A: Steam's own
-		# lobby_joined already made this instance a lobby member (response ==
-		# 1) by the time the transport peer fails to construct, but neither
-		# _steam_session nor _steam_lobby_id is set yet at this point (those
-		# only flip once the peer actually succeeds, below) — leave()'s own
-		# teardown reads both, and its very first line returns immediately
-		# while _mode is still OFFLINE (it only transitions to CLIENT further
-		# down), so routing this failure through leave() would need the mode
-		# transition to happen *before* peer construction is known to have
-		# succeeded, which is a bigger reshuffle than this fix warrants.
-		# DECISION: call steam_provider.leave_lobby() directly here instead,
-		# mirroring _on_steam_lobby_created()'s matching peer==null branch
-		# above (which already does exactly this for the host side) rather
-		# than restructure leave()'s guard — same fix shape, same file, no new
-		# teardown path.
+		# Steam's lobby_joined already made this instance a lobby member by the
+		# time the transport peer fails to construct, but neither
+		# _steam_session nor _steam_lobby_id is set yet, and leave() returns
+		# immediately while _mode is still OFFLINE.
+		# DECISION: call steam_provider.leave_lobby() directly, mirroring
+		# _on_steam_lobby_created()'s peer==null branch, rather than
+		# restructure leave()'s guard.
 		steam_provider.leave_lobby(lobby_id, "client peer unavailable")
 		_fail_join(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
 		return
@@ -1150,7 +1113,7 @@ func _on_steam_lobby_match_list(lobby_ids: Array) -> void:
 		})
 	_discovered_lobbies = result
 	Events.net_steam_lobbies_discovered.emit(result)
-	# one line per search so a failed Steam join can be diagnosed from godot.log.
+	# One line per search so a failed Steam join can be diagnosed from godot.log.
 	SteamClient.log_line("lobby search (answers the filtered request): %d lobbies returned, %d match game+version %s" % [lobby_ids.size(), result.size(), build_version()])
 	_drain_queued_lobby_refresh()
 
@@ -1161,7 +1124,7 @@ func _drain_queued_lobby_refresh() -> void:
 		refresh_lobby_list()
 
 
-## diagnostics: every STEAM_SELFCHECK_PERIOD_S while a Steam
+## Every STEAM_SELFCHECK_PERIOD_S while a Steam
 ## session is live, logs `STEAM [time] SELFCHECK ...` (members, owning account vs this account,
 ## member limit, all lobby data). A host that silently left its lobby reads
 ## members=0 / owning account=0 here even though Net still believes it is hosting.
@@ -1177,8 +1140,8 @@ func _tick_steam_selfcheck(delta: float) -> void:
 
 
 ## The overlay's "Join Game" / invite-accept path when this game is already
-## running (spec 2.6/research: "Invites arrive two ways and both must be
-## handled"). The other way, `+connect_lobby` on a freshly launched process's
+## running (spec 2.6: invites arrive two ways and both must be handled). The
+## other way, `+connect_lobby` on a freshly launched process's
 ## command line, is handled by _apply_connect_lobby_args() below.
 
 func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
@@ -1193,24 +1156,19 @@ func _on_steam_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
 const _SMOKE_LOBBY_WAIT_S: float = 5.0
 const _SMOKE_LIST_WAIT_S: float = 6.0
 
-## the windowed single-PC Steam smoke test, reached only
+## The windowed single-PC Steam smoke test, reached only
 ## through --host-online (see _apply_command_line_args()'s DECISION above).
 ## Never run by any automated test or by normal play; prints exactly what
 ## that acceptance step needs onto stdout so the check can be read off a
 ## captured log. Fire-and-forget: apply_command_line() does not await this.
 ##
-## NOTE for whoever reruns this: with config.steam_lobby_type at its
-## FriendsOnly default, discovered_lobbies() below is
-## expected to print [] on a single Steam account — verified empirically
-## netcode-F2-smoke-public.log vs netcode-F2-smoke-fixed3.log in this
-## worker's scratch directory: the exact same lobby is found immediately
-## when steam_lobby_type is temporarily set to Public (2), and
-## lobby_member_count()/lobby_owner() below always confirm the lobby is real
-## either way. Steamworks' own RequestLobbyList() does not return a
-## FriendsOnly lobby to a search from the owner's own account (it is scoped
-## to the owner's *friends*, a genuinely different Steam identity) — this is
-## the one part of this acceptance step that a single-PC/single-account
-## smoke test cannot exercise, and needs the user's two-PC run instead.
+## NOTE: with config.steam_lobby_type at its FriendsOnly default,
+## discovered_lobbies() below is expected to print [] on a single Steam
+## account; the same lobby is found when steam_lobby_type is Public (2), and
+## lobby_member_count()/lobby_owner() confirm the lobby is real either way.
+## Steamworks' RequestLobbyList() does not return a FriendsOnly lobby to a
+## search from the owner's own account (it is scoped to the owner's
+## *friends*), so this part needs a two-PC run.
 func _run_steam_smoke_host_online(player_name: String) -> void:
 	var mgr: Object = Engine.get_singleton(&"GDExtensionManager")
 	print("NET_SMOKE loaded_extensions=%s" % [mgr.call("get_loaded_extensions")])
@@ -1249,16 +1207,16 @@ func stop_discovery() -> void:
 ## Turns the simulator on or off for this instance (see core/net/NetSim.gd).
 ## `lag_ms` is one-way. Configures this instance's own queue for outbound
 ## intents and cursors, and forwards to SnapshotSync so inbound snapshots get
-## the same settings on its own queue — the two sides must not share one
-## NetSim, or they would steal each other's payloads (see the known limitations),
-## integrator wiring). # DECISION: SnapshotSync is an autoload, so it is
-## always safe to reach directly here rather than through a signal.
+## the same settings on its own queue; the two sides must not share one
+## NetSim, or they would steal each other's payloads.
+## DECISION: SnapshotSync is an autoload, so it is always safe to reach
+## directly here rather than through a signal.
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	_sim.configure(lag_ms, jitter_ms, loss)
 	SnapshotSync.set_simulation(lag_ms, jitter_ms, loss)
 
 
-# --- Debug stats (spec Part 4 M3's overlay) ---------------------------------
+# --- Debug stats ------------------------------------------------------------
 
 ## {"mode": int, "peers": int, "ping_ms": float, "snapshot_bps": float,
 ## "snapshot_last_bytes": int, "interp_delay_ms": float, "loss_pct": float,
@@ -1292,12 +1250,12 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 # --- Command line (spec 2.6 "Testing") --------------------------------------
 
 ## Parses --host, --join=<ip[:port]>, --port=<n>, --headless-host,
-## --host-online, --advertise (headless hosts opt in to LAN broadcast), --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction>
-## from OS command-line arguments after "--" and acts on them, then separately scans
-## the full command line for Steam's own "+connect_lobby <id>" launch
-## convention (Valve's own argv convention,
-## not this project's --flag=value one, so OS.get_cmdline_user_args() — the
-## tokens after Godot's own "--" — would never see it). Called once by
+## --host-online, --advertise (headless hosts opt in to LAN broadcast),
+## --player-name=<s>, --sim-lag=<ms>, --sim-loss=<fraction> from OS
+## command-line arguments after "--" and acts on them, then separately scans
+## the full command line for Steam's "+connect_lobby <id>" launch convention,
+## which OS.get_cmdline_user_args() (the tokens after Godot's "--") would
+## never see. Called once by
 ## game/main/Main.gd so a headless instance needs no UI. Returns true when an
 ## argument put this instance into a session.
 func apply_command_line() -> bool:
@@ -1327,7 +1285,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		var loss: float = float(options.get("sim-loss", 0.0))
 		set_simulation(lag, 0.0, loss)
 
-	# host a Public Steam lobby so the Join > Steam list can find
+	# Host a Public Steam lobby so the Join > Steam list can find
 	# it (FriendsOnly lobbies never appear in Steam's lobby search). Duplicated so
 	# the shared net_config.tres resource is not mutated.
 	if flags.has("steam-public-lobby"):
@@ -1339,9 +1297,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 
 	if flags.has("host") or flags.has("headless-host"):
 		# --match-config=<path> is parsed here, inside the host branch, rather
-		# than up with --sim-lag/--sim-loss above, so it is a no-op for --join
-		# (task brief: "host-only; ignore on --join") with no separate flags-
-		# have("join") guard needed.
+		# than up with --sim-lag/--sim-loss above, so it is a no-op for --join.
 		if options.has("match-config"):
 			_load_match_config_override(String(options["match-config"]))
 		# DECISION: a --headless-host (bot training, soaks, h2h, ENet harness
@@ -1351,16 +1307,12 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 		host_game(port, player_name if player_name != "" else "Host", true, lan_visible)
 		return true
 
-	# DECISION: --host-online is this package's own windowed single-PC Steam
-	# smoke test aid (the Steam acceptance check), not a shipped player
-	# entry point — no menu button reaches it. It exists only so the smoke
-	# test can be launched and observed from stdout with `godot --path .
-	# -- --host-online` on a machine that already has the addon installed and
-	# Steam running, without needing game/main/Main.gd's own
-	# Net.init_steam() call (the integrator's not-yet-landed line, step 4 of
-	# the integration order) to already be wired in. Uses the
-	# same existing bare-flag convention --host/--headless-host already do,
-	# not a new parser shape.
+	# DECISION: --host-online is a windowed single-PC Steam smoke test aid, not
+	# a shipped player entry point: no menu button reaches it. It lets the test
+	# be launched and observed from stdout with `godot --path . -- --host-online`
+	# on a machine that has the addon installed and Steam running, without
+	# game/main/Main.gd's Net.init_steam() call. It uses the same bare-flag
+	# convention as --host/--headless-host.
 	if flags.has("host-online"):
 		_run_steam_smoke_host_online(player_name if player_name != "" else "SmokeHost")
 		return true
@@ -1383,9 +1335,7 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 ## absent, the command line never reached the host branch (--join, or no
 ## role flag at all), or the path/resource was rejected. game/main/Main.gd's
 ## _build_headless_bot_config() reads this in place of its own preloaded
-## `match_config` export when it is non-null — the same
-## duplicate-then-override seam that function already uses for --bots=/
-## --players=, extended rather than replaced.
+## `match_config` export when it is non-null.
 func match_config_override() -> MatchConfig:
 	return _match_config_override
 
@@ -1393,10 +1343,9 @@ func match_config_override() -> MatchConfig:
 ## _apply_command_line_args()'s --match-config=<path> handler. A bad path or
 ## a resource of the wrong type never blocks --headless-host from starting —
 ## it logs a push_error and leaves _match_config_override null, which reads
-## downstream as "no override" (game/main/Main.gd falls back to
-## config/match/match_defaults.tres exactly as if the flag had been omitted).
-## Explicitly resets to null on failure (not "keep whatever was there
-## before") so one bad flag value can never be masked by an earlier good one.
+## downstream as "no override". Resets to null on failure (rather than keeping
+## the previous value) so one bad flag value is never masked by an earlier
+## good one.
 func _load_match_config_override(path: String) -> void:
 	if not ResourceLoader.exists(path):
 		push_error(
@@ -1414,12 +1363,9 @@ func _load_match_config_override(path: String) -> void:
 	_match_config_override = resource as MatchConfig
 
 
-## The +connect_lobby scan, split out as its own sibling (rather than bolted
-## onto _apply_command_line_args()'s "-"-stripping loop, which assumes every
-## token has a "--"/"-" prefix and this one never does) so a unit test can
-## drive it with a synthetic full argument list, the same way
-## _apply_command_line_args() takes its own list explicitly — there is no
-## OS.set_cmdline_args() to fake either call site with.
+## The +connect_lobby scan, separate from _apply_command_line_args()'s
+## "-"-stripping loop (which assumes every token has a "-" prefix and this one
+## never does). Takes its list explicitly so a unit test can drive it.
 func _apply_connect_lobby_args(args: PackedStringArray) -> bool:
 	for i: int in range(args.size() - 1):
 		if args[i] != "+connect_lobby":
@@ -1466,24 +1412,18 @@ func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
 ## Sibling to _make_host_peer()/_make_client_peer() rather than a literal
 ## extension of them: Steam peer construction takes no port/address (the
 ## lobby, not an IP:port, is the rendezvous), so the parameter shapes cannot
-## match. Still the only two functions in the file (besides the ENet pair
-## above) that may name a concrete peer class — here reached purely through
-## ClassDB, never a static `SteamMultiplayerPeer` type, so this file still
-## parses in a checkout without the addon installed (see the Steam notes
-## "Design notes"; ClassDB.class_exists(&"SteamMultiplayerPeer") verified
-## true with the addon installed on this machine, false without it).
+## match. With the ENet pair, the only functions that may name a concrete peer
+## class -- here reached purely through ClassDB, never a static
+## `SteamMultiplayerPeer` type, so this file still parses in a checkout
+## without the addon.
 ##
-## SAFETY (found while writing this package's own regression tests, not in
-## the plan): calling SteamMultiplayerPeer.create_host()/create_client() when
+## SAFETY: calling SteamMultiplayerPeer.create_host()/create_client() when
 ## the process's Steam context was never initialized (steamInitEx never
-## called, or it failed) segfaults the engine — reproduced empirically on
-## this machine (netcode-F-probe_peer_no_init.log: SIGSEGV inside
-## steam_api64.dll). `not _steam_ready` guards the real, no-init case;
-## `not (steam_provider is SteamClient)` guards the FakeSteam-driven case a
-## GUT test always uses, so ClassDB.instantiate(&"SteamMultiplayerPeer") is
-## architecturally unreachable from any automated test regardless of what a
-## FakeSteam's signals claim — the exact thing the "Testing
-## without Steam" says GUT cannot verify either way.
+## called, or it failed) segfaults the engine (SIGSEGV inside steam_api64.dll).
+## `not _steam_ready` guards the real, no-init case; `not (steam_provider is
+## SteamClient)` guards the FakeSteam case a GUT test always uses, so
+## ClassDB.instantiate(&"SteamMultiplayerPeer") is unreachable from any
+## automated test.
 func _make_steam_host_peer() -> MultiplayerPeer:
 	if steam_host_peer_override != null:
 		return steam_host_peer_override
@@ -1550,23 +1490,23 @@ func _on_peer_disconnected(id: int) -> void:
 	var left_name: String = String(_peers[id].get(LobbySeats.FIELD_NAME, ""))
 	_peers.erase(id)
 	_ping_samples.erase(id)
-	# a seated peer dropping mid-match keeps a reservation on
+	# A seated peer dropping mid-match keeps a reservation on
 	# its slot for as long as the seat policy calls it reclaimable (its
 	# disconnect grace); quoting the token on the next handshake gets it back.
 	var token: String = String(_tokens.get(id, ""))
 	_tokens.erase(id)
 	if _match_in_progress and slot_id >= 0 and token != "":
 		_reservations[token] = slot_id
-	# in the lobby the seats close up behind the leaver, in the
+	# In the lobby the seats close up behind the leaver, in the
 	# same roster broadcast (a no-op mid-match).
 	_compact_lobby_slots()
 	_broadcast_roster()
 	_chat_system_line(_CHAT_LEFT_FORMAT % left_name)
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
 	# a graceful client leave() from a dropped connection would need its own
-	# wire message. Reported uniformly as TIMEOUT; the grace
-	# period (P3's Match.on_peer_left) reacts the same way either way, so this
-	# has no gameplay impact.
+	# wire message. Reported uniformly as TIMEOUT; the grace period
+	# (Match.on_peer_left) reacts the same way either way, so this has no
+	# gameplay impact.
 	Events.net_peer_left.emit(id, slot_id, LeaveReason.TIMEOUT)
 
 
@@ -1604,10 +1544,8 @@ func _on_server_disconnected() -> void:
 
 # --- Handshake & roster RPCs -------------------------------------------------
 
-## `rejoin_token` is what _rpc_join_accepted handed this
-## player on an earlier join, or "". It has a default so the parameter list
-## still binds for a sender that omits it; the build check refuses any real
-## older build first anyway.
+## `rejoin_token` is what _rpc_join_accepted handed this player on an earlier
+## join, or "".
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "") -> void:
 	if not is_host():
@@ -1621,7 +1559,8 @@ func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "
 	if _match_in_progress:
 		_handshake_mid_match(sender, build, player_name, rejoin_token)
 		return
-	# Spec 2.6: joining is lobby-only in M3a. Checked before capacity so a
+	# Spec 2.6: joining is lobby-only unless the match allows mid-match joins.
+	# Checked before capacity so a
 	# late joiner learns the real reason — a full lobby is a different message.
 	if not _accepting_joins:
 		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
@@ -1632,7 +1571,7 @@ func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "
 	_accept_peer(sender, build, player_name, _take_next_lobby_slot())
 
 
-## the handshake while a match runs. A token naming a slot
+## The handshake while a match runs. A token naming a slot
 ## that is still reclaimable wins first and skips _accepting_joins and the
 ## capacity check (its own departure freed the room): spec 2.6 lists
 ## reconnect separately from "Mid-match joins can be enabled in settings", and
@@ -1687,8 +1626,8 @@ func _reclaimable_slot_for(rejoin_token: String) -> int:
 
 ## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
 ##
-## Decision R4 of the lobby rework: the LOWEST free slot, not the next
-## monotonic id, so a joiner never lands above a hole. (_compact_lobby_slots closes
+## The LOWEST free slot, not the next monotonic id, so a joiner never lands
+## above a hole. (_compact_lobby_slots closes
 ## the holes a leaver makes; this keeps the invariant for every seating path.)
 ## "Free" = no roster entry holds it and no rejoin reservation names it. Mid-match
 ## the monotonic counter still applies (a slot a dropped player may reclaim, or
@@ -1718,10 +1657,9 @@ func _take_next_lobby_slot() -> int:
 ## (_broadcast_roster), which is what carries the new peer -> slot map to every
 ## client (and to the host's own lobby through net_roster_changed).
 ##
-## P2 review finding 1: slot ids were never compacted, so after a
-## player left the lobby the table had a hole below the highest human slot, and
-## LobbySeats.start_blocker reported a slot conflict that blocked Start even with
-## zero bots until someone rejoined. Never during a match: there a slot id is a
+## Without this, a player leaving the lobby would leave a hole below the
+## highest human slot, and LobbySeats.start_blocker would report a slot
+## conflict that blocks Start until someone rejoins. Never during a match: there a slot id is a
 ## PlayerSlot index the match already built, and a dropped player's rejoin token
 ## reserves it, so a mid-match leave keeps its hole (see _handshake_mid_match).
 ## The host never moves: it holds slot 0, the lowest, and local_slot() relies on it.
@@ -1748,7 +1686,7 @@ func _compact_lobby_slots() -> int:
 ## derived itself (the joiner sent none, so it holds the "Player N" fallback of
 ## the slot it was accepted into: "name_auto") is derived again for the new slot,
 ## so the label never goes stale and never collides with the next joiner's or a
-## bot's "Player N" for the slot this peer vacated (review F1). A
+## bot's "Player N" for the slot this peer vacated. A
 ## name the player chose is never touched, even when it reads "Player 3".
 func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 	var entry: Dictionary = _peers[peer_id]
@@ -1757,11 +1695,11 @@ func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 		entry[LobbySeats.FIELD_NAME] = PlayerNames.fallback_for_slot(slot_id)
 
 
-## Seats `peer_id` in `slot_id` (1 = spectator). `token` is a
+## Seats `peer_id` in `slot_id` (-1 = spectator). `token` is a
 ## reconnecting peer's existing rejoin token, reused so a second drop also
 ## works; a new peer gets a fresh one.
 ##
-## ordering: the joiner hears _rpc_join_accepted and the
+## Ordering: the joiner hears _rpc_join_accepted and the
 ## roster *before* Events.net_peer_joined fires, because net/MatchNet.gd
 ## answers that event with a mid-match world replay (rpc_id, reliable, the
 ## same ordered channel), and the replay's net_match_start builds the
@@ -1772,13 +1710,13 @@ func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int
 		_next_slot_id = slot_id + 1
 	var issued: String = token if token != "" else _new_rejoin_token()
 	_tokens[peer_id] = issued
-	# the host owns the roster, so it validates the name a peer
+	# The host owns the roster, so it validates the name a peer
 	# claims (control characters, trim, max length, "Player N" if empty) before
 	# anyone else sees it. Everything below uses the checked name.
 	var typed_name: String = PlayerNames.clean(player_name, config.max_player_name_length)
 	var name_auto: bool = typed_name == ""
 	var checked_name: String = PlayerNames.fallback_for_slot(slot_id) if name_auto else typed_name
-	# review F1: name_auto is true when the joiner sent no usable name and
+	# name_auto is true when the joiner sent no usable name and
 	# the name is the host's own "Player N" for the seat (see _set_peer_slot).
 	_peers[peer_id] = LobbySeats.entry_to_wire(peer_id, slot_id, checked_name, false, 0.0, build, true, name_auto)
 	_ping_samples[peer_id] = []
@@ -1797,8 +1735,8 @@ func _new_rejoin_token() -> String:
 
 func _reject_peer(peer_id: int, error: int) -> void:
 	_pending_handshake.erase(peer_id)
-	# review: a refused peer lingers for the grace frames below;
-	# mark it so NetFanout broadcasts skip it like a kicked peer.
+	# A refused peer lingers for the grace frames below; mark it so NetFanout
+	# broadcasts skip it like a kicked peer.
 	_disconnecting_peers[peer_id] = true
 	_rpc_join_refused.rpc_id(peer_id, error)
 	# Two frames' grace before closing the connection: rpc_id() only queues
@@ -1820,7 +1758,7 @@ func _reject_peer(peer_id: int, error: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
-## whether an RPC broadcast can actually reach the wire
+## Whether an RPC broadcast can actually reach the wire
 ## right now. _on_peer_disconnected can call _broadcast_roster() while the
 ## transport is mid-teardown — the multiplayer_peer already closed/nulled
 ## (leave()/host shutdown racing a late disconnect signal), or still open but
@@ -1881,9 +1819,8 @@ func _broadcast_roster() -> void:
 	var roster: Array[Dictionary] = []
 	for peer_id: int in _peers.keys():
 		roster.append((_peers[peer_id] as Dictionary).duplicate())
-	# the host's own copy of the roster (ready flags, joins,
-	# leaves, kicks — every caller of _broadcast_roster()) changed right here;
-	# tell ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
+	# The host's own copy of the roster changed right here; tell
+	# ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
 	for peer_id: int in _broadcast_targets():
 		_rpc_roster_update.rpc_id(peer_id, roster)
@@ -1907,9 +1844,9 @@ func _rpc_roster_update(roster: Array) -> void:
 	var mine: int = local_peer_id()
 	if _peers.has(mine):
 		_local_slot = int(_peers[mine].get(LobbySeats.FIELD_SLOT_ID, -1))
-	# the client-side mirror of the emit above, so a client's
-	# own ui/lobby/Lobby.gd updates the moment this RPC lands instead of on the
-	# next unrelated net_lobby_data_changed republish.
+	# The client-side mirror of the emit above, so a client's ui/lobby/Lobby.gd
+	# updates the moment this RPC lands rather than on the next
+	# net_lobby_data_changed republish.
 	Events.net_roster_changed.emit(typed_roster)
 
 
@@ -1943,35 +1880,31 @@ func _fail_join(error: int, detail: String = "") -> void:
 
 # --- Lobby-only joining ------------------------------------------------------
 
-## Host only. Whether _rpc_handshake may still seat a new peer. Spec 2.6 makes
-## joining lobby-only in M3a ("Mid-match joins can be enabled in settings" is a
-## future setting; the known-limitations list says "the host refuses new
-## connections once the match starts"). A peer that handshakes while this is
-## false is refused with JoinError.MATCH_IN_PROGRESS and disconnected, gets no
-## slot, and the existing roster is not touched or re-broadcast.
+## Host only. Whether _rpc_handshake may still seat a new peer. A peer that
+## handshakes while this is false is refused with JoinError.MATCH_IN_PROGRESS
+## and disconnected, gets no slot, and the existing roster is not touched or
+## re-broadcast.
 ##
 ## host_game() and leave() reset it to true, so a fresh session always accepts.
 ##
-## mid-match, game/main/Main.gd keeps it true while the running
+## Mid-match, game/main/Main.gd keeps it true while the running
 ## MatchConfig.allow_mid_match_join is on; set_match_in_progress() then routes
 ## the handshake through _handshake_mid_match() (open seat, spectator, or a
 ## rejoin token's reserved slot -- the last ignores this flag).
 ##
-## DECISION (autoload/Net.gd): a flag the match flow flips,
-## not a subscription to Events.match_state_changed. That signal carries
-## Match.State ints, and deciding which value is "lobby" would make this file
-## name a gameplay concept (the Net contract: "Must NOT name a gameplay
-## concept — no Match"). Match already depends on Net (Net.is_host()), so the
-## dependency keeps its existing direction. Wire it where the state machine
-## moves: `Net.set_accepting_joins(to_state == Match.State.LOBBY)` in
-## game/main/Main.gd's _on_match_state_changed() (or Match._set_state()).
+## DECISION (autoload/Net.gd): a flag the match flow flips, not a subscription
+## to Events.match_state_changed. That signal carries Match.State ints, and
+## deciding which value is "lobby" would make this file name a gameplay
+## concept (Net must not name Match). Match already depends on Net
+## (Net.is_host()), so the dependency keeps its direction. Wired in
+## game/main/Main.gd's _on_match_state_changed() as
+## `Net.set_accepting_joins(to_state == Match.State.LOBBY)`.
 ##
-## The transport stays open on purpose. The known-limitations notes suggest
-## set_refuse_new_connections(true) once the match starts, but that fails the
-## late joiner's connection at the ENet layer, which surfaces as
-## JoinError.TRANSPORT or TIMEOUT — not a message the lobby can explain.
-## Accepting the connection and refusing in the handshake costs one reliable
-## RPC and the same two-frame disconnect every other refusal already pays.
+## The transport stays open on purpose: set_refuse_new_connections(true) would
+## fail the late joiner's connection at the ENet layer, which surfaces as
+## JoinError.TRANSPORT or TIMEOUT, not a message the lobby can explain.
+## Refusing in the handshake costs one reliable RPC and the same two-frame
+## disconnect every other refusal pays.
 func set_accepting_joins(accepting: bool) -> void:
 	_accepting_joins = accepting
 
@@ -2000,11 +1933,11 @@ func set_match_in_progress(active: bool) -> void:
 		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) < 0:
 			_set_peer_slot(peer_id, _take_next_lobby_slot())
 			reseated = true
-	# a player who left for good during the match left a hole too
+	# A player who left for good during the match left a hole too
 	# (nothing compacts mid-match); close it now the lobby is back, so Start is not
 	# blocked on a seat nobody can fill.
 	var compacted: bool = _compact_lobby_slots() > 0
-	# back in the lobby nobody is ready (every lobby view reads this flag).
+	# Back in the lobby nobody is ready (every lobby view reads this flag).
 	var cleared: bool = _clear_ready_flags()
 	if reseated or compacted or cleared:
 		_broadcast_roster()
@@ -2049,15 +1982,15 @@ func _rpc_set_ready(ready: bool) -> void:
 	set_peer_ready(multiplayer.get_remote_sender_id(), ready)
 
 
-# --- Loading-screen ready gate -------------------------------
+# --- Loading-screen ready gate ----------------------------------------------
 #
-#  every human player presses ready (ui_accept: Enter,
+# Every human player presses ready (ui_accept: Enter,
 # Space or the gamepad's A) on the loading screen and the host starts the
 # countdown once all of them have (core/rules/LoadingReadyGate.gd holds the rule,
 # autoload/match/MatchLifecycle.gd the per-match state). Net is only the
 # transport: it never names Match, so the host-side handoff and the mirror both
 # go over the Events bus (net_loading_ready_received / loading_ready_changed /
-# loading_gate_opened), the way net_peer_joined already does.
+# loading_gate_opened), the way net_peer_joined does.
 
 ## Local player pressed ready. Client: sends the intent to the host (which takes
 ## the peer id from the transport, never from the payload, so there is nothing
@@ -2129,10 +2062,10 @@ func _rpc_loading_gate_open() -> void:
 	Events.loading_gate_opened.emit()
 
 
-# --- Lobby seat preferences ---------------------------------
+# --- Lobby seat preferences -------------------------------------------------
 #
-# Lobby rework section 3: the host owns every seat's picks
-# may change only its OWN colour and team, and does so by sending this intent. Net
+# The host owns every seat's picks; a peer may change only its OWN colour and
+# team, and does so by sending this intent. Net
 # is transport only: it takes the peer id from the connection, refuses anything
 # that is not a plain in-range request from a seated peer in the lobby, and hands
 # the survivor to the lobby over Events.net_seat_pref_requested. The lobby (the
@@ -2248,7 +2181,7 @@ func _rpc_chat_submit(payload: Variant) -> void:
 	_handle_chat(multiplayer.get_remote_sender_id(), payload, true)
 
 
-## Host only. A chat line from `sender`, refused in the plan's order: not the host;
+## Host only. A chat line from `sender`, refused in this order: not the host;
 ## a remote sender that is not in the roster or is being disconnected (spectators may
 ## chat); chat disabled or the private local bot host; the sender's flood bucket is
 ## empty (every attempt drains it; a notice goes to the sender only, throttled); a
@@ -2445,7 +2378,7 @@ func _rpc_lobby_data(data: Dictionary) -> void:
 	Events.net_lobby_data_changed.emit(_lobby_data)
 
 
-# --- Ping ---------------------------------------------------------------
+# --- Ping -------------------------------------------------------------------
 
 func _tick_ping(delta: float) -> void:
 	_ping_accum += delta
@@ -2454,7 +2387,7 @@ func _tick_ping(delta: float) -> void:
 		return
 	_ping_accum = fmod(_ping_accum, interval)
 	var now_ms: int = Time.get_ticks_msec()
-	# review: same teardown hazard as _broadcast_roster().
+	# Same teardown hazard as _broadcast_roster().
 	if not _can_send():
 		return
 	for peer_id: int in _broadcast_targets():
@@ -2502,7 +2435,7 @@ func _record_ping_sample(peer_id: int, rtt: float) -> void:
 	_peers[peer_id][LobbySeats.FIELD_PING_MS] = total / samples.size()
 
 
-# --- Internal helpers --------------------------------------------------
+# --- Internal helpers -------------------------------------------------------
 
 func _tick_handshake_timeouts(now: float) -> void:
 	if _pending_handshake.is_empty():
@@ -2516,10 +2449,9 @@ func _tick_handshake_timeouts(now: float) -> void:
 
 
 ## Configures ENet's own dead-peer detection (NetConfig's peer_timeout_limit/
-## min/max triple). Reached through the generic MultiplayerPeer/duck-typed call so
+## min/max triple). Reached through a duck-typed call so
 ## ENetMultiplayerPeer/ENetPacketPeer are never named outside
-## _make_host_peer()/_make_client_peer(), per this file's transport-isolation
-## rule.
+## _make_host_peer()/_make_client_peer().
 func _apply_peer_timeout(id: int) -> void:
 	if _peer == null or not _peer.has_method("get_peer"):
 		return
@@ -2538,7 +2470,7 @@ func _apply_peer_timeout(id: int) -> void:
 		packet_peer.call("set_timeout", config.peer_timeout_limit, config.peer_timeout_min_ms, config.peer_timeout_max_ms)
 
 
-## Net.upnp_state() etc. are what the lobby reads. IDLE = not tried.
+## What the lobby reads. IDLE = not tried.
 func upnp_state() -> int:
 	return int(_upnp.state)
 

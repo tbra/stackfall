@@ -1,42 +1,40 @@
 extends Node
 ## User settings: graphics preset, audio levels, control bindings, music folder.
 ##
-## Persisted to a single user://settings.cfg ConfigFile (this autoload already
-## runs before any scene, project.godot's [autoload] section) and saved on
-## every setter -- small, infrequent writes, no debouncing needed
-## (audio and options settings).
+## Persisted to a single user://settings.cfg ConfigFile and saved on every
+## setter (small, infrequent writes, no debouncing needed).
 ##
 ## Settings only stores the user's choices and emits signals; it never
-## touches a Viewport/Environment or plays audio itself -- C2 (options menu)
-## and later consumers apply graphics_preset_changed/audio_settings_changed
-## to the actual render/audio state.
+## touches a Viewport/Environment or plays audio itself. Consumers apply
+## graphics_preset_changed/audio_settings_changed to the actual render/audio
+## state.
 
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
-## the "Adaptive quality" option flipped.
+## The "Adaptive quality" option flipped.
 signal adaptive_quality_setting_changed(enabled: bool)
 signal camera_shake_setting_changed(enabled: bool)
-## the player-chosen field of view changed (degrees; 0.0 = cleared, use CameraTuning.fov_deg).
+## The player-chosen field of view changed (degrees; 0.0 = cleared, use CameraTuning.fov_deg).
 signal fov_override_changed(degrees: float)
 signal window_mode_changed(id: StringName)
-## the relative UI scale changed (already sanitized and applied).
+## The relative UI scale changed (already sanitized and applied).
 signal ui_scale_changed(scale: float)
 signal hud_scale_changed(scale: float)
 signal minimap_size_changed(preset: int)
 
-## autoload/Rumble.gd reads rumble_enabled()/rumble_strength() directly (the
-## same camera_shake_enabled() precedent); this fires so a future
-## ui/menus/OptionsMenu.gd row can live-update without polling.
+## autoload/Rumble.gd reads rumble_enabled()/rumble_strength() directly (like
+## camera_shake_enabled()); this fires so an ui/menus/OptionsMenu.gd row can
+## live-update without polling.
 signal rumble_setting_changed(enabled: bool, strength: float)
-## the local player's typed name changed (already cleaned).
+## The local player's typed name changed (already cleaned).
 signal player_name_changed(player_name: String)
 
 const DEFAULT_PRESET_ID: StringName = &"medium"
 const PRESETS_DIR: String = "res://config/graphics/presets/"
 
-## ("default to only showing mouse/keyboard, switch to
-## showing only gamepad options on gamepad input and switch back on mouse/
-## keyboard input"). ui/menus/OptionsMenu.gd's Controls page and ui/menus/KeyRebindRow.gd
+## The last-used input device family: defaults to keyboard/mouse, switches to
+## gamepad on gamepad input and back on mouse/keyboard input.
+## ui/menus/OptionsMenu.gd's Controls page and ui/menus/KeyRebindRow.gd
 ## read active_input_device() to decide which device's binding glyphs to
 ## show; Events.input_device_changed lets both live-swap without reopening
 ## the menu.
@@ -44,10 +42,9 @@ const DEVICE_KEYBOARD_MOUSE: StringName = &"keyboard_mouse"
 const DEVICE_GAMEPAD: StringName = &"gamepad"
 const DEFAULT_ACTIVE_DEVICE: StringName = DEVICE_KEYBOARD_MOUSE
 
-## DECISION: a UI-feel/detection threshold, not gameplay or
-## physics tuning (CLAUDE.md's no-magic-numbers rule targets those), the same
-## reasoning ui/menus/OptionsMenu.gd's own MIN_VOLUME_DB/MAX_VOLUME_DB DECISION
-## gives for a plain script const instead of a config/*.tres Resource.
+## DECISION: a UI-feel/detection threshold, not gameplay or physics tuning,
+## so a plain script const instead of a config/*.tres Resource (like
+## ui/menus/OptionsMenu.gd's MIN_VOLUME_DB/MAX_VOLUME_DB, see its DECISION).
 ## Filters incidental mouse jitter (a resting hand, OS pointer noise) from
 ## counting as "the player just used the mouse".
 const MOUSE_MOTION_DEVICE_THRESHOLD_PX: float = 4.0
@@ -71,7 +68,7 @@ const KEY_DEBUG_ENABLED: String = "enabled"
 
 const KEY_PRESET: String = "preset"
 const KEY_ADAPTIVE_QUALITY: String = "adaptive_quality"
-## the player's per-field edits layered over the base preset (field -> value).
+## The player's per-field edits layered over the base preset (field -> value).
 const KEY_GRAPHICS_OVERRIDES: String = "overrides"
 ## The GraphicsPreset fields the Options Graphics tab may override; anything else in a saved
 ## file is dropped on load.
@@ -101,7 +98,7 @@ const KEY_RUMBLE_ENABLED: String = "rumble_enabled"
 const KEY_RUMBLE_STRENGTH: String = "rumble_strength"
 const KEY_MOUSE_MOVE_SPEED_SCALE: String = "mouse_move_speed_scale"
 const KEY_STICK_MOVE_SPEED_SCALE: String = "stick_move_speed_scale"
-## marks a save written after gamepad_cursor_base_speed was
+## Marks a save written after gamepad_cursor_base_speed was
 ## raised x1.2; a save without it holds a scale relative to the old base.
 const KEY_STICK_SPEED_BASIS: String = "stick_speed_basis"
 const STICK_SPEED_BASIS_CURRENT: int = 2
@@ -111,73 +108,65 @@ const STICK_SPEED_BASE_RATIO: float = 1.2
 const STICK_SPEED_MIGRATED_MIN: float = 0.5
 const STICK_SPEED_MIGRATED_MAX: float = 2.0
 
-## M7 P4: the three player-facing window modes, exclusive
-## fullscreen, borderless fullscreen and windowed. Ids are StringName rather
-## than a real GDScript enum so they persist to ConfigFile directly (same
-## pattern as _current_preset_id) and so a future ui/menus/OptionsMenu.gd
-## OptionButton can iterate WINDOW_MODE_IDS without depending on this
-## script's enum type.
+## The three player-facing window modes: exclusive fullscreen, borderless
+## fullscreen and windowed. Ids are StringName rather than a GDScript enum so
+## they persist to ConfigFile directly (like _current_preset_id) and so
+## ui/menus/OptionsMenu.gd's OptionButton can iterate WINDOW_MODE_IDS without
+## depending on this script's enum type.
 const WINDOW_MODE_FULLSCREEN: StringName = &"fullscreen"
 const WINDOW_MODE_BORDERLESS_FULLSCREEN: StringName = &"borderless_fullscreen"
 const WINDOW_MODE_WINDOWED: StringName = &"windowed"
 
-## : borderless fullscreen is the default.
+## Borderless fullscreen is the default.
 const DEFAULT_WINDOW_MODE_ID: StringName = WINDOW_MODE_BORDERLESS_FULLSCREEN
 
-## Display order for the future OptionButton (ui/menus/OptionsMenu.gd, a separate
-## package) -- exclusive fullscreen, then borderless fullscreen, then windowed.
+## Display order for the OptionButton in ui/menus/OptionsMenu.gd: exclusive
+## fullscreen, then borderless fullscreen, then windowed.
 const WINDOW_MODE_IDS: Array[StringName] = [
 	WINDOW_MODE_FULLSCREEN,
 	WINDOW_MODE_BORDERLESS_FULLSCREEN,
 	WINDOW_MODE_WINDOWED,
 ]
 
-## Human-readable labels for WINDOW_MODE_IDS, keyed the same way -- the future
-## OptionButton reads window_mode_label(id) rather than hand-rolling display
-## strings next to this script's own ids.
+## Human-readable labels for WINDOW_MODE_IDS, keyed the same way; the
+## OptionButton reads window_mode_label(id) rather than hand-rolling strings.
 const WINDOW_MODE_LABELS: Dictionary[StringName, String] = {
 	WINDOW_MODE_FULLSCREEN: "Fullscreen",
 	WINDOW_MODE_BORDERLESS_FULLSCREEN: "Borderless Fullscreen",
 	WINDOW_MODE_WINDOWED: "Windowed",
 }
 
-## M7 P4: default on -- matches the shake game/player/CameraRig.gd
-## already applies before the player ever opens Options, so a fresh install
-## shows the intended feel rather than a silent off-by-default.
+## Default on: matches the shake game/player/CameraRig.gd applies before the
+## player ever opens Options, so a fresh install shows the intended feel.
 const DEFAULT_CAMERA_SHAKE_ENABLED: bool = true
 
-## Bontago (rumble package): the single source of truth for a fresh install's
-## rumble defaults -- see config/player/RumbleConfig.gd's own DECISION comment. Once
+## The single source of truth for a fresh install's rumble defaults (see
+## config/player/RumbleConfig.gd's DECISION comment). Once
 ## user://settings.cfg has a [gamepad] section, _load() never reads these
 ## fields again.
 var _rumble_defaults: RumbleConfig = preload("res://config/player/rumble_config.tres")
 
-## Options package: Master/Music/SFX are three independent channels, each a
-## plain 0..1 linear "slider position" ("Sliders 0-100% (linear,
-## mapped to dB with linear_to_db; 0% = silent)") plus its own mute flag.
+## Master/Music/SFX/Weather are independent channels, each a plain 0..1 linear
+## "slider position" (mapped to dB with linear_to_db; 0% = silent) plus its
+## own mute flag.
 enum AudioChannel { MASTER, MUSIC, SFX, WEATHER }
 
 const DEFAULT_VOLUME_PERCENT: float = 1.0
 
 ## Floor applied whenever a channel is silent (muted, or at 0%). Not a design
-## tunable -- an engineering constant matching AudioServer's own convention
-## that -80 dB reads as inaudible on any reasonable output device, the same
-## reasoning autoload/Sfx.gd's own MUSIC_STEM_MUTE_DB const already documents
-## (CLAUDE.md's "no magic numbers" targets designer-facing tunables, not
-## this). linear_to_db(0.0) would return -INF, which is correct but an
-## unpleasant value to carry through AudioStreamPlayer.volume_db math
-## elsewhere (autoload/Sfx.gd's own crossfade/envelope code does arithmetic
-## on top of this), so a large-but-finite floor is used instead.
+## tunable: an engineering constant (-80 dB reads as inaudible on any output
+## device), like autoload/Sfx.gd's MUSIC_STEM_MUTE_DB. linear_to_db(0.0) would
+## return -INF, an unpleasant value to carry through the volume_db math in
+## autoload/Sfx.gd's crossfade/envelope code, so a large-but-finite floor is
+## used instead.
 const SILENT_VOLUME_DB: float = -80.0
 
-## Correction: the single "block movement
-## speed" slider is replaced by two independent scales -- mouse_move_speed_
-## scale multiplies game/player/PlayerController.gd's mouse-cursor use of
+## Two independent block-movement scales: mouse_move_speed_scale multiplies
+## game/player/PlayerController.gd's mouse-cursor use of
 ## GhostTuning.block_move_sensitivity, stick_move_speed_scale multiplies its
 ## gamepad cursor's max speed. 1.0 = the tuning Resource's own untouched
-## default for either. The *designed* slider range lives in ui/menus/OptionsMenu.gd
-## (the same MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration"
-## DECISION that file already documents), not here.
+## default for either. The slider range lives in ui/menus/OptionsMenu.gd (see
+## its DECISION), not here.
 const DEFAULT_MOUSE_MOVE_SPEED_SCALE: float = 1.0
 const DEFAULT_STICK_MOVE_SPEED_SCALE: float = 1.0
 
@@ -188,19 +177,17 @@ var _current_preset_id: StringName = DEFAULT_PRESET_ID
 ## field name -> value, only for fields that differ from the base preset.
 ## Non-empty means the player's graphics are "Custom".
 var _graphics_overrides: Dictionary = {}
-## opt-in adaptive quality. Default OFF (the user decides). The level is
+## Opt-in adaptive quality. Default OFF (the user decides). The level is
 ## runtime-only (never saved) and only ever layered over the stored preset.
 const DEFAULT_ADAPTIVE_QUALITY: bool = false
 var _adaptive_quality: bool = DEFAULT_ADAPTIVE_QUALITY
 var _governor_level: int = 0
 var _governor_config: QualityGovernorConfig = preload("res://config/graphics/quality_governor.tres")
 
-## Keyed by AudioChannel; see the enum's own doc above. Muting never touches
-## the stored percent -- toggling mute back off simply reveals whatever
-## percent the slider was already at, so "restoring the previous level on
-## unmute" (the owner's own words) falls out of *not* changing this value
-## rather than needing a second stored "previous" field (DECISION,
-## autoload/Settings.gd).
+## Keyed by AudioChannel. Muting never touches the stored percent: toggling
+## mute back off reveals whatever percent the slider was already at, so the
+## previous level is restored without a second stored "previous" field
+## (DECISION, autoload/Settings.gd).
 var _channel_volume_percent: Dictionary[int, float] = {
 	AudioChannel.MASTER: DEFAULT_VOLUME_PERCENT,
 	AudioChannel.MUSIC: DEFAULT_VOLUME_PERCENT,
@@ -214,7 +201,7 @@ var _channel_muted: Dictionary[int, bool] = {
 	AudioChannel.WEATHER: false,
 }
 
-## the name the local player typed, "" until they type one (the
+## The name the local player typed, "" until they type one (the
 ## host then seats them as "Player N"). Length cap: NetConfig.max_player_name_length.
 var _player_name: String = ""
 var _net_config: NetConfig = preload("res://config/net/net_config.tres")
@@ -234,7 +221,7 @@ var _stick_move_speed_scale: float = DEFAULT_STICK_MOVE_SPEED_SCALE
 ## action -> Array of persisted InputEvent overrides for that action (never
 ## the full InputMap default set).
 var _key_overrides: Dictionary[StringName, Array] = {}
-## user-level debug-mode switch (game/debug/DebugMode.gd's source 3).
+## User-level debug-mode switch (game/debug/DebugMode.gd's source 3).
 ## -1 = never set (fall through to the other sources), 0 = off, 1 = on. Edited
 ## by hand in user://settings.cfg ([debug] enabled=true); there is no in-game
 ## menu entry on purpose.
@@ -244,8 +231,8 @@ var _debug_setting: int = -1
 func _ready() -> void:
 	AgentProbe.apply()
 	# Sharded GUT gates run several Godot processes at once; they must not share
-	# (or clobber) the player's user://settings.cfg.
-	# agent probe runs are isolated the same way (per-PID file, never the player's).
+	# (or clobber) the player's user://settings.cfg. Agent probe runs are
+	# isolated the same way (per-PID file, never the player's).
 	_gut_run = UserPaths.is_isolated_run()
 	if _gut_run:
 		_config_path = UserPaths.gut_path(REAL_CONFIG_PATH)
@@ -255,9 +242,8 @@ func _ready() -> void:
 	apply_ui_scale()
 
 
-## The player's last-used input device family: real keyboard/
-## mouse key or button press, or mouse motion beyond
-## MOUSE_MOTION_DEVICE_THRESHOLD_PX, sets DEVICE_KEYBOARD_MOUSE; a real
+## The player's last-used input device family: a real keyboard/mouse key or
+## button press, or mouse motion beyond MOUSE_MOTION_DEVICE_THRESHOLD_PX, sets DEVICE_KEYBOARD_MOUSE; a real
 ## gamepad button or a stick/trigger beyond JOYPAD_MOTION_DEVICE_THRESHOLD
 ## sets DEVICE_GAMEPAD. Starts at DEFAULT_ACTIVE_DEVICE (keyboard/mouse) so a
 ## fresh session's Controls page shows keyboard bindings before any input.
@@ -265,9 +251,7 @@ func active_input_device() -> StringName:
 	return _active_device
 
 
-## Settings is a plain autoload Node (project.godot's [autoload] section), so
-## it receives _input() for every node in the tree the same as any other --
-## no viewport/Control involved, this only ever classifies the raw event.
+## Only classifies the raw event; no viewport/Control is involved.
 func _input(event: InputEvent) -> void:
 	var family: StringName = _classify_device(event)
 	if family == &"" or family == _active_device:
@@ -298,10 +282,11 @@ func current_graphics_preset() -> GraphicsPreset:
 	return QualityGovernor.apply(stored_graphics_preset(), _governor_level, _governor_config)
 
 
-## The user's chosen preset exactly as stored (never carries governor overrides).
-## the base preset duplicated with the player's overrides applied (the base
-## itself when there are none). DECISION: `id` stays the base preset's id so consumers that
-## branch on it (e.g. the Low snow look) keep working; graphics_preset_is_custom() says Custom.
+## The user's chosen preset exactly as stored (never carries governor
+## overrides): the base preset duplicated with the player's overrides applied
+## (the base itself when there are none). DECISION: `id` stays the base
+## preset's id so consumers that branch on it (e.g. the Low snow look) keep
+## working; graphics_preset_is_custom() says Custom.
 func stored_graphics_preset() -> GraphicsPreset:
 	var base: GraphicsPreset = _load_preset_resource(_current_preset_id)
 	if base == null or _graphics_overrides.is_empty():
@@ -411,7 +396,7 @@ func set_graphics_preset(id: StringName) -> void:
 	graphics_preset_changed.emit(current_graphics_preset())
 
 
-# --- Audio channels (options package) ----------------------------------------
+# --- Audio channels ----------------------------------------------------------
 ## Master/Music/SFX volume sliders + mute toggles. Master multiplies every
 ## channel (autoload/Sfx.gd adds master_volume_db() to every player's own
 ## baseline); music_volume_db()/sfx_volume_db() additionally scale only their
@@ -530,10 +515,9 @@ func _set_channel_volume_percent(channel: AudioChannel, percent: float) -> void:
 	var clamped: float = clampf(percent, 0.0, 1.0)
 	_channel_volume_percent[channel] = clamped
 	# DECISION (autoload/Settings.gd): dragging the slider above 0% implies
-	# the player wants to hear this channel again -- the same "moving the
-	# fader unmutes it" behaviour a real mixing console gives, and matches the
-	# owner's own "restoring the previous level on unmute" framing (nothing
-	# else un-mutes a channel on its own).
+	# the player wants to hear this channel again (the "moving the fader
+	# unmutes it" behaviour of a mixing console); nothing else un-mutes a
+	# channel on its own.
 	if clamped > 0.0 and _channel_muted[channel]:
 		_channel_muted[channel] = false
 	_save()
@@ -548,8 +532,7 @@ func _set_channel_muted(channel: AudioChannel, muted: bool) -> void:
 	audio_settings_changed.emit()
 
 
-## SILENT_VOLUME_DB while muted or at 0% ("0% = silent" per the brief);
-## linear_to_db() of the stored percent otherwise.
+## SILENT_VOLUME_DB while muted or at 0%; linear_to_db() of the stored percent otherwise.
 func _channel_volume_db(channel: AudioChannel) -> float:
 	var percent: float = _channel_volume_percent[channel]
 	if _channel_muted[channel] or percent <= 0.0:
@@ -557,7 +540,7 @@ func _channel_volume_db(channel: AudioChannel) -> float:
 	return linear_to_db(percent)
 
 
-## the local player's saved display name, "" when never set.
+## The local player's saved display name, "" when never set.
 ## ui/menus/MainMenu.gd prefills its name field from this and writes every edit back,
 ## so the name survives page changes, a rebuilt menu and a restart.
 func player_name() -> String:
@@ -574,10 +557,7 @@ func set_player_name(typed: String) -> void:
 	player_name_changed.emit(_player_name)
 
 
-## M7 P4, spec 1.10 "camera shake": read directly by
-## game/player/CameraRig.gd (a plain-bool feel setting, not something that
-## needs a per-test provider seam the way ui/menus/OptionsMenu.gd's InputMap
-## rebinding does).
+## Spec 1.10 "camera shake": read directly by game/player/CameraRig.gd.
 func camera_shake_enabled() -> bool:
 	return _camera_shake_enabled
 
@@ -588,7 +568,7 @@ func set_camera_shake_enabled(enabled: bool) -> void:
 	camera_shake_setting_changed.emit(enabled)
 
 
-## the player's field of view in degrees, or 0.0 when never chosen.
+## The player's field of view in degrees, or 0.0 when never chosen.
 ## DECISION (autoload/Settings.gd): an optional override rather than a second default, so the
 ## F4 CameraTuning.fov_deg slider stays the baseline until a player picks a value in Options;
 ## game/player/CameraRig.gd applies this over the tuning value.
@@ -610,8 +590,7 @@ func reset_fov_override() -> void:
 	fov_override_changed.emit(_fov_override_deg)
 
 
-## Bontago (rumble package): read directly by autoload/Rumble.gd, the same
-## way camera_shake_enabled() above is read directly by game/player/CameraRig.gd.
+## Read directly by autoload/Rumble.gd, like camera_shake_enabled() above.
 func rumble_enabled() -> bool:
 	return _rumble_enabled
 
@@ -622,7 +601,7 @@ func set_rumble_enabled(enabled: bool) -> void:
 	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
 
 
-## 0..1, clamped -- the same range config/player/RumbleConfig.gd's
+## 0..1, clamped; the range config/player/RumbleConfig.gd's
 ## global_strength_scale default seeds this from.
 func rumble_strength() -> float:
 	return _rumble_strength
@@ -642,24 +621,22 @@ func reset_rumble_settings() -> void:
 	rumble_setting_changed.emit(_rumble_enabled, _rumble_strength)
 
 
-# --- Block movement speed (options package) -----------------------------------
-## Two independent feel multipliers game/player/PlayerController.gd applies: mouse_
-## move_speed_scale to the mouse cursor's block_move_sensitivity,
-## stick_move_speed_scale to the gamepad cursor's max speed. Kept separate rather than one shared scale, since a mouse
-## and a gamepad player tune their own device's feel independently; 1.0 = the
-## tuning Resource's own untouched default for either.
+# --- Block movement speed ----------------------------------------------------
+## Two independent feel multipliers game/player/PlayerController.gd applies:
+## mouse_move_speed_scale to the mouse cursor's block_move_sensitivity,
+## stick_move_speed_scale to the gamepad cursor's max speed. Kept separate
+## since a mouse and a gamepad player tune their own device's feel
+## independently; 1.0 = the tuning Resource's own untouched default for either.
 
 func mouse_move_speed_scale() -> float:
 	return _mouse_move_speed_scale
 
 
 func set_mouse_move_speed_scale(scale: float) -> void:
-	# DECISION (autoload/Settings.gd): the *designed* range (the Options
-	# slider's own min/max) lives in ui/menus/OptionsMenu.gd, the same
-	# MIN_VOLUME_DB/MAX_VOLUME_DB "scene-level widget configuration" DECISION
-	# that file already documents -- this clamp is only a generic safety
-	# floor so a scale can never reach zero or negative and stall or invert
-	# cursor movement.
+	# DECISION (autoload/Settings.gd): the designed range (the Options slider's
+	# min/max) lives in ui/menus/OptionsMenu.gd (see its DECISION); this clamp is only a generic
+	# safety floor so a scale can never reach zero or negative and stall or
+	# invert cursor movement.
 	_mouse_move_speed_scale = clampf(scale, 0.01, 10.0)
 	_save()
 
@@ -679,7 +656,7 @@ func reset_move_speed_scales() -> void:
 	_save()
 
 
-## the player's UI scale, RELATIVE to the design-mockup scale (1.0 = mockup).
+## The player's UI scale, RELATIVE to the design-mockup scale (1.0 = mockup).
 func ui_scale() -> float:
 	return _ui_scale
 
@@ -696,7 +673,7 @@ func reset_ui_scale() -> void:
 	set_ui_scale(_ui_scale_tuning.default_scale)
 
 
-## the in-match HUD scale (separate from the UI scale; same range and step).
+## The in-match HUD scale (separate from the UI scale; same range and step).
 func hud_scale() -> float:
 	return _hud_scale
 
@@ -746,17 +723,16 @@ func apply_ui_scale() -> void:
 		tree.root.content_scale_factor = _ui_scale_tuning.effective_factor(_ui_scale)
 
 
-## M7 P4: the persisted window-mode id. Defaults to
-## DEFAULT_WINDOW_MODE_ID (borderless fullscreen) when user://settings.cfg has
-## never stored one.
+## The persisted window-mode id. Defaults to DEFAULT_WINDOW_MODE_ID
+## (borderless fullscreen) when user://settings.cfg has never stored one.
 func window_mode() -> StringName:
 	return _window_mode_id
 
 
 ## Validates `id` against WINDOW_MODE_IDS, persists it, emits
-## window_mode_changed(id) and applies it immediately via apply_window_mode()
-## -- game/main/Main.gd (a separate package) only needs to call apply_window_mode()
-## once at boot for the persisted value; every later change goes through here.
+## window_mode_changed(id) and applies it immediately via apply_window_mode();
+## game/main/Main.gd only calls apply_window_mode() once at boot for the
+## persisted value.
 func set_window_mode(id: StringName) -> void:
 	if not WINDOW_MODE_IDS.has(id):
 		push_warning("Settings: unknown window mode id %s" % id)
@@ -767,10 +743,9 @@ func set_window_mode(id: StringName) -> void:
 	apply_window_mode()
 
 
-## Human-readable label for `id`, for the future OptionButton. Returns the raw
-## id string if it's somehow missing from WINDOW_MODE_LABELS (must not happen
-## for any id in WINDOW_MODE_IDS, but an OptionButton reading a stale/unknown
-## persisted id should still get something printable rather than crash).
+## Human-readable label for `id`, for the OptionButton. Returns the raw id
+## string if it is missing from WINDOW_MODE_LABELS, so a stale/unknown
+## persisted id still gets something printable.
 func window_mode_label(id: StringName) -> String:
 	return WINDOW_MODE_LABELS.get(id, String(id))
 
@@ -779,20 +754,19 @@ func window_mode_label(id: StringName) -> String:
 ## Safe to call any number of times (idempotent: re-applying the same mode is
 ## just redundant DisplayServer calls, not observable state churn).
 ##
-## guarded so it is a no-op whenever there is no real player
-## window to change:
+## Guarded so it is a no-op whenever there is no real player window to change:
 ##  - DisplayServer.get_name() == "headless": no window exists at all (every
 ##    GUT test run, CI, `--headless-host` bot matches).
 ##  - Engine.is_editor_hint(): the script is running inside the editor itself
 ##    (tool mode), which owns its own window. Not OS.has_feature("editor"):
-##    that is true for every run from this repo's editor binary, including the
-##    owner's own `godot --path .` launches, and would make the setting inert
-##    until an export template exists.
+##    that is true for every run from this repo's editor binary, including
+##    `godot --path .` launches, and would make the setting inert until an
+##    export template exists.
 ##  - `--position`, `--windowed` or `-w` in OS.get_cmdline_args(): an explicit
 ##    windowed/off-screen CLI request wins over the saved mode. Our own
 ##    screenshot/probe tools launch with `--windowed --position 10000,10000`
 ##    specifically so a run never appears on the user's monitor; forcing
-##    fullscreen (now also the project default) would undo that.
+##    fullscreen would undo that.
 func apply_window_mode() -> void:
 	if not _can_apply_window_mode():
 		return
@@ -833,13 +807,11 @@ func _can_apply_window_mode() -> bool:
 	return true
 
 
-## Windowed mode's fallback size/position: the "sane size" ProjectSettings
-## already declares for the whole project (display/window/size/viewport_
-## width|height, the same values the engine itself uses to size the very
-## first window it opens), not a magic literal duplicated here. Centered on
-## whatever screen it ends up on via Window.move_to_center() rather than a
+## Windowed mode's fallback size/position: the size ProjectSettings already
+## declares (display/window/size/viewport_width|height), not a magic literal
+## duplicated here. Centered via Window.move_to_center() rather than a
 ## hand-computed screen-size/2 - window-size/2, which would double-count
-## whatever DisplayServer.screen_get_size() already reports.
+## whatever DisplayServer.screen_get_size() reports.
 func _restore_windowed_size_and_center() -> void:
 	var window: Window = get_window()
 	if window == null:
@@ -851,11 +823,10 @@ func _restore_windowed_size_and_center() -> void:
 
 
 ## DECISION: overrides are device-class aware (keyboard/mouse vs. gamepad) so
-## that remapping one class never deletes the other's bootstrap default --
-## CLAUDE.md requires every action to keep both a keyboard/mouse and a
-## gamepad binding. _key_overrides[action] therefore holds at most one event
-## per class; setting a new override only replaces the stored (and applied)
-## event of the same class, never the other class's entry.
+## that remapping one class never deletes the other's bootstrap default (every
+## action keeps both a keyboard/mouse and a gamepad binding).
+## _key_overrides[action] holds at most one event per class; a new override
+## only replaces the stored (and applied) event of the same class.
 func set_key_override(action: StringName, event: InputEvent) -> void:
 	var stored: Array = _key_overrides.get(action, [])
 	var is_gamepad: bool = _is_gamepad_event(event)
@@ -869,12 +840,10 @@ func set_key_override(action: StringName, event: InputEvent) -> void:
 	_save()
 
 
-## polish pass ("Add one 'Reset to defaults' action in
-## the footer"): clears every persisted override and reloads the InputMap
-## straight from project.godot's own [input] section, the exact bindings
-## tools/bootstrap_project.gd wrote there, undoing every runtime
-## action_erase_event()/action_add_event() a rebind ever made, without this
-## file needing to remember what each action's original event was.
+## Clears every persisted override and reloads the InputMap straight from
+## project.godot's [input] section (the bindings tools/bootstrap_project.gd
+## wrote), undoing every runtime action_erase_event()/action_add_event() a
+## rebind made, without remembering each action's original event.
 func reset_key_overrides() -> void:
 	_key_overrides.clear()
 	InputMap.load_from_project_settings()
@@ -882,11 +851,9 @@ func reset_key_overrides() -> void:
 
 
 ## Applies every InputMap override from user://settings.cfg. Called once from
-## _ready(); never touches tools/bootstrap_project.gd's own generated
-## defaults -- overrides layer on top via InputMap.action_erase_event()/
-## action_add_event() at runtime, one device class at a time (CLAUDE.md:
-## "don't hand-edit the [input] section" -- this doesn't; it's a runtime API
-## call, not a project.godot edit).
+## _ready(); never edits project.godot's [input] section -- overrides layer on
+## top via InputMap.action_erase_event()/action_add_event() at runtime, one
+## device class at a time.
 func _apply_key_overrides() -> void:
 	for action: StringName in _key_overrides.keys():
 		_apply_override(action, _key_overrides[action])
@@ -925,8 +892,8 @@ func effective_path() -> String:
 
 
 ## Points Settings at a temp settings.cfg path instead of user://settings.cfg and
-## immediately (re)loads from it, reapplying any persisted key overrides just
-## like _ready() would.
+## immediately (re)loads from it, reapplying persisted key overrides like
+## _ready().
 func set_config_path_for_test(path: String) -> void:
 	_config_path = path
 	_load()
@@ -936,7 +903,7 @@ func set_config_path_for_test(path: String) -> void:
 
 # --- Persistence --------------------------------------------------------------
 
-## see _debug_setting. -1 when the user never set it.
+## See _debug_setting. -1 when the user never set it.
 func debug_setting() -> int:
 	return _debug_setting
 
@@ -1027,8 +994,8 @@ func _load() -> void:
 	_stick_move_speed_scale = clampf(
 		float(cfg.get_value(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE, DEFAULT_STICK_MOVE_SPEED_SCALE)), 0.01, 10.0
 	)
-	# DECISION: no settings-version mechanism existed, so a
-	# minimal per-key basis marker is used. A stored stick scale without it is
+	# DECISION: there is no settings-version mechanism, so a minimal per-key
+	# basis marker is used. A stored stick scale without it is
 	# relative to the old base speed: divide by the ratio, clamped to the slider.
 	if cfg.has_section_key(SECTION_CONTROLS, KEY_STICK_MOVE_SPEED_SCALE) 			and int(cfg.get_value(SECTION_CONTROLS, KEY_STICK_SPEED_BASIS, 1)) < STICK_SPEED_BASIS_CURRENT:
 		_stick_move_speed_scale = clampf(
