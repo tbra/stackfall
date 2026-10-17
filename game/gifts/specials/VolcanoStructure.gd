@@ -1,6 +1,6 @@
 class_name VolcanoStructure
 extends Node3D
-## The Volcano's standalone world object (plan section 3, (a)). A child of the Field, so it rides the tilting disc.
+## The Volcano's standalone world object. A child of the Field, so it rides the tilting disc.
 ##
 ## Host (physics = true): carries an AnimatableBody3D with a convex cone hull that
 ## grows over rise_s, pushes blocks in its footprint outward while it rises (bounded

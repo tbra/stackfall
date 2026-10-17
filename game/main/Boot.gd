@@ -1,6 +1,6 @@
 class_name Boot
 extends Node
-## the project's main scene. Compiling Main.gd and the menu/lobby/match
+## Boot is the project's main scene. Compiling Main.gd and the menu/lobby/match
 ## script graph it names takes seconds; as the main scene that ran before the first frame with
 ## the window already open and no message pump, so Windows flagged "Not responding". Boot is
 ## trivially small: it queues game/main/Main.tscn on a worker thread, keeps the main loop (and so the
@@ -9,7 +9,7 @@ extends Node
 
 const MAIN_SCENE_PATH: String = "res://game/main/Main.tscn"
 const MAIN_NODE_NAME: String = "Main"
-## Process exit code when the game scene cannot be loaded (review of : never leave a
+## Process exit code when the game scene cannot be loaded (never leave a
 ## black window forever).
 const LOAD_FAILURE_EXIT_CODE: int = 1
 const LOAD_FAILURE_TITLE: String = "Stackfall"
@@ -90,7 +90,7 @@ func _quit_now() -> void:
 	if _quit_done:  # a second close request must not quit twice
 		return
 	_quit_done = true
-	set_process(false)  # review nit: never poll again once quitting
+	set_process(false)  # never poll again once quitting
 	if quit_callable.is_valid():
 		quit_callable.call()
 	else:
@@ -128,7 +128,7 @@ func _start_main(scene: PackedScene, activate_late: bool = true) -> void:
 		return
 	main.name = MAIN_NODE_NAME
 	var tree: SceneTree = get_tree()
-	# S2b: facades that deferred their late state build it now, before Main exists.
+	# Facades that deferred their late state build it now, before Main exists.
 	if activate_late:
 		LateScripts.activate_autoloads(tree)
 	tree.root.add_child(main)

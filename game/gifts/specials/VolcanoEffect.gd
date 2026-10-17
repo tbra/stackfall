@@ -1,8 +1,8 @@
 class_name VolcanoEffect
 extends SpecialEffect
 ## Volcano gift (spec 1.6): "a large mountain
-## rises where you released and keeps firing blocks for 20 s+". 
-## (a): a solid cone that rides the tilting disc, pushing blocks in its
+## rises where you released and keeps firing blocks for 20 s+".
+## A solid cone that rides the tilting disc, pushing blocks in its
 ## footprint outward as it rises.
 ##
 ## Flow: the gift carrier lands (needs_landing), the effect triggers at once

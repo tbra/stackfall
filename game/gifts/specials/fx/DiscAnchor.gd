@@ -3,7 +3,7 @@ extends RefCounted
 ## Parents a persistent gift node (black hole field/visual, paintball splash, blast
 ## puff) under the Field so it keeps its disc-local transform while the disc tilts or
 ## shakes, the way VolcanoStructure and PropellerStand do. Without a
-## live Field (an isolated unit test) it falls back to `fallback`, the old world parent.
+## live Field (an isolated unit test) it falls back to `fallback`, the world parent.
 
 
 ## The node a persistent effect should hang under, or `fallback` without a live Field.
