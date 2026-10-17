@@ -4,40 +4,29 @@ extends Node
 ## Every action goes through the Input Map (bootstrap_project.gd); nothing
 ## here reads a raw keycode.
 ##
-## M2 makes placement intent-only (spec 2.6, "clients send intents; the host
-## checks every intent before acting on it"): this script never builds a
-## Block itself. It positions the ghost, tracks whose turn it is in hot-seat
-## (strict alternation), and sends an
-## intent; the host alone decides what happens next and answers on the Events
-## bus.
+## Placement is intent-only (spec 2.6, "clients send intents; the host checks
+## every intent before acting on it"): this script never builds a Block itself.
+## It positions the ghost, tracks whose turn it is in hot-seat (strict
+## alternation), and sends an intent; the host alone decides what happens next
+## and answers on the Events bus. Offline the intent is Match.request_place()
+## for Events.turn_changed's slot; networked it goes through net/MatchNet.gd
+## (inline to Match on the host, a reliable RPC on a client) and always for
+## Net.local_slot(), because one instance drives one player.
 ##
-## M3a changes only where the intent goes and which slot it is for. Offline it
-## is still Match.request_place() and still Events.turn_changed's slot, so
-## hot-seat behaves exactly as it did. Networked, it goes through
-## net/MatchNet.gd -- inline to Match on the host, a reliable RPC on a client
-## -- and always for Net.local_slot(), because one instance drives one player.
+## Controls are block-locked (spec 1.5): the mouse positions the block directly
+## and the camera follows it, rather than an on-screen cursor raycasting onto the
+## field. A single world-space cursor (_cursor), moved by both mouse motion and
+## the gamepad stick (camera-relative), is reported to CameraRig every frame
+## (CameraRig.set_follow_position()), and the placement ray is cast straight down
+## from above it. The mouse wheel is block height (hover_raise/hover_lower).
+## Rotation is a discrete 90 degree tap (rotate_yaw/pitch/roll_*, rotate_snap), a
+## snap-by-90-degrees drag while rotation_mode is held (_accumulate_rotation_drag),
+## or a continuous free rotation while rotate_drag (MMB) is held.
 ##
-## original-style block-locked controls, spec 1.5: the original's mouse "positions
-## the block" directly and the camera is attached to it, rather than the
-## on-screen cursor raycasting onto the field. This script now keeps a single
-## world-space cursor (_cursor) that both mouse motion and the gamepad stick
-## move directly (camera-relative), reports it to CameraRig every frame
-## (CameraRig.set_follow_position()) so the camera can follow, and casts the
-## placement ray straight down from above it -- the screen-space mouse ray is
-## gone. The mouse wheel is now block height (hover_raise/hover_lower); rotation
-## is either a discrete 90 degree tap (rotate_yaw/pitch/roll_*, rotate_snap) or
-## a continuous snap-by-90-degrees drag while rotation_mode is held
-## (_accumulate_rotation_drag) -- the old free/quaternion-drift rotation is
-## gone (spec 1.7 flagged that drift as a reported original problem; "do not
-## keep two rotation systems").
-##
-## owner test "when you place a block and the
-## next block loads it gets displaced so it doesn't spawn directly within the
-## placed block": _on_feed_block_issued() now seeds the newly issued ghost's
-## hover height above whatever this controller's own last accepted placement
-## actually spawned (_apply_spawn_clearance(), config/blocks/tuning/GhostTuning.gd's
-## spawn_clearance) instead of leaving the new piece exactly where the old one
-## just landed.
+## _on_feed_block_issued() seeds the newly issued ghost's hover height above
+## whatever this controller's last accepted placement spawned
+## (_apply_spawn_clearance(), GhostTuning.spawn_clearance), so the new piece is
+## not left exactly where the old one just landed.
 
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
@@ -53,7 +42,7 @@ extends Node
 ## the home beacon's own extents, read only to clear its top
 ## with the match's first held piece (set_home_position()).
 @export var beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## M4 P2d (spec 1.4 "Throw (specials only)"): throw_drag_min_distance_m/
+## Spec 1.4 "Throw (specials only)": throw_drag_min_distance_m/
 ## throw_drag_min_speed_mps gate a release between an ordinary place and a
 ## throw; throw_speed_per_meter/throw_max_speed turn the drag into a launch
 ## velocity. Same @export-a-preloaded-Resource pattern as ghost_tuning/
@@ -62,7 +51,7 @@ extends Node
 
 var _camera_rig: CameraRig
 var _ghost: GhostPreview
-## M4 P2e: resolved from arc_preview_path in _ready(); null (and every driver
+## Resolved from arc_preview_path in _ready(); null (and every driver
 ## below no-ops) when the scene doesn't wire one, exactly like _camera_rig.
 var _arc_preview: ThrowArcPreview
 
@@ -70,35 +59,33 @@ var _arc_preview: ThrowArcPreview
 ## Events), so gameplay code normally calls `Match.foo()` directly with full
 ## static type-checking. This one field breaks that pattern on purpose: GUT
 ## cannot double a plain autoload the way it doubles engine singletons (see
-## addons/gut/test.gd's double_singleton — it only recognizes Godot's own
-## engine singletons), so tests need a seam to inject a fake Match ahead of
-## P2 landing the real one. `Variant` keeps the declaration explicit (not
-## "untyped" under CLAUDE.md's error-on-warning rule) while allowing dynamic
-## dispatch to whatever object is assigned.
+## addons/gut/test.gd's double_singleton, which only recognizes Godot's own
+## engine singletons), so tests need a seam to inject a fake Match. `Variant`
+## keeps the declaration explicit (not "untyped" under CLAUDE.md's
+## error-on-warning rule) while allowing dynamic dispatch to whatever object is
+## assigned.
 var _match: Variant = null
 
 ## DECISION (game/player/PlayerController.gd): Net is an autoload for the same
 ## reason Match is, and needs the same seam for the same reason; null means
 ## the real one. Offline Net.is_offline() is true and every branch below
-## collapses to exactly M2's behaviour.
+## collapses to the hot-seat behaviour.
 var _session_provider: Variant = null
 
 var _shapes_by_id: Dictionary = {}
 
 ## Seconds this controller's ghost stays locked after sending an intent, so a
-## second click inside one round trip cannot spend a second block
-## (never duplicated, never lost: the second defence). Only a
+## second click inside one round trip cannot spend a second block. Only a
 ## client ever sets it: the host's intent resolves inline, in the same frame.
 var _intent_lock_left: float = 0.0
 
-## Hot-seat: which slot this controller currently acts for (spec M2 1: strict alternation, only the active slot's timer/controls do
-## anything). -1 until the first Events.turn_changed.
+## Hot-seat: which slot this controller currently acts for (strict alternation:
+## only the active slot's timer/controls do anything). -1 until the first Events.turn_changed.
 var _active_slot: int = -1
 
-## bookkeeping only now -- both mouse and gamepad move the
-## same _cursor, and _update_ghost_transform() always raycasts straight down
-## from above it (the screen-space mouse ray is gone). Tests and any future
-## "which device last moved you" UI still read this.
+## Bookkeeping only: both mouse and gamepad move the same _cursor, and
+## _update_ghost_transform() always raycasts straight down from above it. Tests
+## and any future "which device last moved you" UI read this.
 var _using_gamepad_cursor: bool = false
 ## World-space cursor the ghost's placement ray casts down from. Both mouse
 ## motion (_move_cursor_from_mouse) and the gamepad's left stick
@@ -112,23 +99,20 @@ var _cursor_velocity: Vector3 = Vector3.ZERO
 ## Accumulated camera-relative drag (x = yaw, y = pitch) while rotation_mode
 ## is held, in GhostTuning's "drag units" (see _accumulate_rotation_drag()).
 var _rotation_drag: Vector2 = Vector2.ZERO
-## /controller-update.md, "clicking mmb rotates
-## the ghost block ... Q or Home resets": total unscaled mouse-pixel motion
-## accumulated since the current rotate_drag (MMB) press, reset on every
-## press. Below ghost_tuning.rotate_tap_max_motion_px this whole hold is a
-## tap -- no continuous free rotation is applied at all, and release fires a
-## single BlockOrientations.step_yaw_cw() snap (the same fixed pattern
-## rotate_snap/rotate_yaw_cw use). Once it crosses the threshold this hold is
-## a drag -- rotate_drag's InputEventMouseMotion branch below starts applying
-## apply_free_rotation_delta() every frame (/continuous
-## behaviour, unchanged), and release no longer snaps.
+## Total unscaled mouse-pixel motion accumulated since the current rotate_drag
+## (MMB) press, reset on every press. Below ghost_tuning.rotate_tap_max_motion_px
+## this whole hold is a tap -- no continuous free rotation is applied at all, and
+## release fires a single BlockOrientations.step_yaw_cw() snap (the same fixed
+## pattern rotate_snap/rotate_yaw_cw use). Once it crosses the threshold this hold
+## is a drag -- rotate_drag's InputEventMouseMotion branch below starts applying
+## apply_free_rotation_delta() every frame, and release no longer snaps.
 var _rotate_drag_motion_px: float = 0.0
 ## Set by HotSeat.gd/Sandbox.gd via enable_mouse_capture(); left false for
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
 
-## spec 1.4 "Held-block behaviour" [ORIGINAL], owner test
-## : the last cursor position the collision sweep accepted --
+## spec 1.4 "Held-block behaviour" [ORIGINAL]: the last cursor position the
+## collision sweep accepted --
 ## _clamp_cursor_collision() sweeps from here to the frame's new _cursor
 ## every frame and only advances this once the (possibly clamped) result is
 ## known, so a block held against a wall keeps being tested from where it
@@ -145,18 +129,16 @@ var _collision_cursor_seeded: bool = false
 var _last_hit_point: Vector3 = Vector3.ZERO
 var _last_hit_normal: Vector3 = Vector3.UP
 
-## owner test "when you place a block and the
-## next block loads it gets displaced so it doesn't spawn directly within the
-## placed block": true from the moment this controller's own _request_place()
-## call is sent (a deliberate click, or a host-only auto-drop) until the
-## outcome is known -- lets _on_feed_block_issued() tell "this feed follows a
-## placement I actually just asked for" apart from the match's very first
-## feed (never preceded by any _request_place() call here) or any other
-## unrelated one. Cleared by _on_placement_rejected() (a manual refusal
-## spawns nothing at all; an auto-drop burn spawns something, but far off the
-## map, not near the cursor -- neither needs the next ghost displaced), and
-## consumed (cleared again) the moment _apply_spawn_clearance() actually uses
-## it, so it can never fire twice for one placement or leak into the next.
+## True from the moment this controller's own _request_place() call is sent (a
+## deliberate click, or a host-only auto-drop) until the outcome is known -- lets
+## _on_feed_block_issued() tell "this feed follows a placement I actually just
+## asked for" apart from the match's very first feed (never preceded by any
+## _request_place() call here) or any other unrelated one. Cleared by
+## _on_placement_rejected() (a manual refusal spawns nothing at all; an auto-drop
+## burn spawns something, but far off the map, not near the cursor -- neither
+## needs the next ghost displaced), and consumed (cleared again) the moment
+## _apply_spawn_clearance() actually uses it, so it can never fire twice for one
+## placement or leak into the next.
 var _pending_spawn_active: bool = false
 ## The world-space Y of the *top* of the shape this controller's pending
 ## placement is about to occupy -- captured from the held ghost's own
@@ -178,7 +160,7 @@ var _spawn_settle_waiting: bool = false
 ## pending placement (on a client this can lag the request by a round trip).
 var _pending_spawn_fed: bool = false
 
-## round 2: how much of _ghost.manual_hover_offset is
+## How much of _ghost.manual_hover_offset is
 ## spawn-clearance raise (see _apply_spawn_clearance()) rather than the
 ## player's own hover input. The camera follows the ghost INCLUDING this raise
 ## (eased once via CameraRig.begin_follow_transition()); the split exists only
@@ -194,11 +176,10 @@ var _release_raise: float = 0.0
 ## player's own hover input, so only the very first piece ever carries it.
 var _home_spawn_raise: float = 0.0
 
-## in-game tuning panel: ui/debug/TuningPanel.gd sets this false
+## In-game tuning panel: ui/debug/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
 ## also move the ghost, rotate it, or spend a placement underneath the panel.
-## Defaults true so every existing bare-controller test (no panel involved)
-## keeps behaving exactly as before.
+## Defaults true so a bare controller (no panel involved) is enabled.
 var input_enabled: bool = true
 ## set by Events.match_results_ready; this controller is freed
 ## with the match world, so it never needs clearing.
@@ -245,11 +226,10 @@ func _ready() -> void:
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
-	# M7 P42, pause menu: ui/menus/PauseMenu.gd is the only thing
-	# that reads the pause_menu action now (its own _unhandled_input) -- this
-	# controller only reacts to the Events it emits, the same "gate input,
-	# don't touch the scene tree" contract input_enabled already has for
-	# ui/debug/TuningPanel.gd's toggle.
+	# ui/menus/PauseMenu.gd is the only thing that reads the pause_menu action
+	# (its own _unhandled_input) -- this controller only reacts to the Events it
+	# emits, the same "gate input, don't touch the scene tree" contract
+	# input_enabled already has for ui/debug/TuningPanel.gd's toggle.
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
 	# the results screen blocks gameplay input like the pause menu.
@@ -270,13 +250,12 @@ func set_camera_rig(rig: CameraRig) -> void:
 		rig.set_start_anchor_source(spawn_camera_anchor)
 
 
-## "START CAMERA STILL NOT FIXED": places the ghost at
-## the current cursor -- at match start, the held piece's spawn pose behind the
-## home beacon (set_home_position()) -- and returns the camera anchor the
-## ordinary follow uses there (_camera_follow_anchor()). CameraRig.
-## begin_start_framing() calls it when the ready gate opens, so the very first
-## start view already pivots on the held piece exactly as the first PLAYING
-## frame does. Falls back to the cursor when no ghost is wired.
+## Places the ghost at the current cursor -- at match start, the held piece's
+## spawn pose behind the home beacon (set_home_position()) -- and returns the
+## camera anchor the ordinary follow uses there (_camera_follow_anchor()).
+## CameraRig.begin_start_framing() calls it when the ready gate opens, so the
+## very first start view already pivots on the held piece exactly as the first
+## PLAYING frame does. Falls back to the cursor when no ghost is wired.
 func spawn_camera_anchor() -> Vector3:
 	if _ghost == null:
 		return _cursor
@@ -284,15 +263,11 @@ func spawn_camera_anchor() -> Vector3:
 	return _camera_follow_anchor()
 
 
-## item 4 (owner feel report: "the camera starts looking from
-## the player's home flag toward the disk centre, and the initial cursor
-## should start at the home flag"): called once by HotSeat.bind_local_slot()/
-## Sandbox's own turn-changed handler with that slot's home-flag world
-## position (Match.default_ghost_origin(slot_id) -- see those callers' own
-## DECISION comments for why that read-only API, not a new one, supplies it).
-## Seeds _cursor there (so the first frame's ghost/footprint sit at the home
-## flag, not the world origin) and points the camera rig the same way, if one
-## is already wired.
+## Called once by HotSeat.bind_local_slot()/Sandbox's own turn-changed handler
+## with that slot's home-flag world position (Match.default_ghost_origin(slot_id),
+## a read-only API). Seeds _cursor there (so the first frame's ghost/footprint
+## sit at the home flag, not the world origin) and points the camera rig the same
+## way, if one is already wired.
 func set_home_position(home_position: Vector3) -> void:
 	_cursor = home_position
 	_last_safe_cursor = home_position
@@ -302,17 +277,15 @@ func set_home_position(home_position: Vector3) -> void:
 		_camera_rig.set_home_view(home_position)
 
 
-## ("Start the first block higher up,
-## it loads inside the home beacon currently"). The first held piece is seeded
-## on the home flag, but the ghost anchors at the bare disc surface plus
-## tuning.hover_height, and neither the placement ray nor the spawn-clearance
-## query sees the beacon (Field.PLACEMENT_QUERY_MASK; the clearance never runs
-## for the first piece), so the piece sat inside the beacon's socket and
-## crystal. Raises the hover offset so the shape's lowest point clears the
-## beacon top by GhostTuning.home_spawn_beacon_margin; a no-op if the hover
-## already clears it. The ghost is placed from this offset on its next
-## _update_ghost_transform(), and the host spawns a released block at the pose
-## the ghost sends, so no host-side rule changes.
+## The first held piece is seeded on the home flag, but the ghost anchors at the
+## bare disc surface plus tuning.hover_height, and neither the placement ray nor
+## the spawn-clearance query sees the beacon (Field.PLACEMENT_QUERY_MASK; the
+## clearance never runs for the first piece), so the piece would sit inside the
+## beacon's socket and crystal. Raises the hover offset so the shape's lowest
+## point clears the beacon top by GhostTuning.home_spawn_beacon_margin; a no-op
+## if the hover already clears it. The ghost is placed from this offset on its
+## next _update_ghost_transform(), and the host spawns a released block at the
+## pose the ghost sends, so no host-side rule changes.
 ## DECISION: tracked apart from the player's own hover (_home_spawn_raise) so it
 ## is dropped at the next spawn / when the player scrolls, and later pieces
 ## hover exactly as before.
@@ -340,10 +313,9 @@ func _take_back_home_spawn_raise() -> void:
 ## back to visible via Events.pause_menu_opened so the pause overlay's buttons
 ## can be clicked; see _on_pause_menu_opened()/_on_pause_menu_closed().
 ## Restores the OS cursor when this controller leaves the tree (match teardown
-## in Main._end_match_world()). Without this the cursor stayed captured on the
-## main menu after leaving a match, soft-locking mouse users
-## (feedback/playtest.md). Only undoes a capture this controller
-## itself enabled, so headless runs and tests are unaffected.
+## in Main._end_match_world()). Otherwise the cursor stays captured on the main
+## menu after leaving a match, soft-locking mouse users. Only undoes a capture
+## this controller itself enabled, so headless runs and tests are unaffected.
 func _exit_tree() -> void:
 	if _mouse_capture_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -385,7 +357,7 @@ func _on_match_results_ready(_results: Dictionary) -> void:
 
 
 ## Play again / sandbox reset reuse this controller: the results screen is gone,
-## so gameplay input comes back (review finding on).
+## so gameplay input comes back.
 func _on_match_scope_reset() -> void:
 	_chat_open = false
 	if not _results_open:
@@ -406,10 +378,10 @@ func _on_pause_menu_closed() -> void:
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
-## . # DECISION: during the pre-match 3-2-1 this controller
-## ignores all gameplay input (cursor, rotate, place, throw); camera look is
-## CameraRig's own separate listener and keeps working. The host also refuses
-## every intent outside PLAYING, so this is feedback, not the rule.
+## During the pre-match 3-2-1 this controller ignores all gameplay input
+## (cursor, rotate, place, throw); camera look is CameraRig's own separate
+## listener and keeps working. The host also refuses every intent outside
+## PLAYING, so this is feedback, not the rule.
 func _countdown_blocks_input() -> bool:
 	return Match.state() == Match.State.COUNTDOWN
 
@@ -430,31 +402,24 @@ func _process(delta: float) -> void:
 		# comment for who reads it.
 		_camera_rig.set_local_slot(_acting_slot())
 		if _camera_rig.is_peeking():
-			#  "the ghost/cursor never
-			# moves during peek" and placing must not happen while peeking --
-			# the simplest safe choice is to suppress every other per-frame
-			# gameplay input this controller drives while PEEK holds the
-			# camera on a focus target, exactly like input_enabled's own gate
-			# just above, but without touching mouse capture/OS cursor
-			# visibility the way that one does (CameraRig itself still needs
-			# camera_snap_home/goal's own release event to end the peek, and
-			# that goes through CameraRig's own _unhandled_input(), untouched
-			# by this).
+			# The ghost/cursor never moves during peek and placing must not happen
+			# while peeking, so every other per-frame gameplay input this controller
+			# drives is suppressed while PEEK holds the camera on a focus target,
+			# like input_enabled's gate above but without touching mouse
+			# capture/OS cursor visibility. CameraRig's own _unhandled_input still
+			# ends the peek via camera_snap_home/goal's release event.
 			return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
 	_update_throw_aim(delta)
 	_clamp_cursor_collision()
 	_update_ghost_transform()
-	# must run after _update_ghost_transform() above (so the
-	# overlap test below sees the *new* piece's shape at the *current* cursor,
-	# not a stale pose) and, just as importantly, not any earlier than this --
-	# see _apply_spawn_clearance()'s own header DECISION for why doing this
-	# synchronously inside the placement's own Events.feed_block_issued
-	# handler (this package's first attempt) does not work: the block that
-	# was just spawned has not been through a physics step yet at that point,
-	# so a physics query cannot see it. Self-guards on _pending_spawn_active,
-	# so this is a no-op on every ordinary frame.
+	# Must run after _update_ghost_transform() above (so the overlap test sees the
+	# *new* piece's shape at the *current* cursor, not a stale pose), and not
+	# synchronously inside the placement's own Events.feed_block_issued handler:
+	# the block that was just spawned has not been through a physics step yet at
+	# that point, so a physics query cannot see it. Self-guards on
+	# _pending_spawn_active, so this is a no-op on every ordinary frame.
 	_apply_spawn_clearance(delta, true)
 	_decay_clearance_raise(delta)
 	_update_ghost_tint()
@@ -464,14 +429,12 @@ func _process(delta: float) -> void:
 	_follow_held_piece()
 
 
-## ("START CAMERA STILL NOT FIXED"; feedback/051026/3.png
-## vs 4.png). ROOT CAUSE: _countdown_blocks_input() made _process() return before
-## it ever placed the ghost or fed the camera, so for the whole 3-2-1 the held
-## piece sat unplaced and the camera pivoted on the bare home beacon; the first
-## PLAYING frame then placed the piece at its spawn pose (pushed back from the
-## beacon and raised clear of it) and the follow snapped ~4 m to it. The
-## countdown now reads no input but still keeps the piece at that spawn pose and
-## the camera on it, so the countdown view is the first play view.
+## Keeps the held piece at its spawn pose and the camera on it through the 3-2-1
+## without reading any input. Otherwise the camera would pivot on the bare home
+## beacon for the whole countdown, and the first PLAYING frame would place the
+## piece at its spawn pose (pushed back from the beacon and raised clear of it)
+## and snap the follow ~4 m to it; this way the countdown view is the first play
+## view.
 func _present_countdown_hold() -> void:
 	if _camera_rig != null:
 		_camera_rig.set_local_slot(_acting_slot())
@@ -484,45 +447,34 @@ func _present_countdown_hold() -> void:
 func _follow_held_piece() -> void:
 	if _camera_rig != null and _ghost != null:
 		_camera_rig.block_held = _ghost.get_shape() != null
-		# user test: follow the rotated shape's own
-		# centre in X/Z, not this node's fixed local origin -- see GhostPreview.
-		# rotated_center_world()'s own doc comment. Placement intents/cursor
-		# publishing below keep sending _ghost.global_position unchanged (the
+		# Follow the rotated shape's own centre in X/Z, not this node's fixed local
+		# origin (see GhostPreview.rotated_center_world()). Placement
+		# intents/cursor publishing below keep sending _ghost.global_position (the
 		# node origin), matching what MatchPlacement._spawn_block() actually
-		# spawns the block at.
-		# Y comes from _camera_follow_anchor() instead, not
-		# rotated_center_world()'s own Y -- see that method's own doc comment
-		# for why (the held shape's own geometry must not move the camera).
+		# spawns the block at. Y comes from _camera_follow_anchor() instead, not
+		# rotated_center_world()'s own Y (the held shape's own geometry must not
+		# move the camera).
 		_camera_rig.set_follow_position(_camera_follow_anchor())
 
 
-## Camera-jump regression ("Camera always jumps up after block drops or
-## when clicking the drop button", coordinator follow-up: easing over
-## CameraTuning.drop_recover_seconds still visibly moved the camera up on
-## every new piece). ROOT CAUSE: GhostPreview.rotated_center_world()'s own Y
-## is global_position.y plus roughly half the *held shape's* own height (see
-## that method's own doc comment) -- config/blocks/*.tres shapes range from 1
-## cell tall (cube, domino) to 3 (pillar) -- so swapping shapes moved that Y
-## even when the hover/contact height genuinely never changed at all (no
-## overlap, no spawn clearance, the very same cursor spot). What the camera
-## should follow instead: the same X/Z rotated_center_world() already gives
-## (so orbiting/pitching the block still doesn't swing the camera's
-## horizontal framing -- own fix), but a Y built from
-## _last_hit_point.y (the cursor's own surface hit, cached by
+## The camera follow anchor: X/Z from GhostPreview.rotated_center_world() (so
+## orbiting/pitching the block doesn't swing the camera's horizontal framing),
+## Y from _last_hit_point.y (the cursor's surface hit, cached by
 ## _update_ghost_transform()) plus the current hover height
-## (tuning.hover_height + _ghost.manual_hover_offset) -- exactly the anchor
-## GhostPreview.update_placement() itself positions the ghost's bottom from
-## (its own `anchor` local var), which depends only on the cursor's surface
-## hit and the hover wheel/raise input, never on which shape is held or how
-## it is rotated. A genuine hover change (the wheel, a held raise/lower, or
-## _apply_spawn_clearance()'s own spawn-clearance raise) still moves this
-## exactly as before; an ordinary shape swap with the hover otherwise
-## unchanged now gives *zero* movement here, so CameraRig.
-## begin_follow_transition() only needs calling for that genuine raise (see
-## _apply_spawn_clearance()'s own call site) -- not for every shape swap.
+## (tuning.hover_height + _ghost.manual_hover_offset) -- the anchor
+## GhostPreview.update_placement() positions the ghost's bottom from, which
+## depends only on the cursor's surface hit and the hover wheel/raise input,
+## never on which shape is held or how it is rotated. rotated_center_world()'s
+## own Y is global_position.y plus roughly half the *held shape's* height
+## (config/blocks/*.tres shapes range from 1 cell tall to 3), so following it
+## would move the camera on every shape swap even when the hover never changed.
+## A genuine hover change (the wheel, a held raise/lower, or
+## _apply_spawn_clearance()'s raise) still moves this; an ordinary shape swap
+## gives zero movement, so CameraRig.begin_follow_transition() only needs
+## calling for that genuine raise (see _apply_spawn_clearance()'s call site).
 func _camera_follow_anchor() -> Vector3:
 	var center: Vector3 = _ghost.rotated_center_world()
-	# round 2: the camera is tied to the held block, raise included.
+	# The camera is tied to the held block, raise included.
 	var anchor_y: float = _last_hit_point.y + tuning.hover_height + _ghost.manual_hover_offset
 	return Vector3(center.x, anchor_y, center.z)
 
@@ -537,7 +489,7 @@ func set_session_provider(provider: Variant) -> void:
 
 
 ## Which slot this controller acts for. Offline that is whoever
-## Events.turn_changed last named -- M2's strict alternation, unchanged.
+## Events.turn_changed last named (strict alternation).
 ## Networked, one instance drives exactly one player: the slot Net gave it.
 func _acting_slot() -> int:
 	if bool(_session().is_offline()):
@@ -553,12 +505,12 @@ func set_acting_slot(slot_id: int) -> void:
 
 ## game/sandbox/Sandbox.gd's own typed name for the same seam, called
 ## from its sandbox_next_slot hotkey handler. A thin alias over
-## set_acting_slot() rather than a second field — offline, _acting_slot()
+## set_acting_slot() rather than a second field: offline, _acting_slot()
 ## already reads _active_slot regardless of which caller last set it
-## (HotSeat.bind_local_slot(), Events.turn_changed, or this), so giving
-## sandbox its own field here would just be two sources of truth that could
-## disagree. Naming it separately still keeps the call site readable as "the
-## sandbox is choosing this" rather than "this is a hot-seat turn hand-off".
+## (HotSeat.bind_local_slot(), Events.turn_changed, or this), so a separate
+## sandbox field would be two sources of truth that could disagree. Naming it
+## separately still keeps the call site readable as "the sandbox is choosing
+## this" rather than "this is a hot-seat turn hand-off".
 func set_sandbox_slot(slot_id: int) -> void:
 	set_acting_slot(slot_id)
 
@@ -597,45 +549,38 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled or _countdown_blocks_input():
 		return
 	if _camera_rig != null and _camera_rig.is_peeking():
-		# same PEEK gate _process() applies above -- mouse/gamepad
-		# motion, rotation, and ghost_place must not reach the ghost while the
-		# camera is peeking at a focus target. CameraRig's own _unhandled_input
-		# is a separate listener and still gets camera_snap_home/goal's release
-		# event undisturbed (Godot dispatches to every listening node), so the
-		# peek itself can still end normally.
+		# Same PEEK gate _process() applies above -- mouse/gamepad motion,
+		# rotation, and ghost_place must not reach the ghost while the camera is
+		# peeking at a focus target. CameraRig's own _unhandled_input is a
+		# separate listener and still gets camera_snap_home/goal's release event
+		# undisturbed (Godot dispatches to every listening node), so the peek
+		# itself can still end normally.
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		_using_gamepad_cursor = false
 		if Input.is_action_pressed(&"rotate_drag"):
-			# (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL,
-			# owner test]): a genuine continuous rotation, unlike
-			# rotation_mode's 90 degree snap grid below -- GhostPreview.
-			# free_quaternion already travels the wire untouched
+			# A continuous rotation, unlike rotation_mode's 90 degree snap grid below
+			# (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL]).
+			# GhostPreview.free_quaternion already travels the wire untouched
 			# (net/MatchNet.gd submit_cursor/submit_place) and
-			# MatchPlacement.request_place() composes the spawned block's
-			# basis from Basis(free_quat) * orientation basis
-			# (autoload/match/MatchPlacement.gd), with is_pose_well_formed()
-			# accepting any finite unit quaternion, not only the 24-entry
-			# table -- so this needs no wire-format change, just a fresh
-			# continuous input for a field that already carries one safely.
+			# MatchPlacement.request_place() composes the spawned block's basis from
+			# Basis(free_quat) * orientation basis (autoload/match/MatchPlacement.gd),
+			# with is_pose_well_formed() accepting any finite unit quaternion, not
+			# only the 24-entry table -- so this needs no wire-format change.
 			#
-			# user test 
-			# "like the RMB orbit but for the block": full 3-DOF now, not
-			# yaw-only -- horizontal motion yaws about world up, vertical
-			# motion pitches about the camera's current right axis
-			# (_camera_right_axis()), the same axis CameraRig's own orbit
-			# turns about. DECISION: signs are an easily-flipped feel choice,
-			# not a rule -- see the manual owner test step.
+			# Full 3-DOF, like the RMB orbit but for the block: horizontal motion
+			# yaws about world up, vertical motion pitches about the camera's current
+			# right axis (_camera_right_axis()), the same axis CameraRig's own orbit
+			# turns about. DECISION: signs are an easily-flipped feel choice, not a
+			# rule.
 			#
-			# /controller-update.md, "clicking mmb
-			# rotates the ghost block ... follows a set pattern": accumulate
-			# this event's motion toward the tap/drag threshold
-			# (_rotate_drag_motion_px) before applying anything -- while the
-			# whole hold is still under ghost_tuning.rotate_tap_max_motion_px,
-			# no free rotation is applied at all, so a plain MMB tap reads as
-			# no rotation while held and exactly one 90 degree snap on release
-			# (below), never a barely-visible micro-drag.
+			# Motion accumulates toward the tap/drag threshold
+			# (_rotate_drag_motion_px) before anything is applied: while the whole
+			# hold is still under ghost_tuning.rotate_tap_max_motion_px, no free
+			# rotation is applied at all, so a plain MMB tap reads as no rotation
+			# while held and exactly one 90 degree snap on release (below), never a
+			# barely-visible micro-drag.
 			_rotate_drag_motion_px += motion.relative.length()
 			if _ghost != null and _rotate_drag_motion_px >= ghost_tuning.rotate_tap_max_motion_px:
 				var yaw_delta: float = -motion.relative.x * ghost_tuning.rotate_drag_sensitivity
@@ -655,7 +600,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton and event.pressed:
-		# the wheel is block height now, not zoom or yaw
+		# The wheel is block height, not zoom or yaw
 		# (tools/bootstrap_project.gd). Wheel notches are momentary --
 		# InputEventMouseButton fires a press then an immediate release for
 		# each one -- so they get one fixed step here rather than
@@ -679,11 +624,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	if event.is_action_pressed(&"rotate_drag"):
-		# /controller-update.md, "clicking mmb
-		# rotates the ghost block, seems to follow a set pattern": every MMB
-		# press starts a fresh tap/drag measurement -- see
-		# _rotate_drag_motion_px's own doc comment and the
-		# InputEventMouseMotion branch above that accumulates into it.
+		# Every MMB press starts a fresh tap/drag measurement -- see
+		# _rotate_drag_motion_px's own doc comment and the InputEventMouseMotion
+		# branch above that accumulates into it.
 		_rotate_drag_motion_px = 0.0
 	elif event.is_action_released(&"rotate_drag"):
 		# DECISION (game/player/PlayerController.gd): reusing
@@ -701,10 +644,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"rotate_snap"):
 		# Original tutorial: "a key snap-rotates the block" -- a plain 90
 		# degree yaw tap, distinct from rotate_reset ("returns it to its
-		# default rotation"). Gamepad-only now (RB) -- MMB's own tap does the
-		# same 90 degree yaw via rotate_drag's release branch above
-		# ; see test_project_setup.gd's DEVICE_EXCEPTIONS for why
-		# rotate_snap itself carries no desktop binding.
+		# default rotation"). Gamepad-only (RB): MMB's own tap does the
+		# same 90 degree yaw via rotate_drag's release branch above; see
+		# test_project_setup.gd's DEVICE_EXCEPTIONS for why rotate_snap itself
+		# carries no desktop binding.
 		_apply_step(BlockOrientations.step_yaw_cw(_orientation_index()))
 	elif event.is_action_pressed(&"rotate_yaw_ccw"):
 		_apply_step(BlockOrientations.step_yaw_ccw(_orientation_index()))
@@ -723,12 +666,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_ghost.reset_rotation()
 		_rotation_drag = Vector2.ZERO
 	elif event.is_action_pressed(&"use_gift_slot"):
-		# the pad half moved off R3 (now show_scores), so the old
-		# Back-held guard for the perf chord is no longer needed.
 		_use_gift_slot()
 	elif event.is_action_pressed(&"ghost_place"):
 		# a held throwable is released by the same plain click/A press as any
-		# placement (_request_place sends the camera aim); there is no hold-to-aim any more.
+		# placement (_request_place sends the camera aim).
 		_place_ghost_block()
 
 ## QoL gift slot: asks the host to spend this slot's
@@ -756,9 +697,9 @@ func _apply_step(new_index: int) -> void:
 		_ghost.set_orientation_index(new_index)
 
 
-## (spec 1.3 "Camera orbit (hold + drag) ... mouse wheel zooms
-## while held"): true while either orbit hold is down, so the wheel handler
-## above routes to _zoom_camera() instead of _step_hover().
+## True while either orbit hold is down (spec 1.3: the mouse wheel zooms while
+## orbiting), so the wheel handler above routes to _zoom_camera() instead of
+## _step_hover().
 func _camera_orbit_held() -> bool:
 	return Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit")
 
@@ -813,17 +754,12 @@ func _refresh_ghost_pose() -> void:
 		_ghost.update_placement(_last_hit_point, _last_hit_normal)
 
 
-## second pass, owner: "there is still a maximum height the
-## block cannot be raised or placed above": the highest manual_hover_offset
-## the held ghost may reach right now. The binding limit is the wire band --
-## the ghost's own origin may rise to NetConfig.pos_max_y minus
-## GhostTuning.hover_ceiling_margin, the band core/net/Quantize.gd can
-## replicate and net/MatchNet.gd's _pose_is_acceptable() accepts from a
-## client -- with GhostTuning.hover_manual_max only an optional extra cap on
-## top (its default, 200 m, sits above anything the band allows). Previously the
-## ceiling was hover_manual_max alone (60 m above the disk surface),
-## independent of where that surface is, so it neither reached the band nor
-## guaranteed staying inside it.
+## The highest manual_hover_offset the held ghost may reach right now. The
+## binding limit is the wire band -- the ghost's own origin may rise to
+## NetConfig.pos_max_y minus GhostTuning.hover_ceiling_margin, the band
+## core/net/Quantize.gd can replicate and net/MatchNet.gd's _pose_is_acceptable()
+## accepts from a client -- with GhostTuning.hover_manual_max only an optional
+## extra cap on top (its default, 200 m, sits above anything the band allows).
 ## DECISION (game/player/PlayerController.gd): derived from the ghost's *current*
 ## origin height and offset (origin Y moves 1:1 with the offset along the
 ## surface normal's Y), rather than re-deriving GhostPreview's private
@@ -842,14 +778,13 @@ func _hover_offset_ceiling() -> float:
 	return maxf(minf(ceiling, band_ceiling), 0.0)
 
 
-## spec 1.5/1.7: rotation_mode turns "movement" (mouse motion
-## or the gamepad's left stick) into 90 degree orientation snaps instead of
-## the old continuous free/quaternion rotation, so there is exactly one
-## rotation system and it can never drift. `relative` is in GhostTuning's
-## un-scaled input units (mouse pixels or gamepad stick-seconds);
-## `sensitivity` converts it into "drag units" where a magnitude of 1.0 is
-## exactly one 90 degree step -- see block_rotation_sensitivity/
-## pad_rotation_speed's doc comments in config/blocks/tuning/GhostTuning.gd.
+## spec 1.5/1.7: rotation_mode turns "movement" (mouse motion or the gamepad's
+## left stick) into 90 degree orientation snaps; the continuous free rotation of
+## rotate_drag is separate. `relative` is in GhostTuning's un-scaled input units
+## (mouse pixels or gamepad stick-seconds); `sensitivity` converts it into "drag
+## units" where a magnitude of 1.0 is exactly one 90 degree step -- see
+## block_rotation_sensitivity/pad_rotation_speed's doc comments in
+## config/blocks/tuning/GhostTuning.gd.
 func _accumulate_rotation_drag(relative: Vector2, sensitivity: float) -> void:
 	if _ghost == null:
 		return
@@ -868,19 +803,16 @@ func _accumulate_rotation_drag(relative: Vector2, sensitivity: float) -> void:
 		_rotation_drag.y += 1.0
 
 
-## Owner controller update (re-confirmed
-## "RT held + left stick = continuous free rotation of the held
-## block exactly like holding MMB and moving the mouse"): the gamepad's own
-## path onto GhostPreview.apply_free_rotation_delta(), mirroring rotate_drag's
-## own InputEventMouseMotion branch in _unhandled_input() above -- X yaws
-## about world up, Y pitches about the camera's current right axis
-## (_camera_right_axis()), same as that branch. `stick` is the same
-## camera-relative Vector2 _update_gamepad_cursor() already builds for cursor
-## movement (x = ghost_move_right-left, y = ghost_move_back-forward), so its
-## sign convention already matches InputEventMouseMotion.relative's (stick up
-## == mouse motion up == negative y) -- negating both axes here the same way
-## rotate_drag's own mouse branch does keeps "drag the stick like the mouse"
-## true in both directions, not just yaw.
+## The gamepad's path onto GhostPreview.apply_free_rotation_delta() (RT held +
+## left stick = continuous free rotation of the held block, like holding MMB and
+## moving the mouse), mirroring rotate_drag's own InputEventMouseMotion branch in
+## _unhandled_input() above: X yaws about world up, Y pitches about the camera's
+## right axis (_camera_right_axis()). `stick` is the camera-relative Vector2
+## _update_gamepad_cursor() builds for cursor movement (x =
+## ghost_move_right-left, y = ghost_move_back-forward), whose sign convention
+## already matches InputEventMouseMotion.relative's (stick up == mouse motion up
+## == negative y), so negating both axes as the mouse branch does keeps "drag the
+## stick like the mouse" true in both directions, not just yaw.
 func _accumulate_gamepad_rotate_drag(stick: Vector2, delta: float) -> void:
 	if _ghost == null:
 		return
@@ -890,13 +822,12 @@ func _accumulate_gamepad_rotate_drag(stick: Vector2, delta: float) -> void:
 	_ghost.apply_free_rotation_delta(yaw_delta, pitch_delta, _camera_right_axis())
 
 
-## Owner controller update: LT + left stick's continuous zoom, called from
-## _update_gamepad_cursor() once camera_zoom_modifier is confirmed held and
-## not aiming a throw. `stick_y` is the same camera-relative vertical stick
-## value _update_gamepad_cursor() already reads (negative = stick pushed up),
-## and CameraRig._zoom()'s own convention is "positive direction = zoom out" --
-## so pushing the stick up (negative y) shrinks distance (zooms in) and
-## pushing it down (positive y) grows distance (zooms out) with no extra sign
+## LT + left stick's continuous zoom, called from _update_gamepad_cursor() once
+## camera_zoom_modifier is confirmed held. `stick_y` is the same camera-relative
+## vertical stick value _update_gamepad_cursor() already reads (negative = stick
+## pushed up), and CameraRig._zoom()'s own convention is "positive direction =
+## zoom out" -- so pushing the stick up (negative y) shrinks distance (zooms in)
+## and pushing it down (positive y) grows distance (zooms out) with no extra sign
 ## flip needed here.
 func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
 	if _camera_rig == null:
@@ -975,18 +906,16 @@ func _request_place(auto_drop: bool) -> StringName:
 	)
 
 
-## The one door a throw goes through, mirroring _request_place() above
-## M4 P2d: same slot/pose arguments, same membrane
-## (net/MatchNet.gd's submit_throw on the wire, or the offline/test-double
+## The one door a throw goes through, mirroring _request_place() above: same
+## slot/pose arguments, same membrane (net/MatchNet.gd's submit_throw on the wire, or the offline/test-double
 ## Match.request_throw()/FakeMatch.request_throw() directly), same
 ## spawn-clearance bookkeeping for the next ghost. DECISION (game/
 ## PlayerController.gd): a thrown special's shape does not actually stay
 ## where _pending_spawn_top_y is captured -- it flies off with `velocity` --
 ## so the next ghost's spawn-clearance nudge is only ever approximate for a
 ## throw (it clears the aim spot, not wherever physics finally lands the
-## piece). Filed under this package's Unresolved rather than skipped
-## entirely: an approximate clearance is still strictly better than none,
-## and _apply_spawn_clearance() already tolerates being wrong (it just
+## piece). An approximate clearance is still strictly better than none, and
+## _apply_spawn_clearance() already tolerates being wrong (it just
 ## reseeds hover height, never blocks anything).
 func _request_throw(velocity: Vector3) -> StringName:
 	var slot_id: int = _acting_slot()
@@ -1142,12 +1071,10 @@ func _held_gift_flies_upward() -> bool:
 	return def != null and def.effect is RocketEffect
 
 
-## Spec M2 3: a slot whose home flag is gone is effectively
-## eliminated. Match.slot(id).home_flag_alive is the one already-documented
-## source of truth for this — no dedicated Events signal exists for it, so
-## rather than inventing one on a stub I don't own, both the controller and
-## the HUD just read PlayerSlot.home_flag_alive off Match.slot() (see
-## ui/hud/HUD.gd's matching DECISION).
+## A slot whose home flag is gone is effectively eliminated.
+## Match.slot(id).home_flag_alive is the one source of truth for this -- no
+## dedicated Events signal exists for it, so both the controller and the HUD just
+## read PlayerSlot.home_flag_alive off Match.slot() (ui/hud/HUD.gd does the same).
 func _is_active_slot_eliminated() -> bool:
 	if _match == null or _acting_slot() < 0:
 		return false
@@ -1155,10 +1082,9 @@ func _is_active_slot_eliminated() -> bool:
 	return slot != null and not slot.home_flag_alive
 
 
-# --- Events reactions (spec 2.4, M2 1) -----------------------
+# --- Events reactions (spec 2.4) -----------------------
 
-## "still holding ghost block when
-## eliminated": an eliminated slot holds nothing, so its ghost (and the
+## An eliminated slot holds nothing, so its ghost (and the
 ## footprint, projection and decal that are its children) is hidden. Reads the
 ## same replicated home_flag_alive as _is_active_slot_eliminated(), so host and
 ## ENet clients agree; runs every frame (also covers a new match or slot swap)
@@ -1195,9 +1121,8 @@ func _on_turn_changed(slot_id: int) -> void:
 	if shape != null:
 		_ghost.set_shape(shape)
 		_sync_ghost_gift(slot_id)
-		# no longer needs to tell the camera anything here --
-		# _camera_follow_anchor()'s own doc comment explains why an ordinary
-		# shape swap no longer moves the followed height at all.
+		# The camera needs no call here: an ordinary shape swap does not move the
+		# followed height (see _camera_follow_anchor()).
 
 
 ## show the held-gift presentation on the ghost while the
@@ -1239,19 +1164,15 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 		_sync_ghost_gift(slot_id)
 	if _pending_spawn_active:
 		_pending_spawn_fed = true
-	# does NOT call _apply_spawn_clearance() here anymore --
-	# see that function's own header DECISION. This handler runs synchronously
-	# inside the placement request that spawned the block (Events dispatch is
-	# not deferred), before this frame's physics step has run, so a physics
-	# query here could never see the block that was just placed.
-	# _pending_spawn_active (already true from _request_place(), still true
-	# here) is left alone; _process() resolves it next, once the physics
-	# world has actually caught up.
+	# Does not call _apply_spawn_clearance() here: this handler runs synchronously
+	# inside the placement request that spawned the block (Events dispatch is not
+	# deferred), before this frame's physics step has run, so a physics query here
+	# could never see the block that was just placed. _pending_spawn_active
+	# (already true from _request_place(), still true here) is left alone;
+	# _process() resolves it next, once the physics world has actually caught up.
 
 
-## owner test "when you place a block and the next
-## block loads it gets displaced so it doesn't spawn directly within the
-## placed block": seeds the newly issued ghost's manual_hover_offset just
+## Seeds the newly issued ghost's manual_hover_offset just
 ## high enough that its own lowest point clears the top of the shape this
 ## controller's own last accepted placement actually spawned (spawn_clearance
 ## on top of it), so the next held block floats above it instead of rendering
@@ -1261,47 +1182,32 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## anything near the cursor (see _pending_spawn_active's own field comment,
 ## both cleared there before this ever runs).
 ##
-## "the displace-outward thing
-## should only happen when the block would spawn inside another block, not
-## all the time": own version above raised (or reset) the offset on
-## *every* feed unconditionally, even when the new piece's cursor had moved
-## somewhere the old block was nowhere near. This now only touches
-## manual_hover_offset when _would_overlap_a_placed_block_at_baseline_hover()
-## says the new shape, at its normal (unraised) hover height, would actually
-## intersect a placed block -- otherwise it is a complete no-op, leaving
-## whatever manual_hover_offset the ghost already had (0, or wherever the
-## player had last wheeled it) exactly alone.
+## It only touches manual_hover_offset when the new shape, at its normal
+## (unraised) hover height, would actually intersect a placed block --
+## otherwise it is a complete no-op, leaving whatever manual_hover_offset the
+## ghost already had (0, or wherever the player had last wheeled it) exactly
+## alone.
 ##
-## DECISION (game/player/PlayerController.gd, still true after
-## gating): raises hover height rather than nudging the cursor
-## sideways (this package's other offered option) -- the disk-surface probe
-## already reports the bare disk under any tower (item 5), so
-## the only thing wrong with today's spawn point is its Y, and reusing that
-## same, already-tested hover path keeps this a one-field change with no new
-## footprint/geometry math.
+## DECISION (game/player/PlayerController.gd): raises hover height rather than
+## nudging the cursor sideways -- the disk-surface probe already reports the
+## bare disk under any tower, so the only thing wrong with the spawn point is
+## its Y, and reusing that same, already-tested hover path keeps this a
+## one-field change with no new footprint/geometry math.
 ##
-## ("the next block loads instantly
-## which means it's always inside a block when spawning ... Don't count the
-## dropped block until it's settled? Only count settled blocks? Small
-## delay?"). ROOT CAUSE, measured in the real Main scene
-## tests/unit/match/test_drop_displacement_real_flow.gd: the next piece is issued
-## in the same call that spawns the dropped block, at the very same pose, so
-## the one-shot overlap query below always found the dropped block -- still
-## falling from where the ghost had been -- and raised the new ghost by a
-## whole block height (2.98 m in that trace, the camera following it 2.90 m),
-## after which the decay sank it back over ~0.8 s. That jump-and-sink on every
-## drop is the "block displacement".
-## DECISION: implements the owner's "don't count the dropped block until it's
-## settled" + "small delay": while the new ghost overlaps a block that has not
-## settled yet (_is_settled_body()), the check waits -- bounded by
-## GhostTuning.spawn_clearance_settle_timeout_s -- and only then raises, by
-## the minimal amount, if the ghost really is inside a settled block. A block
-## that falls clear of the ghost never raises it. "Don't run for disabled
-## ghost blocks" needs nothing further: the ghost has no physics body
-## (GhostPreview.tscn is a bare Node3D, its mesh is visual-only), so it never
-## pushes anything; the only thing that "ran" against the dropped block was
-## this query. The release-time guard and the host's own lift still count
-## every block, unsettled or not: those protect the real spawn.
+## The next piece is issued in the same call that spawns the dropped block, at
+## the very same pose, so a one-shot overlap query would always find the dropped
+## block -- still falling from where the ghost had been -- and raise the new
+## ghost by a whole block height, after which the decay would sink it back: a
+## jump-and-sink on every drop.
+## DECISION: don't count the dropped block until it has settled: while the new
+## ghost overlaps a block that has not settled yet (_is_settled_body()), the
+## check waits -- bounded by GhostTuning.spawn_clearance_settle_timeout_s -- and
+## only then raises, by the minimal amount, if the ghost really is inside a
+## settled block. A block that falls clear of the ghost never raises it. The
+## ghost has no physics body (GhostPreview.tscn is a bare Node3D, its mesh is
+## visual-only), so it never pushes anything. The release-time guard and the
+## host's own lift still count every block, unsettled or not: those protect the
+## real spawn.
 ## DECISION: `wait_for_settle` is true from _process() (the real game); the
 ## default false resolves at once, for callers that drive the raise itself
 ## (minimal raise, camera follow) after one physics step.
@@ -1310,9 +1216,9 @@ func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -
 		return
 	if not _spawn_settle_waiting:
 		_spawn_settle_waiting = true
-		# DECISION (round 2): the previous piece's raise is taken
-		# back off first, so every spawn starts from the player's own hover and a
-		# raise can never compound across drops (the 69 m ratchet).
+		# DECISION: the previous piece's raise is taken back off first, so every
+		# spawn starts from the player's own hover and a raise can never compound
+		# across drops.
 		_take_back_clearance_raise()
 	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
 		_end_pending_spawn()
@@ -1387,8 +1293,8 @@ func _frozen_body_is_still(block: Block) -> bool:
 ## every placed block; a no-op when it already is. Shared by the post-placement
 ## spawn clearance and the release-time guard (_clear_ghost_before_release()).
 ##
-## regression found by test_tower_placement: `for_release`
-## lifts are limited only by the hover ceiling, not by spawn_clearance_max_raise.
+## `for_release` lifts are limited only by the hover ceiling, not by
+## spawn_clearance_max_raise.
 ## DECISION: the settle wait keeps the held ghost unraised until the previous
 ## block rests, so the release-time lift (which protects the real spawn from
 ## interpenetrating a placed block) can no longer lean on a raise carried over
@@ -1431,8 +1337,7 @@ func _raise_ghost_until_clear(for_release: bool = false) -> void:
 		_camera_rig.begin_follow_transition()
 
 
-## round 3 (the dropped block gets
-## displaced): the host spawns a released block exactly where the ghost
+## The host spawns a released block exactly where the ghost
 ## stands and never checks it for overlap, so a pose that interpenetrates a
 ## placed block makes Jolt shove the older body out of the way. The
 ## post-placement clearance only looks once, before the previous block has
@@ -1452,7 +1357,7 @@ func _clear_ghost_before_release() -> void:
 	_release_raise = _ghost.manual_hover_offset - offset_before
 
 
-## round 3: a refused release spawned nothing, so the
+## A refused release spawned nothing, so the
 ## predictive lift made for it must not linger on the held ghost.
 func _undo_release_raise() -> void:
 	if _release_raise > 0.0 and _ghost != null:
@@ -1482,7 +1387,7 @@ func _overlaps_with_offset(offset: float) -> bool:
 	return overlaps
 
 
-## DECISION (round 2): the raise decays back to the player's own
+## DECISION: the raise decays back to the player's own
 ## hover once it is no longer needed -- each frame, lower by
 ## spawn_clearance_decay_speed * delta if the ghost would still be clear at that
 ## lower pose (the falling just-released block has moved on, or the cursor moved
@@ -1509,16 +1414,15 @@ func _absorb_clearance_raise() -> void:
 	_home_spawn_raise = 0.0
 
 
-## a stationary (zero-motion) overlap query at the ghost's
-## *current* global_position/basis, using the same collision boxes
-## _sweep_motion() below builds for the swept collision test
-## -- collision_box_local_centers()/collision_half_size(), matching what
-## game/blocks/BlockFactory.gd would actually give the spawned Block. No
-## ghost_collision_skin inflation here (unlike _sweep_motion()'s clearance
-## gap): this asks "does it overlap right now", not "how much gap should be
-## kept while sliding", so the boxes are used at their true size.
-## `unsettled_only` counts only bodies that have not come to
-## rest yet (_is_settled_body()), for the spawn clearance's settle wait.
+## A stationary (zero-motion) overlap query at the ghost's *current*
+## global_position/basis, using the same collision boxes _sweep_motion() builds
+## for the swept collision test (collision_box_local_centers()/
+## collision_half_size(), matching what game/blocks/BlockFactory.gd would give
+## the spawned Block). No ghost_collision_skin inflation here (unlike
+## _sweep_motion()'s clearance gap): this asks "does it overlap right now", not
+## "how much gap should be kept while sliding", so the boxes are used at their
+## true size. `unsettled_only` counts only bodies that have not come to rest yet
+## (_is_settled_body()), for the spawn clearance's settle wait.
 func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
 	if boxes.is_empty():
@@ -1546,7 +1450,7 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 
 
 ## Spec 1.4's auto-drop is [ORIGINAL]: the held block drops from its current
-## ghost position. On the host -- and offline, which is all of M2 -- that is
+## ghost position. On the host -- and offline -- that is
 ## this ghost, exactly, and it costs nothing. On a client the host has
 ## already dropped it from the last cursor it received (see MatchNet), so
 ## sending anything from here would risk the duplicate the whole design
@@ -1664,12 +1568,10 @@ func _handle_hover_adjust(delta: float) -> void:
 	_refresh_ghost_pose()
 
 
-## spec 1.5: the mouse "positions the block" directly,
-## camera-relative, instead of the old screen-space raycast. `relative` is the
-## InputEventMouseMotion's raw pixel delta.
-## scaled by Settings.mouse_move_speed_scale() --
-## the Options menu's "Mouse speed" slider (Controls tab) -- on top of the
-## tuning Resource's own block_move_sensitivity baseline.
+## spec 1.5: the mouse "positions the block" directly, camera-relative.
+## `relative` is the InputEventMouseMotion's raw pixel delta, scaled by
+## Settings.mouse_move_speed_scale() (the Options menu's "Mouse speed" slider)
+## on top of the tuning Resource's own block_move_sensitivity baseline.
 func _move_cursor_from_mouse(relative: Vector2) -> void:
 	_cursor += _camera_relative_dir(relative) * ghost_tuning.block_move_sensitivity * Settings.mouse_move_speed_scale()
 
@@ -1678,11 +1580,8 @@ func _move_cursor_from_mouse(relative: Vector2) -> void:
 ## with acceleration and speed scaling with zoom -- unless rotation_mode,
 ## rotate_drag_pad or camera_zoom_modifier is held, in which case the same
 ## left stick drives one of those instead (spec 1.5: "the movement keys
-## change the orientation of the block"; owner controller update: RT/LT +
-## stick rotate/zoom), and the cursor doesn't move at all while any of them
-## is held (owner controller update, feedback/controller-update.md,
-## re-confirmed "While either trigger modifier is held, the ghost
-## cursor must not move").
+## change the orientation of the block"; RT/LT + stick rotate/zoom), and the
+## cursor doesn't move at all while any of them is held.
 func _update_gamepad_cursor(delta: float) -> void:
 	var stick: Vector2 = Vector2(
 		Input.get_action_strength(&"ghost_move_right") - Input.get_action_strength(&"ghost_move_left"),
@@ -1697,8 +1596,7 @@ func _update_gamepad_cursor(delta: float) -> void:
 	if stick.length() > 1.0:
 		stick = stick.normalized()
 
-	# Owner controller update (re-confirmed
-	# ): RT (rotate_drag_pad) + left stick free-rotates the held
+	# RT (rotate_drag_pad) + left stick free-rotates the held
 	# block continuously, exactly like rotate_drag (MMB) + mouse motion --
 	# NOT rotation_mode's 90 degree snap grid below. Checked before
 	# rotation_mode so RT always wins over R if somehow both are held at once
@@ -1709,8 +1607,7 @@ func _update_gamepad_cursor(delta: float) -> void:
 			_accumulate_gamepad_rotate_drag(stick, delta)
 		return
 
-	# Owner controller update: LT (camera_zoom_modifier) + left stick zooms
-	# the camera continuously. throwing no longer uses LT, so this applies to
+	# LT (camera_zoom_modifier) + left stick zooms the camera continuously, for
 	# every held piece.
 	if Input.is_action_pressed(&"camera_zoom_modifier"):
 		if stick.y != 0.0:
@@ -1762,21 +1659,16 @@ func _camera_right_axis() -> Vector3:
 
 
 ## Casts the placement ray straight down from above _cursor and updates the
-## ghost. this used to branch between a screen-space mouse
-## ray and a straight-down gamepad-cursor ray; now both devices move the same
-## world-space _cursor (spec 1.5, "the mouse positions the block"), so there
-## is only one path. Public so tests can exercise it without going through
-## real input devices.
+## ghost. Both devices move the same world-space _cursor (spec 1.5, "the mouse
+## positions the block"), so there is only one path. Public so tests can
+## exercise it without going through real input devices.
 ##
-## item 5 (owner feel report: "the block's height changes ONLY
-## via the wheel", not whatever is directly underneath it): the probe below
-## skips over any RigidBody3D (a placed block) so it always reports the disk
-## surface itself, never a tower. The ghost's own height then comes only from
-## that disk surface plus hover_height plus the wheel (GhostPreview.
-## update_placement()) -- the ghost's XZ still comes straight from the
-## cursor, only its Y stops tracking whatever is below it. Match.
-## preview_placement()/request_place() do their own independent straight-down
-## raycast against the real, unfiltered world (autoload/Match.gd,
+## The probe below skips over any RigidBody3D (a placed block) so it always
+## reports the disk surface itself, never a tower: the ghost's height comes only
+## from that disk surface plus hover_height plus the wheel (GhostPreview.
+## update_placement()), while its XZ still comes straight from the cursor.
+## Match.preview_placement()/request_place() do their own independent
+## straight-down raycast against the real, unfiltered world (autoload/Match.gd,
 ## Field.raycast_down_disk_local()), so placement validity is unaffected.
 func _update_ghost_transform() -> void:
 	if _ghost == null:
@@ -1805,7 +1697,7 @@ func _update_ghost_transform() -> void:
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
 ## the first hit reported is the disk's own collision (a StaticBody3D, or an
-## AnimatableBody3D once M4 tilt lands) -- never a tower underneath the
+## AnimatableBody3D on a tilting disk) -- never a tower underneath the
 ## cursor. Bounded by ghost_tuning.surface_probe_max_blocks so a very tall (or
 ## adversarially deep) stack can't spin this loop forever; past that many
 ## skips it just reports a miss, same as an empty query.
@@ -1817,7 +1709,7 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 
 
 # --- Ghost-vs-placed-block collision (spec 1.4 "Held-block
-# behaviour" [ORIGINAL], owner test) ------------------------------
+# behaviour" [ORIGINAL]) ------------------------------
 #
 # The held ghost collides with an already placed block -- it cannot pass
 # through a tower -- but never pushes or knocks one. This runs a shape cast
@@ -1825,20 +1717,17 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 # own physics body, so a placed RigidBody3D is only ever read from
 # (cast_motion/intersect_shape), never written to.
 #
-# DECISION (game/player/PlayerController.gd): the brief for this package expected a
-# collision_mask naming "placed blocks' own layer", but nothing in this
-# project sets a distinguishing physics layer -- BlockFactory/Block.gd never
-# call collision_layer/collision_mask, so every body (block, disk, future
-# goal zone) still defaults to Godot's layer 1 (confirmed by grep across
-# game/, config/, core/; project.godot has no [layer_names] section at all).
-# Adding one would mean editing project.godot's physics layers, which this
-# package does not own (tools/bootstrap_project.gd owns project settings) and
-# would ripple into BlockFactory/Field, also out of scope. This filters by
-# node type instead (`is RigidBody3D`), exactly the technique
-# _raycast_disk_surface() above already uses to skip a block when it wants
-# the disk -- here it is inverted: skip anything that ISN'T a RigidBody3D
-# (the disk, a future goal-zone Area3D) and only stop for one that is. Filed
-# under this package's Unresolved for a follow-up dedicated layer.
+# DECISION (game/player/PlayerController.gd): placed blocks are told apart by
+# node type (`is RigidBody3D`), not by collision_mask: nothing in this project
+# sets a distinguishing physics layer (BlockFactory/Block.gd never call
+# collision_layer/collision_mask, so every body -- block, disk, future goal
+# zone -- defaults to Godot's layer 1, and project.godot has no [layer_names]
+# section), and adding one would mean editing the project's physics layers
+# (tools/bootstrap_project.gd owns project settings) and rippling into
+# BlockFactory/Field. This is the technique _raycast_disk_surface() above uses
+# to skip a block when it wants the disk, inverted: skip anything that ISN'T a
+# RigidBody3D (the disk, a future goal-zone Area3D) and only stop for one that
+# is. A dedicated layer would be a follow-up.
 
 
 ## Ensures _last_safe_cursor tracks a real, already-seeded value before the
@@ -1855,13 +1744,13 @@ func _seed_collision_cursor_if_needed() -> void:
 ## cursor into a tower stops it at the surface; sliding along one is fine --
 ## DECISION: tries the full motion, then its X-only and Z-only components, so
 ## a block dragged along a wall keeps sliding instead of sticking the instant
-## any one axis is blocked). Height is assumed constant across the sweep (the
-## disk is flat through M3; a tilted disk is this package's Unresolved). A
-## no-op -- and keeps _last_safe_cursor in sync so re-enabling collision
-## later never sweeps across a stale gap -- when collision is disabled,
+## any one axis is blocked). Height is assumed constant across the sweep (a
+## tilted disk is not accounted for). A no-op -- and keeps _last_safe_cursor in
+## sync so re-enabling collision later never sweeps across a stale gap -- when
+## collision is disabled,
 ## nothing is held, or the cursor didn't move this frame.
 ##
-## user test: _cursor is the aim point the
+## _cursor is the aim point the
 ## *rotated* held shape's own centre sits over (GhostPreview.
 ## update_placement()), not this node's own origin -- so the boxes
 ## _sweep_motion() below places at `position + basis * local_center` have to
@@ -1870,8 +1759,7 @@ func _seed_collision_cursor_if_needed() -> void:
 ## swept boxes would land somewhere the render then doesn't match (this
 ## sweep would validate one position, update_placement() would show a
 ## different one). `center_offset` is zero for a yaw-only or unrotated pose
-## (rotated_center_offset()'s own doc comment), so this is a no-op change for
-## every pre-test that never pitches/rolls the held shape.
+## (rotated_center_offset()'s own doc comment).
 func _clamp_cursor_collision() -> void:
 	_seed_collision_cursor_if_needed()
 	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
@@ -1969,36 +1857,32 @@ func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
 ## non-block colliders in the way can't spin this loop forever. Returns the
 ## safe fraction of `motion` (1.0 = fully clear).
 ##
-## owner regression report, "there is still a
-## maximum height the block cannot be raised or placed above": if `box_shape`
-## already overlaps a placed block right at `world_center` -- zero motion --
-## this returns 1.0 (the full requested motion) without ever calling
-## cast_motion(). The ghost's own baseline hover height
-## (_update_ghost_transform(), item 5) deliberately ignores whatever
-## tower sits under the cursor, so a freshly spawned or freshly rotated ghost
-## routinely starts a frame already embedded in a placed block -- raising past
-## it is the only way out, by design (/own spawn-clearance
-## logic already relies on manual_hover_offset being able to lift the ghost
-## clear of exactly this state). cast_motion() itself, called from a shape
-## that already overlaps a body, reports collisions to a shallow query depth
-## and can come back permanently "unsafe" (0.0) even when `motion` is carrying
-## the box further along its own way out -- reproduced by this package's own
-## tests/unit/player/test_playercontroller_hover_cap.gd fixture (a 4-cube tower with
-## a domino held above it froze at manual_hover_offset ~0.6 m forever, nowhere
-## near the tower's own ~3.4 m top or GhostTuning.hover_manual_max's 60 m
-## ceiling, even though every notch kept requesting more upward motion).
+## If `box_shape` already overlaps a placed block right at `world_center` --
+## zero motion -- this returns 1.0 (the full requested motion) without ever
+## calling cast_motion(). The ghost's own baseline hover height
+## (_update_ghost_transform()) deliberately ignores whatever tower sits under
+## the cursor, so a freshly spawned or freshly rotated ghost routinely starts a
+## frame already embedded in a placed block -- raising past it is the only way
+## out, by design (the spawn-clearance logic relies on manual_hover_offset being
+## able to lift the ghost clear of exactly this state). cast_motion() itself,
+## called from a shape that already overlaps a body, reports collisions to a
+## shallow query depth and can come back permanently "unsafe" (0.0) even when
+## `motion` is carrying the box further along its own way out -- a 4-cube tower
+## with a domino held above it froze at manual_hover_offset ~0.6 m forever
+## (tests/unit/player/test_playercontroller_hover_cap.gd), nowhere near the
+## tower's own ~3.4 m top or GhostTuning.hover_manual_max's ceiling, even though
+## every notch kept requesting more upward motion.
 ## DECISION (game/player/PlayerController.gd): exempting an
 ## already-overlapping box from this frame's block entirely, rather than
 ## trying to compute a partial "depenetration" distance, keeps the fix to the
 ## one case that regressed (a box that starts this query already embedded)
-## without touching the geometry every already-passing
-## test_ghost_collision.gd case depends on: each of those starts its query
-## from a position that is *not* already overlapping (the ghost approaches a
-## placed block from clear space and this same function's normal cast_motion
-## path below still stops it right at the collision skin's gap), so none of
-## them take this new branch. An embedded box instead now advances by exactly
-## the caller's requested `motion` once per query (one wheel notch, or one
-## frame's worth of a held raise/lower key) -- the same rate free space would
+## without touching the geometry every other collision case depends on: each of
+## those starts its query from a position that is *not* already overlapping (the
+## ghost approaches a placed block from clear space and this same function's
+## normal cast_motion path below still stops it right at the collision skin's
+## gap), so none of them take this new branch. An embedded box instead advances
+## by exactly the caller's requested `motion` once per query (one wheel notch, or
+## one frame's worth of a held raise/lower key) -- the same rate free space would
 ## have given it -- until it re-checks from its new position next call and
 ## finds itself finally clear, at which point ordinary blocking resumes.
 func _cast_one_box(
