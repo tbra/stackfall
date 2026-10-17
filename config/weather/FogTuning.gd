@@ -16,8 +16,8 @@ extends WeatherTuning
 ## far beacon and the territory contours on the disc stay faintly visible. The
 ## disc shader opts out of Environment fog, so it applies this same fog itself.
 
-## retuned denser (24-64 m, 0.98) so the
-## far side of the arena from the default camera is mostly hidden.
+## Dense on purpose (24-64 m, 0.98): the far side of the arena from the default
+## camera is mostly hidden.
 ## Fog starts this far from the camera (metres) and is at full max_opacity at
 ## depth_end_m.
 @export var depth_begin_m: float = 24.0

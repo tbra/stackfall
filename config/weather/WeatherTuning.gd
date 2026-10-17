@@ -29,11 +29,11 @@ enum Phase { RAMP_IN, HOLD, RAMP_OUT }
 ## host's seeded schedule.
 @export var hold_min_s: float = 40.0
 @export var hold_max_s: float = 80.0
-## Client-side presentation scene (instanced by vfx/weather/WeatherPresenter).
+## Client-side presentation scene (instanced by game/weather/WeatherPresenter).
 ## Empty means "no visuals". Never used by the host's physics.
 @export_file("*.tscn") var presentation_scene: String = ""
 ## Host-side physics effect: a script extending WeatherEffect. Empty means the
-## weather has no physics effect (visual-only, or a later package's slot).
+## weather has no physics effect (visual-only).
 @export_file("*.gd") var effect_script: String = ""
 ## Looping ambience bed, played on every peer while this
 ## weather is active; its volume follows the ramped intensity. Empty = silent.

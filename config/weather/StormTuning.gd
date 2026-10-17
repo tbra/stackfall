@@ -47,8 +47,8 @@ extends WeatherTuning
 @export var exposure_probe_m: float = 1.5
 
 @export_group("Presentation")
-## the ambient wind draws curled swoosh strokes (swoosh_* below);
-## the soft bowed wisp look belongs to a Breeze gust now (BreezeTuning gust_*).
+## The ambient wind draws curled swoosh strokes (swoosh_* below); the soft wisp look is
+## a Breeze gust (BreezeTuning gust_*).
 ## Half-width of the square of sky the streaks and motes fill, centred on the
 ## disc (metres).
 @export var area_half_extent_m: float = 55.0
@@ -60,7 +60,7 @@ extends WeatherTuning
 @export var streak_length_m: float = 12.0
 ## Ribbon width at its thickest (m).
 @export var streak_width_m: float = 0.16
-## strokes are brush strokes. Seconds the head sweeps along the wind drawing the stroke on.
+## Seconds the head sweeps along the wind drawing the stroke on.
 @export_range(0.1, 5.0, 0.05) var streak_draw_on_s: float = 0.9
 ## Seconds the finished stroke holds before it is wiped away.
 @export_range(0.0, 5.0, 0.05) var streak_hold_s: float = 0.6
@@ -74,7 +74,7 @@ extends WeatherTuning
 ## the end distance: a near streak would otherwise span the whole screen.
 @export var streak_near_fade_start_m: float = 14.0
 @export var streak_near_fade_end_m: float = 32.0
-## Drift (m/s) of a stroke along the wind (raised from 3 so the trails travel faster).
+## Drift (m/s) of a stroke along the wind.
 @export var streak_speed_ms: float = 7.0
 @export var streak_color: Color = Color(1.0, 1.0, 1.0, 0.7)
 @export var mote_count: int = 36
@@ -85,10 +85,10 @@ extends WeatherTuning
 @export_range(0.0, 1.0, 0.05) var low_preset_density: float = 0.4
 ## Distance (m) beyond which streaks fade out.
 @export var fade_far_m: float = 120.0
-## Seed offset so streak scatter differs from other seeded visuals.
 ## Motes fade out between these camera distances (m): none right at the lens.
 @export var mote_near_fade_start_m: float = 8.0
 @export var mote_near_fade_end_m: float = 26.0
+## Seed offset so streak scatter differs from other seeded visuals.
 @export var scatter_seed: int = 4404
 
 @export_group("Swoosh look")
