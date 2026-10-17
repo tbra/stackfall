@@ -5,8 +5,7 @@ extends Resource
 ## collision, no shadows, never networked. Placement is a pure function of
 ## (seed, map id, these values), so host and clients agree.
 
-## Master switch. Off by default (the
-## islands looked bad); set true in config/sky/horizon_islands.tres to restore them.
+## Master switch for the island ring; set in config/sky/horizon_islands.tres.
 @export var enabled: bool = true
 ## Number of islands in the ring (0 hides them).
 @export var count: int = 7
@@ -14,10 +13,9 @@ extends Resource
 @export var radius_min_m: float = 850.0
 @export var radius_max_m: float = 1200.0
 ## Height band (m, world Y) of each island's cap-surface center. The rock body
-## hangs below. root cause: the sky's horizon cloud banks
-## (ring 300-760 m, tops up to 60 m) stand between the camera and the ring, so
-## a cap near eye height left only its edge above the banks (a thin wedge).
-## Keep the hanging body above the bank tops so the whole rock mass shows.
+## hangs below. The sky's horizon cloud banks (ring 300-760 m, tops up to 60 m)
+## stand between the camera and the ring, so keep the hanging body above the
+## bank tops or only a thin wedge of the cap shows.
 @export var height_min_m: float = 210.0
 @export var height_max_m: float = 270.0
 ## Uniform scale range (distant islands must read at 900m+).

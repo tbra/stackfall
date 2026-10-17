@@ -1,6 +1,6 @@
 class_name SkyboxConfig
 extends Resource
-## Tunables for game/sky/Skybox.gd (CLAUDE.md: no magic numbers in code).
+## Tunables for game/sky/Skybox.gd.
 
 ## id of the SkyThemeDef (res://config/sky/themes/<id>.tres)
 ## Skybox applies at start-up. DECISION: a SkyboxConfig field rather than a

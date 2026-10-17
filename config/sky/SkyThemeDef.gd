@@ -1,9 +1,8 @@
 class_name SkyThemeDef
 extends Resource
-## DECISION: the cycle length belongs to the theme resource,
-## so every peer receives the same authored duration with the shipped content.
-## the full day/night cycle is 300 s
-## (5 min), for every theme; no sky_themes/*.tres overrides it. The F4 Sky tab
+## DECISION: the cycle length belongs to the theme resource, so every peer receives
+## the same authored duration with the shipped content. The full day/night cycle is
+## 300 s (5 min) for every theme; no sky_themes/*.tres overrides it. The F4 Sky tab
 ## edits it live (60..1800 s) and Skybox keeps the phase continuous across the edit.
 @export_range(60.0, 1800.0, 1.0) var cycle_length_seconds: float = 300.0
 @export_range(5.0, 85.0, 1.0) var cycle_sun_peak_degrees: float = 65.0
@@ -13,7 +12,7 @@ extends Resource
 @export_range(0.0, 1.0, 0.01) var cycle_star_threshold: float = 0.92
 @export_range(0.01, 0.3, 0.01) var cycle_star_radius: float = 0.12
 @export_range(0.01, 0.5, 0.01) var cycle_star_horizon_fade: float = 0.22
-## the moon_v1 disc + halo, opposite the sun. Angular radius of the
+## The moon disc + halo, opposite the sun. Angular radius of the
 ## visible disc and halo (degrees), halo strength, disc brightness, and the night mix
 ## (0..1) at which it is fully visible (it fades in from 0 at dusk, out at dawn).
 @export_range(0.5, 12.0, 0.1) var cycle_moon_angular_radius_deg: float = 3.2
@@ -21,8 +20,7 @@ extends Resource
 @export_range(0.0, 2.0, 0.05) var cycle_moon_halo_strength: float = 0.6
 @export_range(0.2, 3.0, 0.05) var cycle_moon_brightness: float = 1.0
 @export_range(0.05, 1.0, 0.01) var cycle_moon_full_night_mix: float = 0.8
-## "at night lets add an aurora borealis effect to the sky":
-## soft green -> teal -> violet curtain bands in the night sky (cloud_common.gdshaderinc
+## Aurora borealis: soft green -> teal -> violet curtain bands in the night sky (cloud_common.gdshaderinc
 ## aurora_borealis, drawn by sunset_clouds' cycle night and night_sky), slowly drifting and
 ## rippling, behind the moon and clouds. Cosmetic only. game/sky/Skybox.gd writes the shader
 ## uniforms: the visibility fades in with the cycle's night mix (aurora_start_night_mix ..
@@ -45,11 +43,10 @@ extends Resource
 ## A static (non-cycle) theme has no night mix: true shows the aurora at full strength
 ## under it (config/sky/themes/night.tres), false never shows it. The cycle ignores this.
 @export var aurora_always_on: bool = false
-## the aurora should be rarer: the chance a cycle night shows
-## the aurora, rolled once per night from the match seed (SkyVariation.aurora_night_shown), so
+## The chance a cycle night shows the aurora, rolled once per night from the match seed (SkyVariation.aurora_night_shown), so
 ## every peer agrees. 1 = every night; a locked Night sky is one night (night 0 of the seed).
 @export_range(0.0, 1.0, 0.01) var aurora_night_chance: float = 0.1
-## "sun should affect light more": in the cycle the direct sun is
+## Sun contrast: in the cycle the direct sun is
 ## multiplied by up to cycle_sun_energy_gain and the sky ambient by cycle_day_ambient_scale as
 ## the sun climbs (both identity at the horizon and at night), so lit vs shadowed block faces
 ## read clearly at midday and soften at dusk. cycle_sun_contrast_full_sin is the sun elevation
@@ -65,7 +62,7 @@ extends Resource
 ## sky_theme_mode / sky_theme_resolved with no new wire field.
 ## Phase a running Cycle match opens at (0.10 = morning, sun ~38 degrees, full day).
 @export_range(0.0, 1.0, 0.01) var cycle_start_phase: float = 0.10
-## a Cycle match opens at a random phase in [min, max] (host-rolled from
+## A Cycle match opens at a random phase in [min, max] (host-rolled from
 ## the match seed, MatchConfig.resolve_sky_start_phase). DECISION: 0.0..0.62 spans dawn,
 ## noon and the sunset into early dusk, avoiding the pitch-black midnight (0.75) as an
 ## opening; widen max toward 1.0 to allow night starts.
@@ -79,11 +76,10 @@ extends Resource
 @export_range(0.0, 1.0, 0.005) var cycle_locked_phase_night: float = 0.75
 ## Day palette blend phases (a, b, c, d): the dawn palette is used by day and
 ## fades into the sunset palette on the setting side with
-## smoothstep(a, b, phase) * (1 - smoothstep(c, d, phase)). Read by the palette
-## blend package (C1b); not a slider row (the F4 panel builds no Vector4 rows).
+## smoothstep(a, b, phase) * (1 - smoothstep(c, d, phase)). Not a slider row (the F4
+## panel builds no Vector4 rows).
 @export var cycle_dusk_weight_phases: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)
-## C1b variation, "lets add some variation and just
-## set a range so it can vary": the cycle's sky exposure and cloud coverage are not
+## Variation: the cycle's sky exposure and cloud coverage are not
 ## fixed at one theme's values (Dawn 0.95 / 0.5, Sunset 0.8 / 0.68); each wanders
 ## between the min and max below as a smooth, low-frequency function of the match
 ## seed and the cycle phase (core/sky/SkyVariation.gd), so the host and every client
@@ -106,9 +102,8 @@ extends Resource
 ## times a day (the average swing lasts cycle_length_seconds / this; 3 = 100 s of a
 ## 300 s day). Fewer is slower and calmer, more is busier; always smooth.
 @export_range(2, 12, 1) var variation_knots_per_cycle: int = 3
-## opt-in procedural sky look,
-## declared first so it is the first row of the F4 Sky tab for the owner's
-## painted-vs-procedural comparison. Skybox.apply_theme() writes
+## Opt-in procedural sky look, declared first so it is the first row of the F4 Sky
+## tab. Skybox.apply_theme() writes
 ## procedural_sea_mix (0 while this is false) and the proc_* parameters.
 @export var sky_look_procedural: bool = true
 ## Optional authored sky shader, also used for environment reflections.
@@ -120,9 +115,7 @@ extends Resource
 ## A named sky/ground/fog colour palette applied onto the fallback
 ## ProceduralSkyMaterial and the shared Environment's fog fields whenever no
 ## textured six-face set is loaded (game/sky/Skybox.gd's `fallback_active == true`
-## -- see Skybox.apply_theme()).
-##
-## Instances live in config/sky/themes/.
+## -- see Skybox.apply_theme()). Instances live in config/sky/themes/.
 
 ## ProceduralSkyMaterial.sky_top_color / sky_horizon_color -- the upper
 ## hemisphere's zenith and near-horizon colour.
@@ -151,18 +144,14 @@ extends Resource
 ## Environment.fog_sky_affect -- how much the basic depth fog tints the
 ## rendered sky background itself (0 == sky renders untouched past
 ## fog_depth_end, 1 == the engine's own default, which fully replaces the sky
-## with flat fog_light_color).'s rejected candidate never set
-## this, so it silently sat at the engine default of 1.0 and masked the
-## ProceduralSkyMaterial's orange-horizon/blue-zenith gradient behind a flat
-## haze regardless of fog_density. Kept at 0.0 here so the sunset gradient at
-## the horizon stays visible; a future stormier theme could raise it.
+## with flat fog_light_color). The engine default would mask the sky gradient behind
+## a flat haze regardless of fog_density, so it stays 0.0 to keep the horizon visible.
 @export var fog_sky_affect: float = 0.0
 
-## cosmic-map reference: sky-matched haze, strong sky affect:
-## the further Environment fog techniques. fog_aerial_perspective blends the fog
+## Further Environment fog techniques. fog_aerial_perspective blends the fog
 ## colour toward the sky colour behind it with distance, so the far cloud sea
 ## melts into the horizon instead of a flat tint. fog_sun_scatter warms the haze
-## toward the sun (COSTS ~1.5 ms GPU at 720p, so every shipped theme keeps it 0). The height pair makes fog denser below fog_height_m (the
+## toward the sun (costs ~1.5 ms GPU at 720p, so every shipped theme keeps it 0). The height pair makes fog denser below fog_height_m (the
 ## cloud sea under the disc) than around the arena; fog_height_density 0 turns
 ## it off. All stay clear of the play field: tests pin the keep at the far rim.
 @export_range(0.0, 1.0, 0.01) var fog_aerial_perspective: float = 0.0
@@ -179,36 +168,28 @@ extends Resource
 ## Environment.volumetric_fog_density/volumetric_fog_albedo -- the global
 ## ambient volumetric-fog density/tint the render server applies across the
 ## *entire view frustum*, independent of any FogVolume box placed inside it.
-## fix round 2 (decisive finding): this field defaults to 0.05
-## on a fresh Environment and Skybox.apply_theme()'s previous candidate never
-## wrote it, so every shot showed a uniform grey haze over the whole frame
-## regardless of where _spawn_fog_volume()'s cloud-deck FogVolume box was
-## centred -- a FogVolume only ever *adds* extra density inside its own bounds
-## on top of this ambient floor; it cannot subtract it back out elsewhere.
-## Kept low here (not 0.0, so the ambient volumetric pass still contributes a
-## faint atmospheric depth cue at range) so the cloud-deck FogVolume, not this
-## global floor, is what reads as the visible sunset haze band.
+## An engine default of 0.05 gives a uniform grey haze over the whole frame, and a
+## FogVolume only ever adds density inside its own bounds on top of this floor. Kept
+## low (not 0.0, so a faint depth cue remains) so the cloud-deck FogVolume, not this
+## global floor, reads as the visible sunset haze band.
 @export var volumetric_fog_density: float = 0.003
 @export var volumetric_fog_albedo: Color = Color(0.93, 0.58, 0.4)
 
 ## Skybox._spawn_fog_volume()'s FogVolume box (the "cloud deck" the disk
 ## floats above): world-space size and the y-height of its centre. World y ==
 ## 0 is the floating disk's top surface (see game/sky/Skybox.gd's
-## PROBE_GROUND_CLEARANCE_M doc); NetConfig.pos_max_y (150.0, derived: target height + margin) is the highest a
-## stacked block may legally sit.'s rejected candidate centred
-## this box at y 40 (spanning y 10..70), which swallowed the entire play
-## volume and the gameplay camera in fog. Centring it well below the disk
-## instead (top edge at y -10, i.e. at least 10 m of clearance under the
-## disk's underside) keeps the whole 0..72 m stacking volume fog-free while
-## still reading as a cloud layer the island floats above.
+## PROBE_GROUND_CLEARANCE_M doc). Centring the box well below the disk (top edge at
+## y -10, i.e. at least 10 m of clearance under the disk's underside) keeps the whole
+## 0..72 m stacking volume fog-free while still reading as a cloud layer the island
+## floats above; a box spanning the play volume would fog out the gameplay camera.
 @export var cloud_deck_size_m: Vector3 = Vector3(800.0, 60.0, 800.0)
 @export var cloud_deck_height_m: float = -40.0
 
-## graphics pass: per-theme light and environment values that
+## Per-theme light and environment values that
 ## Skybox.apply_theme() writes onto the scene's DirectionalLight3D (via
 ## Skybox.light_path) and the shared Environment. Defaults equal the values
-## game/main/Main.tscn shipped with, so a theme that leaves them alone (sunset)
-## looks exactly as before.
+## game/main/Main.tscn ships with, so a theme that leaves them alone (sunset)
+## keeps the scene's own look.
 @export var light_color: Color = Color(1.0, 0.94, 0.85)
 @export var light_energy: float = 0.85
 ## DirectionalLight3D.rotation_degrees; its +Z axis points toward the sun/moon.
@@ -249,8 +230,7 @@ extends Resource
 @export var cloud_clump_radius_max_m: float = 36.0
 @export var cloud_clump_height_ratio: float = 0.65
 @export var cloud_flat_base: float = 0.15
-## "try moving the puff layer up a bit": metres
-## the sea puff layer and the procedural far ring are raised (bases and tops
+## Metres the sea puff layer and the procedural far ring are raised (bases and tops
 ## together). game/sky/CloudSea.gd then clamps every puff that could reach the disc
 ## or the play volume back under the disc: the exclusion cylinder is the largest
 ## field radius (MapDef.RADIUS_LARGE) plus cloud_disc_clearance_ratio of it, and
@@ -318,12 +298,11 @@ extends Resource
 @export var bird_spacing_m: float = 14.0
 @export var bird_v_chance: float = 0.55
 
-## cosmetic local ambient life (perching birds on sunset,
+## Cosmetic local ambient life (perching birds on sunset,
 ## fireflies on night) -- see config/sky/AmbientLifeConfig.gd. Null means none.
 @export var ambient_life: AmbientLifeConfig = null
 
-## procedural sky: the proc_*
-## parameters below drive the procedural branch of shaders/sky/sunset_clouds.gdshader
+## The proc_* parameters below drive the procedural branch of shaders/sky/sunset_clouds.gdshader
 ## (plus the puff far-fade and night sea) when sky_look_procedural is on.
 @export var procedural_sea_mix: float = 1.0
 @export var proc_zenith_color: Color = Color(0.161, 0.2, 0.333)
@@ -338,7 +317,7 @@ extends Resource
 @export var proc_sea_color_far: Color = Color(0.34, 0.27, 0.47)
 @export var proc_sea_horizon_fade: float = 0.12
 @export var proc_strata_scale: float = 1.0
-## far puff ring drawn only while sky_look_procedural is on --
+## Far puff ring drawn only while sky_look_procedural is on --
 ## a third set of big cumulus clumps reaching toward the horizon so the cloud sea
 ## below it is real lit cumulus, not shader noise. proc_far_count 0 = none.
 ## proc_far_fade_cap (0..1) caps the puffs' distance fade into the sky colour so
@@ -354,13 +333,11 @@ extends Resource
 @export var proc_far_radius_max_m: float = 130.0
 @export var proc_far_fade_cap: float = 0.7
 
-## "I'm not a huge fan of the above clouds": master toggle
-## for the procedural look's overhead cloud layers (the card atlas below or the
-## noise strata it replaces). Off by default; the layers are kept, not deleted.
-## Skybox writes it to the sky shader's proc_overhead_mix.
+## Master toggle for the procedural look's overhead cloud layers (the card atlas
+## below or the noise strata it replaces). Skybox writes it to the sky shader's proc_overhead_mix.
 @export var proc_overhead_clouds_enabled: bool = false
 
-## authored cloud-card overhead layer (procedural look only).
+## Authored cloud-card overhead layer (procedural look only).
 ## proc_cards_enabled swaps the noise overhead layers for the Blender card
 ## atlas (assets/textures/sky/cloud_cards); density is the chance a grid cell holds a
 ## card, scale the plane scale (higher = more, smaller cards), opacity the
@@ -371,7 +348,7 @@ extends Resource
 @export var proc_cards_opacity: float = 0.95
 
 
-## how much of the aurora the cycle shows at night mix `night` (0 = none,
+## How much of the aurora the cycle shows at night mix `night` (0 = none,
 ## 1 = full): a smoothstep across aurora_start_night_mix .. aurora_full_night_mix. The two edges
 ## are ordered first, so an F4 edit that drags the start above the full value still fades in
 ## with the night (a smoothstep with reversed edges would fade out instead); equal edges make

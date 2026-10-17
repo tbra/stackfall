@@ -1,27 +1,23 @@
 class_name ArenaSideStyle
 extends Resource
-## Look of the arena's side and underside ("the side
-## and bottom needs to be redone"). One enum picks between the shipped look
+## Look of the arena's side and underside. One enum picks between the shipped look
 ## (CURRENT: DiscBodyVisuals' metal band + glowing chamfer + flat bottom) and
-## three alternative generated looks the owner can flip between. Every option is
+## the alternative generated looks. Every option is
 ## cheap static geometry built once per map by game/field/ArenaSideBuilder.gd: flat
 ## shaded, vertex-coloured, opaque, at most two materials (body + glow), no
 ## per-frame work. Loaded once as config/territory/arena_side_style.tres.
 
-## Round 2 ("d, machined, was most thematically correct but I
-## didn't really like any of them") adds three refinements of the machined
-## direction: MACHINED_STYLISED (bold cel bands), MACHINED_DETAILED (rivets,
-## light strip, vents, thrusters) and MACHINED_HEAVY (bevelled rim, terraces).
-## Round 3 ("none of them fit with the top") stops decorating a
-## separate object and CONTINUES the top: the dark plated playing surface (plates
+## MACHINED_STYLISED (bold cel bands), MACHINED_DETAILED (rivets, light strip,
+## vents, thrusters) and MACHINED_HEAVY (bevelled rim, terraces) refine MACHINED_DISC.
+## MONOLITH, TAPERED_STRATA and PLATED_DOME continue the top instead of decorating
+## a separate object: the dark plated playing surface (plates
 ## ~5 m, hairline seams, small rivets) wraps over the edge under a gold lip and
-## carries on down the side and underneath. MONOLITH (one plated slab, flat
-## plated underside), TAPERED_STRATA (plated wall, then an inverted frustum in
-## three strata of the top's own browns) and PLATED_DOME (two plate courses and a
-## shallow dome of plate rings).
-## Round 4 ("try the shape of c but extend the shader down the
-## side instead of the material it has now") adds SHADER_DOME: PLATED_DOME's
-## silhouette with no modelled detail, shaded by the top's own plating shader
+## carries on down the side and underneath. MONOLITH is one plated slab with a flat
+## plated underside, TAPERED_STRATA a plated wall then an inverted frustum in
+## three strata of the top's own browns, PLATED_DOME two plate courses and a
+## shallow dome of plate rings.
+## SHADER_DOME is PLATED_DOME's silhouette with no modelled detail, shaded by
+## the top's own plating shader
 ## (shaders/territory/arena_side_shell.gdshader, sharing shaders/include/disc_plating.gdshaderinc).
 enum Style {
 	CURRENT,
@@ -119,7 +115,7 @@ enum Style {
 @export var machined_light_color: Color = Color(0.45, 0.85, 1.0)
 @export var machined_light_energy: float = 1.4
 
-## -- MACHINED_STYLISED (M1): bold cel bands, few big panels, crisp seams -----
+## -- MACHINED_STYLISED: bold cel bands, few big panels, crisp seams -----
 ## Total side depth as a fraction of the disc diameter.
 @export var stylised_depth_fraction: float = 0.075
 ## Number of big panels around the disc.
@@ -151,7 +147,7 @@ enum Style {
 @export var stylised_underside_alt_color: Color = Color(0.9, 0.4, 0.3)
 @export var stylised_core_color: Color = Color(1.0, 0.78, 0.4)
 
-## -- MACHINED_DETAILED (M2): panel lines, rivets, light strip, vents, thrusters
+## -- MACHINED_DETAILED: panel lines, rivets, light strip, vents, thrusters
 @export var detailed_depth_fraction: float = 0.07
 @export var detailed_panel_count: int = 24
 @export var detailed_panel_segments: int = 4
@@ -195,7 +191,7 @@ enum Style {
 @export var detailed_thruster_color: Color = Color(1.0, 0.5, 0.15)
 @export var detailed_core_color: Color = Color(1.0, 0.6, 0.25)
 
-## -- MACHINED_HEAVY (M3): thick bevelled rim band, terraces to a keel --------
+## -- MACHINED_HEAVY: thick bevelled rim band, terraces to a keel --------
 @export var heavy_depth_fraction: float = 0.11
 @export var heavy_panel_count: int = 20
 @export var heavy_panel_segments: int = 4
@@ -226,7 +222,7 @@ enum Style {
 @export var heavy_keel_color: Color = Color(0.12, 0.15, 0.26)
 @export var heavy_core_color: Color = Color(1.0, 0.65, 0.25)
 
-## -- Round 3, shared: the top's own plating carried onto the side ------------
+## -- Shared by the plated options: the top's own plating carried onto the side ------------
 ## Plate length along the rim (m); matches DiscSurfaceDef.proc_plate_length_m, so
 ## the side has as many plates as the top has around its edge.
 @export var top_plate_length_m: float = 5.0
