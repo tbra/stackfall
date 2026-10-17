@@ -1,8 +1,8 @@
 class_name WindEffect
 extends WeatherEffect
-## Shared base of the two host-side wind effects, StormEffect
-## and BreezeEffect: the block/surface/host lookups, the per-tick push counters and the stable-freeze helpers both
-## use to push (and wake) blocks the same way.
+## Shared base of the two host-side wind effects, StormEffect and BreezeEffect:
+## the block/surface/host lookups, the per-tick push counters and the
+## stable-freeze helpers both use to push (and wake) blocks the same way.
 
 ## Six world axes probed by is_exposed().
 const EXPOSURE_AXES: Array[Vector3] = [Vector3.UP, Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK, Vector3.DOWN]
@@ -17,8 +17,7 @@ var _host_check: Callable = Callable()
 
 
 ## True when StableBlockManager's auto-freeze (20 s asleep) holds `block`. A
-## settled tower is in this state in real play; wind used to skip it
-## .
+## settled tower is in this state in real play, so wind must wake it.
 static func is_stable_frozen(block: Block) -> bool:
 	var manager: StableBlockManager = StableBlockManager.active
 	return manager != null and is_instance_valid(manager) and manager.is_stable_frozen(block)
@@ -52,9 +51,9 @@ static func is_exposed(block: Block, probe_m: float) -> bool:
 	return false
 
 
-## True when the block carries a SpecialBehavior child that owns
-## its physics, so wind must not touch it. Glue fusion (open question 3): a FusedBody and every
-## member of one ignore wind (the group is one heavy body; nudging a follower is moot).
+## True when the block carries a SpecialBehavior child that owns its
+## physics, so wind must not touch it. A FusedBody and every member of one
+## ignore wind (the group is one heavy body; nudging a follower is moot).
 static func _owns_physics(block: Block) -> bool:
 	# Duck-typed carrier test (members_in_sphere is FusedBody's): a FusedBody type reference here
 	# would pull the group into the autoload layer closure.
