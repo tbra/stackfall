@@ -1,7 +1,7 @@
 class_name AnvilEffect
 extends SpecialEffect
-## Anvil (spec 1.6: "applies weight to tilt the field", the JayIsGames review's
-## "a tilting anvil" -- lands heavy, tilts the field toward where it lands).
+## Anvil (spec 1.6: "applies weight to tilt the field": lands heavy, tilts the
+## field toward where it lands).
 ## The tilt goes through DiscForce
 ## (sign +1 dips the landing side) and "has it landed" is a LandedProbe, not
 ## Jolt's `sleeping` flag (an anvil on an awake island never slept, so the
@@ -20,7 +20,7 @@ extends SpecialEffect
 ## roughly half of TiltTuning.max_tilt_deg (spec's own constant is OPEN).
 @export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
-## Landing-detection thresholds (replaces `block.sleeping`).
+## Landing-detection thresholds.
 @export var landed: LandedTuning = LandedTuning.new()
 
 ## block.set_meta() key marking "mass already overridden for this block".

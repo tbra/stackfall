@@ -36,7 +36,7 @@ var _crystal: MeshInstance3D = null
 var _crystal_material: ShaderMaterial = null
 
 
-## every beacon in the tree, so the F4 panel can rebuild them
+## Every beacon in the tree, so the F4 panel can rebuild them
 ## after a BeaconVisualTuning edit (geometry/materials are baked in _build()).
 const TUNING_GROUP: StringName = &"tuning_beacons"
 
@@ -48,7 +48,7 @@ func _ready() -> void:
 	_apply_pulse(0.0)
 
 
-## drops the baked socket/ring/crystal and builds them again from
+## Drops the baked socket/ring/crystal and builds them again from
 ## the current BeaconVisualTuning (the live F4 edit seam). GoalFlag extends it.
 func rebuild_beacon() -> void:
 	for node: Node in [_socket, _beacon_ring, _crystal]:
@@ -61,8 +61,7 @@ func rebuild_beacon() -> void:
 
 
 ## Advances the shared pulse phase and pushes it onto the ring's own scale and
-## the ring/crystal emission energy every frame ("pulsating
-## glow from the beacons").
+## the ring/crystal emission energy every frame.
 func _process(delta: float) -> void:
 	_apply_pulse(delta)
 
@@ -132,7 +131,7 @@ func banner_scale() -> float:
 	return 1.0
 
 
-## Static collision approximating the beacon model ("proper collision to the home beacons"): the socket cylinder plus the
+## Static collision approximating the beacon model: the socket cylinder plus the
 ## crystal's convex hull (the same bipyramid the mesh draws), sized from
 ## BeaconVisualTuning only. The ring is a flat decoration and adds none.
 ## Shapes and their transforms are in this flag's local space; Field adds them
@@ -192,14 +191,12 @@ func _apply_color() -> void:
 	_crystal_material.set_shader_parameter(&"albedo_color", _color)
 	_crystal_material.set_shader_parameter(&"emission_color", _color)
 	# emission_energy_multiplier/emission_energy are owned by _apply_pulse()
-	# below ("pulsating glow from the beacons") -- it always
-	# recomputes the full energy from BeaconVisualTuning's base value each
-	# frame, so setting it here would just be overwritten on the next
+	# below: it recomputes the full energy from BeaconVisualTuning's base value
+	# each frame, so setting it here would be overwritten on the next
 	# _process() tick.
 
 
-## "pulsating glow from the beacons": a
-## single sine wave, shared by the ring's own uniform XZ scale and the
+## A single sine wave, shared by the ring's own uniform XZ scale and the
 ## ring/crystal emission energy, so the whole beacon breathes together rather
 ## than the ring and crystal pulsing independently. `delta` is unused when
 ## called from _ready() with 0.0 (pre-first-frame initialization, so the
@@ -261,8 +258,7 @@ static func build_annulus_mesh(outer: float, inner: float, sweep: float, segment
 ## A faceted bipyramid (two low-poly cones base to base) centered on the
 ## origin, apex at +/-half_height -- reads as a cut gem rather than a smooth
 ## cone. Each triangle gets its own three vertices and its own flat normal
-## (_add_facet()), so the facets stay sharp with plain StandardMaterial3D (no
-## shader here; P2 owns toon shading).
+## (_add_facet()), so the facets stay sharp under any material.
 func _build_crystal_mesh(facets: int, radius: float, half_height: float) -> ArrayMesh:
 	var sides: int = maxi(facets, 3)
 	var waist: PackedVector3Array = PackedVector3Array()

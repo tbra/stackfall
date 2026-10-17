@@ -1,19 +1,17 @@
 class_name BlackHoleEffect
 extends SpecialEffect
-## Black hole gift (docs/SPEC.md 2.6; replaces Gravity well):
+## Black hole gift (docs/SPEC.md 2.6):
 ## "Spawns a black hole that pulls in nearby blocks" of ALL teams. Ordinary
 ## impact/fuse special: the gift's own impact (or fuse) triggers it, and
 ## detonate() spawns a BlackHoleField at that point that runs the pull for
 ## lifetime_s on the host. Clients/host draw the placeholder BlackHoleVisual
 ## from the already replicated Events.special_triggered (GiftFxPresenter).
 ##
-## strength and capture. The pull is RadialPull (mass-independent
-## acceleration plus friction compensation, so an 8 kg block really slides across the
-## disc; the old 14 m/s^2 capped at 60 N was below friction). A block whose collision
-## centre stays inside the capture volume below is captured and
-## removed through the SAME removal as a territory hole (HoleDissolver.request_dissolve;
-## slot resolution). No territory hole is punched (slot resolution
-## ).
+## The pull is RadialPull (mass-independent acceleration plus friction
+## compensation, so an 8 kg block really slides across the disc). A block whose
+## collision centre stays inside the capture volume below is captured and
+## removed through the SAME removal as a territory hole
+## (HoleDissolver.request_dissolve). No territory hole is punched.
 ##
 ## DECISION: a SpecialDef's `effect` is one shared Resource, so it keeps no
 ## per-activation state; the BlackHoleField node owns the timer.
@@ -23,12 +21,12 @@ extends SpecialEffect
 ## RadialPullTuning). Capture is the volume below (capture_radius_m).
 @export var pull: RadialPullTuning = RadialPullTuning.new()
 
-## Capture volume: horizontal radius (m) and vertical half-height
-## (m) around the centre, measured to each block's collision centre; a block must stay
-## inside for capture_hold_s seconds. Replaced RadialPull's 0.8 m origin sphere, which
-## was measured to the block's bottom-face origin: the hole sits on the disc surface,
-## and tumbled or stacked cubes kept that origin 1.0-1.5 m away, so they were pulled
-## into the core forever and never dissolved (BlackHoleField._sweep_capture).
+## Capture volume: horizontal radius (m) and vertical half-height (m) around the
+## centre, measured to each block's collision centre, not its bottom-face
+## origin: the hole sits on the disc surface, and tumbled or stacked cubes kept
+## that origin 1.0-1.5 m away, so they were pulled into the core forever and
+## never dissolved (BlackHoleField._sweep_capture). A block must stay inside for
+## capture_hold_s seconds.
 @export var capture_radius_m: float = 2.0
 @export var capture_height_m: float = 3.0
 @export var capture_hold_s: float = 0.15

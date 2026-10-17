@@ -1,7 +1,7 @@
 class_name HoleDissolver
 extends Node
-## option A: holes no longer
-## cut the disc's collision. On the host, a block whose footprint rests or
+## Holes do not cut the disc's collision (see Field).
+## On the host, a block whose footprint rests or
 ## lands on an applied hole cell (Field.is_hole_cell) dissolves: after
 ## HoleDissolveTuning.dissolve_delay_s it is removed through
 ## Field.remove_fallen_block(), the edge-fall path (REASON_KILL_PLANE, same
@@ -30,7 +30,7 @@ extends Node
 ##
 ## DECISION (game/field/HoleDissolver.gd): once started, a dissolve always completes
 ## (unless something else removes the block first, e.g. the kill plane): the
-## A2 fade and the clients' copy of the start event then never need a cancel
+## fade and the clients' copy of the start event then never need a cancel
 ## message, and a block bouncing off the hole edge mid-fade still goes.
 
 @export var tuning: HoleDissolveTuning = preload("res://config/blocks/tuning/hole_dissolve_tuning.tres")
@@ -142,7 +142,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 		_finish(block)
 
 
-## slot resolution: the ONE removal entry for every
+## The ONE removal entry for every
 ## cause. Territory holes call start_dissolve() below on this registry's dissolver;
 ## the Black hole's capture sweep calls this static wrapper, which
 ## resolves the live match's registry and calls the very same start_dissolve(), so
@@ -167,7 +167,7 @@ func start_dissolve(block: Block) -> void:
 		return
 	var carrier: FusedBody = block as FusedBody
 	if carrier != null:
-		# OQ6 (glue fusion): a rigid group sucked into a Black hole dissolves whole.
+		# Glue fusion: a rigid group sucked into a Black hole dissolves whole.
 		for member: Block in carrier.members.duplicate():
 			start_dissolve(member)
 		return
@@ -176,7 +176,7 @@ func start_dissolve(block: Block) -> void:
 		return
 	_pending[id] = tuning.dissolve_delay_s
 	_pending_blocks[id] = block
-	# a hole dissolve overrides a Freeze hold on the block
+	# A hole dissolve overrides a Freeze hold on the block
 	# touching the void.
 	FreezeEffect.release_hold(block)
 	dissolves_started += 1
@@ -212,7 +212,7 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 func touches_hole(block: Block) -> bool:
 	if not _field_ready() or block == null or not is_instance_valid(block):
 		return false
-	# [OWNER decision]: territory holes never destroy a gift.
+	# Territory holes never destroy a gift.
 	# DECISION: a placed/held gift special is simply not a dissolve candidate; it keeps its
 	# physics, so over a hole it falls normally like any body (only the kill plane, far below,
 	# can still remove it). The Black hole's capture sweep (request_dissolve) is unchanged.

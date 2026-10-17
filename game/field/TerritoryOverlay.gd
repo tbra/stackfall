@@ -47,20 +47,19 @@ extends MeshInstance3D
 ##                                                     off; the filtered one
 ##                                                     gives the rim its glow.
 ##
-## DECISION (game/field/TerritoryOverlay.gd): the M2 plan describes one texture with
-## R = slot and G = the state bits. Splitting them into their own textures
-## keeps exactly those two channels and those two meanings, and was taken for
-## cost: interleaving 14400 cells into RGBA in GDScript and upscaling four
-## channels measured 11 ms per upload on map L, which is a dropped frame five
-## times a second. One R8 upscale is 2 ms and the interleave disappears.
+## DECISION (game/field/TerritoryOverlay.gd): slot and state live in their own
+## textures rather than one with R = slot and G = state bits. That keeps exactly
+## those two channels and meanings and was taken for cost: interleaving 14400
+## cells into RGBA in GDScript and upscaling four channels measured 11 ms per
+## upload on map L, which is a dropped frame five times a second. One R8 upscale
+## is 2 ms and the interleave disappears.
 
 ## Mirrors TerritoryRaster's bits so the overlay never has to import a rule.
 const STATE_CONTESTED: int = TerritoryRaster.STATE_CONTESTED
 const STATE_HOLE: int = TerritoryRaster.STATE_HOLE
 
 ## Render layer the disc (overlay top + ArenaMesh side surfaces) lives on alone, so the disc
-## ReflectionProbe (Skybox.PROBE_CULL_MASK) and the decals skip it. Moved here from
-## the removed DiscMirror.
+## ReflectionProbe (Skybox.PROBE_CULL_MASK) and the decals skip it.
 const DISC_LAYER_BIT: int = 1 << 19
 const TERRITORY_SHADER: Shader = preload("res://shaders/territory/territory.gdshader")
 const CIRCLE_BAKE_SHADER: Shader = preload("res://shaders/territory/territory_circle_bake.gdshader")
@@ -83,10 +82,8 @@ var _wet_amount: float = 0.0
 var _wet_sheen_add: float = 0.0
 var _wet_roughness_scale: float = 1.0
 var _wet_darken: float = 0.0
-## Last per-slot colors handed in. _apply_visual_uniforms()
-## re-pushes these; it used to reset every slot to goal_flag_color, wiping the
-## team colors whenever the F4 panel / a graphics refresh called
-## refresh_visual_uniforms() mid-match.
+## Last per-slot colors handed in. _apply_visual_uniforms() re-pushes these so
+## a visuals refresh (F4 panel, graphics refresh) mid-match keeps the team colors.
 var _slot_colors: PackedColorArray = PackedColorArray()
 ## The disk centre sits at the middle of the raster square, so disk-local
 ## (0, 0) maps to the middle of the texture. See _apply_uv_uniforms().
@@ -97,12 +94,11 @@ const UV_CENTER: float = 0.5
 ## goal flags.
 const GOAL_TEXELS_MAX: int = 8
 
-## "the game slows down a lot after a
-## while": the analytic circle path used to loop every circle for every disk
-## pixel, so its GPU cost grew with the live block count (windowed probe,
-## 1920x1080: ~95-120 ms/frame at 60-160 blocks, ~15-30 ms with the loop
-## skipped). _pack_circle_bins() buckets the list into a coarse square grid
-## over the disk so each pixel only loops the circles that can reach it.
+## Looping every circle for every disk pixel made GPU cost grow with the live
+## block count (windowed probe, 1920x1080: ~95-120 ms/frame at 60-160 blocks,
+## ~15-30 ms with the loop skipped). _pack_circle_bins() buckets the list into a
+## coarse square grid over the disk so each pixel only loops the circles that
+## can reach it.
 ## DECISION (game/field/TerritoryOverlay.gd): implementation constants of the
 ## acceleration structure, not presentation or rule tunables, kept here the
 ## same way GOAL_TEXELS_MAX is. CIRCLE_BIN_TEX_WIDTH must match the shader's
@@ -130,7 +126,7 @@ var _visuals: TerritoryVisuals = null
 ## GraphicsPreset.hole_void_animated: false = flat void + rim (Low).
 var _void_animated: bool = true
 ## GraphicsPreset.disc_fine_detail_enabled: false = plating without rivets and
-## brushed streaks (Low fix2b).
+## brushed streaks (Low).
 var _disc_fine_detail: bool = true
 var _tuning: TerritoryTuning = null
 var _material: ShaderMaterial = null
@@ -140,7 +136,7 @@ var _state_texture: ImageTexture = null
 ## hole + contested bits as an RG8 mask (0/255), bound
 ## linear-filtered so the void shader reads a smooth hole field.
 var _hole_texture: ImageTexture = null
-## fix2b: whether the last uploaded hole mask has any hole cell
+## Whether the last uploaded hole mask has any hole cell
 ## (the shader's void_present uniform).
 var _hole_any: bool = false
 var _raster: TerritoryRaster = null
@@ -154,7 +150,7 @@ var _state_cell_image: Image = null
 var _upload_accumulator: float = 0.0
 ## The disk_mesh_segments value baked into the current CylinderMesh, so
 ## refresh_visual_uniforms() only calls rebuild_disk_mesh() when it actually
-## changed (.20b) -- an unrelated visuals field (color, tint,
+## changed -- an unrelated visuals field (color, tint,
 ## outline...) must not reallocate a mesh at raster_upload_hz. -1 before
 ## configure() ever runs.
 var _baked_mesh_segments: int = -1
@@ -248,7 +244,7 @@ func configure(
 ## whose further surfaces are ArenaMesh's chamfer / band / bottom (only when a
 ## DiscBodyVisuals was passed to configure()). Uses the current
 ## _visuals.disk_mesh_segments, keeping the same radius/height configure() built
-## it with (.20b, F4 tuning panel live-apply). Public so configure()
+## it with (F4 tuning panel live-apply). Public so configure()
 ## and refresh_visual_uniforms() share one place that knows the disk's actual
 ## dimensions; a no-op-safe call before configure() simply does nothing.
 func rebuild_disk_mesh() -> void:
@@ -293,7 +289,7 @@ func _assign_surface_materials() -> void:
 	_sync_side_shell()
 
 
-## SHADER_DOME (r4): copies every uniform the territory material
+## SHADER_DOME: copies every uniform the territory material
 ## has set onto the side shell material wherever the shell shader declares the same
 ## name, so the side is shaded by the very same plating and sheen settings as the top.
 func _sync_side_shell() -> void:
@@ -385,7 +381,7 @@ func push_cells(
 	_state_texture = _store(_state_texture, state_image)
 	_hole_texture = _store(_hole_texture, _hole_mask_image(state_image.get_data(), side))
 	_material.set_shader_parameter(&"territory_hole", _hole_texture)
-	# fix2b: lets the shader skip the void field (a texture
+	# Lets the shader skip the void field (a texture
 	# fetch + fwidth per disc pixel) while no cell is a hole.
 	_material.set_shader_parameter(&"void_present", _hole_any)
 	_material.set_shader_parameter(&"territory_cells", _cell_texture)
@@ -411,7 +407,7 @@ func _hole_mask_image(state_bytes: PackedByteArray, side: int) -> Image:
 	return Image.create_from_data(side, side, false, Image.FORMAT_RG8, mask)
 
 
-## the analytic circle list a solve step just produced —
+## Uploads the analytic circle list a solve step just produced:
 ## autoload/Match.gd's home-anchored circles (the same ones TerritoryGroups
 ## kept, already capped at TerritoryTuning.max_circles) plus the goal
 ## no-build discs, so shaders/territory/territory.gdshader can draw the territory
@@ -677,7 +673,7 @@ func _request_bake(circles_ok: bool, flushing: bool = false) -> void:
 	# once on settle. The previous bake stays visible meanwhile, never longer
 	# than solve_defer_max_s (0.5 s), so the visible cadence is unchanged in the
 	# worst case. The very first bake (nothing valid yet) is never deferred.
-	# DECISION (review F4): the bake shares the solve's 0.5 s
+	# DECISION: the bake shares the solve's 0.5 s
 	# cap. A solve applied after waiting W seconds may park the bake for at most
 	# cap - W, so the visible territory delay stays <= solve_defer_max_s; a solve
 	# that already waited the full cap bakes right away.
@@ -866,7 +862,7 @@ func _apply_uv_uniforms(side: int) -> void:
 ## calling it again mid-match is always safe. A no-op before configure() has
 ## built _material (there is nothing yet to refresh).
 ##
-## .20b: disk_mesh_segments is baked into the CylinderMesh, not a
+## disk_mesh_segments is baked into the CylinderMesh, not a
 ## shader uniform, so it needs its own rebuild -- but only when the segment
 ## count actually changed from what's currently baked (_baked_mesh_segments),
 ## so an unrelated visuals edit (color, tint, outline...) does not reallocate
@@ -898,7 +894,7 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(
 		&"top_grain_roughness_strength", _visuals.top_grain_roughness_strength
 	)
-	# disc top color/sheen fix -- see shaders/territory.
+	# disc top color/sheen -- see shaders/territory.
 	# gdshader's own disk_sheen_*/disk_diffuse_* uniform DECISION.
 	_material.set_shader_parameter(&"disk_ambient_scale", _visuals.disk_ambient_scale)
 	_material.set_shader_parameter(&"disk_specular", _visuals.disk_specular)
@@ -918,11 +914,10 @@ func _apply_visual_uniforms() -> void:
 	_material.set_shader_parameter(&"disk_diffuse_response", _visuals.disk_diffuse_response)
 	_material.set_shader_parameter(&"disk_diffuse_desaturate", _visuals.disk_diffuse_desaturate)
 	_material.set_shader_parameter(&"edge_softness", _visuals.edge_softness)
-	# pushed here (configure()/refresh_visual_uniforms()),
+	# edge_softness_m is pushed here (configure()/refresh_visual_uniforms()),
 	# not alongside rim_soft_width/rim_width in set_circles() below, so a
 	# freshly configured overlay already renders a crisp boundary before the
-	# first 5 Hz circle upload ever runs, exactly like edge_softness (raster)
-	# right above it.
+	# first 5 Hz circle upload, like edge_softness (raster) right above it.
 	_material.set_shader_parameter(&"edge_softness_m", _visuals.edge_softness_m)
 	_material.set_shader_parameter(&"tint_alpha", _visuals.tint_alpha)
 	_material.set_shader_parameter(&"outline_width", _visuals.outline_width)

@@ -48,7 +48,7 @@ const TRI_VERTS: int = 3
 const DIAMETER_FACTOR: float = 2.0
 ## Every second stratum / rib run uses the alternate colour / height.
 const ALTERNATE: int = 2
-## Round 2 machined refinements (config/territory/ArenaSideStyle.gd).
+## Machined refinements (config/territory/ArenaSideStyle.gd).
 const MIN_PANEL_SEGMENTS: int = 2
 const DIAMETER_FACTOR_INT: int = 2
 ## Where the stylised underside's middle ring sits, as a share of the underside depth.
@@ -68,7 +68,7 @@ const CONE_INSIDE: float = 0.3
 ## Rivet pyramid base below / above the centre, in rivet half-widths.
 const RIVET_LOW: float = 0.6
 const RIVET_HIGH: float = 1.2
-## Round 3 (sides that continue the top): outline segments per plate (a flat face
+## Sides that continue the top: outline segments per plate (a flat face
 ## then a narrow seam), the fewest plates around the rim, and the shortest plate.
 const PLATE_SEGMENTS: int = 2
 const PLATE_COUNT_MIN: int = 3
@@ -143,7 +143,7 @@ var _radius: float = 0.0
 var _body_side: Soup = null
 var _body_under: Soup = null
 var _glow: Soup = null
-## Round 3: the slab's height (the gold lip wraps over its edge) and the plain
+## The slab's height (the gold lip wraps over its edge) and the plain
 ## evenly spaced circle the lip and its ledge are drawn on.
 var _disk_height: float = 0.0
 var _uniform: PackedVector2Array = PackedVector2Array()
@@ -446,7 +446,7 @@ func _build_machined(style: ArenaSideStyle, y_top: float) -> void:
 	_sweep(previous, center, style.machined_light_color, true)
 
 
-# --- Machined refinements (round 2): shared helpers ------------------------------
+# --- Machined refinements: shared helpers ------------------------------
 
 ## Flush wall between two heights; `off_a` / `off_b` (metres, negative = inset)
 ## are the radial pushes at its top and bottom.
@@ -523,7 +523,7 @@ func _rivet_row(y: float, segs: int, half: float, height: float, color: Color) -
 			_rivet(mid, Vector3(mid.x, 0.0, mid.z).normalized(), half, height, color)
 
 
-# --- MACHINED_STYLISED (M1) -------------------------------------------------------
+# --- MACHINED_STYLISED -------------------------------------------------------
 
 func _build_stylised(style: ArenaSideStyle, y_top: float) -> void:
 	var depth: float = DIAMETER_FACTOR * _radius * style.stylised_depth_fraction
@@ -558,7 +558,7 @@ func _build_stylised(style: ArenaSideStyle, y_top: float) -> void:
 	_sweep(keel, _make_ring(0.0, y - under - core_depth), style.stylised_core_color, true)
 
 
-# --- MACHINED_DETAILED (M2) -------------------------------------------------------
+# --- MACHINED_DETAILED -------------------------------------------------------
 
 func _build_detailed(style: ArenaSideStyle, y_top: float) -> void:
 	var depth: float = DIAMETER_FACTOR * _radius * style.detailed_depth_fraction
@@ -647,7 +647,7 @@ func _thrusters(style: ArenaSideStyle, outer: Ring, inner: Ring, under: float) -
 		_glow_cone(centre, _radius * style.detailed_thruster_size_fraction, under * style.detailed_thruster_length_share, style.detailed_thruster_color)
 
 
-# --- MACHINED_HEAVY (M3) ----------------------------------------------------------
+# --- MACHINED_HEAVY ----------------------------------------------------------
 
 func _build_heavy(style: ArenaSideStyle, y_top: float) -> void:
 	var depth: float = DIAMETER_FACTOR * _radius * style.heavy_depth_fraction
@@ -687,7 +687,7 @@ func _build_heavy(style: ArenaSideStyle, y_top: float) -> void:
 	_sweep(core, _make_ring(0.0, keel_y), style.heavy_core_color, true)
 
 
-# --- Round 3: sides that continue the top -----------------------------------------
+# --- Sides that continue the top -----------------------------------------
 # The top is dark navy plating (hub, rings of ~5 m plates, hairline seams, small
 # rivets) under a gold edge. These looks wrap that over the edge and carry it down
 # and underneath: the same plates, seams, rivets and gold, one shade darker below.
@@ -877,7 +877,7 @@ func _ring_stack(
 	_sweep(_make_ring(s_a, y_a), _make_ring(0.0, y_a), style.top_hub_color)
 
 
-# --- Round 4: SHADER_DOME -----------------------------------------------------------
+# --- SHADER_DOME -----------------------------------------------------------
 # PLATED_DOME's silhouette (a tall wall of plate courses, then a shallow dome of
 # plate rings) with no modelled detail: smooth surfaces whose plating, seams and
 # rivets are drawn by shaders/territory/arena_side_shell.gdshader, the top's own plating code.
