@@ -4,7 +4,7 @@ extends WeatherPresentation
 ## camera, flakes falling in world space, density scaled by the ramped
 ## intensity. Presentation only; the colliding snow is SnowEffect/SnowCaps.
 ##
-## playtest: too subtle: flakes are bigger and denser, never
+## Flakes are bigger and denser so they read, never
 ## smaller than flake_min_angle on screen (shader), drawn white with a cool
 ## outline so they read against the bright sky, and they thin out and stop
 ## early in the ramp-out (SnowTuning.flake_density) so the melt that follows
@@ -29,12 +29,12 @@ var tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
 var _particles: GPUParticles3D = null
 ## GraphicsPreset.weather_density_scale, applied through amount_ratio.
 var _density_scale: float = 1.0
-## fall distance now emitted (quantised) and its ratio to the
+## Fall distance emitted (quantised) and its ratio to the
 ## tuned fall; the flake lifetime and amount scale with it so the snow starts
 ## at the cloud ceiling at unchanged density.
 var _fall_m: float = 0.0
 var _fall_ratio: float = 1.0
-## quantised half extent (metres) the flake box now spans and
+## Quantised half extent (metres) the flake box spans and
 ## the amount multiplier it brings, so the box reaches the arena the camera looks
 ## at instead of a puff in front of the camera.
 var _half_m: float = 0.0
@@ -229,8 +229,8 @@ func _build() -> void:
 	_particles.process_material = process
 	_particles.draw_pass_1 = quad
 	_particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Weather layer: the disc mirror does not reflect falling flakes (the caps
-	# stay on the default layer and do mirror, like the blocks they sit on).
+	# Weather layer: the disc reflection probe skips falling flakes (the caps
+	# stay on the default layer and do reflect, like the blocks they sit on).
 	_particles.layers = RainPresentation.RENDER_LAYER_BIT
 	var fall: float = tuning.flake_fall_speed * (1.0 + tuning.flake_jitter) * tuning.flake_lifetime_s
 	var extent: Vector3 = tuning.flake_box_half_extent

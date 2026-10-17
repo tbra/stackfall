@@ -1,11 +1,10 @@
 class_name StormPresentation
 extends WeatherPresentation
-## client-side wind visuals -- cartoon wind swooshes and drifting
+## Client-side wind visuals -- cartoon wind swooshes and drifting
 ## dust/leaf motes flowing along the seeded wind heading (core/weather/WindField.gd,
-## the same direction the host pushes blocks). swapped the looks:
-## the streaks are the curled swoosh strokes (shaders/weather/gust_swoosh.gdshader, strokes
-## scattered through the weather box) that a Breeze gust used to draw; the motes
-## stay on shaders/weather/wind_streak.gdshader. The script only integrates the gusting
+## the same direction the host pushes blocks). The streaks are the curled swoosh
+## strokes (shaders/weather/gust_swoosh.gdshader, scattered through the weather box);
+## the motes use shaders/weather/wind_streak.gdshader. The script only integrates the gusting
 ## travel distance and feeds uniforms. Presentation only: no physics.
 ## Density follows the ramped intensity; the Low graphics preset thins both.
 
@@ -41,7 +40,7 @@ var _horizon: HorizonStormCells = null
 
 
 func _ready() -> void:
-	# distant storm cells on the horizon follow the same intensity.
+	# Distant storm cells on the horizon follow the same intensity.
 	_horizon = HorizonStormCells.new()
 	_horizon.name = "HorizonStormCells"
 	add_child(_horizon)
@@ -265,8 +264,8 @@ func _add_instance(instance_name: String, multimesh: MultiMesh, material: Shader
 	instance.multimesh = multimesh
 	instance.material_override = material
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# DECISION: share rain's weather-presentation render layer, which
-	# DiscMirror's cull mask excludes; mirrored streaks aimed at the camera
+	# DECISION: share rain's weather-presentation render layer, which the disc
+	# ReflectionProbe's cull mask excludes; reflected streaks aimed at the camera
 	# read as grey squares on the disc.
 	instance.layers = RainPresentation.RENDER_LAYER_BIT
 	# The swoosh strokes drift up to a life downwind of the box.
@@ -340,7 +339,7 @@ static func build_swoosh_ribbon(wind_tuning: StormTuning, curled: bool = true) -
 	return mesh
 
 
-## the clouds drift along this same wind (Skybox cloud drift), easing in and
+## The clouds drift along this same wind (Skybox cloud drift), easing in and
 ## out with the storm blend.
 func _push_cloud_wind(direction: Vector2) -> void:
 	if not is_inside_tree():

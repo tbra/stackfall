@@ -1,7 +1,6 @@
 class_name CloudShadows
 extends Node3D
-## "clouds should cast shadows on arena when they cover the
-## sun": soft cloud shadows sweeping the disc and blocks by day, and a brief dimming of the
+## Soft cloud shadows sweeping the disc and blocks by day, and a brief dimming of the
 ## direct sun light while a cloud covers the sun direction.
 ##
 ## DECISION: two cross-fading Decal nodes projected along the sun direction, textured with
@@ -73,9 +72,9 @@ func _build_layers() -> void:
 		decal.normal_fade = 0.0
 		# The disc is darkened by its own shader term (EMISSION-dominated); keep the decal off it.
 		decal.cull_mask = decal.cull_mask & ~TerritoryOverlay.DISC_LAYER_BIT
-		# the cloud puffs (sea and upper layer) sit inside the decal box; the
-		# decal darkened them in moving streaks (clouds shadowing clouds, blinking as the two
-		# layers cross-fade). Their own layer bit keeps the decal off them.
+		# The cloud puffs (sea and upper layer) sit inside the decal box; without their own
+		# layer bit the decal would darken them in moving streaks (clouds shadowing clouds,
+		# blinking as the two layers cross-fade).
 		decal.cull_mask = decal.cull_mask & ~CloudSea.RENDER_LAYER_BIT
 		decal.visible = false
 		add_child(decal)

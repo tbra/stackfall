@@ -1,6 +1,6 @@
 class_name CloudSea
 extends Node3D
-## the near/mid-field cloud sea below the floating disc --
+## The near/mid-field cloud sea below the floating disc --
 ## real 3D stylized cumulus. One MultiMeshInstance3D draws flat-bottomed
 ## low-poly spheres ("puffs") clustered into cumulus clumps scattered on a
 ## ring around and below the disc; shaders/sky/cloud_puffs.gdshader toon-shades
@@ -23,7 +23,7 @@ const RENDER_LAYER_BIT: int = 1 << 18
 const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"exposure", &"grade_amount", &"grade_dark", &"grade_mid",
 	&"grade_light", &"grade_gamma",
-	# P4: procedural sea/gradient the far fade targets.
+	# Procedural sea/gradient the far fade targets.
 	&"procedural_sea_mix", &"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
 	&"proc_horizon_color", &"proc_gradient_mid_height", &"proc_gradient_power", &"proc_gradient_bands",
 	&"proc_gradient_band_edge", &"proc_horizon_glow_color", &"proc_horizon_glow_width",
@@ -33,7 +33,7 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color",
 ]
 const FLAT_BASE_PARAMETER: StringName = &"flat_base"
-## per-instance / material parameters of the upper layer (see
+## Per-instance / material parameters of the upper layer (see
 ## shaders/sky/cloud_puffs.gdshader): its own base plane height, and the camera-clearance fade.
 const FLAT_BASE_OVERRIDE_PARAMETER: StringName = &"flat_base_override"
 const CLEAR_FADE_START_PARAMETER: StringName = &"base_clear_start_m"
@@ -61,7 +61,7 @@ const SIZE_JITTER: float = 0.15
 const TOP_JITTER_MIN: float = 0.82
 const STRETCH_MAX: float = 1.2
 
-## fix 2a: per-instance shader flag marking the hexagon-impostor instances.
+## Per-instance shader flag marking the hexagon-impostor instances.
 const BILLBOARD_PARAMETER: StringName = &"billboard"
 ## Hexagon impostor (UV = corner): circumradius over inradius 1 is 2 / sqrt(3), so the polygon
 ## contains the unit circle the shader sizes to the puff silhouette (1 / cos(PI / corners)).
@@ -77,7 +77,6 @@ const OCC_PUFF_STRIDE: int = 6
 const NO_BASE_CUT: float = -1.0e30
 ## The shader's `round_base_from` default: a base plane at or above it means whole ellipsoids.
 const ROUND_BASE_FROM: float = 0.9
-## Passed as `time_s` to read the live shader clock instead of a fixed test time.
 ## Sentinel for sun_ray_cloud_occlusion(): use the live drift offset.
 const OCC_LIVE_DRIFT: Vector2 = Vector2(-1.0e30, -1.0e30)
 const DRIFT_OFFSET_PARAMETER: StringName = &"drift_offset"
@@ -215,7 +214,7 @@ var _occ_clear_start_m: float = 0.0
 var _occ_clear_end_m: float = 0.0
 
 
-## storm tint. Re-bases the live puff material on `base` (the
+## Storm tint. Re-bases the live puff material on `base` (the
 ## match theme) blended toward `storm` by `amount` 0..1: puff cel colours and
 ## the sky cloud colours lerp between the two themes, then the shared sky
 ## uniforms (procedural sea colours the far fade targets) are re-copied from
@@ -265,10 +264,7 @@ func refresh_weather_fog() -> void:
 	WeatherFogShader.apply(_material)
 
 
-## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
-## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
-## is the active sky material whose grade/procedural uniforms the puffs copy.
-## pushes the shared integrated cloud wind (CloudDriftState.offset) to the
+## Pushes the shared integrated cloud wind (CloudDriftState.offset) to the
 ## puff shader and the sun-occlusion bounds.
 func set_drift_offset(offset: Vector2) -> void:
 	_drift_offset = offset
@@ -276,6 +272,9 @@ func set_drift_offset(offset: Vector2) -> void:
 		_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, offset)
 
 
+## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
+## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
+## is the active sky material whose grade/procedural uniforms the puffs copy.
 func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS,
 		billboard_distance_m: float = 0.0) -> void:
 	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
@@ -451,7 +450,7 @@ static func disc_ceiling_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_L
 	return -MapDef.new().disk_height - disc_clearance_m(theme, radius_m)
 
 
-## the overcast layer above the disc -- clumps over a disc of
+## The overcast layer above the disc -- clumps over a disc of
 ## upper_ring_outer_m around the axis, flat bases from height_m up, scaled by the
 ## density preset like the sea (Low also uses upper_clump_count_low).
 func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
@@ -540,7 +539,7 @@ static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	return layers
 
 
-## Writes one clump's puffs from `index`; returns the next free index.
+## Adds one clump's puffs to the `near` or `far` stage.
 func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rng: RandomNumberGenerator) -> void:
 	var azimuth: float = rng.randf() * TAU
 	# Uniform over the ring's area, not its radius.
@@ -611,11 +610,11 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	var height: float = radius * layer.vertical_scale
 	at.y = minf(at.y, layer.top_max_m - height)
 	var stretch: float = rng.randf_range(1.0, STRETCH_MAX)
-	# a puff that could reach the disc or the play volume (its
+	# A puff that could reach the disc or the play volume (its
 	# footprint, inflated by the shader's lumps/billow, enters the exclusion
-	# cylinder) is held under the disc by the clearance. the
-	# shader now slides clumps along the wind, so a below-disc clump drifting inside the
-	# exclusion radius dissolves instead (drift_vis); this clamp holds for the rest position.
+	# cylinder) is held under the disc by the clearance. A below-disc clump drifting
+	# inside the exclusion radius dissolves instead (drift_vis); this clamp holds for
+	# the rest position.
 	var inflated: float = radius * (1.0 + _inflate)
 	var footprint: float = Vector2(at.x, at.z).length() - inflated * stretch
 	if not layer.is_upper and footprint < _exclusion_radius_m:
@@ -627,7 +626,7 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	stage.colors.append(rest)
 
 
-## appends one puff's occlusion row (a spheroid: horizontal radius
+## Appends one puff's occlusion row (a spheroid: horizontal radius
 ## `horizontal`, vertical radius `vertical`, both grown by the shader's hull inflation).
 func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) -> void:
 	var grow: float = 1.0 + _inflate
@@ -635,7 +634,7 @@ func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) 
 	_occ_puffs.append_array(PackedFloat32Array([at.x, at.y, at.z, horizontal * grow, vertical * grow, cut]))
 
 
-## closes the clump whose puffs start at row `first_puff`: its bounding sphere
+## Closes the clump whose puffs start at row `first_puff`: its bounding sphere
 ## (rest frame), height slab and drift speed.
 func _record_clump_bounds(first_puff: int, angular_speed: float, is_upper: bool, rest: Color) -> void:
 	var rows: int = _occ_puffs.size() / OCC_PUFF_STRIDE
@@ -683,7 +682,7 @@ func _clear_occlusion_bounds() -> void:
 	_occ_clear_end_m = 0.0
 
 
-## how much the puffs hide the sun seen along the ray from `from` toward the
+## How much the puffs hide the sun seen along the ray from `from` toward the
 ## unit-ish `dir`, 0 (clear sky) .. 1 (fully hidden). The sun is at infinity, so the ray is a
 ## half-line. Cheap bounds test, no physics: clumps first by a height slab and a bounding
 ## sphere (each clump's wind shift undone on the ray: the shader moves clumps by
@@ -767,7 +766,7 @@ func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, setti
 	return cover
 
 
-## centre height of a body puff whose top would be `top`: its bottom plane (at
+## Centre height of a body puff whose top would be `top`: its bottom plane (at
 ## `flat` of its radius below the centre) never goes under `base_y`, less `sink_m` (the upper
 ## layer lets round bottoms hang a little below the clump's level so they share no plane).
 ## With flat = 1 the puff just rests on base_y.
@@ -834,7 +833,7 @@ static func build_puff_mesh(flat_base: float, subdivisions: int = PUFF_SUBDIVISI
 	return mesh
 
 
-## the impostor polygon, a hexagon in the XY plane whose UV is its corner
+## The impostor polygon, a hexagon in the XY plane whose UV is its corner
 ## inradius 1: 4 triangles. The vertex stage places it facing the camera; see the shader.
 static func build_billboard_mesh() -> ArrayMesh:
 	var positions: PackedVector3Array = PackedVector3Array()

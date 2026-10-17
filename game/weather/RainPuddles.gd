@@ -1,6 +1,6 @@
 class_name RainPuddles
 extends Node3D
-## rain puddles on the disc top, presentation only on every
+## Rain puddles on the disc top, presentation only on every
 ## peer. A child of the Field, so the patches follow its tilt. One MultiMesh of
 ## flat quads drawn by shaders/weather/rain_puddles.gdshader; the script only integrates
 ## a `wetness` 0..1 (fills while it rains, dries after) and feeds the shader.
@@ -16,8 +16,7 @@ const SEED: int = 21021
 ## (fraction of its radius probed along each axis).
 const PLACE_TRIES: int = 24
 const EDGE_PROBE: float = 0.8
-## Basin-centre placement tries; cluster pull keeps the same RNG draw order on
-## every peer.
+## Half-extent (m) of the oversized custom AABB that keeps the patches from being culled.
 const CULL_EXTENT_M: float = 2000.0
 
 var _tuning: RainTuning = TUNING
@@ -40,13 +39,11 @@ static func ensure_on(field_node: Node3D, map_def: MapDef, tuning: RainTuning, c
 	return puddles
 
 
-## "the arena still had rain puddles" in a new
-## match after leaving one: this layer lives on the persistent Field and dries
-## over RainTuning.puddle_dry_time_s, so a match left mid-rain and a new one
-## started inside that window began wet -- and a new map kept the old map's patch
-## layout. game/main/Main.gd calls this when a match world is built and torn down: the
-## layer is dropped at once, and the next rain builds a dry one for the map in
-## play. Freed immediately (not queue_free) so ensure_on() cannot find the dying
+## Drops the puddle layer at once. The layer lives on the persistent Field and dries over
+## RainTuning.puddle_dry_time_s, so without this a match started inside that window would
+## begin wet and a new map would keep the old map's patch layout. game/main/Main.gd calls
+## this when a match world is built and torn down; the next rain builds a dry layer for the
+## map in play. Freed immediately (not queue_free) so ensure_on() cannot find the dying
 ## node in the same frame. Returns true when a layer was removed.
 static func clear_on(field_node: Node3D) -> bool:
 	if field_node == null:

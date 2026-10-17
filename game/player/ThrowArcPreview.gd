@@ -1,45 +1,25 @@
 class_name ThrowArcPreview
 extends Node3D
-## M4 P2e / a pure-presentation arc polyline, shown while game/
-## PlayerController.gd holds a throwable/aimed gift (no LT/drag any more). It samples the same
-## closed-form `position(t) = origin + velocity*t + 0.5*gravity*t^2` game/
-## BlockFactory.gd's own gravity_scale wiring implies (constant acceleration,
-## no drag on a thrown special before it lands), stepping at a fixed dt
-## (GhostTuning.throw_arc_max_time_s / throw_arc_sample_count) but stopping at
-## the FIRST sample that reaches the landing surface, not a fixed sample
-## count.
+## A pure-presentation arc polyline, shown while game/player/PlayerController.gd holds a
+## throwable/aimed gift. It samples the closed-form
+## `position(t) = origin + velocity*t + 0.5*gravity*t^2` (constant acceleration, no drag on a
+## thrown special before it lands), stepping at a fixed dt (GhostTuning.throw_arc_max_time_s /
+## throw_arc_sample_count) but stopping at the FIRST sample that reaches the landing surface.
 ##
-## feedback/throw-arc.png, "arc leaves the screen while
-## rising": the arc used to always sample out to throw_arc_max_time_s
-## regardless of where it lands, so a hard lofted throw's preview was still
-## rising off the top of the screen when the line simply stopped. Landing
-## height comes from the optional `field` argument sample_arc()/update_arc()
-## now take (game/field/Field.gd, read-only here: disk_local_from_world() for "is
-## this XZ still over the disc" and surface_y() for its top height, both
-## already tilt-aware/flat-approximated the same way every other caller of
-## those two functions is) -- the disc's own top while the sample is still
-## within map_def.field_radius of the disc center, or
-## GhostTuning.throw_arc_floor_below_disc_m below the disc's surface once it
-## has flown past the rim (a flat "there is no ground here" backstop, itself
-## togglable via throw_arc_floor_enabled). throw_arc_max_time_s stays exactly
-## what it always was for a throw that never lands within that time (raised
-## to 4 s, comfortably past the hang time SpecialTuning's own throw_max_speed/
-## throw_loft_ratio defaults produce, so it now reads only as the safety cap
-## its own doc comment always claimed rather than the normal cutoff).
+## Landing height comes from the optional read-only `field` (game/field/Field.gd):
+## disk_local_from_world() for "is this XZ still over the disc" and surface_y() for its top
+## height. That is the disc's own top while the sample is within map_def.field_radius of the
+## disc center, or GhostTuning.throw_arc_floor_below_disc_m below the disc's surface once it
+## has flown past the rim (a flat "there is no ground here" backstop, togglable via
+## throw_arc_floor_enabled). throw_arc_max_time_s is only the safety cap for a throw that never
+## lands.
 ##
-## `field` defaults to null so every existing bare-unit-test caller (no Field
-## instanced) keeps its pre- behaviour unchanged: sampled purely
-## to the safety cap, no landing cutoff at all -- there is no ground to land
-## on when nothing describes one, so this deliberately does not invent a fake
-## y=0 floor for that case.
+## `field` defaults to null (bare unit tests, no Field instanced): the arc is sampled purely to
+## the safety cap with no landing cutoff, because there is no ground to land on when nothing
+## describes one, so no fake y=0 floor is invented.
 ##
-## sample_arc() is deliberately a pure function of its own arguments plus the
-## two tuning Resources and the optional read-only `field` (no read of
-## PlayerController/scene-tree state beyond that one argument) so a bare unit
-## test can call it directly without instancing a PlayerController or a Match
-## -- exactly the "provable without physics" bar the M4 P2 packages doc sets
-## for P2a's own SpecialBehavior, applied here to this package's own pure
-## math.
+## sample_arc() is a pure function of its arguments, the two tuning Resources and the optional
+## read-only `field`, so a bare unit test can call it without a PlayerController or a Match.
 
 @export var physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 @export var ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
@@ -83,13 +63,11 @@ func _ready() -> void:
 	visible = false
 
 
-## Pure ballistic sampler -- P2e's own testable seam, extended in
-## to cut off at ground/disc contact. `origin`/`velocity` are
+## Pure ballistic sampler. `origin`/`velocity` are
 ## world-space; matches game/player/PlayerController.gd._throw_velocity_for_drag()'s
 ## and _request_throw()'s own launch convention (a straight-line velocity
 ## from a spawn point, no initial acceleration ramp). `field`, if given, is
-## read-only (see this file's top doc comment); null keeps the pre-landing
-## fixed-time-budget behaviour every existing bare-unit-test caller relies on.
+## read-only (see this file's top doc comment); null means no landing cutoff.
 ## `gravity_scale` multiplies the block gravity (default 1.0 = a thrown block;
 ## 0.0 = the straight gravity-free flight of Rocket/Paintball).
 func sample_arc(
@@ -216,7 +194,7 @@ func _rebuild_mesh(points: PackedVector3Array) -> void:
 	_immediate_mesh.surface_end()
 
 
-## the landing-zone ring. One reused MeshInstance3D holding a flat
+## The landing-zone ring. One reused MeshInstance3D holding a flat
 ## annulus ArrayMesh (rebuilt only when radius/width change); each arc update just sets its
 ## transform: centred on the landing point, up axis = the landing surface normal, lifted along
 ## it. No per-frame allocation.
