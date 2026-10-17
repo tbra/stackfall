@@ -18,5 +18,5 @@ extends Resource
 ## gamepad rebind row binds it. Higher than detection noise, below a full push.
 @export var rebind_axis_threshold: float = 0.6
 ## seconds a listening rebind row waits with no input before it cancels
-## itself (B is now bindable, so a pad player has no cancel button).
+## itself (B is bindable, so a pad player has no cancel button).
 @export var rebind_idle_timeout_s: float = 6.0

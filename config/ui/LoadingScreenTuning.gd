@@ -38,10 +38,7 @@ extends Resource
 ## Presented frames after the first result, while the new world renders covered.
 @export var stable_frames: int = 4
 
-## the ready-wait auto-start cap (ready_wait_max_s) was removed; the match starts
-## only when every required player is ready.
-
-## --- L2: the ready prompt and player ready list (presentation) ---
+## --- the ready prompt and player ready list (presentation) ---
 ## Colours come from config/ui/arcade_visual_tuning.tres; only sizes and wording live here.
 
 ## the line above the device glyph ("Ready?" + [Enter] / [A]); the
@@ -90,7 +87,7 @@ extends Resource
 ## children of Main until the match world clears them.
 @export var overlay_z_index: int = 100
 
-## L3: the overlay lives on its own CanvasLayer so it covers the HUD
+## The overlay lives on its own CanvasLayer so it covers the HUD
 ## (CanvasLayer 1: player bars, held/next, minimap, timer ring, the big countdown
 ## digit), which a Control z_index can never beat. Above the HUD and the sandbox
 ## and tuning panels (1-11), below the pause menu and perf overlay (100).
