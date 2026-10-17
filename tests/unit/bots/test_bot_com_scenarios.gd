@@ -130,7 +130,7 @@ func _site(view: BotWorldView, shape: BlockShape, com_xz: Vector2) -> BotCandida
 
 ## Runs the bot's real think over exactly `com_targets` (in this order: ties go to the first): the generated
 ## sites are swapped for them once FILL is done, then STACK/PROBE/RANK/MEASURE/PICK run as in a match.
-## `with_stack` false leaves view.stack null. Returns the bot; `bot._think.best_candidate()` is the pick.
+## `with_stack` false leaves view.stack null. Returns the bot; `bot._think.revalidate()` is the pick.
 func _think_over(shape: BlockShape, com_targets: Array[Vector2], with_stack: bool, tower_centre: Vector2) -> BotController:
 	var bot: BotController = _make_bot()
 	bot._begin_thinking(Match)
@@ -188,7 +188,7 @@ func _setup_and_think(with_stack: bool) -> BotController:
 
 
 func _picked_origin(bot: BotController) -> Vector2:
-	return bot._think.best_candidate().origin
+	return bot._think.revalidate().origin
 
 
 func _site_origin(site: Vector2) -> Vector2:

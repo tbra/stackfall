@@ -87,13 +87,13 @@ func _rng() -> RandomNumberGenerator:
 func test_unlimited_budget_finishes_in_one_step_with_a_valid_place_decision() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
 	assert_true(think.step(BIG_BUDGET_US, _probe))
-	assert_true(think.is_done())
+	assert_true(think.step(BIG_BUDGET_US, _probe))
 	var decision: BotThink.Decision = think.decision()
 	assert_eq(decision.kind, BotThink.DecisionKind.PLACE)
 	assert_gt(think.candidates().size(), 0)
 	assert_lte(think.candidates().size(), CANDIDATE_COUNT)
-	assert_not_null(think.best_candidate())
-	assert_eq(decision.origin, think.best_candidate().origin)
+	assert_not_null(think.revalidate())
+	assert_eq(decision.origin, think.revalidate().origin)
 	assert_eq(PlacementRules.validate_point(decision.origin, _raster, 0), PlacementRules.Result.VALID)
 	assert_eq(decision.terms.size(), BotIntent.Term.size())
 	assert_eq(decision.intent, int(think.intent().kind))
@@ -109,7 +109,7 @@ func test_goal_gap_inside_finish_range_plans_a_finish() -> void:
 func test_revalidate_falls_back_when_the_choice_became_invalid_after_the_think() -> void:
 	var think: BotThink = BotThink.new(_view(), _profile(), _rng())
 	think.step(BIG_BUDGET_US, _probe)
-	var first: BotCandidate = think.best_candidate()
+	var first: BotCandidate = think.revalidate()
 	var cell: Vector2i = _grid.world_to_cell(first.origin)
 	_raster.force_hole_cell(cell.x, cell.y, 1.0, true)
 	var second: BotCandidate = think.revalidate()
@@ -162,7 +162,7 @@ func _gift_point_for(c: BotCandidate, baseline: BotCandidate, view: BotWorldView
 func test_v2_targets_a_reachable_unclaimed_gift_over_a_plain_placement() -> void:
 	var base: BotThink = _gift_think(PackedVector2Array(), 1.0)
 	base.step(BIG_BUDGET_US, _probe)
-	var baseline: BotCandidate = base.best_candidate()
+	var baseline: BotCandidate = base.revalidate()
 	assert_not_null(baseline)
 	var view: BotWorldView = _gift_view(PackedVector2Array())
 	var gift: Variant = null
@@ -176,7 +176,7 @@ func test_v2_targets_a_reachable_unclaimed_gift_over_a_plain_placement() -> void
 		return
 	var with_gift: BotThink = _gift_think(PackedVector2Array([gift as Vector2]), 1.0)
 	with_gift.step(BIG_BUDGET_US, _probe)
-	var chosen: BotCandidate = with_gift.best_candidate()
+	var chosen: BotCandidate = with_gift.revalidate()
 	assert_not_null(chosen)
 	assert_lte(
 		chosen.origin.distance_to(gift as Vector2), BotEvaluator.future_radius(chosen, view),
@@ -185,4 +185,4 @@ func test_v2_targets_a_reachable_unclaimed_gift_over_a_plain_placement() -> void
 	# Scale 0 (a tier that ignores gifts) keeps the plain pick.
 	var ignoring: BotThink = _gift_think(PackedVector2Array([gift as Vector2]), 0.0)
 	ignoring.step(BIG_BUDGET_US, _probe)
-	assert_eq(ignoring.best_candidate().origin, baseline.origin)
+	assert_eq(ignoring.revalidate().origin, baseline.origin)

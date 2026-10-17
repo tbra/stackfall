@@ -115,8 +115,8 @@ func _site(height: float, slack: float) -> BotCandidate:
 
 func test_a_scripted_tower_think_picks_the_pinned_stable_site() -> void:
 	var think: BotThink = _think()
-	assert_true(think.is_done())
-	var best: BotCandidate = think.best_candidate()
+	assert_true(think.step(BIG_BUDGET_US, _probe))
+	var best: BotCandidate = think.revalidate()
 	assert_not_null(best)
 	assert_gt(best.stability_slack, 0.0, "the pick is stable under the statics model")
 	assert_eq(best.origin, PINNED_ORIGIN, "pinned origin")
