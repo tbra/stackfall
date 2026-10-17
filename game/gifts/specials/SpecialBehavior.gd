@@ -2,22 +2,16 @@ class_name SpecialBehavior
 extends Node
 ## Attached (as a child Node) to a spawned special's Block (spec 1.6). Ages
 ## from bind(), arms at `def.arm_delay`, detects an impact by sampling its
-## own parent Block's velocity drop each tick (game/blocks/Block.gd:61-75's own
-## impact-detection pattern, reused rather than duplicated via
-## `contact_monitor`/signals -- see the DECISION on _check_impact() below),
-## triggers exactly once (impact, the effect's own early-trigger check, or a
+## own parent Block's velocity drop each tick (the same pattern as game/blocks/Block.gd,
+## not `contact_monitor`/signals), triggers exactly once (impact, the effect's own early-trigger check, or a
 ## fuse timeout, whichever comes first), and can chain into nearby specials
 ## up to `SpecialTuning.max_chain_depth`.
 ##
-## Pure logic wrapped in a Node rather than core/ RefCounted: CLAUDE.md keeps
-## core/ free of scene-tree dependence, but this class's whole job --
-## reading a live RigidBody3D's velocity every physics tick, finding sibling
-## specials via get_tree().get_nodes_in_group() -- IS scene-tree dependence,
-## so it belongs in game/ instead. Testable without physics regardless: every
-## tick's actual work happens in advance(delta) below, which
-## _physics_process() just forwards to; a test calls advance() directly with
-## a stub Block whose linear_velocity/mass it sets by hand, so no physics
-## simulation ever needs to run for these tests.
+## A Node rather than core/ logic: reading a live RigidBody3D's velocity every physics tick
+## and finding sibling specials via get_tree().get_nodes_in_group() is scene-tree
+## dependence. Every tick's work happens in advance(delta), which _physics_process()
+## forwards to, so a test drives advance() with a stub Block whose linear_velocity/mass it
+## sets by hand and no physics runs.
 
 ## Every SpecialBehavior joins this group so trigger_others_in_range() below
 ## can find chain-reaction candidates via get_tree().get_nodes_in_group()
@@ -25,12 +19,11 @@ extends Node
 const GROUP: StringName = &"specials"
 
 ## Emitted the instant trigger() actually runs (idempotent -- never fires
-## twice for the same instance). autoload/Events.gd is NOT touched by this
-## signal; a listener on every spawned special re-emits/replicates
+## twice for the same instance). A listener on every spawned special re-emits/replicates
 ## Events.special_triggered from there.
 signal triggered(def_id: StringName, position: Vector3, chain_depth: int)
 
-## emitted once, host-side, when a gift-bound behavior's
+## Emitted once, host-side, when a gift-bound behavior's
 ## action is complete (a short linger after trigger(), or the hard
 ## max-lifetime backstop for an action that never completes). The block's owning slot
 ## (MatchPlacement) removes the body through the normal block-
@@ -60,17 +53,14 @@ var _has_triggered: bool = false
 var _chain_depth: int = 0
 var _prev_linear_velocity: Vector3 = Vector3.ZERO
 
-## landing detection for effects with needs_landing(). Replaces
+## Landing detection for effects with needs_landing(), instead of
 ## Jolt `sleeping`, which never fires on a tilting disc with an awake island.
 var _landed_probe: LandedProbe = null
 var _landed_at_age: float = -1.0
 
 
-## Entry point -- called once, immediately after this node is created and
-## added as a child of `block` (this avoids an
-## @export-then-add_child() ordering race that plain @export var def/tuning
-## fields would have, since Godot doesn't guarantee export values are set
-## before _ready() runs for a node built with .new()).
+## Entry point -- called once, immediately after this node is added as a child of `block`
+## (plain @export def/tuning fields would race _ready() on a node built with .new()).
 func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_block = block
 	_def = def
@@ -116,9 +106,7 @@ func _physics_process(delta: float) -> void:
 	advance(delta)
 
 
-## The actual per-tick logic, split out from _physics_process() so a test can
-## drive it directly regardless of whether the test tree is actually running
-## physics (tests drive `_physics_process(delta)` or an `advance(delta)` hook).
+## The per-tick logic, split out from _physics_process() so a test can drive it directly.
 func advance(delta: float) -> void:
 	if _block == null or _def == null:
 		return
@@ -131,11 +119,10 @@ func advance(delta: float) -> void:
 		return
 	if not _armed and _age >= _def.arm_delay:
 		_armed = true
-		# Re-sample right at the arming instant so the very first post-arm
-		# tick's decel is measured against "velocity when arming happened",
-		# not a stale sample from before arm_delay elapsed.
+		# Re-sample at the arming instant so the first post-arm decel is measured against the
+		# velocity at arming, not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
-	# an in-place activated gift has no falling carrier to wait for.
+	# An in-place activated gift has no falling carrier to wait for.
 	var fx1: SpecialEffect = effect_of(_def)
 	var needs_landing: bool = (
 		_def.effect != null and fx1.needs_landing() and not _def.activates_in_place
@@ -156,8 +143,8 @@ func advance(delta: float) -> void:
 		trigger(0)
 
 
-## Age at which the fuse force-triggers. Without an effect lifetime this is the
-## old arm_delay + fuse_timeout_s. With effect_lifetime_s() > 0 it is derived from the
+## Age at which the fuse force-triggers. Without an effect lifetime this is
+## arm_delay + fuse_timeout_s. With effect_lifetime_s() > 0 it is derived from the
 ## lifetime: landing time (or, before landing, arm_delay + fuse_timeout_s as the
 ## landing wait) + lifetime + SpecialTuning.fuse_backstop_margin_s.
 func _fuse_deadline() -> float:
@@ -199,35 +186,22 @@ func _complete() -> void:
 	completed.emit(_block)
 
 
-## DECISION (game/gifts/specials/SpecialBehavior.gd): reuses game/blocks/Block.gd's own velocity-drop impact pattern
-## (`mass * (prev_speed - now_speed)`, an impulse-like deceleration measure
-## in kg*m/s) instead of RigidBody3D's `contact_monitor`/`body_entered`
-## signals -- no `game/blocks/Block.gd` edit, no per-block `contact_monitor`
-## wiring, and it is cheap enough to run every tick for every armed special
-## (Block.gd's own comment: an earlier contact_monitor revision cost 5-7 ms
-## /step at 300 blocks). Only checked once armed (spec 1.6: activation
+## DECISION: reuses game/blocks/Block.gd's velocity-drop impact pattern
+## (`mass * (prev_speed - now_speed)`, an impulse-like deceleration measure in kg*m/s)
+## instead of RigidBody3D's `contact_monitor`/`body_entered`: no per-block contact_monitor
+## wiring, and cheap enough to run every tick for every armed special (a contact_monitor
+## revision cost 5-7 ms/step at 300 blocks). Only checked once armed (spec 1.6: activation
 ## requires both the impact AND having passed arm_delay).
 ##
-## Review fix: mirrors game/blocks/Block.gd:61-63's own
-## `if not impacts_enabled or sleeping` guard -- Jolt stops integrating a
-## sleeping body, so its `linear_velocity` reads as a false, constant value
-## the instant something wakes it, which would otherwise look like a sudden
-## "impact" the tick after wake and detonate a settled special spuriously.
-## While asleep, just re-seed `_prev_linear_velocity` from the current
-## (stale-but-honest) reading and skip the drop test entirely; the first
-## tick after waking then compares against that fresh sample rather than
-## whatever velocity happened to be cached from before sleep, exactly like
-## Block.gd's own `_prev_linear_velocity = linear_velocity; return` early
-## exit. Arming/fuse ageing (advance()'s caller) is untouched by this --
-## only the impact *test* is skipped while asleep.
+## While asleep, Jolt stops integrating the body, so its `linear_velocity` reads as a
+## false, constant value the instant something wakes it, which would look like a sudden
+## impact and detonate a settled special. So while asleep, re-seed `_prev_linear_velocity`
+## and skip the drop test; arming/fuse ageing is unaffected.
 ##
-## FIX: a decel past `arm_impulse` now also consults
-## `effect_of(_def).impact_triggers()` (SpecialEffect.gd's own doc comment on
-## that hook) before calling trigger() -- a timed-effect-pattern special
-## (Propeller/Jumping Bean/Earthquake/Volcano) vetoes it so its OWN arming-
-## tick landing impact can never short-circuit its physics_tick() window
-## before that window ever ran even once. A null `_def.effect` (no special
-## script assigned) keeps the old unconditional behavior.
+## A decel past `arm_impulse` also consults `effect_of(_def).impact_triggers()` before
+## trigger(): a timed-effect-pattern special vetoes it so its own arming-tick landing
+## impact cannot short-circuit its physics_tick() window. A null `_def.effect` always
+## triggers.
 func _check_impact() -> void:
 	if _block.sleeping:
 		_prev_linear_velocity = _block.linear_velocity
@@ -293,7 +267,7 @@ func trigger(incoming_chain_depth: int) -> void:
 			_despawn_timer = _tuning.gift_despawn_delay_s if _tuning != null else 0.0
 
 
-## Called by a concrete SpecialEffect's own detonate() (P3-P5), not by
+## Called by a concrete SpecialEffect's own detonate(), not by
 ## trigger() itself -- each effect knows its own blast/chain radius (a field
 ## on that effect's subclass, e.g. RocketEffect.radius), which SpecialDef/
 ## SpecialBehavior have no business knowing generically. Finds every other

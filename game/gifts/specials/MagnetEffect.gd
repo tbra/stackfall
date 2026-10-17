@@ -1,25 +1,16 @@
 class_name MagnetEffect
 extends SpecialEffect
-## Magnet special (docs/SPEC.md: "Pulls enemy blocks within 8 m
-## toward itself for 3 s"). Follows the
-## "timed-effect pattern" established by PropellerEffect.gd/VolcanoEffect.gd:
-## physics_tick() runs the pull every armed tick from the moment it arms,
-## before triggering; impact_triggers() vetoes the magnet's own landing
-## impact so the pull window always gets to run at least once; wants_early_
-## trigger() flips once pull_duration_s has elapsed since arming; detonate()
+## Magnet special (docs/SPEC.md: "Pulls enemy blocks within 8 m toward itself for 3 s").
+## Timed-effect pattern: physics_tick() runs the pull every armed tick; impact_triggers()
+## vetoes the magnet's own landing impact so the pull window runs at least once;
+## wants_early_trigger() flips once pull_duration_s has elapsed since arming; detonate()
 ## is a no-op because the pull already ran tick by tick.
 ##
-## DECISION (game/gifts/specials/MagnetEffect.gd, matches PropellerEffect.gd's own
-## DECISION): a SpecialDef's `effect` is one shared Resource instance reused
-## by every block spawned with this special during a match (autoload/match/
-## MatchPlacement.gd's _attach_pending_special() binds the same cached,
-## un-duplicated def to a fresh SpecialBehavior each time) -- so this effect
-## keeps NO mutable per-block state on itself. "behavior.age() at first armed
-## tick" lives in block.set_meta()/get_meta(), keyed by a unique StringName,
-## exactly the seam PropellerEffect.gd/VolcanoEffect.gd already use.
+## DECISION: a SpecialDef's `effect` is one shared Resource reused by every block with this
+## special, so this effect keeps NO mutable per-block state; "behavior.age() at first armed
+## tick" lives in block.set_meta(), keyed by a unique StringName.
 
-## Pull strength and reach. RadialPull applies a
-## mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
+## Pull strength and reach. RadialPull applies a mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
 ## so an 8 kg tetromino on the 0.85-friction disc really slides toward the magnet.
 ## radius_m is docs/SPEC.md's "within 8 m"; Magnet has no capture.
 @export var pull: RadialPullTuning = RadialPullTuning.new()
@@ -33,27 +24,20 @@ extends SpecialEffect
 ## velocity (FlightFacing).
 @export var model_nose_axis: Vector3 = Vector3(0.0, 1.0, 0.0)
 
-## Seconds after the throw before the pull starts (the old SpecialDef.arm_delay of 0.4 s). The def's
-## arm_delay is 0 so physics_tick() runs, and the carrier faces its velocity, from the first tick
-## ; the pull itself waits this long.
+## Seconds after the throw before the pull starts. The def's arm_delay is 0 so
+## physics_tick() runs, and the carrier faces its velocity, from the first tick; the pull
+## itself waits this long.
 @export var pull_start_delay_s: float = 0.0
 
 ## Below this speed (m/s) the thrown magnet keeps its pose instead of facing its velocity.
 @export var face_min_speed_mps: float = 1.0
 
-## @export var tuning ... mirrors BombEffect.gd:18's preload pattern so every
-## SpecialEffect subclass follows the same "has its own SpecialTuning
-## fallback" shape sibling effects (Bomb/Rocket/Volcano) already establish.
-## Not actually read by this effect's own logic below -- no tunable Magnet
-## needs belongs on the shared SpecialTuning resource; pull/
-## pull_duration_s above are all Magnet-specific and live on this
-## subclass, exactly like PropellerEffect's lift_speed/lift_duration_s/
-## tilt_strength do.
+## Shared SpecialTuning fallback, as on the sibling effects. Not read by this effect:
+## the Magnet-specific tunables live on this class.
 @export var tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 
-## block.set_meta() key: behavior.age() at the tick this block first armed --
-## the timed-effect pattern's own "<key>_start_age", seeded once, read every
-## tick after via elapsed = age() - start_age.
+## block.set_meta() key: behavior.age() at the tick this block first armed, seeded once;
+## elapsed = age() - start_age.
 const _START_AGE_META: StringName = &"magnet_start_age"
 
 ## block.set_meta() key: set once the thrown magnet has slowed below face_min_speed_mps (landed);
@@ -61,11 +45,8 @@ const _START_AGE_META: StringName = &"magnet_start_age"
 const _FACING_DONE_META: StringName = &"magnet_facing_done"
 
 
-## Pulls every enemy Block within pull.radius_m toward this block's own
-## position, every armed tick, for pull_duration_s seconds starting the very
-## first tick this runs (no "settle" gate, unlike Propeller -- neither
-## docs/SPEC.md does not ask the magnet itself to land first, and
-## SpecialBehavior only calls physics_tick() once armed regardless).
+## Pulls every enemy Block within pull.radius_m toward this block's own position, every
+## armed tick, for pull_duration_s seconds from the first tick this runs (no landing gate).
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	if not block.has_meta(_START_AGE_META):
 		block.set_meta(_START_AGE_META, behavior.age())
@@ -78,12 +59,8 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		return  # no live physics world registered (e.g. an isolated unit test)
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	var mover_owner_slot: int = block.owner_slot
-	# DECISION (game/gifts/specials/MagnetEffect.gd): the enemy-only filter also
-	# drops any non-Block body (candidate == null) -- SpecialPhysics stays
-	# Block-agnostic by design (its own top-of-file DECISION), so "skip
-	# non-Block bodies" is this caller's job, exactly like
-	# query_bodies_in_range()'s own doc comment expects of the Magnet/Glue/
-	# Gravity well callers.
+	# DECISION: the enemy-only filter also drops any non-Block body (candidate == null):
+	# SpecialPhysics stays Block-agnostic, so skipping non-Block bodies is this caller's job.
 	var enemy_only_filter: Callable = func(body: RigidBody3D) -> bool:
 		var candidate: Block = body as Block
 		return candidate != null and candidate.owner_slot != mover_owner_slot
@@ -95,8 +72,8 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	RadialPull.pull(space_state, block.global_position, pull, exclude, enemy_only_filter, delta)
 
 
-## while the thrown magnet is still travelling it turns so the pole tips lead
-## along its velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
+## While the thrown magnet is still travelling it turns so the pole tips lead along its
+## velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
 ## keeps that pose for good. Runs from the first tick (magnet.tres arm_delay is 0).
 func _face_while_airborne(block: Block) -> void:
 	if block.has_meta(_FACING_DONE_META):
@@ -109,11 +86,9 @@ func _face_while_airborne(block: Block) -> void:
 	FlightFacing.face_velocity(block, model_nose_axis, face_min_speed_mps)
 
 
-## FIX pattern (matches PropellerEffect.gd/VolcanoEffect.gd's own
-## impact_triggers() override): vetoes the decel-based impact
-## trigger entirely so the magnet's own landing impact right as it arms can't
-## trigger() (a no-op detonate()) before physics_tick() has run even once,
-## which would skip the whole pull window -- the exact bug class fixed for Propeller/Jumping Bean/Earthquake/Volcano.
+## Vetoes the decel-based impact trigger so the magnet's own landing impact as it arms
+## cannot trigger() (a no-op detonate()) before physics_tick() has run, which would skip
+## the whole pull window.
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 
@@ -126,9 +101,7 @@ func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
 	return elapsed >= pull_start_delay_s + pull_duration_s
 
 
-## No-op: the pull already ran, tick by tick, in physics_tick() above --
-## matches the timed-effect pattern's own note that detonate() becomes a
-## no-op for every timed-effect special.
+## No-op: the pull already ran, tick by tick, in physics_tick() above.
 func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	pass
 

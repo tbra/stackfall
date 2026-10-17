@@ -1,7 +1,7 @@
 class_name PropellerStand
 extends Node3D
-## Standalone propeller entrance:
-## the propeller activates where the gift is dropped, with no falling carrier. It rises
+## Standalone propeller entrance: it activates where the gift is dropped, with no falling
+## carrier. It rises
 ## out of the disc over `emerge_s`, keeps spinning, and sinks back for the last
 ## `sink_s`. The host stand also runs the disc blow (DiscForce sign -1) every physics
 ## tick for `disc_force.duration_s`, then frees itself. Clients build the same visual

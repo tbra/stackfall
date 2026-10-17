@@ -1,8 +1,7 @@
 class_name PropellerEffect
 extends SpecialEffect
 ## Propeller special (spec 1.6: "stands where it lands, then lifts itself and
-## blows for its duration"). the
-## propeller activates where the gift is dropped, like the Volcano. The
+## blows for its duration"). It activates where the gift is dropped, like the Volcano. The
 ## SpecialDef is `activates_in_place`, so it triggers at once on the host's
 ## invisible anchor and detonate() spawns a standalone PropellerStand that rises
 ## out of the disc, spins, and runs DiscForce.apply(sign -1) every tick for

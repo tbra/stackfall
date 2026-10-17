@@ -2,15 +2,11 @@ class_name SpecialEffect
 extends Resource
 ## Base class for a special's own behavior (spec 1.6: "Every special is its
 ## own SpecialDef resource plus a script"). One concrete subclass per special
-## type (RocketEffect.gd, VolcanoEffect.gd, ...) lands in P3-P5; this package
-## (M4 P2a) only defines the shared no-op interface `game/gifts/specials/
-## SpecialBehavior.gd` drives every physics tick.
+## type (RocketEffect.gd, VolcanoEffect.gd, ...); this class defines the shared no-op
+## interface `game/gifts/specials/SpecialBehavior.gd` drives every physics tick.
 ##
-## Every concrete subclass declares its own typed `@export` tunables (speed,
-## radius, impulse, ...) rather than an untyped `params: Dictionary`
-## (restated here because this is the base class those subclasses extend) -- the
-## project's static-typing rule applies
-## to those exports too.
+## Every concrete subclass declares its own typed `@export` tunables (speed, radius,
+## impulse, ...) rather than an untyped `params: Dictionary`.
 
 ## Runs once per physics tick while the owning SpecialBehavior is armed and
 ## not yet triggered (homing, a countdown, a shake, ...). No-op by default --
@@ -25,18 +21,15 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 ## impact/fuse special (Bomb, Rocket, Anvil) activates on its own hard
 ## landing or the fuse timeout, nothing else needed.
 ##
-## FIX (game/gifts/specials/SpecialEffect.gd): a "timed-effect
-## pattern" special (Propeller, Jumping Bean, Earthquake, Volcano) overrides this to
+## A "timed-effect pattern" special (Propeller, Jumping Bean, Earthquake, Volcano) overrides this to
 ## false. Those effects already run physics_tick() every armed tick
 ## regardless of impact, and their own end is entirely time-driven
 ## (wants_early_trigger()/the fuse) -- without this veto, a block thrown or
 ## dropped hard enough that its OWN landing impact exceeds arm_impulse right
 ## as it arms calls trigger(0) before physics_tick() has run even once, so
-## the eruption/shake/lift/hop-timer never starts at all (the reported bug:
-## "detonated by their own landing impact right after arming"). Chain
-## triggering (SpecialBehavior.trigger_others_in_range() -> trigger()) never
-## goes through this hook or _check_impact() at all, so a nearby explosion
-## still detonates a vetoing special exactly as before.
+## the eruption/shake/lift/hop-timer never starts. Chain triggering
+## (SpecialBehavior.trigger_others_in_range() -> trigger()) never goes through this hook
+## or _check_impact(), so a nearby explosion still detonates a vetoing special.
 func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return true
 
@@ -59,19 +52,18 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 	pass
 
 
-## lifecycle hooks. Every
-## default below preserves the pre-rework behaviour, so an effect opts in
-## individually.
+## Lifecycle hooks: every default below is the plain impact/fuse behaviour, so an effect
+## opts in individually.
 
 ## True: SpecialBehavior runs a LandedProbe and does not call physics_tick()/
-## wants_early_trigger() until the carrier has landed (replaces any
+## wants_early_trigger() until the carrier has landed (instead of a
 ## `block.sleeping` gate inside the effect). False by default.
 func needs_landing() -> bool:
 	return false
 
 
-## landing-probe thresholds for this effect's carrier. null (default) =
-## LandedProbe's own LandedTuning defaults, i.e. today's behaviour. SpecialBehavior builds
+## Landing-probe thresholds for this effect's carrier. null (default) =
+## LandedProbe's own LandedTuning defaults. SpecialBehavior builds
 ## its LandedProbe from this once, in bind().
 func landed_tuning() -> LandedTuning:
 	return null
@@ -79,7 +71,7 @@ func landed_tuning() -> LandedTuning:
 
 ## Seconds the effect's action runs (after landing when needs_landing(), else
 ## after arming). <= 0 means "unspecified": the def's fuse_timeout_s keeps
-## acting as the force-trigger, exactly as before. > 0 replaces that blanket
+## acting as the force-trigger. > 0 replaces that blanket
 ## fuse with a backstop derived from this lifetime (SpecialTuning.
 ## fuse_backstop_margin_s on top).
 func effect_lifetime_s() -> float:
@@ -93,7 +85,7 @@ func detaches() -> bool:
 
 
 ## Static switch for impact activation; false means a hard landing never
-## triggers this effect (Bomb after rework). Combined with the per-instance
+## triggers this effect (Bomb). Combined with the per-instance
 ## impact_triggers() veto above: both must allow the impact. True by default.
 func triggers_on_impact() -> bool:
 	return true

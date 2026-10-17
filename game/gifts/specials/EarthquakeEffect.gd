@@ -1,8 +1,7 @@
 class_name EarthquakeEffect
 extends SpecialEffect
 ## Earthquake special (spec 1.6): "shakes the field, tilts randomly, helps
-## level existing tilt." It runs through DiscForce.shake (behaviour
-## unchanged). Follows the "timed-effect pattern": physics_tick() shakes every
+## level existing tilt." It runs through DiscForce.shake. Follows the "timed-effect pattern": physics_tick() shakes every
 ## armed tick; wants_early_trigger() flips once `disc_force.duration_s` has
 ## elapsed; detonate() is a no-op because the effect already ran.
 ##
@@ -18,15 +17,14 @@ const START_AGE_META: StringName = &"earthquake_start_age"
 ## second of the kick and `shake_tilt_deg` how fast its axis sweeps around the
 ## disc.
 ##
-## DECISION (carried over): spec 1.6 pairs a linear amplitude (0.25 m) with an
+## DECISION: spec 1.6 pairs a linear amplitude (0.25 m) with an
 ## angular one (2.5 deg); Field.gd exposes no vertical-bounce entry point, so
-## both fold onto the one tilt-impulse tunable. 3.0 per second equals the old
-## 0.05 per tick at 60 Hz.
+## both fold onto the one tilt-impulse tunable.
 @export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
 ## Fraction of the field's current |tilt_vector()| fed back as an impulse
 ## opposing the tilt each armed tick -- spec 1.6: Earthquake "helps level
-## existing tilt." NEW, OPEN in spec.
+## existing tilt." Not given a number in the spec.
 @export var leveling_strength: float = 0.5
 
 
@@ -52,9 +50,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	# at all), so this effect needs no separate MatchConfig.tilt_mode guard.
 	var tilt: Vector2 = field.tilt_vector()
 	if tilt != Vector2.ZERO:
-		# DECISION: NOT `apply_tilt_impulse(-tilt.normalized(), ...)`, which the
-		# pseudocode literally reads as -- verified against Field.gd's own contract and a failing
-		# regression test. apply_tilt_impulse()'s `direction` is a disk-local
+		# DECISION: NOT `apply_tilt_impulse(-tilt.normalized(), ...)`. apply_tilt_impulse()'s `direction` is a disk-local
 		# XZ *position* to push down on, converted into a velocity kick via
 		# the perpendicular map Vector2(dz, -dx). `tilt_vector()` is a
 		# ROTATION-space vector, not a disk position, so feeding
@@ -69,7 +65,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		field.apply_tilt_impulse(cancel_direction, leveling_strength * tilt.length())
 
 
-## FIX: vetoes the decel-based impact trigger entirely -- see
+## Vetoes the decel-based impact trigger entirely -- see
 ## SpecialEffect.impact_triggers()'s own doc comment. This effect's own end is
 ## time-driven (wants_early_trigger() below) or a chain trigger from a nearby
 ## special (SpecialBehavior.trigger_others_in_range(), unaffected).

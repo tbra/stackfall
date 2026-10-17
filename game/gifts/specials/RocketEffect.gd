@@ -1,10 +1,9 @@
 class_name RocketEffect
 extends SpecialEffect
-## Rocket special. OWNER decision (docs/SPEC.md 2.6, answer
-## to plan question 1): on activation the Rocket launches in a STRAIGHT LINE along the
-## activating player's camera direction (not thrown; any angle, upward included, Q3) and explodes on the
-## first thing it touches (a block, the disc or map geometry); fuel running out is only
-## a safety backstop. It no longer climbs 27 m and bursts in empty air.
+## Rocket special. OWNER decision (docs/SPEC.md 2.6): on activation the Rocket launches in
+## a STRAIGHT LINE along the activating player's camera direction (not thrown; any angle,
+## upward included) and explodes on the first thing it touches (a block, the disc or map
+## geometry); fuel running out is only a safety backstop.
 ##
 ## Flow: armed (arm_delay after the drop) -> physics_tick() launches it once, then every
 ## tick holds its velocity at `thrust_speed_mps` along the launch direction and probes the
@@ -21,8 +20,7 @@ extends SpecialEffect
 ##
 ## DECISION: the launch direction is host-side input, per block, in
 ## block meta: the shared SpecialEffect resource keeps no per-block state (the pattern
-## every timed effect uses). The camera-direction wiring from the client (PlayerController
-## intent -> MatchPlacement) is package I's; it calls
+## every timed effect uses). MatchPlacement (from the client's PlayerController intent) calls
 ## `RocketEffect.set_launch_direction(block, camera_forward)` on the spawned carrier
 ## before its first physics tick. The host never trusts the value: it must be finite,
 ## and it is normalised (any pitch is kept); anything unusable
@@ -59,7 +57,7 @@ extends SpecialEffect
 ## Extra look-ahead (m) beyond one tick of travel for the impact probe.
 @export var impact_probe_margin_m: float = 0.05
 
-## Blast shape (Q1: delta-v x10, radius x1.6 of the old 4.5 m / 10 m/s).
+## Blast shape: radius, peak delta-v, falloff, upward bias, per-body cap.
 @export var blast: ExplosionTuning = ExplosionTuning.new()
 
 ## Smallest horizontal-plus-downward direction length treated as a direction at all.
@@ -92,8 +90,8 @@ static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
-	# face the carrier at once (needs the effect's nose axis, so the shipped
-	# def's), not only on the first physics tick, so the pose written to the body already matches.
+	# Face the carrier at once (needs the shipped def's nose axis), not only on the first
+	# physics tick, so the pose written to the body already matches.
 	var def: SpecialDef = SpecialDef.find_by_id(&"rocket")
 	var effect: RocketEffect = def.effect as RocketEffect if def != null else null
 	if effect != null and block.is_inside_tree():
@@ -115,17 +113,16 @@ static func is_outside_bounds(point: Vector3, bounds: AABB) -> bool:
 
 
 ## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
-## Vector3.ZERO (rejected). Q3 (the user chose "c"): the Rocket flies exactly where
+## Vector3.ZERO (rejected). The Rocket flies exactly where
 ## the camera aims, upward and straight up included (fuel ends it if it hits nothing), so no
-## upward part is removed any more.
+## upward part is removed.
 static func sanitize_launch_direction(direction: Vector3) -> Vector3:
 	if not direction.is_finite() or direction.length() < MIN_DIRECTION_LENGTH:
 		return Vector3.ZERO
 	return direction.normalized()
 
 
-## Pure: the Paintball's launch direction (it keeps the old "not upward" rule, owner kept it
-## for Paintball only): the upward part removed and normalised, ZERO when nothing is left.
+## Pure: the Paintball's launch direction (unlike the Rocket's it removes the upward part): the upward part removed and normalised, ZERO when nothing is left.
 static func sanitize_downward_direction(direction: Vector3) -> Vector3:
 	if not direction.is_finite():
 		return Vector3.ZERO
@@ -259,9 +256,7 @@ func _face_direction(block: Block, direction: Vector3) -> void:
 
 ## Shared by Rocket and Paintball: makes every block of `block`'s slot within
 ## `radius` of it a collision exception, so the projectile leaves its own tower without
-## detonating on it or shoving it, while enemy blocks stay solid. Replaces the old time window
-## that only looked at the first collider of the probe and so also hid an enemy right behind an
-## own block. Remembered in meta for release_own_exceptions().
+## detonating on it or shoving it, while enemy blocks stay solid. Remembered in meta for release_own_exceptions().
 static func hold_own_exceptions(block: Block, radius: float) -> void:
 	if block.owner_slot < 0 or not block.is_inside_tree():
 		return

@@ -1,19 +1,13 @@
 class_name SpecialPhysics
 extends RefCounted
-## Explosion impulse query helper (spec 2.7 "Explosions"; docs/M4_SPECIALS_
-## PACKAGES.md P3-SH). A prerequisite for Rocket, Bomb and Volcano: none of
-## those effects live here, this is just the shared sphere-query-and-push
-## primitive spec 2.7 describes. Pure physics-world query + impulse
-## application, no rules, no team/ownership check -- orchestrator decision
-## item 1: explosions are team-agnostic for M4 ("the anvil hurt
-## everyone" is original evidence; targeting is a later remake option).
+## Explosion impulse query helper (spec 2.7 "Explosions"): the shared sphere-query-and-push
+## primitive for Rocket, Bomb and Volcano. Pure physics-world query + impulse application,
+## Block-agnostic, no rules and no team/ownership check: explosions are team-agnostic.
 
-## Per-call cap on how many overlapping colliders one intersect_shape() query
-## returns (Godot's own max_results argument). Spec 2.7's max_active_blocks
-## = 600 bounds the whole match; this is a much smaller per-explosion safety
-## bound so one blast at the centre of a dense, legally-overlapping pile
-## can't make a single query scan unbounded results. Read by
-## ExplosionFx.query_bodies(), which owns the query loop.
+## Per-call cap on how many overlapping colliders one intersect_shape() query returns
+## (Godot's max_results argument): a per-explosion safety bound so one blast at the centre
+## of a dense pile cannot scan unbounded results. Read by ExplosionFx.query_bodies(),
+## which owns the query loop.
 const MAX_QUERY_RESULTS: int = 128
 
 ## Sphere-queries real RigidBody3D bodies within `radius` of `center` and
@@ -22,14 +16,10 @@ const MAX_QUERY_RESULTS: int = 128
 ## game/field/Field.gd's own doc comment; the kill plane's Area3D is excluded by
 ## collide_with_areas = false) and any RID listed in `exclude`.
 ##
-## fix: this used to be its own capped single `intersect_shape`
-## call. The disc is one ConcavePolygonShape3D and `intersect_shape` returns one hit
-## per triangle, so a query near the floor filled its MAX_QUERY_RESULTS cap with disc
-## triangles and missed blocks resting on the disc (reproduced with 24 cubes on a real
-## Field: query_bodies_in_range() and the old explode() found only 5 of them).
-## The one implementation of the multi-pass, per-body-deduplicated query is
-## ExplosionFx.query_bodies(); this delegates so Magnet, Black hole and
-## ExplosionFx.blast() cannot drift apart again.
+## The disc is one ConcavePolygonShape3D and `intersect_shape` returns one hit per
+## triangle, so a single capped query near the floor would fill MAX_QUERY_RESULTS with disc
+## triangles and miss blocks resting on it. The one multi-pass, per-body-deduplicated
+## implementation is ExplosionFx.query_bodies(); this delegates so callers cannot drift.
 ##
 ## Used by `query_bodies_in_range()` (query-only, no impulse/wake/mark_script_kick).
 static func _query_unique_bodies(
@@ -41,13 +31,12 @@ static func _query_unique_bodies(
 ## Query-only sibling of ExplosionFx.blast(). Sphere-queries real RigidBody3D bodies within `radius` of `center`,
 ## deduped per-body exactly like ExplosionFx.blast(), but applies no impulse, no wake
 ## and no `mark_script_kick()` -- purely a read of "what bodies are in range
-## right now". Consumed by the Magnet (P1), Glue (P3) and Gravity well (P4)
+## right now". Consumed by the Magnet, Glue and Gravity well
 ## specials. `owner_filter`, when a valid Callable, is called as
 ## `owner_filter.call(body)` for each deduped body and the body is dropped
 ## when it returns false; ownership semantics (e.g. `body.owner_slot !=
 ## mover.owner_slot` for Magnet, `==` for Glue) live entirely in the caller --
-## this function and ExplosionFx.blast() both stay team-agnostic, per the class's own
-## top-of-file DECISION.
+## this function and ExplosionFx.blast() both stay team-agnostic.
 static func query_bodies_in_range(
 	space_state: PhysicsDirectSpaceState3D,
 	center: Vector3,
@@ -70,24 +59,23 @@ static func query_bodies_in_range(
 
 ## Wakes `body` and applies `impulse` to it, in the one place every special
 ## that hits an arbitrary RigidBody3D with an impulse (MagnetEffect.physics_tick() and
-## the blast path) should do it from (P5b).
+## the blast path) should do it from.
 ##
-## DECISION (game/gifts/specials/SpecialPhysics.gd): a block long enough at rest
+## DECISION: a block long enough at rest
 ## gets frozen to FREEZE_MODE_STATIC by game/blocks/StableBlockManager.gd (spec 2.7's
 ## "stable-block optimization"), and RigidBody3D silently ignores
 ## apply_impulse()/`sleeping = false` on a STATIC body -- so without first
 ## calling Block.wake_for_impulse(), an explosion, Magnet pull or Anvil hit
 ## against a long-stable stack would do nothing at all. `body` is only
 ## guaranteed to be a plain RigidBody3D by this class's own Block-agnostic
-## contract (top-of-file DECISION) -- only a Block actually has
+## contract -- only a Block actually has
 ## wake_for_impulse()/mark_script_kick(), so both are gated behind the `as
 ## Block` cast and a no-op for any other RigidBody3D (e.g. this file's own
 ## test fixtures). wake_for_impulse() only ever releases
 ## Block.FREEZE_REASON_STABLE (see its own doc comment on game/blocks/Block.gd) --
 ## a block still held frozen by some other reason (e.g. a future Freeze
-## special) stays frozen and apply_impulse() below remains a no-op for it,
-## exactly as before this fix; unsticking StableBlockManager's own
-## auto-freeze is all this helper is asked to do.
+## special) stays frozen and apply_impulse() below remains a no-op for it;
+## unsticking StableBlockManager's own auto-freeze is all this helper does.
 static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 	var kicked_block: Block = body as Block
 	if kicked_block != null:
@@ -107,7 +95,7 @@ static func wake_and_impulse(body: RigidBody3D, impulse: Vector3) -> void:
 	# from a 12 m/s Bomb left at 2.9 m/s outward instead of 4.7). The linear delta-v
 	# (impulse / mass) is the same either way; only the unwanted torque goes.
 	body.apply_central_impulse(impulse)
-	# Review fix (SHOULD-FIX 1): an airborne block's knockback
+	# An airborne block's knockback
 	# can flip its vertical velocity from falling to rising exactly like a
 	# real bounce would -- mark it as a script kick so Block._integrate_
 	# forces() doesn't scale it by PhysicsTuning.rebound_damping on top of
