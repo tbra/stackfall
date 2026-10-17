@@ -49,9 +49,7 @@ var _match: MatchAutoload = null
 var _defs: Dictionary = {}
 var _defs_loaded: bool = false
 var _schedule: WeatherScheduleTuning = preload("res://config/weather/weather_schedule.tres")
-## Test seams. `_host_override` null means "ask Match"; the factory builds the
-## WeatherEffect for a def (null = no physics effect).
-var _host_override: Variant = null
+## Test seam: the factory builds the WeatherEffect for a def (null = no physics effect).
 var _effect_factory: Callable = Callable()
 
 var _running: bool = false
@@ -111,10 +109,6 @@ func set_schedule_tuning(tuning: WeatherScheduleTuning) -> void:
 
 func set_effect_factory(factory: Callable) -> void:
 	_effect_factory = factory
-
-
-func set_host_override(is_host: Variant) -> void:
-	_host_override = is_host
 
 
 # --- Breeze ----------------------------------------------------------------------
@@ -195,8 +189,6 @@ func available_ids() -> Array[StringName]:
 
 
 func _is_host() -> bool:
-	if _host_override != null:
-		return bool(_host_override)
 	return _match != null and _match._is_host()
 
 

@@ -60,7 +60,7 @@ func _effect(tuning: BreezeTuning = null) -> BreezeEffect:
 		effect.tuning = tuning
 	else:
 		effect.tuning = _tuning
-	effect.set_test_world(func() -> Array: return _blocks, func() -> float: return 0.0)
+	effect.bind(WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0))
 	return effect
 
 
@@ -171,8 +171,9 @@ func test_frozen_blocks_and_clients_are_never_pushed() -> void:
 	assert_eq(effect.last_pushed, 0)
 	var client: BreezeEffect = BreezeEffect.new()
 	client.tuning = _quiet_tuning()
-	client._blocks_source = func() -> Array: return _blocks
-	client._surface_source = func() -> float: return 0.0
+	var client_context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0)
+	client_context.has_authority_value = false
+	client.bind(client_context)
 	client.begin(SEED_A)
 	_inject_gust(client, Vector3(0.0, HIGH_M, 0.6))
 	client.tick(DELTA)
@@ -182,7 +183,7 @@ func test_frozen_blocks_and_clients_are_never_pushed() -> void:
 
 func test_breeze_runs_with_weather_off_and_stops_on_reset_and_is_host_only_toggle() -> void:
 	var w: MatchWeather = MatchWeather.new()
-	w.set_host_override(true)
+	WeatherTestHost.bind_host(self, w, true)
 	var config: MatchConfig = MatchConfig.new()
 	config.weather_mode = MatchConfig.WeatherMode.OFF
 	config.rng_seed = 9
@@ -196,7 +197,7 @@ func test_breeze_runs_with_weather_off_and_stops_on_reset_and_is_host_only_toggl
 	assert_false(w.breeze().is_running())
 	assert_eq(w.breeze().gusts().size(), 0)
 	var client: MatchWeather = MatchWeather.new()
-	client.set_host_override(false)
+	WeatherTestHost.bind_host(self, client, false)
 	assert_false(client.set_breeze_enabled(false))
 
 
@@ -225,7 +226,7 @@ func test_tuning_panel_breeze_toggle_is_host_only() -> void:
 	var panel: TuningPanel = load("res://ui/debug/TuningPanel.tscn").instantiate() as TuningPanel
 	add_child_autofree(panel)
 	var w: MatchWeather = MatchWeather.new()
-	w.set_host_override(true)
+	WeatherTestHost.bind_host(self, w, true)
 	panel.weather_provider = w
 	panel.net_provider = FakeNet.host()
 	panel.rebuild()

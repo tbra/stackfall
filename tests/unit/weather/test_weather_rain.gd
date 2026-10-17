@@ -110,7 +110,7 @@ func test_block_spawned_mid_rain_gets_wet_and_restores() -> void:
 func _weather(host: bool, factory_calls: Array) -> MatchWeather:
 	var w: MatchWeather = MatchWeather.new()
 	w.set_defs([_rain])
-	w.set_host_override(host)
+	WeatherTestHost.bind_host(self, w, host)
 	w.set_effect_factory(func(_def: WeatherTuning) -> WeatherEffect:
 		factory_calls.append(1)
 		return _effect())
