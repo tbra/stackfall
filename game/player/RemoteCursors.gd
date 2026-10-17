@@ -19,8 +19,8 @@ extends Node3D
 ## slot_id -> GhostPreview.
 var _ghosts: Dictionary = {}
 
-## DECISION (game/player/RemoteCursors.gd): the same Net seam the rest of P3 uses,
-## for the same reason (GUT cannot double an autoload). null is the real Net.
+## DECISION (game/player/RemoteCursors.gd): the same Net seam PlayerController
+## uses, for the same reason (GUT cannot double an autoload). null is the real Net.
 var _session_provider: Variant = null
 var _match_provider: Variant = null
 
@@ -78,18 +78,13 @@ func _on_remote_cursor_updated(
 	# both, so setting the index last is what makes one pose out of the two.
 	ghost.free_quaternion = free_quat
 	ghost.set_orientation_index(orientation_index)
-	# DECISION (game/player/RemoteCursors.gd items 3/5): spec 2.6's
-	# update_cursor carries the sending peer's own already-fully-resolved
-	# GhostPreview.global_position (hover and the rotated-bottom-pivot
-	# correction both already applied on their end) -- not a surface to
-	# re-derive one from. This used to reconstruct an approximate "surface
-	# point" by subtracting hover and let update_placement() re-add the exact
-	# same hover, landing back on `origin`; that trick breaks now that
-	# update_placement() also applies GhostPreview's rotated-bottom-pivot
-	# correction (it would double-apply that part), so this goes through
-	# GhostPreview.sync_remote_position() instead, which sets the position
-	# directly and refreshes the shadow/footprint without redoing either
-	# peer's own math.
+	# DECISION (game/player/RemoteCursors.gd): spec 2.6's update_cursor carries the
+	# sending peer's own already-fully-resolved GhostPreview.global_position
+	# (hover and the rotated-bottom-pivot correction both already applied on their
+	# end), not a surface to re-derive one from. update_placement() would apply
+	# that correction a second time, so this goes through
+	# GhostPreview.sync_remote_position(), which sets the position directly and
+	# refreshes the footprint without redoing either peer's own math.
 	ghost.sync_remote_position(origin)
 
 

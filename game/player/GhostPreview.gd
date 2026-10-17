@@ -1,266 +1,38 @@
 class_name GhostPreview
 extends Node3D
-## The non-physics held block (spec 1.4): floats at a height PlayerController
-## reports (the disk surface plus hover_height plus the wheel's manual
-## offset item 5 — never whatever is directly underneath the
-## cursor), with a projected footprint (one convex polygon for the *whole*
-## rotated held shape's silhouette, item 6) showing exactly
-## what it would land on.
+## The non-physics held block (spec 1.4): floats at the height PlayerController
+## reports (the disk surface plus hover_height plus the wheel's manual offset,
+## never whatever is directly under the cursor), with a projected footprint
+## showing what it would land on.
 ##
-## user test: the old
-## drop-shadow quad under the ghost is gone -- the footprint is now the only
-## ground marker (see config/blocks/tuning/GhostTuning.gd's DECISION). The footprint quad
-## used to always be an axis-aligned unit square whose *position* tracked the
-## rotated shape but whose *shape* never did; it is now a real convex polygon
-## built from the rotated shape's own corners projected to the XZ plane
-## (Geometry2D.convex_hull), rebuilt every frame alongside its position.
+## Body: the material is CULL_BACK. With alpha blending and no depth write, back
+## faces would let the far shell's coplanar per-cell seams bleed through the near
+## face as visible dividers.
 ##
-## user test "the
-## ghost blocks are still clearly made up of smaller blocks ... I can see the
-## internal dividers inside the ghost blocks and the preview is also clearly
-## the smaller blocks footprints ... in the original the ghost block projects
-## its whole shape downwards to the disc": two independent fixes.
-## (1) The "dividers" were never geometry -- BlockMeshBuilder already emits
-## one seamless shell per shape with interior faces removed (game/
-## BlockFactory.gd/) -- they were this material's own
-## CULL_DISABLED: with alpha blending (no depth write) and both faces drawn,
-## every triangle on the *far* side of the shape bled through the near side
-## in emission order (not camera depth order), so the far shell's own face
-## seams (a bar's side is several coplanar-but-separate quads, one per cell --
-## BlockMeshBuilder never merges them) painted visible lines across the near
-## face. _material is now CULL_BACK (front faces only): a translucent solid
-## has nothing to bleed through, and no other project code ever relied on
-## seeing the ghost's inside (the winding-order bug CULL_DISABLED used to
-## paper over, BlockMeshBuilder's own header, was fixed independently at
-## ).
-## (2) The footprint was one polygon *per bottom cell*, so a shape whose cells
-## span different heights underneath it (e.g. a tilted bar with its middle
-## cell over a placed tower and its ends over the bare disc) showed a broken-
-## up set of footprints at different heights instead of one whole-shape
-## marker -- and had no vertical "this is the volume in between" cue at all,
-## unlike the original's own translucent silhouette prism reaching from the
-## held shape straight down to the disc. _update_footprint() now computes one
-## convex hull of *every* rotated cell's corners (not per cell), shows it
-## flat on the disc surface exactly as before (landing_y from a disk-only
-## raycast that skips placed blocks, matching PlayerController's own surface
-## probe -- never a tower's top), and adds a second, separate mesh
-## _projection_mesh: the same hull extruded as vertical walls from the
-## ghost's own current lowest point down to that same disc height, so the
-## whole rotated silhouette reads as one solid prism the way the original
-## does, regardless of what is directly underneath any one part of it.
+## Footprint: one polygon for the whole rotated shape (the union of every
+## rendered triangle projected to XZ), shown flat on the disc at the height of a
+## disk-only raycast that skips placed blocks (matching PlayerController's own
+## surface probe), never a tower's top.
 ##
-## owner test "the ghost block should be a bit more
-## opaque. the preview starts from the bottom of the ghost block which looks
-## a bit weird when it's angled.": two independent fixes on top of 's.
-## (1) Every valid/state tint's own alpha (tint_color, invalid_tint_color,
-## hole_tint_color, locked_tint_color) raised from ~0.55-0.65 to 0.75 --
-## config/blocks/tuning/GhostTuning.gd's own DECISIONs, not this file.
-## (2) The projection prism's top cap used to sit at the rotated shape's own
-## *lowest* point (_rotated_bottom_offset(), matching where the shape's
-## underside rests on the cursor height) -- correct for an unrotated shape
-## (whose lowest point already reads as "the bottom"), but for a pitched or
-## yawed shape that point is no longer anywhere near the shape's own top, so
-## the prism visibly cut through the middle of an angled ghost instead of
-## surrounding it. _update_projection_mesh() now caps the prism at the
-## rotated shape's own *highest* point instead (_rotated_top_offset(), a new
-## sibling of _rotated_bottom_offset() below), so the column always reaches
-## from the disc up past the whole ghost, at any rotation -- the ghost sits
-## fully inside the column exactly like the original's own silhouette
-## (reference screenshots of the original game), not
-## just its lower half.
-## DECISION (game/player/GhostPreview.gd): _rotated_top_offset() uses
-## the *visual* mesh's own full cube_size (matching BlockMeshBuilder.
-## build_mesh()'s own `half: float = cube_size * 0.5`, core/blocks/
-## BlockMeshBuilder.gd), not _rotated_bottom_offset()'s cube_margin-shrunk
-## collision half_size -- the prism's job is to visually contain the
-## *rendered* shape, so it should match the rendered shape's own true extent
-## exactly rather than the (deliberately smaller, so blocks don't jam)
-## physics box _rotated_bottom_offset() measures for placement.
+## Projection prism: the shaft under the shape, from the landing surface up to
+## the shape's own underside, not a box around it. Its walls follow the
+## silhouette outline and hug the underside piece by piece
+## (_build_underside_walls()); where the underside touches the landing surface no
+## wall is drawn. The material blends additively and emits light so a surface
+## seen through the column brightens. projection_span_y() stays the whole shape's
+## top-to-disc span, which PlayerController's spawn clearance reads.
 ##
-## (owner test "the projection colour is right but
-## any surface that falls within the projection should be a lot brighter
-## (maybe emissive?), and the footprint on the disc should be almost white."):
-## two more independent fixes, both purely visual.
-## (1) The flat footprint decal (_footprint_color_for_state()) is now
-## ghost_tuning.footprint_base_color (near-white) with only a faint amount of
-## the current validity state's own hue blended in
-## (ghost_tuning.footprint_hue_strength), at a higher footprint_alpha (0.55 ->
-## 0.85) -- previously it was the *same* full state colour the held shape's
-## own body shows, just more transparent, so it never read as the original's
-## own bright ground marker.
-## (2) The projection prism's own material (_projection_material) now blends
-## additively (BaseMaterial3D.BLEND_MODE_ADD, _ready()) and emits its own
-## light (emission_enabled, driven every refresh by
-## ghost_tuning.projection_emission_energy in _apply_projection_material())
-## instead of the usual alpha-over translucency -- a surface seen through the
-## column now brightens instead of just being tinted over, matching the
-## brief's own "a lot brighter (maybe emissive?)" wording. DECISION
-## game/player/GhostPreview.gd: a per-block emission hook on
-## BlockFactory/Block.gd (outside this package's default ownership) was
-## considered and rejected in favour of this material-only change -- it
-## reaches the same brightening effect with no gameplay-code touch at all,
-## confined entirely to this file/config/GhostTuning.gd.
+## Block decal: _block_projection_decal projects the footprint mask from the
+## ghost's underside down to the disc, so a placed block in that gap reads pale.
+## Its cull_mask drops TerritoryOverlay.DISC_LAYER_BIT and both fades stay above
+## zero: Godot's decal fade is pow(1 - |uv.y|, fade), so a fade of 0 makes a
+## surface exactly on the box plane evaluate pow(0, 0) = NaN on the GPU, drawn
+## black as a per-pixel speckle.
 ##
-## ("the projection column [is]
-## visible above the actual cells (S-piece)"): single whole-hull prism
-## (capped at the whole shape's own *highest* point, walled by the whole
-## shape's own *convex* hull) reads wrong for any non-convex shape -- config/
-## blocks/S4.tres has a cell at (0, 1, 0) with nothing at (0, 0, 0) beneath it,
-## so the old convex-hull column drew a lit shaft over that empty notch too,
-## reaching all the way up to the *other* column's own top -- exactly "a
-## projected piece above the actual block". Correct model (the original
-## game's hover preview): the shaft is per silhouette
-## column, reaching only from the disc up to the *underside of the lowest
-## solid cell sitting over that column* -- nothing is ever drawn beside or
-## above a solid cell, and a column with no cell in it draws nothing at all.
-## _update_projection_mesh() now groups `_shape.cells` by their own rotated XZ
-## footprint centre (_group_cells_by_footprint(), merging cells that land on
-## the same column -- an unrotated or yaw-only stack -- so the column caps at
-## the *lowest* member's own underside, never a higher member's) and builds
-## one prism wall per surviving column (_append_prism_walls(), appended into
-## one shared mesh/surface since they all share _projection_material already).
-## DECISION (game/player/GhostPreview.gd): a pitched/rolled shape's
-## cells generically rotate to distinct XZ centres (no merging occurs), so the
-## same grouping code doubles as "one column per cell" for that case with no
-## extra branch -- exactly the brief's own "for axis-aligned yaw this is per
-## cell column; for pitched/rolled ghosts use the rotated cell AABBs" split,
-## reached by one algorithm rather than two. Overlapping columns (a cell whose
-## own prism wall happens to pass behind/through another cell's solid body,
-## e.g. every member of a merged stack below the top one) are accepted rather
-## than trimmed -- _projection_material already blends additively/translucent,
-## so an overlap reads as "a bit brighter there", never as a visible seam.
-## projection_span_y() itself is untouched (still the *whole* shape's own
-## highest point down to the disc) -- game/player/PlayerController.gd's own
-## _pending_spawn_top_y (outside this package's ownership) reads exactly that
-## contract for spawn clearance, unrelated to how the prism's own walls are
-## now built.
-##
-## "ghost block should still be
-## less transparent -> add a slider for it in the F4 menu": every state
-## tint's own RGB is unchanged, but _apply_validity_material() now applies
-## ghost_tuning.ghost_opacity as the material's alpha in every branch instead
-## of each colour's own baked-in alpha channel, so one F4 slider (config/
-## GhostTuning.gd) controls every state's opacity together.
-##
-## "the same white projection that
-## shows up on the disk should show up on the blocks as well, just a bit
-## fainter": a Decal (_block_projection_decal), sized/positioned over the
-## footprint hull's own world-space bounding box every frame
-## (_update_block_projection_decal()), projects ghost_tuning.
-## block_projection_color/_alpha straight down from the ghost's own current
-## underside to the disc -- a real placed block sitting in that gap now reads
-## pale/whitish (a reference screenshot of the original game), not just the disc's own
-## footprint quad. See _update_block_projection_decal()'s own DECISION for why
-## cull_mask is left at its default rather than restricted to placed blocks.
-##
-## attempt 3 (feel8a, user report
-## "none of the feel issues were fixed" on c50510c): the black/white speckle
-## under the ghost was never the footprint quad, the hatch texture or the
-## prism -- it was _block_projection_decal painting the *disc*.
-## a script removed in (see git history) evidence: the speckle survives hiding
-## the footprint quad, the prism, the planar mirror, SSR, the sun's shadows and
-## the ReflectionProbe one at a time (feel8a-before_bisect-*.png), and vanishes
-## (241 -> 0 near-black pixels) the moment the decal stops reaching the disc
-## (cull_mask 0, or cull_mask without TerritoryOverlay.DISC_LAYER_BIT). The decal's
-## box bottom sits exactly on the disc surface (landing_y) and both fades were
-## 0.0: Godot's decal fade is pow(1 - |uv.y|, fade), and at the box's own
-## bottom plane that is pow(0, 0) -- NaN on the GPU (exp2(0 * log2(0))) for
-## every disc pixel whose interpolated height lands exactly on the plane,
-## i.e. a per-pixel speckle, and a NaN stays black through the translucent
-## footprint quad blended over it. Two fixes, _ready()/_update_block_
-## projection_decal(): the decal's cull_mask drops TerritoryOverlay.DISC_LAYER_BIT
-## (the disc already has its own footprint quad; the decal is for placed
-## blocks, own brief), and both fades are clamped above zero
-## (ghost_tuning.block_projection_edge_fade) so no surface lying exactly on
-## either box plane (a block face at the ghost's underside, the ghost's own
-## lowest edge) can ever hit pow(0, 0) again.
-##
-## attempt 3 (user screenshots: a tilted 4-long bar, a T-piece:
-## "the segmented preview is not fixed" -- both show dark vertical seams/
-## overlapping stepped columns inside the translucent prism): column
-## model was the root cause, not a rendering artefact -- it grouped
-## `_shape.cells` by their own rotated XZ footprint *centre* and convex-hulled
-## each group independently (_group_cells_by_footprint(), _rotated_cell_
-## footprint()), which is only correct for an axis-aligned yaw (where cells
-## sharing a grid column really do share one centre). A partial pitch/roll
-## sends every cell's footprint to a distinct, *overlapping* quadrilateral --
-## no shared centres to merge, no exactly-reversed shared edges for
-## _shared_edge_exists() to trim either -- so every column walled all 4 of its
-## own edges independently, and the overlapping translucent walls double-
-## blended into visible seams exactly where two cells' rotated footprints
-## crossed. An attempt at fixing this by unioning the cells' own 3D collision
-## boxes in a cell-space grid (this branch's own earlier WIP commit, kept for
-## reference/history only) was stopped by the owner before completion in
-## favour of the approach below, which works directly from what the player
-## actually *sees* instead of the cell grid underneath it.
-## New model: _shape_silhouette_loops() reads the ghost's own rendered
-## MeshInstance3D(s) (_shape_visual, the exact BlockMeshBuilder shell
-## BlockFactory already builds --/, no interior cell faces
-## exist in it at all), transforms every triangle's local vertices by the
-## ghost's current rotation `basis` (matching every other rotated-corner
-## helper in this file), drops Y, and unions the resulting 2D triangles with
-## Geometry2D.merge_polygons (_accumulate_union()) into whatever set of closed
-## outline loops the *true rendered silhouette* -- top, bottom and every side
-## face together -- actually traces from directly above, at the shape's
-## current orientation. _update_projection_mesh() then walls exactly those
-## loops (_append_prism_walls(), now with no `columns`/`self_index` skip-list
-## at all) from a single shared wall_bottom_y up to a single shared
-## whole-shape top (_rotated_top_offset(), own contract, unchanged) --
-## since every triangle of the real shell was unioned together first, there is
-## no cell-grid seam left to double-blend, by construction, at any rotation.
-## _group_cells_by_footprint()/_rotated_cell_footprint()/_shared_edge_exists()
-## are deleted; the whole-prism span is projection_span_y().
-## DECISION (game/player/GhostPreview.gd attempt 3): own S4
-## fix (never wall a column above the solid cell actually sitting in it, so an
-## empty notch shows no shaft) is deliberately *not* preserved -- there is now
-## only one prism top for the whole shape, the same single value already
-## used before introduced per-column caps. The owner's own screenshots
-## for this attempt show the seam bug on ordinary (non-notched) shapes at
-## everyday rotations, a strictly worse and more common problem than S4's own
-## narrow notch case; this file's own header keeps that history rather than
-## silently dropping it. test_pitched_bar_is_enclosed_from_below_never_above_
-## its_own_cells and test_s4_at_identity_rotation_never_projects_above_the_
-## lower_cells_own_top (this package's own tests/unit/blocks/test_ghost_preview.gd)
-## asserted the now-reverted per-column cap directly and are removed rather
-## than left failing; test_s4_at_identity_rotation_never_draws_the_same_wall_
-## edge_twice is kept (still true, now for a structural reason -- one merged
-## outline has no internal seam to duplicate at all, rather than a dedupe
-## pass trimming one).
-## DECISION (game/player/GhostPreview.gd attempt 3): the union only
-## ever needs one candidate polygon growing against the rest of the pool per
-## added triangle (_accumulate_union()), not a full pairwise fixed point over
-## every existing loop pair -- every shipped BlockShape's own combined mesh is
-## a single connected shell (BlockMeshBuilder never emits a disconnected
-## component), so a disconnected *outline* can only arise from a genuine
-## enclosed hole (an O-ring shape), which distinguishes itself from the outer
-## loop via Geometry2D.is_polygon_clockwise (opposite winding) -- no shipped
-## BlockShape today has such a cell layout (config/blocks/*.tres), so this is
-## exercised by neither this attempt's tests nor any real shape, and is called
-## out here rather than silently assumed correct.
-##
-## attempt 4 ("the prism must never rise above the lower
-## cells of an S/T piece" -- owner-verified rule, which attempt 3 above
-## reverted): the prism is the shaft *under* the shape, from the landing
-## surface up to the shape's own underside, not a box around it. Attempt 3's
-## silhouette union is kept (still one outline, no interior walls, no seams),
-## and its walls now hug the underside exactly: _build_underside_walls() splits
-## every outline edge wherever a projected mesh triangle edge crosses or
-## touches it, so each piece lies under one fixed triangle set; _underside_
-## heights() takes the lowest triangle over the piece (probe nudged
-## _SILHOUETTE_PROBE_INSET inside the outline) and evaluates its plane at the
-## piece's two ends -- exact for a tilted underside (sloped wall top) and
-## stepped where an overhang begins. Where the underside reaches the wall
-## bottom (the shape sitting on the ground) no wall is drawn
-## (_append_underside_wall()). Pieces and their heights, relative to the ghost
-## origin, are cached with the outline on (shape, basis), so a frame that only
-## moves the ghost just re-emits the cached quads at a new Y. This supersedes
-## attempt 3's two DECISIONs above about dropping per-column cap and
-## deleting its tests: the cap is back (exactly, per outline piece, rather than
-## per cell column), and the S4/single-cube/pitched-bar tests are restored
-## against the built mesh. There is still no top cap polygon (there never was
-## one in attempt 3 either); the ghost body itself closes the shaft's top.
-## projection_span_y() (whole-shape top, game/player/PlayerController.gd's spawn-
-## clearance contract) is unchanged.
+## DECISION (game/player/GhostPreview.gd): _rotated_top_offset() uses the visual mesh's full cube_size (as BlockMeshBuilder.build_mesh() does), not _rotated_bottom_offset()'s cube_margin-shrunk collision half_size, so it matches the rendered extent rather than the slightly smaller physics box.
+## DECISION (game/player/GhostPreview.gd): the prism walls come from the rendered silhouette's outline, so yaw-only and pitched or rolled shapes share one algorithm with no per-orientation branch and no cell-grid seams to double-blend.
+## DECISION (game/player/GhostPreview.gd): the shaft's top follows the shape's underside piece by piece rather than one whole-shape top, so an S or T piece never shows a shaft rising above its lower cells; the ghost body itself closes the shaft's top, so there is no cap polygon.
+## DECISION (game/player/GhostPreview.gd): _accumulate_union() grows one candidate polygon per added triangle rather than a full pairwise fixed point. Every shipped shape's mesh is one connected shell, so a disconnected outline can only come from an enclosed hole, which winds the other way (Geometry2D.is_polygon_clockwise); no shipped shape has one, so that path is untested.
 ##
 ## Rotation is stored as an integer index over the 24 axis-aligned cube
 ## orientations (core/blocks/BlockOrientations.gd) plus a separate free-
@@ -275,89 +47,63 @@ extends Node3D
 ## "thrown off the map with a visible reject animation") and the auto-drop
 ## flash — both purely cosmetic; PlayerController decides *when* to play them.
 ##
-## A goal flag's no-build
-## zone (Result.GOAL_ZONE) reads the same as HOLE — hatched, hole_tint_color —
-## reusing the existing "can't build here" visual language rather than adding
-## a fourth tint state or a new GhostTuning field.
+## A goal flag's no-build zone (Result.GOAL_ZONE) reads the same as HOLE —
+## hatched, hole_tint_color — reusing the existing "can't build here" visual
+## language rather than adding a fourth tint state or a new GhostTuning field.
 ##
-## DECISION (game/player/GhostPreview.gd item 3 -- owner feel report
-## "the ghost/body pivot is the block's middle"): this node's own origin
-## (0, 0, 0) is BlockShape.bottom_center() of the *unrotated* shape (matching
-## game/blocks/BlockFactory.gd's cell offsets), but rotation still happens about
-## that same fixed local origin — after a 90-degree pitch/roll, that point is
-## no longer the rotated shape's lowest point. update_placement() corrects
-## for this every frame (_rotated_bottom_offset()) so the shape actually
-## resting on the cursor's reported height is always the *rotated* one's
-## lowest point, per the spec audit's "simplest correct behaviour" note,
-## never the original's own "keep the block where it is and let it fall".
+## DECISION (game/player/GhostPreview.gd): this node's origin (0, 0, 0) is BlockShape.bottom_center() of the *unrotated* shape (matching BlockFactory's cell offsets) and rotation happens about that fixed origin, so after a 90-degree pitch/roll it is no longer the rotated shape's lowest point. update_placement() corrects for this every frame (_rotated_bottom_offset()), so the shape resting on the cursor's reported height is always the *rotated* one's lowest point.
 ##
-## owner test "when rotating the block the camera
-## adjusts; lock the camera to the center of the box without messing up the
-## bottom center": rotation still swings this node's own fixed local origin
-## around, which used to be what game/player/CameraRig.gd followed -- so a pitch/
-## roll visibly dragged the camera's framing sideways even though the block
-## itself should just spin in place. update_placement() now also re-centres
-## this node's XZ so the *rotated* shape's own geometric centre (not the
-## fixed origin) sits over the cursor (rotated_center_offset()), and
-## game/player/PlayerController.gd's camera follow now tracks
-## rotated_center_world() instead of this node's own global_position. The Y
-## fix above is untouched: bottom_offset still measures from the same fixed
-## origin, so the shape's rotated lowest point still lands exactly at the
-## reported hover height.
+## update_placement() also re-centres this node's XZ so the *rotated* shape's own
+## geometric centre (rotated_center_offset()), not the fixed origin, sits over the
+## cursor. PlayerController's camera follow tracks rotated_center_world(), so a
+## pitch or roll spins the block in place instead of swinging the camera's
+## framing. The Y correction is independent: bottom_offset still measures from
+## the fixed origin.
 
 const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
-## Shown while game/player/PlayerController.gd
-## reports is_aiming_throw() true (show_throw_hint()) -- a distinct state
-## from the placement-validity ones above since it says nothing about where
-## the block would land, only that the current gesture is a throw in
-## progress.
+## Shown while game/player/PlayerController.gd reports is_aiming_throw() true
+## (show_throw_hint()) -- a distinct state from the placement-validity ones above
+## since it says nothing about where the block would land, only that the current
+## gesture is a throw in progress.
 const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
-## "ghost block renders without any lines":
-## dedicated ghost variant of game/blocks/BlockFactory.gd's own CELL_GRID_SHADER
-## const/preload pattern -- shaders/blocks/ghost_cell_grid.gdshader, not block_cell_
-## grid.gdshader itself, because the ghost needs ALPHA (translucency) and a
-## hatch overlay that shader structurally never supports (see that file's own
-## header for why the shared block shader must not gain either). Deliberately
-## has no `contributing` uniform at all, so the settled/sleeping glow
-##  can never reach the ghost.
+## Ghost variant of game/blocks/BlockFactory.gd's CELL_GRID_SHADER:
+## shaders/blocks/ghost_cell_grid.gdshader, not block_cell_grid.gdshader itself,
+## because the ghost needs ALPHA (translucency) and a hatch overlay the shared
+## block shader must not gain (see that file's header). It has no `contributing`
+## uniform, so the settled/sleeping glow can never reach the ghost.
 const GHOST_CELL_GRID_SHADER: Shader = preload("res://shaders/blocks/ghost_cell_grid.gdshader")
-## same BlockVisualTuning resource game/blocks/BlockFactory.gd's own
-## VISUAL_TUNING const reads, so a real block and its own ghost preview always
-## draw identical grid_line_color/grid_line_width_px.
+## The same BlockVisualTuning resource BlockFactory's VISUAL_TUNING reads, so a
+## real block and its ghost always draw identical grid_line_color/grid_line_width_px.
 # a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
 # at compile time, which left every F4 edit of this tuning dead.
 static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/blocks/tuning/block_visual_tuning.tres")
 
-## attempt 3 (this file's own header): the smallest decal fade
-## exponent _update_block_projection_decal() ever applies. Not a look tunable
-## ghost_tuning.block_projection_edge_fade is: a structural floor, because a
-## fade of exactly 0.0 makes Godot's pow(1 - |uv.y|, fade) evaluate pow(0, 0)
-## (NaN, drawn black) on any surface lying exactly on the decal box's top or
-## bottom plane.
+## The smallest decal fade exponent _update_block_projection_decal() ever
+## applies. Not a look tunable (ghost_tuning.block_projection_edge_fade is): a
+## structural floor, because a fade of exactly 0.0 makes Godot's
+## pow(1 - |uv.y|, fade) evaluate pow(0, 0) (NaN, drawn black) on any surface
+## lying exactly on the decal box's top or bottom plane.
 const _MIN_DECAL_FADE: float = 0.0001
 
-## attempt 3 (this file's own header): the smallest projected
-## (XZ) triangle area, in square meters, _collect_rotated_triangles() still
-## unions rather than drops as degenerate -- a triangle from the shape's own
-## rendered shell that is edge-on to straight-down (an unrotated shape's own
-## vertical side faces, or any face whose current rotation puts it exactly
-## vertical) projects to a zero-width sliver that would otherwise feed a
-## near-empty/self-intersecting polygon into Geometry2D.merge_polygons.
+## The smallest projected (XZ) triangle area, in square meters,
+## _collect_rotated_triangles() still unions rather than drops as degenerate -- a
+## triangle of the rendered shell that is edge-on to straight-down (an unrotated
+## shape's vertical side faces, or any face rotated exactly vertical) projects to
+## a zero-width sliver that would feed a near-empty/self-intersecting polygon
+## into Geometry2D.merge_polygons.
 const _MIN_SILHOUETTE_TRIANGLE_AREA: float = 1e-6
 
-## attempt 4 (this file's own header): geometric tolerances for
-## the underside-hugging prism walls, in meters. Structural float tolerances,
-## not look tunables -- DECISION (game/player/GhostPreview.gd attempt
-## 4): file consts rather than GhostTuning fields, the same call
-## _MIN_DECAL_FADE makes; no value in these ranges changes how the prism looks,
-## only whether rounding (Geometry2D.merge_polygons' own fixed-point output,
-## ~1e-5 m) is absorbed.
+## Geometric tolerances for the underside-hugging prism walls, in meters.
+## Structural float tolerances, not look tunables (file consts rather than
+## GhostTuning fields, like _MIN_DECAL_FADE): no value in these ranges changes
+## how the prism looks, only whether rounding (Geometry2D.merge_polygons'
+## fixed-point output, ~1e-5 m) is absorbed.
 ## How far a split point may sit from an outline edge and still split it, and
 ## the shortest outline piece kept (a T-junction vertex ending exactly on the
 ## outline, _edge_split_params()).
@@ -370,15 +116,15 @@ const _SILHOUETTE_PROBE_INSET: float = 1e-3
 ## How close the underside may come to the wall bottom before that stretch of
 ## wall is treated as "the shape sits on the ground here" and not drawn
 ## (_append_underside_wall()).
-## /132: how far below the disc-level wall bottom the per-piece
-## floor probe ray reaches, so a hit exactly on the disc still registers.
+## How far below the disc-level wall bottom the per-piece floor probe ray
+## reaches, so a hit exactly on the disc still registers.
 const _PIECE_FLOOR_RAY_MARGIN: float = 0.05
 const _FLOOR_RAY_MAX_SKIPS: int = 3
 const _FLOORS_NEVER: int = -1000000
 const _FLOOR_RECAST_FRAMES: int = 12
 const MASK_CACHE_MAX_ENTRIES: int = 64
 const _MASK_KEY_SCALE: float = 1000.0
-## resolution of the block-projection decal's footprint mask.
+## Resolution of the block-projection decal's footprint mask.
 const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
 const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
@@ -387,8 +133,8 @@ const _HEIGHTS_PROBE_X: int = 2
 const _HEIGHTS_PROBE_Y: int = 3
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
-## the group game/player/PlayerController.gd puts its own (local,
-## player-driven) ghost in, so ui/hud/HUD.gd can show that block's height
+## The group game/player/PlayerController.gd puts its own (local, player-driven)
+## ghost in, so ui/hud/HUD.gd can show that block's height
 ## (height_above_surface()) without a node path. Remote peers' ghosts
 ## (game/player/RemoteCursors.gd) are never in it.
 const LOCAL_HELD_GROUP: StringName = &"local_held_ghost"
@@ -407,58 +153,48 @@ var manual_hover_offset: float = 0.0
 
 var _shape: BlockShape = null
 var _shape_visual: Node3D = null
-## at most one entry now (the whole rotated shape's own convex
-## hull, not one per bottom cell -- see this file's own header). Kept as an
-## Array (not a single nullable MeshInstance3D) so _set_footprint_quad_count()
-## stays unchanged in shape, just always 0 or 1 long now.
+## At most one entry: the whole rotated shape's footprint polygon, not one per
+## bottom cell. An Array (not a single nullable MeshInstance3D) so
+## _set_footprint_quad_count() handles 0 or 1 uniformly.
 var _footprint_quads: Array[MeshInstance3D] = []
 ## Shared by every footprint quad (like _material is shared by every mesh of
 ## the held shape's own visual) so updating validity/lock state once repaints
 ## all of them.
 var _footprint_material: StandardMaterial3D
-## the vertical prism connecting the held shape's own lowest
-## point down to the footprint on the disc (this file's own header, fix 2) --
-## a single persistent node (unlike the footprint quads, its mesh is rebuilt
-## in place every frame rather than pooled/recreated, since there is always
-## at most one).
+## The vertical prism between the held shape's underside and the footprint on
+## the disc: a single persistent node whose mesh is rebuilt in place every frame.
 var _projection_mesh: MeshInstance3D
 var _projection_material: StandardMaterial3D
 ## For tests: the world-space Y span _projection_mesh currently covers (top,
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
-## attempt 3 (this file's own header): the ghost-local (not
-## world-translated -- like _rotated_shape_hull()'s own return value) XZ
-## outline loop(s) _shape_silhouette_loops() built the projection prism's
-## walls from last time, plus the exact (shape, basis) pair that produced
-## them -- so a frame whose shape/rotation hasn't changed (the common case:
-## the player is only moving the cursor, or the rotation is mid-drag but this
-## particular frame's basis rounds to the same float bits) skips straight back
-## to the cached loops instead of re-walking every triangle of the rendered
-## mesh and re-running Geometry2D.merge_polygons across all of them again.
-## Every other input _update_projection_mesh() reads each frame (global_
-## position.y, landing_y) only changes *how high* the cached walls are
-## extruded, never their XZ shape, so caching on (shape, basis) alone is
-## exact, not an approximation.
+## The ghost-local (not world-translated) XZ outline loop(s)
+## _shape_silhouette_loops() built the prism walls from last time, plus the exact
+## (shape, basis) pair that produced them: a frame that changes neither (the
+## player is only moving the cursor) skips re-walking every triangle of the
+## rendered mesh and re-running Geometry2D.merge_polygons. Every other input
+## _update_projection_mesh() reads each frame (global_position.y, landing_y) only
+## changes how high the cached walls are extruded, never their XZ shape, so
+## caching on (shape, basis) alone is exact.
 var _cached_silhouette_shape: BlockShape = null
 var _cached_silhouette_basis: Basis = Basis.IDENTITY
 var _cached_silhouette_loops: Array[PackedVector2Array] = []
 var _cached_silhouette_valid: bool = false
-## attempt 4 (this file's own header): the underside-hugging
-## wall list built alongside _cached_silhouette_loops, same (shape, basis)
-## cache key. _cached_wall_segments holds consecutive (a, b) ghost-local XZ
-## pairs -- every outline edge split wherever a projected mesh triangle edge
-## crosses or touches it, so each piece lies under one fixed set of triangles
-## -- and _cached_wall_heights holds, per piece, the shape's own underside Y
-## at a and at b, *relative to the ghost origin* (global_position.y), so a
-## frame that only moves the ghost re-emits these quads at a new offset and
-## never re-walks the mesh.
+## The underside-hugging wall list built alongside _cached_silhouette_loops,
+## same (shape, basis) cache key. _cached_wall_segments holds consecutive (a, b)
+## ghost-local XZ pairs -- every outline edge split wherever a projected mesh
+## triangle edge crosses or touches it, so each piece lies under one fixed set of
+## triangles -- and _cached_wall_heights holds, per piece, the shape's own
+## underside Y at a and at b, *relative to the ghost origin*
+## (global_position.y), so a frame that only moves the ghost re-emits these
+## quads at a new offset and never re-walks the mesh.
 var _cached_wall_segments: PackedVector2Array = PackedVector2Array()
 var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
-## /132: one ghost-local XZ point per cached wall piece, nudged
-## just inside the silhouette, where _update_projection_mesh() casts its
-## straight-down probe so each wall stops on whatever (tower top or disc) lies
-## under that piece instead of running through placed blocks.
+## One ghost-local XZ point per cached wall piece, nudged just inside the
+## silhouette, where _update_projection_mesh() casts its straight-down probe so
+## each wall stops on whatever (tower top or disc) lies under that piece instead
+## of running through placed blocks.
 var _cached_wall_probes: PackedVector2Array = PackedVector2Array()
 var _floors: PackedFloat64Array = PackedFloat64Array()
 var _floors_shape: BlockShape = null
@@ -466,54 +202,40 @@ var _floors_position: Vector3 = Vector3.ZERO
 var _floors_basis: Basis = Basis.IDENTITY
 var _floors_bottom: float = 0.0
 var _floors_frame: int = _FLOORS_NEVER
-## the last disk-surface point PlayerController's own
-## placed-block-skipping probe reported (update_placement()'s own
-## `surface_point` argument), kept so _update_footprint()'s disk-under-the-
-## hull-centre raycast has a same-frame fallback height (the ghost's own
-## already-known landing height) for a shape wide enough to overhang the
-## disk's edge at its own rotated centre. sync_remote_position() never
-## updates this -- a remote peer's ghost has no local surface_point to store,
-## so its footprint prism fallback (also never exercised: a remote ghost
-## always shows a footprint sized from a surface point the *sending* peer
-## already resolved) simply keeps whatever this last held, same as it held no
-## fallback data at all before this field existed.
+## The last disk-surface point update_placement() received: the fallback landing
+## height for _update_footprint() when nothing is under the hull centre (a wide
+## shape overhanging the disk's edge). sync_remote_position() never updates it,
+## since a remote ghost has no local surface point.
 var _last_surface_point: Vector3 = Vector3.ZERO
 
 var _material: ShaderMaterial
 var _hatch_texture: ImageTexture
 var _player_color: Color = Color.WHITE
 var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
-## spec 1.4/1.4: whether this slot's held piece was released
-## early this interval and is now only being aimed/prepared -- see
-## Match.is_release_locked(). Overrides the validity tint below whenever true,
-## since the lock is about *when* the piece may drop, not *where* the ghost
-## sits.
+## spec 1.4: whether this slot's held piece was released early this interval
+## and is now only being aimed/prepared -- see Match.is_release_locked().
+## Overrides the validity tint below whenever true, since the lock is about
+## *when* the piece may drop, not *where* the ghost sits.
 var _locked: bool = false
-## M4 P2e: set by show_throw_hint(); wins over the validity tint (below
-## _locked in priority -- see _apply_validity_material()) exactly the way
-## _locked already wins over it, since "aiming a throw" is about the current
-## gesture, not the landing spot show_throw_hint()'s caller never queried.
+## Set by show_throw_hint(); wins over the validity tint but loses to _locked
+## (see _apply_validity_material()), since "aiming a throw" is about the current
+## gesture, not the landing spot.
 var _throw_hint_active: bool = false
 
-## "the same white projection that
-## shows up on the disk should show up on the blocks as well, just a bit
-## fainter": projects ghost_tuning.block_projection_color downward over the
-## whole footprint hull, from the ghost's own current underside down to the
-## disc, so a placed block sitting in that gap reads pale/whitish like the
-## disc's own footprint marker (a reference screenshot of the original game). top_level
-## (like _footprint_quads/_projection_mesh) so it never tilts with the ghost's
-## own rotation. Persistent (like _projection_mesh) -- _update_block_
-## projection_decal() rebuilds its size/position every frame rather than
-## pooling/recreating it, since there is always at most one.
+## Projects ghost_tuning.block_projection_color downward over the footprint
+## hull, from the ghost's own current underside down to the disc, so a placed
+## block sitting in that gap reads pale/whitish like the disc's footprint marker.
+## top_level (like _footprint_quads/_projection_mesh) so it never tilts with the
+## ghost's rotation. Persistent: _update_block_projection_decal() rebuilds its
+## size/position every frame.
 var _block_projection_decal: Decal
 
 var _flash_tween: Tween
 var _reject_tween: Tween
-## A world-space offset added on top
-## of update_placement()/sync_remote_position()'s own computed position every
-## frame, animated by play_reject_animation()'s kick tween. World-space (not
-## a rotated local offset like the old _shape_visual.position kick) so the
-## kick direction never depends on the held block's current rotation.
+## A world-space offset added on top of update_placement()/
+## sync_remote_position()'s computed position every frame, animated by
+## play_reject_animation()'s kick tween. World-space (not a rotated local offset)
+## so the kick direction never depends on the held block's rotation.
 var _reject_offset: Vector3 = Vector3.ZERO
 
 
@@ -522,15 +244,10 @@ var _reject_offset: Vector3 = Vector3.ZERO
 const HELD_GIFT_RIBBON_OVERHANG: float = 1.03
 
 func _ready() -> void:
-	# "ghost block renders without any
-	# lines": a dedicated ShaderMaterial (shaders/blocks/ghost_cell_grid.gdshader),
-	# not the plain StandardMaterial3D this replaces -- that material had no
-	# way to draw the same thin cell-grid lines real placed blocks show
-	# (game/blocks/BlockFactory.gd's own CELL_GRID_SHADER). CULL_BACK is unchanged
-	# from before (this file's own header, fix (1) -- front faces only, so
-	# translucency reads as a solid surface instead of bleeding through to the
-	# far side's own face seams); the shader's own `render_mode cull_back;`
-	# carries that forward instead of a BaseMaterial3D.cull_mode property.
+	# A ShaderMaterial (ghost_cell_grid.gdshader) draws the same thin cell-grid
+	# lines placed blocks show (BlockFactory's CELL_GRID_SHADER). Its own
+	# `render_mode cull_back;` gives the front-faces-only translucency (see the
+	# class header).
 	_material = ShaderMaterial.new()
 	_material.shader = GHOST_CELL_GRID_SHADER
 	_material.set_shader_parameter(&"grid_line_width_px", VISUAL_TUNING.grid_line_width_px)
@@ -542,37 +259,23 @@ func _ready() -> void:
 	_footprint_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_footprint_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_footprint_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	# the footprint quad
-	# is a near-ground-parallel decal viewed at a shallow grazing angle from
-	# the match camera -- on top of _build_hatch_texture()'s own mipmap fix,
-	# anisotropic filtering keeps the HOLE/GOAL_ZONE hatch's diagonal stripes
-	# from re-aliasing at that angle the way plain trilinear filtering still
-	# can. Harmless for every other state, which never assigns albedo_texture
-	# here at all (_apply_footprint_material()).
+	# The footprint quad is a near-ground-parallel decal seen at a shallow
+	# grazing angle; anisotropic filtering, on top of _build_hatch_texture()'s
+	# mipmaps, keeps the HOLE/GOAL_ZONE hatch stripes from re-aliasing. Other
+	# states never assign albedo_texture (_apply_footprint_material()).
 	_footprint_material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
-	# (this file's own header, fix (2)): the flat footprint
-	# above stays CULL_DISABLED (a flat quad has no "back" a camera can't
-	# already see straight through from below the disk, and it's viewed from
-	# above), but the vertical prism's own walls are a convex hull's outer
-	# surface -- CULL_DISABLED here on purpose too, unlike the shape's own
-	# body, because a *convex* hull has no internal face seams to bleed
-	# through (no adjacent-but-separate coplanar quads at cell boundaries the
-	# way BlockMeshBuilder's per-cell shell has); double-siding it just lets
-	# the far wall read faintly through the near one, exactly like the
-	# original's own translucent legs (a reference screenshot of the original game).
+	# The flat footprint is CULL_DISABLED (a flat quad viewed from above). The
+	# prism walls are too: their outline has no internal face seams to bleed
+	# through, and the far wall reading faintly through the near one is intended.
 	_projection_material = StandardMaterial3D.new()
 	_projection_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_projection_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_projection_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	# (owner test "any surface that falls within
-	# the projection should be a lot brighter (maybe emissive?)"): additive
-	# blending sums the prism's own colour onto whatever already rendered
-	# behind it instead of the usual alpha-over mix, so a surface seen
-	# through the column reads brighter, not just tinted -- combined with
-	# emission_enabled below (_apply_projection_material() drives both the
-	# emission colour and ghost_tuning.projection_emission_energy every
-	# refresh), matching the brief's own "additive blend / emission" wording.
+	# Additive blending sums the prism's colour onto whatever already rendered
+	# behind it, so a surface seen through the column reads brighter, not just
+	# tinted. _apply_projection_material() drives the emission colour and
+	# ghost_tuning.projection_emission_energy every refresh.
 	_projection_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	_projection_material.emission_enabled = true
 
@@ -582,22 +285,16 @@ func _ready() -> void:
 	_projection_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_projection_mesh)
 
-	# a plain, fully-opaque white texture -- Decal has no
-	# "flat colour, no texture" mode, so this is the runtime-built equivalent
-	# of _footprint_material's own flat StandardMaterial3D.albedo_color,
-	# tinted/faded through `modulate` instead (see
-	# _update_block_projection_decal()). A tiny 2x2 image is enough: the
-	# decal only ever stretches it across size.x/size.z, it is never sampled
-	# for detail.
+	# A plain opaque white texture: Decal has no flat-colour mode, so `modulate`
+	# tints and fades it (see _update_block_projection_decal()). A tiny 2x2 image
+	# is enough, since it is only stretched across size.x/size.z.
 	_block_projection_decal = Decal.new()
 	_block_projection_decal.texture_albedo = _build_white_decal_texture()
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
-	# attempt 3 (this file's own header): never paint the disc.
-	# TerritoryOverlay keeps the disc on DISC_LAYER_BIT alone, so removing that
-	# bit from Decal's own default (all 20 layers) leaves placed blocks
-	# (layer 1) painted and the disc -- whose box-bottom contact produced the
-	# speckle -- untouched; the disc keeps its own footprint quad.
+	# Never paint the disc: TerritoryOverlay keeps it on DISC_LAYER_BIT alone and
+	# it has its own footprint quad, so dropping that bit from Decal's default
+	# cull_mask leaves placed blocks (layer 1) painted.
 	_block_projection_decal.cull_mask = _block_projection_decal.cull_mask & ~TerritoryOverlay.DISC_LAYER_BIT
 	_block_projection_decal.top_level = true
 	_block_projection_decal.visible = false
@@ -613,10 +310,8 @@ func set_shape(shape: BlockShape) -> void:
 	if _shape_visual != null:
 		_shape_visual.queue_free()
 		_shape_visual = null
-	# attempt 3: a new shape invalidates the cached silhouette
-	# outline unconditionally -- a stale _shape_visual reference would also
-	# leave _collect_rotated_triangles() reading freed nodes on the very next
-	# _shape_silhouette_loops() call otherwise.
+	# A new shape invalidates the cached silhouette outline; a stale
+	# _shape_visual would leave _collect_rotated_triangles() reading freed nodes.
 	_cached_silhouette_valid = false
 	if shape == null:
 		return
@@ -762,10 +457,9 @@ func _refresh_held_facing() -> void:
 	_gift_visual.basis = global_basis.inverse() * facing
 
 
-## gift-wide decision + playtest: a held gift is
-## shown exactly as authored, in every ghost state. No tint overlay and no glow-rim overlay is put
-## on its meshes (the old translucent state wash and the additive white rim read as a white
-## tint); validity/lock state is still shown by the footprint and the HUD, not by recolouring.
+## A held gift is shown exactly as authored in every ghost state: no tint
+## overlay and no glow rim, which read as a white tint. Validity/lock state still
+## shows in the footprint and the HUD, not by recolouring.
 func _apply_gift_tint() -> void:
 	if _gift_visual == null:
 		return
@@ -821,22 +515,13 @@ func reset_rotation() -> void:
 	_apply_rotation()
 
 
-## (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL, owner test
-## ]): PlayerController calls this while rotate_drag (MMB) is held,
-## driving free_quaternion continuously -- already the exact field
-## submit_cursor/submit_place send unmodified over the wire, so no new
-## replication path was needed.
-##
-## user test "like the
-## RMB orbit but for the block": full 3-DOF now, not yaw-only -- `yaw` spins
-## about world up (matching CameraRig's own orbit yaw), `pitch` spins about
-## `pitch_axis` (PlayerController passes the camera's current world-space
-## right axis, so pitching the block always matches "push the mouse forward
-## and it tips away from you" regardless of which way the camera currently
-## faces). Each axis is composed onto free_quaternion independently
-## (`Quaternion(axis, angle) * free_quaternion`, normalised) rather than
-## pre-combined into one delta quaternion, so a frame with only one axis of
-## motion (the common case) never even nudges the other.
+## Spins the block while rotate_drag (MMB) is held: `yaw` about world up,
+## `pitch` about `pitch_axis` (PlayerController passes the camera's world-space
+## right axis, so pushing the mouse forward tips the block away from the player
+## whichever way the camera faces). Each axis composes onto free_quaternion
+## independently (`Quaternion(axis, angle) * free_quaternion`, normalised), so a
+## frame with only one axis of motion never nudges the other. free_quaternion is
+## the field submit_cursor/submit_place already send unmodified.
 func apply_free_rotation_delta(yaw: float, pitch: float, pitch_axis: Vector3 = Vector3.RIGHT) -> void:
 	if _held_gift_id != &"":
 		return
@@ -853,15 +538,11 @@ func _apply_rotation() -> void:
 
 
 ## Called every frame by PlayerController with the disk surface point/normal
-## straight under the cursor (item 5: a raycast that skips
-## over any placed block, so this is always the bare disk, tilt-ready via
-## `hit_normal` for M4). Positions the ghost so the *rotated* held shape's
-## lowest point sits at hover height above that surface (item 3's
-## rotated-bounds pivot, Y only -- unchanged by below), and so
-## the *rotated* shape's own geometric centre column sits over the cursor's
-## XZ ("lock the camera to the center of the box
-## without messing up the bottom center" -- see rotated_center_offset()'s own
-## doc comment), then refreshes the footprint projection (item 6).
+## straight under the cursor (a raycast that skips placed blocks, so this is
+## always the bare disk). Positions the ghost so the *rotated* held shape's
+## lowest point sits at hover height above that surface (Y only), and so the
+## *rotated* shape's own geometric centre column sits over the cursor's XZ (see
+## rotated_center_offset()), then refreshes the footprint projection.
 func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
 	var anchor: Vector3 = surface_point + surface_normal * hover
@@ -874,32 +555,26 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	_update_footprint()
 
 
-## how high the held shape's own lowest point hovers above
-## the disk surface under it (the point update_placement() last received),
-## in meters -- what the player is actually adjusting with the wheel. The
-## HUD shows this next to the tower height, which alone never moved while
-## the block was raised (the follow camera keeps the ghost centred on screen
-## too), so a raise read as "stuck".
+## How high the held shape's own lowest point hovers above the disk surface
+## under it (the point update_placement() last received), in meters -- what the
+## player adjusts with the wheel. The HUD shows this next to the tower height,
+## which alone never moves while the block is raised.
 func height_above_surface() -> float:
 	return global_position.y - _reject_offset.y + _rotated_bottom_offset() - _last_surface_point.y
 
 
 ## Positions this ghost at an already-fully-resolved world point, with no
-## further hover/rotation-pivot math applied on top -- used by
-## game/player/RemoteCursors.gd for a synced remote peer's ghost, whose `origin` is
-## that peer's own already-adjusted GhostPreview.global_position (spec 2.6's
-## update_cursor carries a resolved pose, not a surface to re-derive one
-## from). Re-running it through update_placement()'s hover/rotated-bottom
-## math a second time would double-apply the correction for any slot whose
-## held shape isn't null (items 3/5); this is the one-line fix
-## that keeps game/player/RemoteCursors.gd correct against the changed
-## update_placement() contract above.
+## further hover/rotation-pivot math -- used by game/player/RemoteCursors.gd for a
+## synced remote peer's ghost, whose `origin` is that peer's own already-adjusted
+## GhostPreview.global_position (spec 2.6's update_cursor carries a resolved pose,
+## not a surface to re-derive one from). Going through update_placement() would
+## apply the hover/rotated-bottom correction a second time.
 func sync_remote_position(origin: Vector3) -> void:
 	global_position = origin + _reject_offset
 	_update_footprint()
 
 
-# --- Rotated-bottom pivot correction (spec 1.4 item 3) ------
+# --- Rotated-bottom pivot correction ------
 
 ## How far below this node's own local origin (BlockShape.bottom_center() of
 ## the *unrotated* shape) the current, rotated shape's lowest point sits.
@@ -913,21 +588,12 @@ func _rotated_bottom_offset() -> float:
 	return _shape.rotated_bottom_offset(basis, tuning.cube_size, tuning.cube_margin)
 
 
-## (this file's own header, fix (2)): the mirror image of
-## _rotated_bottom_offset() above -- how far *above* this node's own local
-## origin the current, rotated shape's *highest* point sits, so
-## _update_projection_mesh() can cap the projection prism there instead of at
-## the shape's lowest point (correct for an unrotated shape, wrong for a
-## pitched/yawed one -- this file's own header). Always >= 0 for the same
-## reason _rotated_bottom_offset() is always <= 0: the origin itself is
-## always a point on the shape's own surface.
-## DECISION (game/player/GhostPreview.gd): uses the *visual* mesh's
-## own full cube_size (`half_size = tuning.cube_size * 0.5`, matching
-## core/blocks/BlockMeshBuilder.gd's build_mesh()), not
-## _rotated_bottom_offset()'s cube_margin-shrunk collision half_size -- the
-## prism's job is to contain the *rendered* shape the player actually sees,
-## so its top should match that shape's true rendered extent, not the
-## slightly smaller physics box.
+## The mirror image of _rotated_bottom_offset(): how far *above* this node's own
+## local origin the rotated shape's *highest* point sits, the prism's top for
+## projection_span_y(). Always >= 0 for the same reason
+## _rotated_bottom_offset() is always <= 0: the origin itself is always a point
+## on the shape's own surface.
+## DECISION (game/player/GhostPreview.gd): uses the *visual* mesh's own full cube_size (`half_size = tuning.cube_size * 0.5`, matching BlockMeshBuilder.build_mesh()), not _rotated_bottom_offset()'s cube_margin-shrunk collision half_size, so the top matches the rendered shape's true extent, not the slightly smaller physics box.
 func _rotated_top_offset() -> float:
 	if _shape == null or _shape.cells.is_empty():
 		return 0.0
@@ -943,20 +609,13 @@ func _rotated_top_offset() -> float:
 	return 0.0 if max_y == -INF else max_y
 
 
-## "when rotating the block the
-## camera adjusts; lock the camera to the center of the box without messing
-## up the bottom center": how far this node's own local origin (still
-## BlockShape.bottom_center() of the *unrotated* shape) sits from the
-## *rotated* held shape's own geometric centre, in world space. The
-## unrotated centre-to-origin vector is always purely vertical -- the AABB
-## centre of `cells` shares bottom_center()'s own X/Z (both are the same cell
-## bounds' midpoint by construction, whatever shape the cells happen to
-## trace), so only Y ever differs before rotation -- so a yaw-only rotation
-## (about world/local up) never moves this in XZ, while a pitch/roll tips
-## that vertical offset sideways exactly as update_placement() needs to keep
-## the *rotated* shape's centre, not this fixed local origin, under the
-## cursor. Zero for a shape with no cells and when nothing is held (global_
-## position itself is then already the only sensible "centre").
+## How far this node's own local origin (still BlockShape.bottom_center() of the
+## *unrotated* shape) sits from the *rotated* held shape's own geometric centre,
+## in world space. The unrotated centre-to-origin vector is purely vertical (the
+## AABB centre of `cells` shares bottom_center()'s X/Z), so a yaw-only rotation
+## never moves this in XZ, while a pitch/roll tips that vertical offset sideways
+## exactly as update_placement() needs to keep the *rotated* shape's centre under
+## the cursor. Zero for a shape with no cells and when nothing is held.
 func rotated_center_offset() -> Vector3:
 	if _shape == null or _shape.cells.is_empty():
 		return Vector3.ZERO
@@ -985,17 +644,15 @@ func rotated_center_world() -> Vector3:
 	return global_position + rotated_center_offset()
 
 
-# --- Footprint projection (spec 1.4 item 6) --
+# --- Footprint projection (spec 1.4) --
 
 ## The *whole* rotated held shape's own convex hull, projected onto the XZ
 ## plane, ghost-local (not yet world-translated): every cell's own 8 corners
-## (BlockFactory's own cube_size/cube_margin box, same pivot) go through the
-## full rotation basis, get projected to (x, z), and the convex hull of *all*
-## of them together becomes the one footprint/projection polygon -- not one
-## hull per cell (this file's own
-## header fix (2)): a shape's silhouette from directly above is one shape,
-## however many cells or landing heights are underneath different parts of
-## it.
+## (BlockFactory's cube_size/cube_margin box, same pivot) go through the full
+## rotation basis, get projected to (x, z), and the convex hull of *all* of them
+## together is the one footprint polygon, not one hull per cell: a shape's
+## silhouette from directly above is one shape, however many landing heights are
+## underneath different parts of it.
 func _rotated_shape_hull() -> PackedVector2Array:
 	if _shape == null or _shape.cells.is_empty():
 		return PackedVector2Array()
@@ -1010,20 +667,15 @@ func _rotated_shape_hull() -> PackedVector2Array:
 	return Geometry2D.convex_hull(points)
 
 
-## Rebuilds the footprint quad (0 or 1 -- see _rotated_shape_hull()'s own
-## comment) and the vertical projection prism to match the current shape/
-## rotation. the footprint's own landing height now comes from
-## a disk-only raycast (_raycast_disk_surface(), skipping any placed
-## RigidBody3D -- the same technique game/player/PlayerController.gd's own surface
-## probe uses to keep the ghost's *own* height off of towers
-## item 5) straight down from the hull's own centroid, so the marker always
-## lands on the bare disc even when part of the held shape hovers over a
-## placed block -- never that block's own top face, which the old per-cell
-## raycast (against the unfiltered world) happily landed on. If nothing is
-## under the hull's centroid (a wide shape overhanging the disk's edge), this
-## falls back to the ghost's own already-known landing height (this file's
-## `_last_surface_point`, set by update_placement() every frame) rather than
-## leaving the marker with no floor at all.
+## Rebuilds the footprint quad (0 or 1 -- see _rotated_shape_hull()) and the
+## vertical projection prism to match the current shape/rotation. The landing
+## height comes from a disk-only raycast (_raycast_disk_surface(), skipping any
+## placed RigidBody3D, like PlayerController's own surface probe) straight down
+## from the hull's centroid, so the marker lands on the bare disc even when part
+## of the held shape hovers over a placed block, never that block's top face. If
+## nothing is under the centroid (a wide shape overhanging the disk's edge), it
+## falls back to _last_surface_point rather than leaving the marker with no
+## floor.
 func _update_footprint() -> void:
 	var hull: PackedVector2Array = _rotated_shape_hull()
 	if hull.size() < 3:
@@ -1049,9 +701,9 @@ func _update_footprint() -> void:
 		landing_normal = hit["normal"] as Vector3
 
 	_footprint_quads[0].global_position = Vector3(world_x, landing_y, world_z) + landing_normal * ghost_tuning.footprint_offset
-	# the quad follows the rendered silhouette (the union of
-	# every cell's footprint), so concave shapes (plus5, u5, corner4...) no
-	# longer show their convex hull. The hull stays the bounding/test polygon.
+	# The quad follows the rendered silhouette (the union of every cell's
+	# footprint), so concave shapes (plus5, u5, corner4...) don't show their
+	# convex hull. The hull stays the bounding/test polygon.
 	var footprint_mesh: ArrayMesh = _build_loops_mesh(_shape_silhouette_loops(), centroid)
 	_footprint_quads[0].mesh = footprint_mesh if footprint_mesh != null else _build_polygon_mesh(hull, centroid)
 	var world_hull: PackedVector2Array = PackedVector2Array()
@@ -1063,16 +715,14 @@ func _update_footprint() -> void:
 	_apply_projection_visibility()
 
 
-## attempt 3/4 (this file's own header): `_projection_span_y`
-## stays the *whole* shape's own bookkeeping (top = _rotated_top_offset(),
-## untouched -- game/player/PlayerController.gd's own spawn-clearance reads this
-## contract), while the prism's actual mesh walls the *merged rendered
-## silhouette* (_shape_silhouette_loops()) from a single shared wall_bottom_y
-## up to the shape's own underside along the outline (attempt 4: the cached
-## pieces from _build_underside_walls(), re-emitted at this frame's height).
-## The prism still collapses the same way the old single hull did: the whole
-## shape's own top within ghost_tuning.footprint_offset of the disc, or below
-## it; and a shape resting on the ground draws no wall at all (no mesh, though
+## `_projection_span_y` is the *whole* shape's bookkeeping (top =
+## _rotated_top_offset(); PlayerController's spawn clearance reads this
+## contract), while the mesh walls the merged rendered silhouette
+## (_shape_silhouette_loops()) from a shared wall_bottom_y up to the shape's own
+## underside along the outline (the cached pieces from _build_underside_walls(),
+## re-emitted at this frame's height). The prism collapses when the whole shape's
+## top is within ghost_tuning.footprint_offset of the disc, or below it; a shape
+## resting on the ground draws no wall at all (no mesh, though
 ## projection_span_y() still reports the body).
 func _update_projection_mesh(landing_y: float) -> void:
 	if _shape == null or _shape.cells.is_empty():
@@ -1082,9 +732,8 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var whole_top_y: float = global_position.y + _rotated_top_offset()
 	if whole_top_y - landing_y <= ghost_tuning.footprint_offset:
 		# The whole shape's own top is at or below the ground -- nothing to
-		# show; preserves projection_span_y()'s existing "Vector2.ZERO when
-		# collapsed" contract (test_projection_prism_collapses_when_even_the_
-		# shapes_own_top_is_at_the_ground).
+		# show; keeps projection_span_y()'s "Vector2.ZERO when collapsed"
+		# contract.
 		_clear_projection_mesh()
 		return
 
@@ -1101,22 +750,19 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
-	# every wall still
-	# bottoms out ghost_tuning.footprint_offset above `landing_y`, the same
-	# epsilon the footprint quad already uses above the disc, so the wall's own
-	# ground-contact edge never Z-fights the disc's own collision mesh sitting
-	# exactly at `landing_y`.
+	# Every wall bottoms out ghost_tuning.footprint_offset above `landing_y`, the
+	# same epsilon the footprint quad uses above the disc, so the wall's
+	# ground-contact edge never Z-fights the disc's collision mesh at `landing_y`.
 	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
-	# attempt 4: re-emit the cached underside walls at this
-	# frame's own height -- the only per-frame work (see
-	# _cached_wall_heights' own doc comment).
+	# Re-emit the cached underside walls at this frame's own height -- the only
+	# per-frame work (see _cached_wall_heights' own doc comment).
 	var origin_y: float = global_position.y
 	var floors: PackedFloat64Array = _piece_floors(wall_bottom_y)
 	for i: int in range(_cached_wall_heights.size()):
 		var heights: Vector2 = _cached_wall_heights[i]
-		# /132: stop each piece on whatever is under it (a placed
-		# tower's top face, which the block-projection decal paints), not the
-		# disc, so the additive wall never runs through placed blocks.
+		# Stop each piece on whatever is under it (a placed tower's top face,
+		# which the block-projection decal paints), not the disc, so the
+		# additive wall never runs through placed blocks.
 		var piece_bottom_y: float = floors[i]
 		_append_underside_wall(
 			_cached_wall_segments[i * 2], _cached_wall_segments[i * 2 + 1],
@@ -1125,9 +771,9 @@ func _update_projection_mesh(landing_y: float) -> void:
 		)
 
 	if verts.is_empty():
-		# attempt 4: the shape rests on the ground along its
-		# whole outline -- no shaft to draw. _projection_span_y is kept (spawn
-		# clearance still needs the body's own top).
+		# The shape rests on the ground along its whole outline -- no shaft to
+		# draw. _projection_span_y is kept (spawn clearance still needs the body's
+		# own top).
 		_projection_mesh.mesh = null
 		return
 
@@ -1142,10 +788,9 @@ func _update_projection_mesh(landing_y: float) -> void:
 	_projection_mesh.mesh = built
 
 
-## /132: per-piece wall floors (world Y). Re-cast only when the
-## ghost pose, wall set or disc-level floor changed, or every
-## _FLOOR_RECAST_FRAMES physics frames (a tower may have grown), so a held
-## still ghost costs no rays.
+## Per-piece wall floors (world Y). Re-cast only when the ghost pose, wall set or
+## disc-level floor changed, or every _FLOOR_RECAST_FRAMES physics frames (a
+## tower may have grown), so a held still ghost costs no rays.
 func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
 	var frame: int = Engine.get_physics_frames()
 	if _floors_shape == _shape and _floors_position.is_equal_approx(global_position) \
@@ -1197,7 +842,7 @@ func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 	return floor_y
 
 
-## Hides the projection prism (nothing held, or every column collapsed -- see
+## Hides the projection prism (nothing held, or it collapsed -- see
 ## _update_projection_mesh()'s own guard) without freeing the persistent node.
 func _clear_projection_mesh() -> void:
 	_projection_span_y = Vector2.ZERO
@@ -1207,18 +852,13 @@ func _clear_projection_mesh() -> void:
 
 # --- Block projection decal (spec 1.4) ----------------------
 
-## a reference screenshot of the original game:
-## a placed block inside the light shaft reads pale/whitish: sizes and
-## positions `_block_projection_decal` over `world_hull`'s own bounding box
-## (world-space X/Z, same hull _update_footprint() already built the flat
-## footprint quad from), projecting straight down from the ghost's own
-## current underside (_rotated_bottom_offset() -- deliberately *not* any
-## higher, so the decal's own projection volume never overlaps the held
-## ghost's own rendered body) down to `landing_y` (the footprint's own disc
-## height). attempt 3 supersedes original "painting
-## the disc too is harmless" DECISION: it was not harmless (this file's own
-## header) -- the disc lives on TerritoryOverlay.DISC_LAYER_BIT since , and
-## _ready() now strips that bit from this decal's cull_mask.
+## Sizes and positions `_block_projection_decal` over `world_hull`'s bounding box
+## (world-space X/Z, the same hull _update_footprint() built the flat footprint
+## from), projecting straight down from the ghost's current underside
+## (_rotated_bottom_offset() -- deliberately not any higher, so the decal's
+## volume never overlaps the held ghost's rendered body) down to `landing_y`.
+## The disc lives on TerritoryOverlay.DISC_LAYER_BIT and _ready() strips that bit
+## from the decal's cull_mask: painting the disc speckled it.
 func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
 	if _block_projection_decal == null:
 		return
@@ -1252,8 +892,8 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	)
 
 
-## attempt 3: ghost_tuning.block_projection_edge_fade, never
-## below _MIN_DECAL_FADE (see that constant for why zero is unsafe).
+## ghost_tuning.block_projection_edge_fade, never below _MIN_DECAL_FADE (see that
+## constant for why zero is unsafe).
 func _decal_fade() -> float:
 	return maxf(ghost_tuning.block_projection_edge_fade, _MIN_DECAL_FADE)
 
@@ -1279,14 +919,12 @@ func _build_white_decal_texture() -> ImageTexture:
 	return _white_texture
 
 
-## attempt 3 (this file's own header): the projection prism's
-## outline loop(s) in ghost-local XZ -- the *rendered* shape's own true
-## silhouette from directly above, at the current rotation, rather than a
-## per-cell or per-column approximation of it. Cached on (`_shape`, `basis`);
-## see _cached_silhouette_valid's own doc comment for why that is exact, not
-## approximate, for every other input _update_projection_mesh() reads.
-## attempt 4: the same cache fill also builds the underside
-## wall list (_build_underside_walls()), so a cache hit covers both.
+## The projection prism's outline loop(s) in ghost-local XZ -- the *rendered*
+## shape's true silhouette from directly above, at the current rotation. Cached
+## on (`_shape`, `basis`); see _cached_silhouette_loops' own doc comment for why
+## that is exact for every other input _update_projection_mesh() reads. The same
+## cache fill also builds the underside wall list (_build_underside_walls()), so
+## a cache hit covers both.
 func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 	if _shape == null or _shape_visual == null:
 		return []
@@ -1309,18 +947,15 @@ func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 
 
 ## Every triangle of every MeshInstance3D under _shape_visual (in the common
-## case, BlockFactory's own single BlockMeshBuilder shell -- 
-## the sloped-cell/custom-mesh fallback path, used by no shipped shape today,
-## is walked the same way since it is still one MeshInstance3D per cell with
-## its own local `.position` offset), each vertex transformed by the ghost's
-## current rotation `basis` (matching _rotated_bottom_offset()/_rotated_top_
-## offset()'s own corner math), in ghost-local 3D (origin-relative, so each Y
-## is a height relative to global_position.y). Triangles whose XZ projection
-## is degenerate (near-zero-area, e.g. a vertical face at identity rotation)
-## are dropped -- see _MIN_SILHOUETTE_TRIANGLE_AREA's own doc comment for why
-## one is expected on every unrotated shape's own side faces, not just as
-## noise; such a triangle also has no well-defined plane height over XZ for
-## _underside_heights() to read.
+## case BlockFactory's single BlockMeshBuilder shell; the sloped-cell/custom-mesh
+## fallback is walked the same way, one MeshInstance3D per cell with its own
+## local `.position` offset), each vertex transformed by the ghost's current
+## rotation `basis` (matching _rotated_bottom_offset()/_rotated_top_offset()'s
+## corner math), in ghost-local 3D (each Y is a height relative to
+## global_position.y). Triangles whose XZ projection is degenerate (near-zero
+## area, e.g. a vertical face at identity rotation) are dropped -- see
+## _MIN_SILHOUETTE_TRIANGLE_AREA; such a triangle also has no well-defined plane
+## height over XZ for _underside_heights() to read.
 func _collect_rotated_triangles() -> Array[PackedVector3Array]:
 	var triangles: Array[PackedVector3Array] = []
 	for child: Node in _shape_visual.get_children():
@@ -1355,11 +990,9 @@ func _flatten_triangle(triangle: PackedVector3Array) -> PackedVector2Array:
 	])
 
 
-## Fallback index buffer (0, 1, 2, 3, ...) for the (never exercised by any
-## shipped shape/mesh today, per _add_shape_visual()'s own doc comment) case
-## of a surface with no ARRAY_INDEX at all -- every real mesh this file walks
-## (BlockMeshBuilder's own combined shell, BoxMesh's own primitive surface)
-## always has one.
+## Fallback index buffer (0, 1, 2, 3, ...) for a surface with no ARRAY_INDEX at
+## all; every real mesh this file walks (BlockMeshBuilder's combined shell,
+## BoxMesh's primitive surface) always has one.
 func _sequential_indices(vertex_count: int) -> PackedInt32Array:
 	var indices: PackedInt32Array = PackedInt32Array()
 	indices.resize(vertex_count)
@@ -1403,22 +1036,21 @@ func _accumulate_union(
 	return remainder
 
 
-## attempt 4 (this file's own header): fills
-## _cached_wall_segments/_cached_wall_heights from the silhouette `loops` and
-## the rotated mesh triangles that produced them. Step 1: every outline edge
+## Fills _cached_wall_segments/_cached_wall_heights from the silhouette `loops`
+## and the rotated mesh triangles that produced them. Step 1: every outline edge
 ## a->b is split at every parameter where a projected triangle edge crosses it
-## (Geometry2D.segment_intersects_segment) or where a projected triangle
-## vertex lies on it (within _SILHOUETTE_SPLIT_EPSILON -- a T-junction, e.g.
+## (Geometry2D.segment_intersects_segment) or where a projected triangle vertex
+## lies on it (within _SILHOUETTE_SPLIT_EPSILON -- a T-junction, e.g.
 ## BlockMeshBuilder's per-cell bottom-face seams ending exactly on the outline,
 ## which a crossing test alone can miss by float rounding). Between two
 ## consecutive split parameters no triangle boundary crosses the edge, so the
 ## lowest triangle over the piece is one fixed triangle. Step 2
 ## (_underside_heights()): that triangle's own plane, evaluated at the piece's
-## two endpoints, is the shape's underside there -- exact for a tilted
-## underside (the wall's top edge slopes with it) and stepped wherever an
-## overhang begins (a split lands exactly on the step). Pieces shorter than
-## the split epsilon, or with no triangle on either side (an outline spike
-## thinner than _SILHOUETTE_PROBE_INSET), are dropped.
+## two endpoints, is the shape's underside there -- exact for a tilted underside
+## (the wall's top edge slopes with it) and stepped wherever an overhang begins
+## (a split lands exactly on the step). Pieces shorter than the split epsilon, or
+## with no triangle on either side (an outline spike thinner than
+## _SILHOUETTE_PROBE_INSET), are dropped.
 func _build_underside_walls(
 	loops: Array[PackedVector2Array],
 	triangles_3d: Array[PackedVector3Array], triangles_2d: Array[PackedVector2Array]
@@ -1562,18 +1194,16 @@ func _triangle_plane_y(triangle: PackedVector3Array, flat: PackedVector2Array, p
 	return triangle[0].y + weight_1 * (triangle[1].y - triangle[0].y) + weight_2 * (triangle[2].y - triangle[0].y)
 
 
-## Appends one underside wall (attempt 4) into the caller's
-## shared mesh arrays: a vertical quad over ghost-local XZ segment a->b, from
-## `bottom_y` up to the shape's own underside at each end (`top_a`/`top_b`,
-## world Y -- the top edge may slope). Always exactly 4 vertices in
-## (a_top, b_top, b_bottom, a_bottom) order, the layout tests/unit/
-## test_ghost_preview.gd reconstructs walls from. Where the underside dips to
-## within _UNDERSIDE_CONTACT_EPSILON of `bottom_y` (the shape sitting on the
-## landing surface there --'s "no shaft where the shape
-## touches the ground") nothing is drawn; a piece crossing that level is
-## clipped at the crossing point, so its low end collapses to a triangle
+## Appends one underside wall into the caller's shared mesh arrays: a vertical
+## quad over ghost-local XZ segment a->b, from `bottom_y` up to the shape's own
+## underside at each end (`top_a`/`top_b`, world Y -- the top edge may slope).
+## Always exactly 4 vertices in (a_top, b_top, b_bottom, a_bottom) order, the
+## layout tests/unit/blocks/test_ghost_preview.gd reconstructs walls from. Where the
+## underside dips to within _UNDERSIDE_CONTACT_EPSILON of `bottom_y` (the shape
+## sitting on the landing surface there) nothing is drawn; a piece crossing that
+## level is clipped at the crossing point, so its low end collapses to a triangle
 ## (a_top == a_bottom) rather than dipping below the disc.
-## DECISION (game/player/GhostPreview.gd attempt 4): no extra
+## DECISION (game/player/GhostPreview.gd): no extra
 ## vertical "step" face is emitted where two consecutive pieces meet at
 ## different heights -- both pieces lie on the same outline and each rises
 ## from the same bottom to its own top at the shared vertex, so they tile the
@@ -1671,10 +1301,10 @@ func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh
 	return built
 
 
-## flat triangle mesh of every silhouette loop (even-odd for
-## holes is not needed: shipped shapes have none, hole loops wind opposite to
-## the largest loop and are skipped), recentred on `center`. Null when nothing
-## triangulates, so the caller can fall back to the convex hull mesh.
+## Flat triangle mesh of every silhouette loop (hole loops wind opposite to the
+## largest loop and are skipped; shipped shapes have none), recentred on
+## `center`. Null when nothing triangulates, so the caller can fall back to the
+## convex hull mesh.
 func _build_loops_mesh(loops: Array[PackedVector2Array], center: Vector2) -> ArrayMesh:
 	if loops.is_empty():
 		return null
@@ -1724,10 +1354,10 @@ func _largest_loop(loops: Array[PackedVector2Array]) -> PackedVector2Array:
 	return best
 
 
-## the decal used to paint the whole hull bounding box (a
-## solid rectangle over every placed block below a concave piece). Its albedo
-## is now an alpha mask of the true footprint over [origin, origin + extent]
-## (ghost-local XZ), rebuilt only when the shape/rotation/box changes.
+## The decal's albedo is an alpha mask of the true footprint over
+## [origin, origin + extent] (ghost-local XZ), so it doesn't paint a solid
+## rectangle over every placed block below a concave piece. Rebuilt only when the
+## shape/rotation/box changes.
 var _mask_shape: BlockShape = null
 var _mask_basis: Basis = Basis.IDENTITY
 var _mask_origin: Vector2 = Vector2.ZERO
@@ -1736,7 +1366,7 @@ var _mask_cache: Dictionary = {}
 static var _white_texture: ImageTexture = null
 
 
-## drops the static texture/material cache on exit (freed before the renderer shuts down).
+## Drops the static texture/material cache on exit (freed before the renderer shuts down).
 static func release_statics() -> void:
 	_white_texture = null
 
@@ -1804,12 +1434,11 @@ func _rasterize_footprint_mask(loops: Array[PackedVector2Array], origin: Vector2
 	return image
 
 
-## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
-## the first hit reported is the disk's own collision -- never a tower
-## underneath the hull's own centroid (this file's own header
-## fix (2)). Mirrors game/player/PlayerController.gd's own _raycast_disk_surface()
-## (both now call Field.raycast_disk_surface()), including its surface_probe_max_blocks bound
-## against a very tall or adversarial stack.
+## Straight down from `origin`, skipping any RigidBody3D (a placed block) so the
+## first hit reported is the disk's own collision -- never a tower underneath the
+## hull's centroid. Mirrors game/player/PlayerController.gd's own
+## _raycast_disk_surface() (both call Field.raycast_disk_surface()), including
+## its surface_probe_max_blocks bound against a very tall or adversarial stack.
 func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 	if not is_inside_tree():
 		return {}
@@ -1834,15 +1463,12 @@ func _set_footprint_quad_count(count: int) -> void:
 		extra.queue_free()
 
 
-## For tests: the world-space Y span (top, bottom) of the held shape's own
-## whole bookkeeping -- Vector2.ZERO when nothing is held or the prism
-## collapsed (see _update_projection_mesh()'s own guard). `top` is always the
-## held shape's own current *highest* point (matches
-## _rotated_top_offset()'s own contract, not _rotated_bottom_offset()'s);
-## `bottom` is the footprint's own landing height. attempt 4:
-## this is bookkeeping, not the mesh's own extent -- the walls stop at the
-## shape's underside (the built mesh is the real
-## geometry).
+## For tests: the world-space Y span (top, bottom) of the held shape's whole
+## bookkeeping -- Vector2.ZERO when nothing is held or the prism collapsed (see
+## _update_projection_mesh()'s own guard). `top` is the held shape's current
+## *highest* point (_rotated_top_offset()); `bottom` is the footprint's landing
+## height. This is bookkeeping, not the mesh's extent: the walls stop at the
+## shape's underside.
 func projection_span_y() -> Vector2:
 	return _projection_span_y
 
@@ -1850,15 +1476,13 @@ func projection_span_y() -> Vector2:
 # --- Ghost-vs-placed-block collision (spec 1.4) -------------
 
 ## Local (unrotated), cell-local centers of the held shape's own collision
-## boxes -- matching game/blocks/BlockFactory.gd's build() exactly (same cube_size/
-## cube_margin and BlockShape.bottom_center() pivot) so game/PlayerController.
-## gd's swept collision test lines up with the box the real spawned Block
-## would occupy there. DECISION (game/player/GhostPreview.gd): duplicated rather
-## than calling into BlockFactory's own private, static
-## _make_collision_shape() -- BlockFactory is outside this package's file
-## ownership, and this is the same few lines _rotated_bottom_offset()/
-## _rotated_footprint_columns() above already compute for the same shape.
-## Empty (not null) when nothing is held.
+## boxes -- matching game/blocks/BlockFactory.gd's build() exactly (same
+## cube_size/cube_margin and BlockShape.bottom_center() pivot) so the swept
+## collision test lines up with the box the real spawned Block would occupy
+## there. DECISION (game/player/GhostPreview.gd): duplicated rather than calling
+## BlockFactory's private static _make_collision_shape(); it is the same few
+## lines _rotated_bottom_offset() already computes for the same shape. Empty (not
+## null) when nothing is held.
 func collision_box_local_centers() -> Array[Vector3]:
 	var centers: Array[Vector3] = []
 	if _shape == null:
@@ -1870,10 +1494,9 @@ func collision_box_local_centers() -> Array[Vector3]:
 
 
 ## Half-extent of one collision box, matching game/blocks/BlockFactory.gd's own
-## `half_size` (see collision_box_local_centers()'s DECISION above). A sloped
-## cell (ConvexPolygonShape3D in BlockFactory) is approximated as a full box
-## here -- no shipped shape sets sloped_cells today, so this never runs against a
-## shape it would misrepresent.
+## `half_size`. A sloped cell (ConvexPolygonShape3D in BlockFactory) is
+## approximated as a full box here -- no shipped shape sets sloped_cells today, so
+## this never runs against a shape it would misrepresent.
 func collision_half_size() -> float:
 	return (tuning.cube_size - tuning.cube_margin) * 0.5
 
@@ -1906,11 +1529,11 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
-## Called every frame by game/
-## PlayerController.gd's _drive_throw_visuals() with is_aiming_throw(), so the
-## tint appears/disappears the same frame the drag starts/ends. Reuses
-## _refresh_materials()'s existing dispatch (only _apply_validity_material()
-## reads _throw_hint_active -- see that function's own priority comment).
+## Called every frame by game/player/PlayerController.gd's
+## _drive_throw_visuals() with is_aiming_throw(), so the tint appears/disappears
+## the same frame the drag starts/ends. Reuses _refresh_materials()'s dispatch
+## (only _apply_validity_material() reads _throw_hint_active -- see its priority
+## comment).
 func show_throw_hint(active: bool) -> void:
 	_throw_hint_active = active
 	_refresh_materials()
@@ -1939,13 +1562,9 @@ func current_state() -> StringName:
 			return STATE_INVALID
 
 
-## "ghost block should still be
-## less transparent": every branch below now applies ghost_tuning.
-## ghost_opacity as the material's own alpha instead of whatever alpha the
-## picked colour happens to carry (_with_alpha() below) -- one F4 slider then
-## controls every state's own opacity together, rather than five separate
-## colour-picker alpha channels that would otherwise all need editing to stay
-## in sync.
+## Every branch below applies ghost_tuning.ghost_opacity as the material's alpha
+## instead of the picked colour's own alpha, so one F4 slider controls every
+## state's opacity together.
 func _apply_validity_material() -> void:
 	if _material == null:
 		return
@@ -1955,9 +1574,9 @@ func _apply_validity_material() -> void:
 			&"albedo_color", _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.ghost_opacity)
 		)
 		return
-	# M4 P2e: throw-aim wins over plain validity (same precedence _locked
-	# already has above) but loses to _locked -- an interval-locked piece
-	# cannot be released as a throw either, so that cue must still win.
+	# Throw-aim wins over plain validity (as _locked does above) but loses to
+	# _locked -- an interval-locked piece cannot be released as a throw either,
+	# so that cue must still win.
 	if _throw_hint_active:
 		_material.set_shader_parameter(&"use_hatch", false)
 		_material.set_shader_parameter(
@@ -1981,14 +1600,11 @@ func _apply_validity_material() -> void:
 			)
 
 
-## item 6: the footprint quads get a validity/lock cue tied to
-## the held shape's own body state (_apply_validity_material() above), at
-## ghost_tuning.footprint_alpha -- every footprint quad shares this one
-## material. (owner test "the footprint on the
-## disc should be almost white"): that cue is now only a faint hue blended
-## into a near-white base (_footprint_color_for_state()'s own doc), not the
-## full state colour the held shape's own body still shows -- see this same
-## file's _state_hue_color() for the one shared lookup both now use.
+## The footprint quads get a validity/lock cue tied to the held shape's own body
+## state (_apply_validity_material() above), at ghost_tuning.footprint_alpha --
+## every footprint quad shares this one material. The cue is only a faint hue
+## blended into a near-white base (_footprint_color_for_state()), not the full
+## state colour the body shows; _state_hue_color() is the one shared lookup.
 func _apply_footprint_material() -> void:
 	if _footprint_material == null:
 		return
@@ -2003,13 +1619,10 @@ func _apply_footprint_material() -> void:
 		_footprint_material.albedo_texture = null
 
 
-## user test "the projection colour is right":
-## the raw, un-alpha'd, un-blended state colour -- valid/invalid/hole/locked,
-## exactly what _apply_validity_material() picks for the held shape's own
-## body -- factored out of the old _footprint_color_for_state() so both the
-## footprint (now blended toward near-white below) and the projection prism
-## (still the plain state colour, just fainter and additive) can share one
-## lookup instead of drifting apart.
+## The raw, un-alpha'd, un-blended state colour -- valid/invalid/hole/locked,
+## exactly what _apply_validity_material() picks for the held shape's body -- so
+## the footprint (blended toward near-white) and the projection prism (the plain
+## state colour, fainter and additive) share one lookup.
 func _state_hue_color() -> Color:
 	if _locked:
 		return ghost_tuning.locked_tint_color
@@ -2022,40 +1635,24 @@ func _state_hue_color() -> Color:
 			return ghost_tuning.invalid_tint_color
 
 
-## owner test "the footprint on the disc should
-## be almost white": the footprint decal is now ghost_tuning.
-## footprint_base_color (near-white) with only a faint amount of the current
-## state's own hue blended in (footprint_hue_strength), rather than the full
-## state colour this used to return directly -- validity is still readable
-## (a hint of red/grey/gold tints the near-white disc), just far more subtle
-## than the held shape's own body or the projection prism now are.
+## ghost_tuning.footprint_base_color (near-white) with only a faint amount of the
+## current state's hue blended in (footprint_hue_strength): validity is still
+## readable (a hint of red/grey/gold tints the near-white disc), just far more
+## subtle than the held shape's body or the projection prism.
 func _footprint_color_for_state() -> Color:
 	var blended: Color = ghost_tuning.footprint_base_color.lerp(_state_hue_color(), ghost_tuning.footprint_hue_strength)
 	return _with_alpha(blended, ghost_tuning.footprint_alpha)
 
 
-## (this file's own header, fix (2)): the projection prism's own
-## walls, at ghost_tuning.projection_alpha instead of footprint_alpha -- the
-## brief calls for a noticeably fainter volume marker than the flat footprint
-## decal it stands on. DECISION (game/player/GhostPreview.gd): reuses
-## _state_hue_color()'s own plain state colour when
-## ghost_tuning.projection_uses_state_tint is true (the default -- the 's own reference screenshot, a reference screenshot of the original game, tints its
-## silhouette prism the same as everything else the ghost shows), just at the
-## prism's own alpha; false is kept as a tuning-panel escape hatch to compare
-## a state-neutral prism (always the base tint_color) without a second
-## migration, the same reasoning already used for several other GhostTuning
-## fields' own master-switch DECISIONs in this file/config/GhostTuning.gd.
-## (owner test "any surface that falls within the
-## projection should be a lot brighter (maybe emissive?)"): the prism's own
-## _projection_material now blends additively (BLEND_MODE_ADD, _ready())
-## rather than the usual alpha-over compositing, and this also drives its
-## emission colour at ghost_tuning.projection_emission_energy -- both make
-## the column brighten whatever is behind/inside it instead of just tinting
-## over it. DECISION (game/player/GhostPreview.gd): a per-block
-## emission hook on BlockFactory/Block.gd (outside this package's ownership)
-## was considered and rejected -- the prism material approach here achieves
-## the brief's own brightening effect with a purely visual, self-contained
-## change to this package's own material, with no gameplay-code touch at all.
+## The projection prism's walls, at ghost_tuning.projection_alpha (fainter than
+## the flat footprint decal it stands on). DECISION (game/player/GhostPreview.gd):
+## reuses _state_hue_color() when ghost_tuning.projection_uses_state_tint is true
+## (the default; the prism is tinted like everything else the ghost shows), and
+## false is a tuning-panel escape hatch for a state-neutral prism (always the base
+## tint_color). The material blends additively (BLEND_MODE_ADD, _ready()) and this
+## drives its emission at ghost_tuning.projection_emission_energy, so the column
+## brightens whatever is behind it. A per-block emission hook on
+## BlockFactory/Block.gd was rejected in favour of this material-only change.
 func _apply_projection_material() -> void:
 	if _projection_material == null:
 		return
@@ -2086,11 +1683,10 @@ func _process(delta: float) -> void:
 	advance_glow(delta)
 
 
-## Glue is a charge modifier, not a held piece. While the
-## local slot has charges the ghost's shape meshes get the translucent jelly shell.
-## DECISION: look constants live here (GhostTuning is owned elsewhere this
-## batch); remote ghosts can call set_glue_charges() once RemoteCursors
-## mirrors Match.glue_drops_left().
+## Glue is a charge modifier, not a held piece. While the local slot has charges
+## the ghost's shape meshes get the translucent jelly shell.
+## DECISION: remote ghosts get the same shell: RemoteCursors mirrors
+## Match.glue_drops_left() into set_glue_charges().
 var _glue_charges: int = 0
 
 
@@ -2192,9 +1788,8 @@ func _apply_material_to_visual() -> void:
 		if child is MeshInstance3D:
 			var mesh_instance: MeshInstance3D = child as MeshInstance3D
 			mesh_instance.material_override = _material
-			# DECISION ("the ghost has both the indicator and
-			# a shadow"): the held block is a preview, so it casts no light
-			# shadow; the projected footprint is its only ground marker.
+			# DECISION: the held block is a preview, so it casts no light shadow;
+			# the projected footprint is its only ground marker.
 			mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_apply_glue_overlay()
 
@@ -2202,22 +1797,17 @@ func _apply_material_to_visual() -> void:
 # --- Reject / auto-drop animation (spec 1.5, 1.4) ---------------------------
 
 ## Spec 1.5: "released [in a contested area] ... is thrown off the map with a
-## visible reject animation" (every invalid
-## release burns the block, decided by Match.request_place — this is just the
-## ghost-side cue: a bright flash plus a small arc kick on _reject_offset, a
-## world-space position offset applied on top of update_placement()'s/
-## sync_remote_position()'s own computed position every frame.
+## visible reject animation" (every invalid release burns the block, decided by
+## Match.request_place -- this is just the ghost-side cue: a bright flash plus a
+## small arc kick on _reject_offset, a world-space position offset applied on top
+## of update_placement()'s/sync_remote_position()'s computed position every
+## frame).
 ##
-## user test: used to
-## kick _shape_visual's own *local* position instead -- that offset rides
-## along with the ghost's rotation basis (_shape_visual is a plain, non-
-## top_level child), so a pitched or rolled held block's reject kick visibly
-## went the wrong way (an "upward" kick could come out sideways or backwards
-## depending on orientation). _reject_offset is a plain world-space vector
-## added after rotation is applied, so the kick direction (world +X sideways,
-## +Y up) never depends on the block's current rotation, while still
-## surviving PlayerController re-homing the ghost's position every frame --
-## the same reason the old local-offset trick existed in the first place.
+## The kick is a world-space vector added after rotation is applied, not an
+## offset on _shape_visual's local position, which rides along with the rotation
+## basis and would send a pitched or rolled block's kick the wrong way. The kick
+## direction (world +X sideways, +Y up) never depends on the block's rotation and
+## survives PlayerController re-homing the ghost's position every frame.
 func play_reject_animation() -> void:
 	_flash_material(ghost_tuning.reject_flash_color, ghost_tuning.reject_flash_duration)
 	if _reject_tween != null and _reject_tween.is_valid():
@@ -2247,22 +1837,18 @@ func _flash_material(color: Color, duration: float) -> void:
 	var restore_color: Color = _material.get_shader_parameter(&"albedo_color") as Color
 	_material.set_shader_parameter(&"albedo_color", color)
 	_flash_tween = create_tween()
-	# ShaderMaterial uniforms are reachable as a dynamic
-	# "shader_parameter/<name>" property (Godot's own documented idiom for
-	# animating a shader uniform with a Tween), replacing the old direct
-	# `albedo_color` property path this tween used against the
-	# StandardMaterial3D _material used to be.
+	# ShaderMaterial uniforms are reachable as a dynamic "shader_parameter/<name>"
+	# property (Godot's documented idiom for animating a shader uniform with a
+	# Tween).
 	_flash_tween.tween_property(_material, ^"shader_parameter/albedo_color", restore_color, duration)
 
 
 # --- Mesh / texture builders -------------------------------------------------
 
-## item 6: one flat polygon per bottom cell of the rotated
-## held shape (replaces _make_guide_mesh()'s old vertical line), tinted by the
-## shared _footprint_material so every quad repaints together when validity/
-## lock state changes. Starts meshless -- _update_footprint() assigns each
-## instance's real convex-hull mesh (_build_polygon_mesh()) every frame, since
-## its shape depends on the held shape's current rotation.
+## One flat polygon for the footprint, tinted by the shared _footprint_material
+## so every quad repaints together when validity/lock state changes. Starts
+## meshless -- _update_footprint() assigns the real mesh (_build_polygon_mesh())
+## every frame, since its shape depends on the held shape's current rotation.
 func _make_footprint_quad() -> MeshInstance3D:
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	mesh_instance.material_override = _footprint_material
@@ -2271,12 +1857,12 @@ func _make_footprint_quad() -> MeshInstance3D:
 
 
 ## A small diagonal-stripe pattern (spec 1.4: "hatched pattern when over a
-## hole"), generated once instead of shipped as an art asset. Tiled across
-## the flat footprint quad via ghost_tuning.hatch_scale (StandardMaterial3D.
-## uv1_scale) and, since across the held shape's own body via
-## the same hatch_scale read as a shaders/blocks/ghost_cell_grid.gdshader uniform
-## (hand-rolled triplanar sampling there, not uv1_scale -- that shape's mesh
-## has 0..1 UVs per cell face, not per whole shape).
+## hole"), generated once instead of shipped as an art asset. Tiled across the
+## flat footprint quad via ghost_tuning.hatch_scale (StandardMaterial3D.uv1_scale)
+## and across the held shape's body via the same hatch_scale as a
+## shaders/blocks/ghost_cell_grid.gdshader uniform (hand-rolled triplanar
+## sampling there, not uv1_scale -- the shape's mesh has 0..1 UVs per cell face,
+## not per whole shape).
 func _build_hatch_texture() -> ImageTexture:
 	var image: Image = Image.create(HATCH_TEXTURE_SIZE, HATCH_TEXTURE_SIZE, false, Image.FORMAT_RGBA8)
 	var period: float = float(HATCH_TEXTURE_SIZE) / 4.0
@@ -2285,22 +1871,10 @@ func _build_hatch_texture() -> ImageTexture:
 			var phase: float = fmod(float(x + y), period) / period
 			var opaque: bool = phase < ghost_tuning.hatch_stripe_width
 			image.set_pixel(x, y, Color(1.0, 1.0, 1.0, 1.0 if opaque else 0.0))
-	# user F12 report:
-	# the footprint under the ghost read as black/white speckled noise instead
-	# of a flat pale quad/hatch pattern: the footprint quad's own diagonal
-	# stripe pattern is a HOLE/GOAL_ZONE-only visual (_apply_footprint_
-	# material()/_apply_validity_material() above) tiled several times across
-	# a small quad via ghost_tuning.hatch_scale -- with no mip chain, the GPU
-	# had only this one full-resolution level to minify from at any distance
-	# or oblique ground-decal viewing angle, and linear-filtering a
-	# diagonal high-frequency stripe pattern down that hard aliases into the
-	# reported speckled noise (confirmed by reproducing the exact same
-	# artefact via a script removed in (see git history) with the ghost
-	# forced into PlacementRules.Result.HOLE, and by ruling out
-	# _block_projection_decal -- its own texture is a single flat colour
-	# with no frequency content to alias, and the artefact persisted with
-	# ghost_tuning.block_projection_alpha forced to 0). generate_mipmaps()
-	# gives the renderer the downsampled levels it needs to blend a proper
-	# grey average instead of aliasing, fixing this at any distance/angle.
+	# Mipmaps: without a mip chain the GPU has only this one full-resolution
+	# level to minify from at distance or at an oblique ground-decal angle, and
+	# linear-filtering a high-frequency diagonal stripe pattern that hard aliases
+	# into speckled noise. generate_mipmaps() gives the renderer the downsampled
+	# levels it needs to blend a proper grey average.
 	image.generate_mipmaps()
 	return ImageTexture.create_from_image(image)
