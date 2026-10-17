@@ -19,12 +19,12 @@ func _config(tilt_mode: MatchConfig.TiltMode = MatchConfig.TiltMode.SPECIALS_ONL
 # --- register_world() + start_match() enables tilt --------------------------
 
 func test_starting_a_specials_only_match_enables_tilt_on_the_registered_field() -> void:
-	assert_false(_field.tilt_enabled(), "fixture: Field starts with tilt off")
+	assert_false(_field.sync_to_physics, "fixture: Field starts with tilt off (no physics sync)")
 
 	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
 
 	assert_true(
-		_field.tilt_enabled(),
+		_field.sync_to_physics,
 		"start_match() with tilt_mode SPECIALS_ONLY must enable the field's tilt controller"
 	)
 
@@ -83,7 +83,7 @@ func test_abort_disables_tilt_and_levels_the_disc() -> void:
 
 	Match.abort_match()
 
-	assert_false(_field.tilt_enabled(), "abort_match() must disable the field's tilt controller")
+	assert_false(_field.sync_to_physics, "abort_match() must disable the field's tilt controller")
 	assert_eq(_field.tilt_vector(), Vector2.ZERO, "abort_match() must level the disc")
 
 

@@ -68,7 +68,7 @@ func _run_host() -> void:
 		_force_host_state()
 		await _wait(HOST_FORCE_STEP_S)
 	print("BTENET host mode=%s timer=%s chip=%s" % [
-		"ctf" if _ctf else "classic", _field.goal_flags()[0].timer_text(), _field.goal_flags()[0].multiplier_chip_text()])
+		"ctf" if _ctf else "classic", _label_text(_field.goal_flags()[0], "TimerLabel"), _label_text(_field.goal_flags()[0], "MultiplierLabel")])
 	get_tree().quit(0)
 
 
@@ -96,7 +96,7 @@ func _run_client() -> void:
 	var seen: bool = await _until(_labels_follow_host, 20.0)
 	var flag: GoalFlag = _field.goal_flags()[0]
 	print("BTENET client mode=%s playing=%s timer=%s chip=%s ctrl=%d" % [
-		"ctf" if _ctf else "classic", playing, flag.timer_text(), flag.multiplier_chip_text(), flag.control()])
+		"ctf" if _ctf else "classic", playing, _label_text(flag, "TimerLabel"), _label_text(flag, "MultiplierLabel"), flag.control()])
 	print("BTENET result=%s" % ("PASS" if playing and seen else "FAIL"))
 	await _wait(1.0)
 	get_tree().quit(0)
@@ -108,10 +108,16 @@ func _labels_follow_host() -> bool:
 		return false
 	for flag: GoalFlag in flags:
 		if _ctf:
-			if flag.timer_text().is_empty() or flag.multiplier_chip_text() != "x2":
+			if _label_text(flag, "TimerLabel").is_empty() or _label_text(flag, "MultiplierLabel") != "x2":
 				return false
 		else:
 			# Half of the shared hold left (the client extrapolates a little), never empty.
-			if flag.timer_text().is_empty():
+			if _label_text(flag, "TimerLabel").is_empty():
 				return false
 	return true
+
+
+## What a player reads on a beacon's Label3D: its text while shown, "" while hidden.
+func _label_text(flag: GoalFlag, label_name: String) -> String:
+	var label: Label3D = flag.get_node(label_name) as Label3D
+	return label.text if label.visible else ""

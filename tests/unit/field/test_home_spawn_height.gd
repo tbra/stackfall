@@ -70,7 +70,7 @@ func _make_controller() -> PlayerController:
 ## and crystal shape owners on the beacon body), measured independently of
 ## BeaconVisualTuning.beacon_top_height() so the two are cross-checked.
 func _collider_top_local(field: Field, slot_id: int) -> float:
-	var body: AnimatableBody3D = field.beacon_body()
+	var body: AnimatableBody3D = field.get_node("BeaconBody") as AnimatableBody3D
 	var top: float = -INF
 	for owner_id: int in field._flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array:
 		var shape: Shape3D = body.shape_owner_get_shape(owner_id, 0)

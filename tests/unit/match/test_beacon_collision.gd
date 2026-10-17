@@ -38,17 +38,22 @@ func test_block_dropped_on_beacon_rests_above_it() -> void:
 	assert_gt(body.global_position.y - 0.25, floor_y + rest_y - 0.1, "rests on the socket, not the disc")
 
 
+## The child body carrying every beacon's shapes (Field creates it on the first place_flags()).
+func _beacon_body(field: Field) -> AnimatableBody3D:
+	return field.get_node("BeaconBody") as AnimatableBody3D
+
+
 func test_elimination_removes_collider() -> void:
 	var field: Field = _field()
-	var both: int = field.beacon_body().get_shape_owners().size()
+	var both: int = _beacon_body(field).get_shape_owners().size()
 	assert_gt(both, 0, "fixture: the beacons carry colliders")
 	Events.player_eliminated.emit(1, 1)
-	var remaining: int = field.beacon_body().get_shape_owners().size()
+	var remaining: int = _beacon_body(field).get_shape_owners().size()
 	assert_lt(remaining, both, "the eliminated beacon's colliders go")
 	assert_gt(remaining, 0, "other beacons keep theirs")
 	field.clear_match_state()
 	assert_eq(field.get_shape_owners().size(), 1, "disc owner untouched")
-	assert_eq(field.beacon_body().get_shape_owners().size(), 0, "no beacon shapes remain")
+	assert_eq(_beacon_body(field).get_shape_owners().size(), 0, "no beacon shapes remain")
 
 
 func test_placement_ray_ignores_beacon() -> void:

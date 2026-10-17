@@ -65,19 +65,11 @@
    "game/debug/AgentProbe.gd:parse_render_size",
    "game/debug/DebugMode.gd:clear_override_for_test",
    "game/debug/DebugMode.gd:set_override_for_test",
-   "game/field/Field.gd:beacon_body",
-   "game/field/Field.gd:pending_toggle_count",
-   "game/field/Field.gd:physical_balance_torque",
-   "game/field/Field.gd:tilt_enabled",
    "game/field/HoleDissolver.gd:reset",
    "game/field/HoleDissolver.gd:set_field",
-   "game/field/TerritoryOverlay.gd:circle_count",
-   "game/flags/GoalFlag.gd:multiplier_chip_text",
-   "game/flags/GoalFlag.gd:timer_text",
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/player/RemoteCursors.gd:set_providers",
-   "game/world/MatchContext.gd:goal_zone_visual_radius",
    "net/BreezeNet.gd:set_providers",
    "net/MatchNet.gd:set_providers",
    "net/SnowNet.gd:set_providers",
@@ -254,11 +246,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:goal_zone_visual_radius",
-   "reason": "live: autoload/match/MatchContextLive.gd:118 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:match_timer_left",
    "reason": "live: net/MatchNet.gd:2220 (untyped or dynamic call)"
   },
@@ -304,11 +291,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:qol_claim_radius",
-   "reason": "Match.gd:764 in goal_zone_visual_radius (MatchContextLive.gd:118, Field.gd:1118)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:request_throw",
    "reason": "live: game/bots/BotController.gd:919 (untyped or dynamic call)"
   },
@@ -321,11 +303,6 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:sudden_death_active",
    "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:goal_zone_visual_radius",
-   "reason": "Field.gd:1118 MatchContext.current().goal_zone_visual_radius()"
   },
   {
    "id": "test-only-func",

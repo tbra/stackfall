@@ -18,40 +18,54 @@ func _claim(team: int) -> void:
 	_flag.set_control(team, TEAM_COLOR if team >= 0 else Color.WHITE, PackedColorArray())
 
 
+## What a player reads on the beacon's Label3D: its text while shown, "" while hidden.
+func _label_text(flag: GoalFlag, label_name: String) -> String:
+	var label: Label3D = flag.get_node(label_name) as Label3D
+	return label.text if label.visible else ""
+
+
+func _timer_text(flag: GoalFlag) -> String:
+	return _label_text(flag, "TimerLabel")
+
+
+func _chip_text(flag: GoalFlag) -> String:
+	return _label_text(flag, "MultiplierLabel")
+
+
 func test_classic_flag_label_follows_capture_and_ticks_down() -> void:
-	assert_eq(_flag.timer_text(), "", "neutral beacon shows nothing")
+	assert_eq(_timer_text(_flag), "", "neutral beacon shows nothing")
 	_flag.set_countdown(0, 0.5, HOLD_S, TEAM_COLOR)
-	assert_eq(_flag.timer_text(), "0:10")
+	assert_eq(_timer_text(_flag), "0:10")
 	_flag._process(4.0)
-	assert_eq(_flag.timer_text(), "0:06")
+	assert_eq(_timer_text(_flag), "0:06")
 	_flag.set_countdown(-1, 0.0, HOLD_S, Color.WHITE)
-	assert_eq(_flag.timer_text(), "", "claim lost: hidden")
+	assert_eq(_timer_text(_flag), "", "claim lost: hidden")
 
 
 func test_ctf_flag_counts_up_while_held_and_resets_on_new_holder() -> void:
 	_flag.set_timer_counts_up(true)
-	assert_eq(_flag.timer_text(), "", "unheld")
+	assert_eq(_timer_text(_flag), "", "unheld")
 	_claim(0)
 	_flag._process(3.2)
-	assert_eq(_flag.timer_text(), "0:03")
+	assert_eq(_timer_text(_flag), "0:03")
 	_claim(1)
-	assert_eq(_flag.timer_text(), "0:00", "new holder restarts the clock")
+	assert_eq(_timer_text(_flag), "0:00", "new holder restarts the clock")
 	_flag._process(61.0)
-	assert_eq(_flag.timer_text(), "1:01")
+	assert_eq(_timer_text(_flag), "1:01")
 	_claim(GoalControl.NEUTRAL)
-	assert_eq(_flag.timer_text(), "")
+	assert_eq(_timer_text(_flag), "")
 
 
 func test_ctf_multiplier_chip_shows_only_for_held_multiples() -> void:
 	_flag.set_timer_counts_up(true)
 	_claim(0)
 	_flag.set_multiplier(2)
-	assert_eq(_flag.multiplier_chip_text(), "x2")
+	assert_eq(_chip_text(_flag), "x2")
 	_flag.set_multiplier(1)
-	assert_eq(_flag.multiplier_chip_text(), "")
+	assert_eq(_chip_text(_flag), "")
 	_flag.set_multiplier(3)
 	_claim(GoalControl.NEUTRAL)
-	assert_eq(_flag.multiplier_chip_text(), "", "no chip on an unheld beacon")
+	assert_eq(_chip_text(_flag), "", "no chip on an unheld beacon")
 
 
 func test_field_feeds_multiplier_from_replicated_mode_state() -> void:
@@ -64,10 +78,10 @@ func test_field_feeds_multiplier_from_replicated_mode_state() -> void:
 		flag.set_timer_counts_up(true)
 		flag.set_control(0, Color.RED, PackedColorArray())
 	Events.mode_state_changed.emit({"mode_id": CTF, "scores": [0.0, 0.0], "extra": {"held_0": 2, "held_1": 0}})
-	assert_eq(flags[0].multiplier_chip_text(), "x2")
-	assert_eq(flags[1].multiplier_chip_text(), "x2")
+	assert_eq(_chip_text(flags[0]), "x2")
+	assert_eq(_chip_text(flags[1]), "x2")
 	Events.mode_state_changed.emit({"mode_id": CTF, "scores": [0.0, 0.0], "extra": {"held_0": 1, "held_1": 0}})
-	assert_eq(flags[0].multiplier_chip_text(), "")
+	assert_eq(_chip_text(flags[0]), "")
 
 
 func test_timer_text_takes_controlling_team_colour() -> void:

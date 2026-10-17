@@ -269,16 +269,6 @@ func test_physical_balance_tilts_toward_a_settled_offcenter_load() -> void:
 	)
 
 
-# --- Torque latch (follow-up) --------------------------------
-#
-# BlockRegistry.settled_torque_samples() only counts entries whose own
-# is_settled accumulator is currently true; a real match's own tilt can wake
-# a resting body and drop it out of the sample set for a tick or more before
-# it resettles. These exercise Field._physical_balance_torque_accel()'s latch
-# (see its own DECISION) directly through physical_balance_torque(), without
-# waiting out a real wake/resettle cycle under a moving disk.
-
-
 ## a small stack on a leaned, latched disc sleeps; a later tilt
 ## impulse still carries it (sync re-armed), with no clipping through the top.
 func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> void:

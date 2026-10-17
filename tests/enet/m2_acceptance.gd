@@ -1028,12 +1028,20 @@ func _hole_cells() -> PackedInt32Array:
 
 
 ## Field batches its collision toggles, so nothing may be dropped on a hole
-## until the backlog is empty.
+## until the field's applied holes match the raster's (the backlog is empty).
 func _drain_field_backlog() -> void:
 	for _i: int in range(MAX_MARCH_STEPS * 10):
-		if _field.pending_toggle_count() == 0:
+		if _field_holes_match_raster():
 			return
 		await _step(1)
+
+
+func _field_holes_match_raster() -> bool:
+	var raster: TerritoryRaster = Match.raster()
+	for index: int in raster.grid().in_disk_cells():
+		if _field.is_hole_cell(index) != raster.is_hole_index(index):
+			return false
+	return true
 
 
 ## Drops a bare block (not a placement -- placing on a hole is refused) over a

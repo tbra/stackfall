@@ -80,6 +80,9 @@ func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_hol
 	field._drain_toggles()
 	assert_true(field.is_hole_cell(opened[0]), "fixture: the hole is actually applied before clearing")
 	assert_not_null(field.overlay()._raster, "fixture: the overlay actually holds the raster before clearing")
+	# A toggle still waiting in the backlog when the match ends: the next physics frame must not apply it.
+	var queued: int = field.grid().in_disk_cells()[1]
+	field.set_hole_cells(PackedInt32Array([queued]), PackedInt32Array())
 
 	field.clear_match_state()
 
@@ -87,6 +90,7 @@ func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_hol
 	assert_true(field.goal_flags().is_empty(), "goal flags are freed")
 	assert_null(field.overlay()._raster, "the overlay keeps no reference to the old raster")
 	assert_false(field.is_hole_cell(opened[0]), "the hole this match opened is closed")
-	assert_eq(field.pending_toggle_count(), 0, "no queued toggle survives clearing")
+	await wait_physics_frames(1)
+	assert_false(field.is_hole_cell(queued), "no queued toggle survives clearing")
 
 

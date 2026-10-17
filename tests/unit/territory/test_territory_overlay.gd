@@ -59,6 +59,11 @@ func _make_raster(map_def: MapDef) -> ScriptedRaster:
 	return ScriptedRaster.new(grid, load("res://config/territory/territory_tuning.tres"))
 
 
+## Circles the overlay has uploaded: the shader's circle_count uniform.
+func _uploaded_circles(overlay: TerritoryOverlay) -> int:
+	return int(overlay.material().get_shader_parameter(&"circle_count"))
+
+
 ## The upscaled pixel sitting exactly on cell (cx, cy)'s center.
 func _sample(image: Image, cx: int, cy: int) -> Color:
 	var middle: int = floori(float(UPSCALE - 1) * 0.5)
@@ -195,7 +200,7 @@ func test_set_circles_uploads_one_texel_per_circle() -> void:
 		xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false
 	)
 
-	assert_eq(overlay.circle_count(), 3, "The shader's circle_count uniform.")
+	assert_eq(_uploaded_circles(overlay), 3, "The shader's circle_count uniform.")
 	assert_eq((overlay.material().get_shader_parameter(&"circle_tex") as ImageTexture).get_width(), 3, "One texel per circle, RGBAF.")
 	var texel: Color = overlay._circle_image.get_pixel(1, 0)
 	assert_almost_eq(texel.r, xs[1], 0.001, "R = disk-local x")
@@ -218,7 +223,7 @@ func test_set_circles_uploads_goal_discs_independently() -> void:
 		goal_positions, goal_radii, false
 	)
 
-	assert_eq(overlay.circle_count(), 0, "Goal discs upload without any territory circle.")
+	assert_eq(_uploaded_circles(overlay), 0, "Goal discs upload without any territory circle.")
 	assert_eq(overlay.goal_count(), 2)
 	assert_eq(int(overlay.material().get_shader_parameter(&"goal_count")), 2, "The shader's goal_count uniform.")
 	var goal_tex: ImageTexture = overlay.material().get_shader_parameter(&"goal_tex") as ImageTexture
@@ -255,7 +260,7 @@ func test_a_circle_list_over_the_shader_budget_falls_back_to_the_raster_path() -
 	var teams: PackedInt32Array = PackedInt32Array([0, 0, 0])
 	overlay.set_circles(xs, zs, radii, teams, PackedVector2Array(), PackedFloat32Array(), false)
 
-	assert_eq(overlay.circle_count(), 3, "The full list still uploads, for readback.")
+	assert_eq(_uploaded_circles(overlay), 3, "The full list still uploads, for readback.")
 	assert_false(
 		bool(overlay.material().get_shader_parameter(&"circles_valid")),
 		"Over max_shader_circles: the shader must fall back to the raster path, spec 2.5 'Bounded cost'."
@@ -269,12 +274,12 @@ func test_set_source_null_clears_the_circle_list() -> void:
 		PackedFloat32Array([1.0]), PackedFloat32Array([1.0]), PackedFloat32Array([1.0]),
 		PackedInt32Array([0]), PackedVector2Array([Vector2.ONE]), PackedFloat32Array([1.0]), false
 	)
-	assert_eq(overlay.circle_count(), 1)
+	assert_eq(_uploaded_circles(overlay), 1)
 	assert_eq(overlay.goal_count(), 1)
 
 	overlay.set_source(null, PackedColorArray())
 
-	assert_eq(overlay.circle_count(), 0, "set_source(null) must not leave a stale match's circles up.")
+	assert_eq(_uploaded_circles(overlay), 0, "set_source(null) must not leave a stale match's circles up.")
 	assert_eq(overlay.goal_count(), 0)
 	assert_false(bool(overlay.material().get_shader_parameter(&"circles_valid")))
 
@@ -308,7 +313,7 @@ func test_field_hands_its_overlay_the_circle_list() -> void:
 		PackedInt32Array([1]), PackedVector2Array(), PackedFloat32Array(), false
 	)
 
-	assert_eq(field.overlay().circle_count(), 1, "Field.set_overlay_circles routes to the overlay.")
+	assert_eq(_uploaded_circles(field.overlay()), 1, "Field.set_overlay_circles routes to the overlay.")
 	var texel: Color = field.overlay()._circle_image.get_pixel(0, 0)
 	assert_almost_eq(texel.a, 1.0, 0.001, "Team id survives the hand-off.")
 
