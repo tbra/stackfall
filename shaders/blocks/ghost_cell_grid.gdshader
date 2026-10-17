@@ -1,46 +1,31 @@
 shader_type spatial;
-// "ghost block renders without any lines":
-// game/player/GhostPreview.gd's held-block body used a plain StandardMaterial3D with
-// no cell-grid lines at all -- shaders/blocks/block_cell_grid.gdshader (the real
-// placed-block shader) was never assigned to it, and GhostPreview's own
-// _apply_material_to_visual() immediately overwrote build_visual_only()'s
-// meshes with that plain material anyway. This is a dedicated variant of that
-// shader for the ghost's own translucent body, not a shared/edited copy of
-// block_cell_grid.gdshader itself:
+// Dedicated variant of block_cell_grid.gdshader for the ghost's translucent
+// body (game/player/GhostPreview.gd):
 //   - the ghost needs ALPHA (translucency, validity-tint alpha) and a
-//     triplanar hatch overlay (HOLE/GOAL_ZONE state) neither of which the
-//     real, always-opaque block shader supports or should gain -- adding
-//     either there would change every placed block's own render_mode/opaque
-//     depth-draw behaviour, which this package must not touch (see
-//     game/blocks/BlockFactory.gd's own shader, untouched).
-//   - deliberately has NO `contributing` instance uniform at all (contrast
-//     block_cell_grid.gdshader's own one) -- the settled/sleeping "resting =
-//     contributing to territory influence" glow is reserved
-//     for real placed blocks; leaving the uniform out entirely, rather than
-//     just never setting it true, means the ghost structurally cannot ever
-//     receive that glow, not just that nothing currently requests it.
-//   - no toon-banded light() override: the ghost's own default PBR-ish
-//     shading is unchanged from the StandardMaterial3D this replaces
-//     (SHADING_MODE_PER_PIXEL, no explicit ROUGHNESS/METALLIC/SPECULAR --
-//     Godot's built-in spatial shader defaults for those already match
-//     StandardMaterial3D's own defaults when a shader never writes them).
+//     triplanar hatch overlay (HOLE/GOAL_ZONE state), neither of which the
+//     always-opaque placed-block shader should gain: either would change every
+//     placed block's render_mode and depth-draw behaviour.
+//   - deliberately has NO `contributing` instance uniform: the "resting =
+//     contributing to territory influence" glow is reserved for real placed
+//     blocks, and leaving the uniform out means the ghost structurally cannot
+//     receive it.
+//   - no toon-banded light() override: the default PBR-ish shading matches
+//     StandardMaterial3D's defaults when a shader never writes ROUGHNESS,
+//     METALLIC or SPECULAR.
 //
-// Cell-grid lines: identical UV-edge-distance trick to block_cell_grid.
-// gdshader -- see that file's own header for why BlockMeshBuilder's merged,
-// 0..1-per-cell-face UVs make this exact, with no extra per-cell bookkeeping.
-// grid_line_color/grid_line_width_px are read straight from the same
-// BlockVisualTuning resource game/blocks/BlockFactory.gd's real blocks use
-// (game/player/GhostPreview.gd's own VISUAL_TUNING const), so a real block and its
-// own ghost preview always draw identical grid lines.
+// Cell-grid lines: the same UV-edge-distance trick as block_cell_grid.gdshader
+// (see its header: BlockMeshBuilder's merged mesh has 0..1 UVs per cell face).
+// grid_line_color/grid_line_width_px are read from the same BlockVisualTuning
+// resource the real blocks use (GhostPreview.gd's VISUAL_TUNING), so a block and
+// its ghost always draw identical grid lines.
 //
 // DECISION (shaders/blocks/ghost_cell_grid.gdshader): translucency
 // comes from writing ALPHA alone, with no explicit `render_mode blend_mix`
 // keyword -- relying on the same Godot behaviour shaders/territory/territory.gdshader's
-// own header already documents for this project ("a shader that never writes
+// own header documents ("a shader that never writes
 // ALPHA is opaque by default and always depth-tests and depth-writes
 // normally"; the converse holds too: writing ALPHA switches the material
-// into the blended/transparent draw path). Confirmed visually via
-// a script removed in (see git history).
+// into the blended/transparent draw path).
 //
 // DECISION (shaders/blocks/ghost_cell_grid.gdshader): the hatch
 // overlay (HOLE/GOAL_ZONE state, spec 1.4 "hatched pattern when over a
@@ -50,12 +35,10 @@ shader_type spatial;
 // equivalent -- the ghost's single merged shape mesh has 0..1 UVs per cell
 // face (needed for the grid lines above), not a whole-shape 0..1 range, so a
 // plain UV-mapped hatch would repeat once per cell instead of tiling evenly
-// across the whole silhouette the way the original StandardMaterial3D
-// (uv1_triplanar + uv1_scale) did. This blend skips uv1_triplanar_sharpness'
+// across the whole silhouette. This blend skips uv1_triplanar_sharpness'
 // own exponent (a plain linear normalize instead) -- close enough for a
 // translucent overlay pattern, not a lit surface material, and avoids a
-// magic-number sharpness constant this package has no to tune
-// against.
+// magic-number sharpness constant.
 render_mode cull_back;
 
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
@@ -66,15 +49,15 @@ uniform vec4 grid_line_color : source_color = vec4(0.12, 0.1, 0.1, 1.0);
 // _apply_validity_material(), which is the only place any of these three
 // change together (use_hatch toggled with hatch_scale, hatch_texture bound
 // once in _ready()).
-// same bottom-of-cell contact shading and edge catch-light as
-// shaders/blocks/block_cell_grid.gdshader so the ghost matches the real block.
+// Same bottom-of-cell contact shading and edge catch-light as
+// block_cell_grid.gdshader so the ghost matches the real block.
 uniform float cell_ao_strength : hint_range(0.0, 1.0) = 0.3;
 uniform float cell_ao_height : hint_range(0.05, 1.0) = 0.7;
 uniform float bevel_highlight_strength : hint_range(0.0, 1.0) = 0.25;
 uniform float bevel_highlight_width_px = 2.4;
 uniform vec4 bevel_highlight_color : source_color = vec4(1.0, 0.93, 0.8, 1.0);
 
-// soft fresnel rim glow in the ghost's own tint colour
+// Soft fresnel rim glow in the ghost's own tint colour
 // (albedo_color.rgb, so it follows valid/invalid/hole/locked/throw). Strength is
 // driven per frame by game/player/GhostPreview.gd (steady glow, pulsing near the forced
 // drop); rim power comes from GhostTuning.glow_rim_power.
@@ -105,10 +88,7 @@ float sample_hatch_triplanar_alpha(vec3 world_pos, vec3 world_normal, float scal
 }
 
 void fragment() {
-	// Same UV-edge-distance grid-line trick as shaders/block_cell_grid.
-	// gdshader's own fragment() -- see that file's header for why
-	// BlockMeshBuilder's per-cell 0..1 UVs make this land exactly on cell
-	// boundaries and the shape's own silhouette.
+	// Same UV-edge-distance grid-line trick as block_cell_grid.gdshader.
 	vec2 to_edge = min(v_uv, vec2(1.0) - v_uv);
 	float dist_to_edge = min(to_edge.x, to_edge.y);
 	float px_width = max(fwidth(dist_to_edge), 0.0001) * grid_line_width_px;

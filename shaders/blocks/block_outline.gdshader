@@ -8,26 +8,24 @@ shader_type spatial;
 // enlarged back faces show, silhouetting the real mesh from behind it) and
 // push every vertex outward. Flat, unshaded colour -- a hand-inked line.
 //
-// graphics roadmap "Improved cel-shader": the push is now
-// done in clip space so the outline is a constant number of *screen pixels*
-// wide at any distance (the old 6 mm world-space push was sub-pixel far away
-// and shimmered/muddied there). The width eases from outline_width_px close
+// The push is done in clip space so the outline is a constant number of
+// *screen pixels* wide at any distance (a world-space push is sub-pixel far
+// away and shimmers). The width eases from outline_width_px close
 // up to the thinner outline_far_width_px between outline_fade_start_m and
 // outline_far_distance_m so a 300-block skyline does not turn into a dark mesh.
 //
-// `tint_color` is a per-instance parameter (the block's own
-// colour) so the material stays one shared instance; outline_color mixes with
+// `tint_color` is a per-instance parameter (the block's own colour) so the material stays one shared instance; outline_color mixes with
 // the darkened tint by outline_tint_amount.
-// DECISION (fix2b, GPU cost): depth_draw_never moves the hull
+// DECISION (GPU cost): depth_draw_never moves the hull
 // out of the opaque path into the transparent pass. An opaque next_pass is drawn
 // in the depth prepass, the colour pass and every shadow cascade (collapsed there
 // via IN_SHADOW_PASS, but still one draw per block per cascade); a no-depth-write
 // pass is drawn once, depth-TESTED against the finished opaque depth, so the
 // back faces behind the block are still rejected and only the silhouette rim
-// shades, exactly as before. The output colour is unchanged (no ALPHA write =
-// opaque blend) and fog still applies. The one difference: the
-// transparent pass runs after SSR, so the rim no longer shows inside the disc's
-// screen-space reflection of a block (a ~1 px line in a rough reflection).
+// shades. The output colour is opaque (no ALPHA write) and fog still applies.
+// The one cost: the transparent pass runs after SSR, so the rim does not show
+// inside the disc's screen-space reflection of a block (a ~1 px line in a rough
+// reflection).
 render_mode cull_front, unshaded, depth_draw_never;
 #include "res://shaders/include/block_dissolve.gdshaderinc"
 
@@ -40,8 +38,8 @@ uniform float outline_tint_amount : hint_range(0.0, 1.0) = 0.65;
 uniform float outline_tint_darken : hint_range(0.0, 1.0) = 0.35;
 
 uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-// same progress as the cell-grid pass (shared noise), the
-// outline vanishes with the surface it inks.
+// Same progress as the cell-grid pass (shared noise), so the outline vanishes
+// with the surface it inks.
 instance uniform float dissolve_amount : instance_index(1) = 0.0;
 uniform float dissolve_noise_scale = 5.0;
 uniform float dissolve_edge_width : hint_range(0.01, 0.6) = 0.14;

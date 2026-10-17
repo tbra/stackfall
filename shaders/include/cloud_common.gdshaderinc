@@ -41,8 +41,7 @@ float cumulus_height(sampler2D perlin, vec2 p) {
 		+ billow(perlin, p * 5.1 + vec2(0.7, 0.13)) * 0.08;
 }
 
-// Gradient map: a colour's luminance mapped onto a
-// moonlit three-stop ramp (dark -> mid -> light), keeping every cloud
+// Gradient map: a colour's luminance mapped onto a moonlit three-stop ramp (dark -> mid -> light), keeping every cloud
 // form but none of its warm hue or sun glow. `amount` 0 returns `c`.
 vec3 moonlit_grade(vec3 c, float amount, vec3 dark, vec3 mid, vec3 light, float gamma) {
 	float l = pow(clamp(dot(c, vec3(0.299, 0.587, 0.114)), 0.0, 1.0), gamma);
@@ -63,8 +62,7 @@ vec3 flow_phases(float time, float period, float jitter) {
 	return vec3(a - 0.5, b - 0.5, abs(1.0 - 2.0 * a));
 }
 
-// procedural sky P2: pure helpers for the procedural
-// sunset. No texture taps, so they are safe in the radiance (cubemap) pass and
+// Pure helpers for the procedural sunset. No texture taps, so they are safe in the radiance (cubemap) pass and
 // never divide by eyedir.y (no NaN at the horizon).
 
 // Three-stop vertical ramp on elevation `y` (= EYEDIR.y, -1..1). 0 -> horizon,
@@ -93,9 +91,8 @@ vec2 sun_disc(float cos_angle, float core_deg, float edge_deg, float halo_deg, f
 	return vec2(disc, halo);
 }
 
-// the one cel cloud body shared by the far sea stratum and the
-// upper puff layer (the same puff shader), so every
-// layer has the same noise character, banding and shade/highlight relation.
+// The one cel cloud body shared by the far sea stratum and the upper puff
+// layer, so every layer has the same noise character, banding and shade/highlight relation.
 // `q` is the noise coordinate. Shade = thickness blended with how much the
 // local noise faces the light (a one-tap sun probe), snapped to `bands` cel
 // steps. `underside` flips the thickness term (seen from below the thick middle
@@ -115,8 +112,7 @@ vec4 cloud_cel_layer(sampler2D noise_tex, vec2 q, vec2 to_sun, float coverage, f
 	return vec4(mix(col, rim_color, rim * 0.6), body);
 }
 
-// procedural sky P3: one plane-projected cel cloud stratum
-// seen from above (dir.y < 0). `height` is the camera height above the stratum
+// One plane-projected cel cloud stratum seen from above (dir.y < 0). `height` is the camera height above the stratum
 // plane, so a smaller height is a nearer, faster-parallaxing sheet. Four noise
 // taps (3 for the lumps, 1 for the sun-facing probe). Returns rgb + coverage
 // alpha; `depth` must already be guarded > 0 by the caller.
@@ -143,8 +139,7 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 	float fade = 1.0 - smoothstep(0.0, max(horizon_fade, 0.001), depth);
 	vec3 col = mix(base_near, base_far, smoothstep(0.0, 1.0, depth));
 	if (fade < 0.999) {
-		// DECISION: the 3D puffs (incl. the far ring added for the
-		// procedural look) carry the bright lit cumulus tops; this shader deck is
+		// DECISION: the 3D puffs (incl. the far ring) carry the bright lit cumulus tops; this shader deck is
 		// only the violet-rose cloud floor between them, so its ramp tops out just
 		// above `mid` and never paints flat white puddles.
 		vec3 deck_lit = mix(mid, lit, 0.2);
@@ -152,18 +147,16 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 		vec4 far_s = procedural_sea_stratum(noise_tex, dir, to_sun, depth, time, heights.x, sea_params.x,
 			wind, sea_params.z, coverage, softness, sea_params.w, band_edge, 0.04, 6.0,
 			shadow, mid, deck_lit, deck_lit, false);
-		// One low-contrast stratum only: a soft mottled cloud floor (the second
-		// stratum was dropped; it read as flat puddles and cost 4 more taps).
+		// One low-contrast stratum only: a soft mottled cloud floor (a second
+		// stratum read as flat puddles and cost 4 more taps).
 		col = mix(col, far_s.rgb, far_s.a * 0.55);
 	}
 	return mix(col, haze, fade);
 }
 
-// procedural sky pass 2: one upper cloud layer for the
-// procedural look. Replaces the old stretched fbm strata, whose per-axis stretch
-// read as radial streaks/spirals. The view direction is projected onto a high
+// One upper cloud layer for the procedural look. The view direction is projected onto a high
 // plane with a horizon lift (no divide by zero), rotated by `rot` radians
-// (isotropic: layers differ by rotation and scale, never by stretch), domain
+// (isotropic: layers differ by rotation and scale, never by stretch, which would read as radial streaks), domain
 // warped, and shaped as broken cumulus/altocumulus: fbm blobs grouped by a
 // low-frequency bank mask. Eight taps. Returns rgb + coverage alpha.
 // `shape`: x warp amount, y bank-mask weight (0..1), z sun probe, w light contrast.
@@ -192,8 +185,7 @@ vec4 procedural_upper_clouds(sampler2D noise_tex, vec3 dir, vec2 to_sun, float t
 	return vec4(mix(col, rim_color, rim * 0.6), body);
 }
 
-// authored cloud-card layer. `atlas` is the 4x2 Blender card
-// atlas: rg = camera-space normal xy,
+// Authored cloud-card layer. `atlas` is the 4x2 Blender card atlas: rg = camera-space normal xy,
 // b = openness (AO), a = coverage. The view ray is projected onto a high plane
 // (horizon lift avoids a divide by zero), jittered per grid cell, and each
 // card is oriented so its up axis points at the zenith. Cards are cel-shaded
@@ -258,8 +250,7 @@ vec4 sky_cloud_cards(sampler2D atlas, vec3 dir, vec3 sun_dir, float time, vec4 l
 	return vec4(acc / max(acc_a, 0.0001), acc_a);
 }
 
-// "at night lets add an aurora borealis effect to the
-// sky": soft aurora curtains for the night sky, shared by sunset_clouds (the
+// Soft aurora curtains for the night sky, shared by sunset_clouds (the
 // day/night cycle's night) and night_sky (the static night theme). Drawn in
 // view-direction space, azimuth around the horizon x elevation (dir.y), so the bands
 // wrap the whole sky and any camera orbit sees some of them. Every texture tap is a

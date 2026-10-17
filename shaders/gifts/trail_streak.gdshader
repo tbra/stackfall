@@ -4,9 +4,8 @@ render_mode unshaded, cull_disabled, shadows_disabled, depth_draw_never;
 // quad from the head (UV.y = 0, at the block's visual centre) to the tail
 // (UV.y = 1), turned about the travel axis to face the camera and scaled to
 // the block's width and its fall speed every physics step.
-// a soft glow across the ribbon's width with a brighter core and
-// `line_count` thin speed lines, so one ribbon reads as the mockup's streaked
-// falling piece instead of three hair-thin strips.
+// The look is a soft glow across the ribbon's width with a brighter core and
+// `line_count` thin speed lines.
 
 uniform vec4 trail_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float emission_energy = 1.2;

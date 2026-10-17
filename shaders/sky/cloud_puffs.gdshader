@@ -52,10 +52,9 @@ uniform vec3 grade_mid : source_color = vec3(0.12, 0.17, 0.33);
 uniform vec3 grade_light : source_color = vec3(0.55, 0.64, 0.82);
 uniform float grade_gamma = 1.2;
 
-// procedural sky P4: when procedural_sea_mix > 0 the far fade
-// targets the shared procedural sky/sea (cloud_common.gdshaderinc) instead of
-// the panorama. game/sky/CloudSea.gd copies every uniform below from the sky
-// material.
+// The far fade targets the shared procedural sky/sea
+// (cloud_common.gdshaderinc). game/sky/CloudSea.gd copies every uniform below
+// from the sky material.
 uniform float procedural_sea_mix = 0.0;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
@@ -165,7 +164,7 @@ uniform float billow_frequency = 2.0;
 // Extra hull inflation (fraction of radius) covering the low-poly chord error.
 uniform float hull_margin = 0.04;
 // the hull's flat faces dip below the sphere between vertices (the High preset's
-// 80-face puff by about 6%), more than hull_margin covers, so the tops of the largest lumps were
+// 80-face puff by about 6%), more than hull_margin covers, so the tops of the largest lumps would be
 // sliced off along straight face edges (vertical and diagonal razor edges on big overhead clumps).
 // Vertex stage only, on top of hull_margin; the carved silhouette itself does not change.
 uniform float hull_chord_margin = 0.05;
@@ -183,7 +182,7 @@ uniform float depth_fade_start_m = 40.0;
 uniform float depth_fade_end_m = 140.0;
 uniform float depth_fade_amount = 0.45;
 // cap on the combined distance/depth fade into the sky (1 = none,
-// the painted look; the procedural look sets <1 so far puffs stay shaded cumulus).
+// the procedural look sets <1 so far puffs stay shaded cumulus).
 uniform float far_fade_cap = 1.0;
 uniform float near_fade_start_m = 5.0;
 uniform float near_fade_end_m = 16.0;
@@ -209,7 +208,7 @@ instance uniform float edge_soft_px : hint_range(0.0, 8.0) = 0.0;
 // 1 on the upper puff layer (the floor above applies there only), 0 on the sea.
 instance uniform float floor_on : hint_range(0.0, 1.0) = 0.0;
 instance uniform float flat_base_override : hint_range(-1.0, 1.0) = -1.0;
-// fix 2a: 1 on the instance whose mesh is a hexagon impostor (UV = corner,
+// 1 on the instance whose mesh is a hexagon impostor (UV = corner,
 // inradius 1) instead of the 80-triangle hull. Distant clumps use it: the fragment stage already
 // ray-traces the ellipsoid itself, so only the covering polygon changes (4 triangles, not 80).
 // The impostor faces the camera on the plane touching the puff's near side (depth of the hull's
@@ -409,11 +408,10 @@ void fragment() {
 	// normal and the shading meets the sides without a step.
 	vec3 n = normalize(unit / axes);
 	if (on_base) {
-		// inside the rim the normal eases to straight down (the
-		// base faces the ground, not outward: the old ratio left it radial almost
-		// everywhere, so the cel bands cut the underside into sun-side wedges and
-		// lit slivers). Seen from below it is now one dark underbelly with a soft
-		// lit ring toward the sun.
+		// Inside the rim the normal eases to straight down (the base faces the
+		// ground, not outward: a radial normal makes the cel bands cut the
+		// underside into sun-side wedges and lit slivers). Seen from below it is
+		// one dark underbelly with a soft lit ring toward the sun.
 		n = normalize(mix(vec3(0.0, -1.0, 0.0), n, base_ramp));
 	} else if (round_bottom) {
 		// A round bottom has no plane: the underbelly share follows the normal itself.
@@ -468,8 +466,8 @@ void fragment() {
 	float depth = smoothstep(depth_fade_start_m, depth_fade_end_m, -surface.y) * depth_fade_amount;
 	fade = min(1.0 - (1.0 - fade) * (1.0 - depth), far_fade_cap);
 	if (fade > 0.001) {
-		// DECISION (P6b): the panorama tap is gone; the far fade always targets the
-		// procedural sky/sea (procedural_sea_mix is now only copied, no longer a gate).
+		// DECISION: the far fade always targets the procedural sky/sea
+		// (procedural_sea_mix is only copied, not a gate).
 		vec3 sky;
 		{
 			// Same composition as sunset_clouds.gdshader's procedural branch, so
