@@ -7,8 +7,7 @@ extends Node
 ## `(block: Block, def: SpecialDef, position: Vector3) -> void`. `block` is the
 ## carrier looked up by net id and may be null (already despawned); handlers
 ## must tolerate that. Unknown def ids and non-finite positions are ignored.
-## Replaces Match's former per-gift _on_paintball_triggered /
-## _on_black_hole_triggered handlers; add new gift visuals with `register`.
+## Add new gift visuals with `register`.
 ##
 ## Depends on: Events, MatchContext, SpecialDef, Block
 

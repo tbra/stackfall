@@ -1,6 +1,6 @@
 class_name FlightFacing
 extends RefCounted
-## turns a flying gift carrier so its model's nose axis points along its
+## Turns a flying gift carrier so its model's nose axis points along its
 ## velocity. Shared by Rocket (every flight tick) and Magnet (while thrown). Pure helper plus one
 ## write; no state of its own beyond a block-meta flag marking the first write.
 

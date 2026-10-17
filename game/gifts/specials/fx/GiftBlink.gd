@@ -9,8 +9,7 @@ class_name GiftBlink
 ## alone it finds the gift's blink timing and starts the blink (idempotent), so a
 ## client needs nothing but the replicated spawn.
 ##
-## Colour, peak opacity and the end-period ratio are GiftBlinkTuning (moved out of
-## consts); a null tuning means the shipped
+## Colour, peak opacity and the end-period ratio are GiftBlinkTuning; a null tuning means the shipped
 ## config/gifts/specials/fx/gift_blink_tuning.tres.
 ##
 ## Depends on: Block, BlockFactory.GIFT_VISUAL_NODE, GiftBlinkTuning, SpecialDef, BombEffect
@@ -31,7 +30,7 @@ static func intensity_at(phase: float) -> float:
 	return 0.5 - 0.5 * cos(phase * TAU)
 
 
-## Client-derived start (plan section 7: no RPC). Looks `block.gift_id` up in the gift
+## Client-derived start (no RPC). Looks `block.gift_id` up in the gift
 ## roster and, when that gift blinks (Bomb), starts the blink on `block` with the
 ## gift's own timing. `elapsed_s` is how long the gift has already existed (a late
 ## caller, e.g. the host's first armed tick, passes its age so the blink still ends
