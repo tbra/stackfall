@@ -648,7 +648,8 @@ func consume_glue_drop(slot_id: int) -> bool:
 	return _gifts.consume_glue_drop(slot_id)
 
 
-## Installs a special-type draw (the default is the weighted SpecialDef pick).
+## Installs a special-type draw. The initial drawer returns the placeholder
+## id until the weighted SpecialDef pick is installed at the first claim.
 ## See MatchGifts.set_special_drawer().
 func set_special_drawer(drawer: Callable) -> void:
 	_ensure_active()

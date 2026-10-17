@@ -1545,7 +1545,8 @@ func _on_server_disconnected() -> void:
 # --- Handshake & roster RPCs -------------------------------------------------
 
 ## `rejoin_token` is what _rpc_join_accepted handed this player on an earlier
-## join, or "".
+## join, or "". It has a default so the RPC still binds for a sender that
+## omits it; the build check runs inside this handler.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "") -> void:
 	if not is_host():
