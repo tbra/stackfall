@@ -1,25 +1,19 @@
 class_name NetDebugOverlay
 extends CanvasLayer
-## Spec Part 4 M3's debug overlay: ping, snapshot size, interpolation delay
-## and packet loss, plus controls for core/net/NetSim.gd's simulated
-## lag/loss.
+## Debug overlay: ping, snapshot size, interpolation delay and packet loss, plus controls for
+## core/net/NetSim.gd's simulated lag/loss.
 ##
-## "The overlay reads and never writes game state" ("Must
-## NOT"): every label comes straight from Net.stats(), refreshed on
-## Events.net_stats_updated; the only things this script writes are the
-## simulator's own tunables, through Net.set_simulation(), which is the seam
-## P1 built for exactly this.
+## It reads and never writes game state: every label comes straight from Net.stats(), refreshed on
+## Events.net_stats_updated; the only things this script writes are the simulator's own tunables,
+## through Net.set_simulation().
 
 ## DECISION (ui/debug/NetDebugOverlay.gd): same `Variant` test seam as
 ## ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and ui/hud/HUD.gd's match_provider.
 var net_provider: Variant = null
 
-## DECISION (ui/debug/NetDebugOverlay.gd): a second `Variant` test
-## seam, exactly net_provider's own pattern, for the counters
-## net/MatchNet.gd keeps per slot (intents_sent/accepted/refused,
-## cursors_refused). null (the default outside tests) reads the real
-## MatchNet autoload; a test hands it a small double the same way
-## test_net_debug_overlay.gd already hands net_provider a FakeNet.
+## DECISION (ui/debug/NetDebugOverlay.gd): a second `Variant` test seam, like net_provider, for the
+## per-slot counters net/MatchNet.gd keeps (intents_sent/accepted/refused, cursors_refused). Tests
+## hand it a small double; _ready() points it at the MatchNet autoload.
 var match_net_provider: Variant = null
 
 @export var net_config: NetConfig = preload("res://config/net/net_config.tres")
@@ -29,10 +23,8 @@ var match_net_provider: Variant = null
 @onready var _snapshot_label: Label = %SnapshotLabel
 @onready var _interp_label: Label = %InterpLabel
 @onready var _loss_label: Label = %LossLabel
-## one Label per slot (Panel/Layout/SlotRows in the .tscn,
-## sized to MatchConfig.PLAYER_COUNT_MAX so every legal slot has a row),
-## indexed by scene order -- child 0 is slot 0, etc. _refresh_slot_rows()
-## shows/hides each one rather than creating nodes at runtime.
+## One Label per slot (sized to MatchConfig.PLAYER_COUNT_MAX), indexed by scene order: child 0 is
+## slot 0. _refresh_slot_rows() shows/hides each one rather than creating nodes at runtime.
 @onready var _slot_rows: VBoxContainer = %SlotRows
 @onready var _lag_slider: HSlider = %LagSlider
 @onready var _lag_value_label: Label = %LagValueLabel
@@ -41,9 +33,8 @@ var match_net_provider: Variant = null
 @onready var _preset_button: Button = %PresetButton
 @onready var _off_button: Button = %OffButton
 
-## Guards _on_slider_changed while a preset/off button is writing both
-## sliders, so it doesn't call Net.set_simulation() twice with a half-applied
-## pair of values.
+## Set while a preset/off button writes both sliders, so Net.set_simulation() is not called with a
+## half-applied pair of values.
 var _applying_preset: bool = false
 
 
@@ -69,11 +60,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	# F3 is debug-only (game/debug/DebugMode.gd).
 	if not DebugMode.is_enabled():
 		return
-	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
-	# action is bound to Y alone (every button is already spoken for), so a
-	# joypad press only counts as the toggle while camera_snap_home (Back) is
-	# also held — the two-action chord that stands in for "Back+Y". A
-	# keyboard press (F3) needs no modifier.
+	# The gamepad half of this action is bound to Y alone, so a joypad press only counts while
+	# camera_snap_home (Back) is also held (the Back+Y chord). A keyboard press (F3) needs no modifier.
 	if event is InputEventJoypadButton and not Input.is_action_pressed(&"camera_snap_home"):
 		return
 	visible = not visible
@@ -101,22 +89,13 @@ func _refresh_labels(stats: Dictionary) -> void:
 	_loss_label.text = "Loss: %.1f%%" % (float(stats.get("loss_pct", 0.0)) * 100.0)
 
 
-## net/MatchNet.gd's per-slot intent/cursor counters are
-## host-only: `_apply_intent`/`_apply_throw_intent` and the malformed-cursor
-## drop that bumps `cursors_refused` all run "Host only" (see their own
-## comments), so a client's copy of every one of these dictionaries stays
-## empty even for its own slot. Showing all-zero rows to a client would read
-## as "nobody is being refused" when the truth is "this instance can't see
-## it" -- so the whole section is gated on net_provider.is_host(), exactly
-## the host-only condition net/MatchNet.gd itself gates on internally
-## (_is_host() / _session().is_host()), reached through the same net_provider
-## seam _push_simulation() already uses.
+## net/MatchNet.gd's per-slot intent/cursor counters are host-only, so a client's copies stay
+## empty even for its own slot. All-zero rows would read as "nobody is being refused" when the truth
+## is "this instance can't see it", so the whole section is gated on net_provider.is_host().
 ##
-## Row visibility is activity-gated rather than driven by a slot count: a
-## slot's row appears once any of its four counters goes non-zero and hides
-## again after net/MatchNet.gd's reset_counters() (a new match) zeroes them
-## all -- exactly "slot count changes handled" without this script needing
-## its own notion of the current roster.
+## Row visibility is activity-gated rather than driven by a slot count: a slot's row appears once
+## any of its four counters goes non-zero and hides again after MatchNet.reset_counters() (a new
+## match), so this script needs no notion of the current roster.
 func _refresh_slot_rows() -> void:
 	var rows: Array[Node] = _slot_rows.get_children()
 	var is_host: bool = net_provider != null and match_net_provider != null and bool(
@@ -159,9 +138,8 @@ func _push_simulation() -> void:
 		net_provider.set_simulation(_lag_slider.value, 0.0, _loss_slider.value)
 
 
-## Spec Part 4 M3's one-key acceptance condition: "a client with 100 ms of
-## simulated lag and 2% packet loss". net_config.sim_preset_lag_ms /
-## sim_preset_loss are the tunables (CLAUDE.md: no magic numbers here).
+## The one-key acceptance condition ("a client with 100 ms of simulated lag and 2% packet loss");
+## net_config.sim_preset_lag_ms / sim_preset_loss are the tunables.
 func _on_preset_pressed() -> void:
 	_applying_preset = true
 	_lag_slider.value = net_config.sim_preset_lag_ms

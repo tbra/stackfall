@@ -1,7 +1,6 @@
 class_name UiSegmentMeter
 extends Control
-## The design system's SegmentMeter: a slider drawn
-## as voxel cells on a sunken ground (no border) with the value always shown to the right in Bungee.
+## The design system's SegmentMeter: a slider drawn as voxel cells on a sunken ground (no border) with the value always shown to the right in Bungee.
 ## A UiRowItem (METER): one row height tall, hugs its content: every cell is
 ## ComponentMetrics.meter_cell_width_px wide, so the width follows the cell count and never the
 ## layout. [member value] counts filled cells

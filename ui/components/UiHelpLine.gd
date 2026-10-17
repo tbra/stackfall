@@ -1,7 +1,6 @@
 class_name UiHelpLine
 extends MarginContainer
-## The design system's help line ("explanation of options next to
-## them when unclear ... instead of tooltips"): one body-text line per settings panel that explains
+## The design system's help line (replaces tooltips): one body-text line per settings panel that explains
 ## the option the player is on. Rows are tagged with a key ([method tag]); the sentence lives in
 ## config/ui/option_help_table.tres (OptionHelpTable). The line shows the hovered row's text, else the
 ## focused row's, so mouse hover, keyboard focus and gamepad focus all work; a row with no entry

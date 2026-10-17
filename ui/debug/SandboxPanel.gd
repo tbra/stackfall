@@ -1,47 +1,32 @@
 class_name SandboxPanel
 extends CanvasLayer
-## 's sandbox debug panel: active slot + colour, block held/next,
+## The sandbox debug panel: active slot + colour, block held/next,
 ## timer state, the ghost's placement-validity reason under the cursor and
 ## territory share per slot. Block count and physics step time live in the F1
 ## PerfOverlay (ui/debug/PerfOverlay.gd), not here.
 ##
-## Reads only public Match/PlacementRules APIs, never a rule of its own — see
-## game/player/GhostPreview.gd's apply_validity()/_apply_validity_material() for the
-## same Match.preview_placement() call this panel's validity label reads —
-## so a Territory v2 rewrite needs no change here
-## beyond whatever new PlacementRules.Result cases land in _reason_text()'s
-## fallback branch, and a new rules-mode field on MatchConfig only needs a
-## line in _refresh_rules_mode(), not a redesign.
+## Reads only public Match/PlacementRules APIs, never a rule of its own (the validity label reads
+## the same Match.preview_placement() as game/player/GhostPreview.gd), so a rules rewrite needs a
+## change only for new PlacementRules.Result cases in _reason_text()'s fallback and new rules-mode
+## fields in _refresh_rules_mode().
 ##
-## Plain Labels, updated at sandbox_config.panel_refresh_hz (CLAUDE.md: no
-## magic numbers) rather than every _process() frame — none of this needs
-## 60 Hz precision.
+## Plain Labels, updated at sandbox_config.panel_refresh_hz rather than every _process() frame.
 ##
-## DECISION (ui/debug/SandboxPanel.gd): a CanvasLayer root with an inner
-## PanelContainer, the same shape as ui/hud/HUD.tscn and ui/debug/NetDebugOverlay.tscn,
-## rather than a bare Control root — matches the established idiom for a
-## screen-space overlay in this project.
+## DECISION (ui/debug/SandboxPanel.gd): a CanvasLayer root with an inner PanelContainer, the same
+## shape as ui/hud/HUD.tscn and ui/debug/NetDebugOverlay.tscn, rather than a bare Control root.
 
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
-## DECISION (ui/debug/SandboxPanel.gd): same Variant test seam as ui/hud/HUD.gd's
-## match_provider and ui/debug/NetDebugOverlay.gd's net_provider — GUT cannot
-## double the plain Match autoload (addons/gut/test.gd's double_singleton
-## only recognizes engine singletons).
+## DECISION (ui/debug/SandboxPanel.gd): same Variant test seam as ui/hud/HUD.gd's match_provider
+## and ui/debug/NetDebugOverlay.gd's net_provider; GUT cannot double the plain Match autoload.
 var match_provider: Variant = null
 
-## DECISION (ui/debug/SandboxPanel.gd): `Variant`, not a typed `Sandbox`, even
-## though this file owns no test-double seam for it (unlike match_provider
-## above). game/sandbox/Sandbox.gd holds a `SandboxPanel` (`@onready var _panel`) and
-## this file held a typed `Sandbox` back — that mutual class_name reference,
-## combined with this script defining _process(), reproducibly leaked
-## TextServer-shaped-text RIDs at `godot --headless --editor --path . --quit`
-## (bisected line by line: removing either side of the cycle, or _process()
-## itself, made the leak vanish; the panel's other typed reference, `_ghost:
-## GhostPreview`, is not part of a cycle and does not reproduce it). Nothing
-## else in this project has two class_name scripts typed at each other like
-## this, so the seam here is narrower than match_provider's: only
-## active_slot() is ever called on it.
+## DECISION (ui/debug/SandboxPanel.gd): `Variant`, not a typed `Sandbox`. game/sandbox/Sandbox.gd
+## holds a `SandboxPanel`, and a typed back-reference here, combined with this script defining
+## _process(), leaked TextServer shaped-text RIDs at editor quit (removing either side of the cycle
+## or _process() made the leak vanish). It is duck-typed: the panel calls
+## active_slot(), the forced-special / slow-motion / physics-paused getters and the
+## force_next_shape() / force_special_*() setters on it.
 var _sandbox: Variant = null
 var _ghost: GhostPreview = null
 
@@ -51,32 +36,27 @@ var _ghost: GhostPreview = null
 @onready var _validity_label: Label = %ValidityLabel
 @onready var _shares_label: Label = %SharesLabel
 @onready var _rules_label: Label = %RulesLabel
-## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey.
+## The F9 sandbox_force_special hotkey (game/sandbox/Sandbox.gd).
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
-## M6 B2: game/sandbox/Sandbox.gd's F10/F11 hotkeys and the height record.
+## The F10/F11 hotkeys (game/sandbox/Sandbox.gd) and the height record.
 @onready var _slow_motion_label: Label = %SlowMotionLabel
 @onready var _physics_paused_label: Label = %PhysicsPausedLabel
 @onready var _height_record_label: Label = %HeightRecordLabel
-## M6 B2: the block-picker and special-spawn dropdowns, replacing/augmenting
-## the F9 cycle with a direct pick.
+## The block-picker and special-spawn dropdowns: a direct pick alongside the F9 cycle.
 @onready var _block_picker: OptionButton = %BlockPicker
 @onready var _special_picker: OptionButton = %SpecialPicker
 
 var _refresh_accum: float = 0.0
 
-## The tallest point any of the active slot's settled blocks has reached this
-## match (game/blocks/BlockRegistry.gd's max_height_for_slot(), polled once per
-## _refresh() -- panel_refresh_hz is plenty for a value that only ever climbs
-## as fast as blocks settle). Monotone within one match; game/sandbox/Sandbox.gd's F5
-## reset_height_record() call is the only thing that ever lowers it.
+## The tallest point any of the active slot's settled blocks has reached this match
+## (BlockRegistry.max_height_for_slot(), polled once per _refresh()). Monotone within one match;
+## only reset_height_record() (F5) lowers it.
 var _height_record: float = 0.0
 
 
 func _ready() -> void:
 	match_provider = Match
-	# M6 B2 (sandbox_pause_physics, F11): stays interactive while get_tree().
-	# paused is true -- see game/sandbox/Sandbox.gd's own _ready() for the matching
-	# flag on that node.
+	# Stays interactive while get_tree().paused is true (sandbox_pause_physics, F11).
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_populate_block_picker()
 	_populate_special_picker()
@@ -139,10 +119,8 @@ func _refresh_held_block(slot_id: int) -> void:
 	]
 
 
-## spec 1.4 "[ORIGINAL target]" fixed-interval cadence:
-## "locked"/"unlocked" alongside the timer, the same distinction
-## game/player/GhostPreview.gd's grey tint draws for the held ghost -- Match.
-## is_release_locked() is the one source of truth both read.
+## Spec 1.4 fixed-interval cadence: "locked"/"unlocked" alongside the timer, the same distinction
+## the ghost's grey tint draws; Match.is_release_locked() is the one source of truth for both.
 func _refresh_timer(slot_id: int) -> void:
 	var enabled: bool = bool(match_provider.feed_timer_enabled())
 	var left: float = float(match_provider.feed_time_left(slot_id)) if slot_id >= 0 else 0.0
@@ -152,14 +130,9 @@ func _refresh_timer(slot_id: int) -> void:
 	]
 
 
-## game/player/GhostPreview.gd's own current_state() already
-## distinguishes STATE_THROW (M4 P2e's throw-aim tint, set by show_throw_hint()
-## while a held special is being dragged for a throw) from the ordinary
-## valid/hole/invalid tints this label used to show exclusively via a fresh
-## preview_placement() call -- reading that seam here, before falling back to
-## the plain validity check, means a tester aiming a throw sees "throw"
-## instead of whatever stale landing-spot reason preview_placement() would
-## otherwise report for a gesture that isn't a placement at all.
+## GhostPreview.current_state() is read before the plain validity check so a tester aiming a throw
+## (STATE_THROW) sees "throw" instead of a stale landing-spot reason for a gesture that is not a
+## placement.
 func _refresh_validity(slot_id: int) -> void:
 	if _ghost == null or slot_id < 0:
 		_validity_label.text = "Ghost: -"
@@ -189,12 +162,9 @@ func _refresh_shares() -> void:
 	_shares_label.text = "Territory: -" if parts.is_empty() else "Territory: %s" % ", ".join(parts)
 
 
-## DECISION (ui/debug/SandboxPanel.gd): the enum key's own name
-## (MatchConfig.HoleMode.keys()[...]), not a hand-written per-case string, so
-## a Territory v2 addition to HoleMode (the v2 design mentions a
-## new OFF value) shows up here for free instead of silently mislabeling it
-## as "permanent" — the one place this panel would otherwise need a change
-## for a rules rewrite it is meant to survive untouched.
+## DECISION (ui/debug/SandboxPanel.gd): the enum key's own name (MatchConfig.HoleMode.keys()[...]),
+## not a hand-written per-case string, so a new HoleMode value shows up here for free instead of
+## being mislabelled.
 func _refresh_rules_mode() -> void:
 	var config: MatchConfig = match_provider.config
 	if config == null:
@@ -207,11 +177,8 @@ func _refresh_rules_mode() -> void:
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
 
 
-## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey (and
-## `--force-special=`). _sandbox is the same Variant test seam active_slot()
-## already reads through (see this file's own DECISION on why it isn't a
-## typed Sandbox); forced_special()/forced_special_queue_full() are the two
-## getters game/sandbox/Sandbox.gd exposes for it.
+## The F9 sandbox_force_special hotkey (and `--force-special=`), read through the untyped _sandbox
+## via forced_special() / forced_special_queue_full().
 func _refresh_forced_special() -> void:
 	if _sandbox == null:
 		_forced_special_label.text = "Forced special: -"
@@ -224,7 +191,7 @@ func _refresh_forced_special() -> void:
 	_forced_special_label.text = "Forced special: %s%s" % [String(forced_id), suffix]
 
 
-# --- M6 B2: slow-motion / pause-physics / height record ---------------------
+# --- Slow-motion / pause-physics / height record ---------------------
 
 func _refresh_slow_motion() -> void:
 	var active: bool = bool(_sandbox.is_slow_motion_active()) if _sandbox != null else false
@@ -244,21 +211,17 @@ func _refresh_height_record(slot_id: int) -> void:
 	_height_record_label.text = "Height record: %.2f m" % _height_record
 
 
-## game/sandbox/Sandbox.gd's sandbox_reset_field (F5): a freshly reset match starts a
-## new tallest stack, so the previous match's record must not linger (the
-## same reasoning game/sandbox/Sandbox.gd's own DECISION gives for resetting Engine.
-## time_scale there).
+## Called on sandbox_reset_field (F5): a freshly reset match starts a new tallest stack, so the
+## previous match's record must not linger.
 func reset_height_record() -> void:
 	_height_record = 0.0
 	_height_record_label.text = "Height record: 0.00 m"
 
 
-# --- M6 B2: block picker / special spawn dropdowns --------------------------
+# --- Block picker / special spawn dropdowns --------------------------
 
-## BlockShape.load_all_shapes()'s own id order (that function's own doc
-## comment: the single source of truth for "what shapes exist") -- one item
-## per shape, with the StringName id carried in item metadata rather than
-## re-derived from the display text.
+## One item per bag shape in BlockShape's id order, with the StringName id carried in item metadata
+## rather than re-derived from the display text.
 func _populate_block_picker() -> void:
 	_block_picker.clear()
 	for shape: BlockShape in BlockShape.load_bag_shapes():
@@ -273,10 +236,8 @@ func _on_block_picker_selected(index: int) -> void:
 	_sandbox.force_next_shape(shape_id)
 
 
-## "off" first (mirrors sandbox_force_special's own off/each-roster-id/off
-## cycle), then SpecialDef.load_all_specials()'s own id order -- the UI-only
-## front end the sandbox rule calls for over the existing F9
-## cycle/force_special_by_id().
+## "off" first (mirrors the sandbox_force_special off/each-id/off cycle), then
+## SpecialDef.load_all_specials()'s id order.
 func _populate_special_picker() -> void:
 	_special_picker.clear()
 	_special_picker.add_item("off")

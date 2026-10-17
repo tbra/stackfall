@@ -1,111 +1,53 @@
 class_name TuningPanel
 extends CanvasLayer
-## In-game tuning panel ("add a settings menu
-## with sliders so I can play around and adjust the camera in-game? same for
-## physics properties like gravity, damping, bouncing, etc.").
+## In-game tuning panel: sliders over the camera, physics and visual tuning Resources so they can
+## be adjusted while playing.
 ##
-## Five tabs, each built by reflection over a live tuning Resource's @export
-## fields (Resource.get_property_list(), filtered to the four types a control
-## exists for below) rather than one hand-authored row per field: CLAUDE.md's
-## "no magic numbers... every tunable in a Resource" only pays off in
-## practice if a config Resource's whole surface is reachable without a code
-## change per field.
+## Tabs are built by reflection over a live tuning Resource's @export fields
+## (Resource.get_property_list(), filtered to the four types a control exists for below) rather
+## than one hand-authored row per field, so a config Resource's whole surface is reachable without
+## a code change per field. Which resources sit on which tab is _tab_plan().
 ##
-##   Camera    -> CameraRig.tuning (CameraTuning)
-##   Controls  -> PlayerController.ghost_tuning (GhostTuning)
-##   Physics   -> PlayerController.tuning (PhysicsTuning)
-##   Territory -> Field.territory_tuning (TerritoryTuning) + Field.visuals
-##                (TerritoryVisuals).
-##   Feed      -> config/match/block_feed.tres (BlockFeedConfig), preloaded
-##                directly -- autoload/Match.gd is the only script holding a
-##                live reference to this one and it's a different package's
-##                file, but preloading the same path still resolves to the
-##                identical cached Resource instance Match reads (Godot caches
-##                a Resource by path within one process), so no line there is
-##                actually required for this field to be editable here.
+## Every control writes straight onto the *live* resource instance the rest of the game already
+## reads: every `@export var tuning: ... = preload(...)` resolves to the same cached Resource, so
+## there is no copy step and a field read every frame is felt on the next read. Resources
+## preloaded here by path are the same instance their consumer's preload yields. Fields read only
+## once, at construction time, need an explicit push:
 ##
-## M7 art direction: five more tabs, over the M7 config
-## Resources, all preloaded the same "identical cached path" way Feed's own
-## paragraph above documents -- none of these five needs a line anywhere else
-## in the project either. MenuVisualTuning is not merged yet and has no tab.
-##
-##   Blocks FX -> game/blocks/BlockFactory.gd's VISUAL_TUNING const (BlockVisualTuning)
-##                + game/blocks/BlockEffectsManager.gd's config (BlockEffectsConfig)
-##   Beacons   -> game/flags/HomeFlag.gd's beacon_visuals (BeaconVisualTuning)
-##   Camera FX -> game/player/CameraRig.gd's shake_config (CameraShakeConfig)
-##   HUD       -> ui/hud/HUD.gd's hud_visual_tuning + ui/hud/Minimap.gd's tuning
-##                (both preload config/ui/hud_visual_tuning.tres -- HUDVisualTuning)
-##   Sky       -> game/sky/Skybox.gd's theme (SkyThemeDef), config/sky/themes/
-##                sunset.tres -- the only shipped theme on this branch
-##
-## Every control writes straight onto the *live* resource instance the rest
-## of the game already reads -- the same object every other
-## `@export var tuning: ... = preload(...)` field across the project resolves
-## to. There is no duplicate/copy step, so a change to a field something
-## reads every frame (CameraRig's orbit speed, GhostPreview's tint colors,
-## TerritorySolver's hash_cell_size, TerritoryOverlay's per-upload uniforms in
-## set_circles()) is felt on the very next read. A few fields are only ever
-## read once, at construction time, and need an explicit push:
-##
-##   - PhysicsTuning: apply_physics_live() re-applies damping/material/gravity
-##     onto every Block already standing (Block.apply_physics_tuning(), via
-##     the "tuning_blocks" group every Block joins in _ready()).
-##     BlockFactory.build() already reads the same tuning for brand new
-##     spawns, so nothing extra is needed there.
+##   - PhysicsTuning: apply_physics_live() re-applies damping/material/gravity onto every Block
+##     already standing (Block.apply_physics_tuning(), via the "tuning_blocks" group).
+##     BlockFactory.build() already reads the same tuning for new spawns.
 ##   - TerritoryVisuals: refresh_territory_visuals_live() calls
-##     TerritoryOverlay.refresh_visual_uniforms() so a shader uniform that
-##     only configure() used to set (disk color, edge softness, outline,
-##     contested shimmer, hole rim) updates immediately instead of waiting on
-##     nothing (nothing else ever re-sends those particular uniforms).
-##     refresh_visual_uniforms() also rebuilds the disk's CylinderMesh
-##     (game/field/TerritoryOverlay.gd's own rebuild_disk_mesh()) whenever
-##     disk_mesh_segments itself changed, so that field is live too now.
-##  step 2: the same function also calls
-##     Skybox.refresh_from_visuals() on every rig in Skybox.TUNING_GROUP, so
-##     the reflection probe/SSR fields (also on TerritoryVisuals) update live
-##     too instead of only ever applying once at boot.
-##   - CameraTuning: apply_camera_tuning_live() calls
-##     CameraRig.apply_follow_tuning() on every rig in CameraRig.TUNING_GROUP,
-##     re-snapshotting follow_distance/follow_pitch_deg (clamped, as _ready()
-##     does) without disturbing a manual orbit/zoom the player already did.
-##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every
-##     rig in Skybox.TUNING_GROUP (see that function's own doc for a known
-##     partial-live gap around the FogVolume child). (U1): a rig
-##     running the day/night cycle gets refresh_cycle_sources() instead, so an
+##     TerritoryOverlay.refresh_visual_uniforms() (shader uniforms only configure() set, and the
+##     disk mesh when disk_mesh_segments changed) and Skybox.refresh_from_visuals() on every rig in
+##     Skybox.TUNING_GROUP (reflection probe / SSR fields).
+##   - CameraTuning: apply_camera_tuning_live() calls CameraRig.apply_follow_tuning() on every rig
+##     in CameraRig.TUNING_GROUP, re-snapshotting follow_distance/follow_pitch_deg (clamped, as
+##     _ready() does) without disturbing a manual orbit/zoom.
+##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every rig in
+##     Skybox.TUNING_GROUP (a known partial-live gap around the FogVolume child, see that
+##     function). A rig running the day/night cycle gets refresh_cycle_sources() instead, so an
 ##     edit never swaps the live cycle for the static theme material.
-##   - Cycle sky (U1): the Sky tab's Theme dropdown leads with a
-##     "cycle" entry (Skybox.start_cycle(), persisted as
-##     skybox_config.theme_name = "cycle") and a Time-of-day row (Running /
-##     Sunset / Dawn / Night / Custom + a 0..1 phase slider) locks it through
-##     Skybox.set_locked_phase(). Local dev tuning: nothing is replicated.
+##   - Cycle sky: the Sky tab's Theme dropdown leads with a "cycle" entry (Skybox.start_cycle(),
+##     persisted as skybox_config.theme_name = "cycle") and a Time-of-day row (Running / Sunset /
+##     Dawn / Night / Custom + a 0..1 phase slider) locks it through Skybox.set_locked_phase().
+##     Local dev tuning: nothing is replicated.
 ##
-## BlockVisualTuning, BlockEffectsConfig, BeaconVisualTuning, CameraShakeConfig
-## and HUDVisualTuning need no such hook: CameraShakeConfig/BlockEffectsConfig
-## are already read live per-frame/per-event by their consumer, and
-## BlockVisualTuning/BeaconVisualTuning/HUDVisualTuning are baked once at
-## construction time (a block's toon material, a beacon's geometry, a HUD
-## panel's StyleBoxFlat) with no existing re-push seam on that consumer -- an
-## edit still takes effect for anything built from here on (see
-## _on_field_changed()'s own comment on this). DECISION: these
-## five resources are likewise not added to reset_all()/save_overrides()/
-## build_copy_text()/TuningOverrides.apply_saved() below -- the brief asked only for
-## the tabs, the (for Sky) live-apply hook, and the three named tests; wiring
-## Reset/Save/Copy for them is a reasonable small follow-up, not done here.
+## BlockVisualTuning, BlockEffectsConfig, BeaconVisualTuning, CameraShakeConfig and
+## HUDVisualTuning need no such hook: CameraShakeConfig/BlockEffectsConfig are read live per
+## frame/event, and BlockVisualTuning/BeaconVisualTuning/HUDVisualTuning are baked once at
+## construction (a block's toon material, a beacon's geometry, a HUD panel's StyleBoxFlat), so an
+## edit takes effect for anything built from here on (see _on_field_changed()).
+## DECISION: these five resources are not added to reset_all() / save_overrides() /
+## build_copy_text() / TuningOverrides.apply_saved() below.
 ##
-## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad
-## pause_menu[Start] + X -- see tools/bootstrap_project.gd's DECISION on that
-## chord). While open: the mouse is released and gameplay input is
-## suppressed (PlayerController.input_enabled), the same idea as
-## ui/debug/NetDebugOverlay.gd's F3 overlay, but this one also has to stop the game
-## from reacting to clicks and drags meant for its own controls.
+## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad pause_menu[Start] + X). While
+## open: the mouse is released and gameplay input is suppressed (PlayerController.input_enabled).
 ##
-## Availability (adjust the camera/physics "in-game"): open offline
-## (sandbox, hot-seat) and by the host in a networked match; a client only
-## ever sees Camera/Controls -- Net.is_host() is already true offline
-## (autoload/Net.gd's own doc comment), so this is the one predicate to gate
-## on. Editing Physics/Territory/Feed on a client would be inert anyway
-## (CLAUDE.md: "only the host runs physics"; a client's bodies are frozen and
-## moved by net/SnapshotSync.gd), not just hidden for tidiness.
+## Availability: open offline (sandbox, hot-seat) and by the host in a networked match; a client
+## only sees the client-visible tabs. Net.is_host() is already true offline, so it is the one
+## predicate to gate on. Editing Physics/Territory/Feed on a client would be inert anyway (a
+## client's bodies are frozen and moved by net/SnapshotSync.gd), not just hidden for tidiness.
 
 const SAVE_PATH: String = TuningOverrides.SAVE_PATH
 
@@ -117,72 +59,53 @@ static func save_path() -> String:
 
 const VALUE_WIDTH: float = 110.0
 
-## the F4 panel is a bottom dock. It takes this fraction of the logical viewport
-## height (the arena centre stays visible above it at any resolution; the project stretch rule
-## keeps the logical viewport 1280x720 or wider), inset by DOCK_MARGIN_PX, on the same plate
-## alpha and shared theme the old F2 hint plate used.
+## The F4 panel is a bottom dock. It takes this fraction of the logical viewport height (the arena
+## centre stays visible above it at any resolution; the project stretch rule keeps the logical
+## viewport 1280x720 or wider), inset by DOCK_MARGIN_PX.
 const DOCK_HEIGHT_FRACTION: float = 0.42
 const DOCK_MARGIN_PX: float = 8.0
 const DOCK_PLATE_ALPHA: float = 0.9
 const DOCK_THEME: Theme = preload("res://ui/theme/stackfall_theme.tres")
 
-## the selected-tab memory shares SAVE_PATH with every tuning
-## resource's own override section (one ConfigFile, one section per concern)
-## rather than a second settings file.
+## The selected-tab memory shares SAVE_PATH with every tuning resource's own override section (one
+## ConfigFile, one section per concern) rather than a second settings file.
 const SELECTED_TAB_SECTION: String = "TuningPanel"
 const SELECTED_TAB_KEY: String = "selected_tab"
 
-## DECISION (ui/debug/TuningPanel.gd): row name/description column
-## widened from the bare label's old 260px width so a whole one-sentence
-## description can sit under the field name without wrapping to more than a
-## couple of lines at 1080p.
+## DECISION (ui/debug/TuningPanel.gd): a wide name/description column so a whole one-sentence
+## description fits under the field name in at most a couple of lines at 1080p.
 const NAME_COLUMN_WIDTH: float = 380.0
-## DECISION (P7 token swap): description and default-value labels use the
+## DECISION: description and default-value labels use the
 ## theme's CaptionLabel variation (dust ink at caption size, 13 px) instead of a private colour
 ## and a smaller font, so the sentence reads as a sub-label and the name stays the primary line.
 const CAPTION_THEME_VARIATION: StringName = &"CaptionLabel"
 const MODIFIED_MARKER: String = "• "
 
-## get_property_list() usage flags an @export'd script variable carries (see
-## this file's own probe in the implementation notes): STORAGE so it's
-## serialized, EDITOR so it's inspector-visible, SCRIPT_VARIABLE so it's a
-## script-declared field rather than a base Resource/Object property like
-## resource_path. Anything missing one of these three is skipped -- an
-## un-exported script var, a resource_* built-in, or the `script` property
-## itself.
+## get_property_list() usage flags an @export'd script variable carries: STORAGE (serialized),
+## EDITOR (inspector-visible), SCRIPT_VARIABLE (script-declared, not a base property like
+## resource_path). Anything missing one of these is skipped.
 const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_SCRIPT_VARIABLE
 
-## the SFX tab (audio is local) sits after Sky, so it stays client-visible.
-## Tabs whose content is hidden from a client (see class doc "Availability").
-## Indices match the order rebuild() adds tabs in -- rebuild() adds every
-## client-visible tab first (Camera, Controls, then the M7 visual tabs: Blocks
-## FX, Beacons, Camera FX, HUD, Sky) so this one cutoff still holds; Physics/
-## Territory/Feed (host-only: they tune the physics/territory simulation
+## Tabs whose content is hidden from a client (see class doc "Availability"). Indices match the
+## order rebuild() adds tabs in: every client-visible tab (the SFX tab too, audio is local) comes
+## first so this one cutoff holds; Physics/Territory/Feed (host-only: they tune the simulation
 ## itself, not just how it looks) always come last.
 const CLIENT_HIDDEN_TAB_FIRST: int = 7
-## the Field-only arena look tab, inserted after Territory look.
+## The Field-only arena look tab, inserted after Territory look.
 const ARENA_TAB: String = "Arena"
 const ARENA_TAB_INDEX: int = 4
 const ARENA_STYLE_PROP: String = "style"
 ## Dropdown labels, indexed by ArenaSideStyle.Style.
 const ARENA_STYLE_NAMES: PackedStringArray = ["Current", "Layered plates", "Rocky island", "Machined disc", "Stylised machined", "Detailed machined", "Heavy machined", "Monolith", "Tapered strata", "Plated dome", "Shader dome"]
 
-## "heavier and more bouncy, but a
-## dropped block shouldn't just bounce straight up again" -- research +
-## A/B presets: the Physics tab's preset dropdown copies one of these
-## PhysicsTuning resources' every exported field onto the live physics_tuning
-## instance (apply_physics_preset() below). "heavy_bouncy" is byte-identical to
-## config/physics/physics_tuning.tres's own defaults (Heavy &
-## Bouncy is the shipped default), so picking it is a no-op; "current" keeps
-## the OLD default numbers, labelled "Previous default"; "heavy_bouncy"/"heavy_damped" both raise
-## cube_mass and gravity_multiplier
-## for a heavier fall and set rebound_damping below 1 so a flat drop doesn't
-## bounce straight back up, while still giving lateral/tumbling liveliness
-## from block_bounce (see config/physics/PhysicsTuning.gd's rebound_damping DECISION
-## and game/Block._damp_rebound()) -- "_bouncy" leans on a higher block_bounce
-## for that liveliness, "_damped" leans on higher linear/angular damping so
-## the same heavier fall settles quieter. See config/physics/presets/*.tres
-## for the exact numbers.
+## Physics tab presets: the preset dropdown copies one of these PhysicsTuning resources' every
+## exported field onto the live physics_tuning instance (apply_physics_preset()). "heavy_bouncy" is
+## byte-identical to config/physics/physics_tuning.tres's defaults, so picking it is a no-op;
+## "current" keeps the previous default numbers. The heavy_* presets raise cube_mass and
+## gravity_multiplier and set rebound_damping below 1 so a flat drop doesn't bounce straight back
+## up (see PhysicsTuning's rebound_damping DECISION and Block._damp_rebound()); "_bouncy" leans on
+## block_bounce for liveliness, "_damped" on higher linear/angular damping. Exact numbers:
+## config/physics/presets/*.tres.
 const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "current", "label": "Previous default", "path": "res://config/physics/presets/current.tres"},
 	{"id": "heavy_bouncy", "label": "Heavy & Bouncy", "path": "res://config/physics/presets/heavy_bouncy.tres"},
@@ -192,10 +115,10 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics/presets/original_feel.tres"},
 ]
 
-## U1: the Theme dropdown's leading entry. It is not a file under
-## config/sky/themes/; it is persisted on skybox_config.theme_name and handled by
-## game/sky/Skybox.gd (start_cycle()). The cycle's day half is the sunset.tres
-## duplicate (Skybox.configure_match_sky), so the Sky tab's sliders edit that one.
+## The Theme dropdown's leading entry. It is not a file under config/sky/themes/; it is persisted
+## on skybox_config.theme_name and handled by game/sky/Skybox.gd (start_cycle()). The cycle's day
+## half is the sunset.tres duplicate (Skybox.configure_match_sky), so the Sky tab's sliders edit
+## that one.
 const CYCLE_THEME_ID: String = "cycle"
 ## Time-of-day row choices, index-parallel to TIME_OF_DAY_LABELS. The three
 ## concrete ids are SkyThemeDef.locked_phase_for() keys (MatchConfig.SKY_THEME_IDS).
@@ -211,15 +134,15 @@ const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
 const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
 const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 
-## panel redo: rows sit in foldable sections (hints.sections);
-## a section is open by default only when it is the first one on its tab, and
-## the open/closed choice survives rebuild() (see _fold_open).
+## Rows sit in foldable sections (hints.sections); a section is open by default only when it is
+## the first one on its tab, and the open/closed choice survives rebuild() (see _fold_open).
 const SECTION_OPEN_MARK: String = "▾ "
 const SECTION_CLOSED_MARK: String = "▸ "
 ## Gap between the columns of a row: name | control | value | default.
 const ROW_SEPARATION: int = 12
-## Every row's control column has at least this width (it takes the spare row width, identically on every row) (slider, spinbox, toggle, swatch,
-## dropdown), so the value and default columns line up on every tab.
+## Every row's control column has at least this width (slider, spinbox, toggle, swatch, dropdown),
+## so the value and default columns line up on every tab; it takes the spare row width,
+## identically on every row.
 const CONTROL_COLUMN_WIDTH: float = 300.0
 const CONTROL_MIN_WIDTH: float = 240.0
 const FIXED_CONTROL_WIDTH: float = 140.0
@@ -249,40 +172,31 @@ var territory_tuning: TerritoryTuning = preload("res://config/territory/territor
 var territory_visuals: TerritoryVisuals = preload("res://config/territory/territory_visuals.tres")
 var block_feed_config: BlockFeedConfig = preload("res://config/match/block_feed.tres")
 
-## the same preloaded singleton game/sky/Skybox.gd's own `config`
-## field defaults to (Main.tscn's Skybox node never overrides it -- see
-## config/sky/SkyboxConfig.gd's own DECISION on why one field/one path is enough
-## to keep this panel and every live Skybox reading/writing the identical
-## Resource instance, the same BlockFeedConfig idiom this file's own class doc
-## documents right above).
+## The same preloaded singleton game/sky/Skybox.gd's `config` defaults to, so this panel and every
+## live Skybox read and write one Resource instance.
 var skybox_config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
-## M7's art-direction tunables, added to the same preload
-## roster above -- each preloads the identical path its own consumer already
-## preloads/exports (BlockFactory.gd's VISUAL_TUNING const, BlockEffectsManager.
-## config, HomeFlag.beacon_visuals, CameraRig.shake_config, Skybox.theme), so
-## Godot's per-path Resource cache (see this file's class doc, BlockFeedConfig
-## paragraph) makes every field here the same live object those scripts read.
+## The art-direction tunables: each preloads the identical path its own consumer preloads/exports
+## (BlockFactory.gd's VISUAL_TUNING, BlockEffectsManager.config, HomeFlag.beacon_visuals,
+## CameraRig.shake_config, Skybox.theme), so the per-path Resource cache makes every field here the
+## same live object those scripts read.
 var block_visual_tuning: BlockVisualTuning = preload("res://config/blocks/tuning/block_visual_tuning.tres")
 var block_effects_config: BlockEffectsConfig = preload("res://config/blocks/tuning/block_effects.tres")
 var beacon_visual_tuning: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
 var camera_shake_config: CameraShakeConfig = preload("res://config/physics/camera_shake.tres")
 var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
-## opt-in QoL experiments (host snapshots them at match start).
-## the arena side/underside look. set_field() swaps it for the
-## wired Field's own instance (the one TerritoryOverlay builds from); the Arena
-## tab only exists while a Field is wired.
+## The arena side/underside look. set_field() swaps it for the wired Field's own instance (the one
+## TerritoryOverlay builds from); the Arena tab only exists while a Field is wired.
 var arena_side_style: ArenaSideStyle = preload("res://config/territory/arena_side_style.tres")
+## Opt-in QoL experiments (host snapshots them at match start).
 var qol_experiments: QolExperiments = preload("res://config/match/qol_experiments.tres")
 ## the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
 ## preload instance, so no copy step; Reset/tests restore the shipped file values).
 var audio_config: AudioConfig = preload("res://config/audio/audio_config.tres")
 var sky_theme: SkyThemeDef = preload("res://config/sky/themes/sunset.tres")
 
-## DECISION (ui/debug/TuningPanel.gd): same `Variant` test seam as
-## ui/debug/NetDebugOverlay.gd's net_provider -- GUT cannot double the plain Net
-## autoload (addons/gut/test.gd's double_singleton only recognizes engine
-## singletons).
+## DECISION (ui/debug/TuningPanel.gd): same `Variant` test seam as ui/debug/NetDebugOverlay.gd's
+## net_provider; GUT cannot double the plain Net autoload.
 var net_provider: Variant = null
 ## Test seam: the MatchWeather the Weather row drives (null = the Match autoload's).
 var weather_provider: Variant = null
@@ -296,7 +210,7 @@ var _field: Field = null
 ## for a given resource field without walking the tree.
 var _rows: Array[Dictionary] = []
 
-## One {"resource", "title"} per section built (/113).
+## One {"resource", "title"} per section built.
 var _group_titles: Array[Dictionary] = []
 
 ## Open/closed state of each foldable section ("Class/Title" -> bool), kept
@@ -306,23 +220,18 @@ static var _fold_open: Dictionary = {}
 var _tab_container: TabContainer = null
 var _status_label: Label = null
 
-## "F4 should remember which tab
-## was active when reopened": the last tab index the owner picked, restored
-## onto _tab_container every rebuild() (rebuild() replaces every tab page,
-## which would otherwise silently reset TabContainer.current_tab to 0) and
-## persisted into SAVE_PATH's own ConfigFile so it survives a full app
-## restart too, not just a close/reopen in the same session.
+## The last tab index the owner picked, restored onto _tab_container every rebuild() (which
+## replaces every tab page and would reset current_tab to 0) and persisted into SAVE_PATH's own
+## ConfigFile so it survives an app restart.
 var _selected_tab_index: int = 0
 
-## true only while rebuild() is (re)populating _tab_container.
-## Adding the *first* child tab to an emptied TabContainer auto-selects it and
-## fires tab_changed(0) synchronously (unlike a plain property assignment on
-## an already-populated container) -- without this guard, that spurious event
-## reached _on_tab_changed() and clobbered _selected_tab_index back to 0
-## before rebuild()'s own explicit restore below even ran.
+## True only while rebuild() is (re)populating _tab_container. Adding the *first* child tab to an
+## emptied TabContainer auto-selects it and fires tab_changed(0) synchronously; without this guard
+## that event reached _on_tab_changed() and reset _selected_tab_index to 0 before rebuild()'s
+## explicit restore ran.
 var _rebuilding_tabs: bool = false
 
-## U1: the Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
+## The Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
 ## entry, and the phase the Custom slider holds). Session-local: only
 ## skybox_config.theme_name = "cycle" persists.
 var _time_of_day_choice: String = TIME_RUNNING
@@ -332,11 +241,9 @@ var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
 func _ready() -> void:
 	visible = false
 	net_provider = Net
-	# DECISION: the ~2900-node tab UI is no longer built
-	# here. rebuild() builds it on first open (or on an explicit call, which
-	# tests use) and _free_ui() frees it again on close, so a hidden panel
-	# costs no nodes. Saved overrides apply via the static
-	# TuningOverrides.apply_saved() at boot and never needed this UI.
+	# DECISION: the ~2900-node tab UI is built on first open by rebuild() (or an explicit call, which
+	# tests use) and freed on close by _free_ui(), so a hidden panel costs no nodes. Saved overrides
+	# apply via the static TuningOverrides.apply_saved() at boot and never needed this UI.
 	# the Sky tab's sliders edit whichever theme is active.
 	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
 	if boot_theme != null:
@@ -346,11 +253,9 @@ func _ready() -> void:
 
 # --- Wiring (game/main/Main.gd / HotSeat.gd / Sandbox.gd) -------------------------
 
-## Called once by game/main/HotSeat.gd, whose $PlayerController this
-## panel's Controls/Physics tabs should read from (both fields already
-## default to the same preloaded singletons a bare test constructs this panel
-## with, so this only matters if a specific instance is ever wired to
-## something else).
+## Called once by game/main/HotSeat.gd: the controller whose Controls/Physics tabs this panel
+## reads (both fields default to the same preloaded singletons a bare test constructs this panel
+## with).
 func set_controller(controller: PlayerController) -> void:
 	_controller = controller
 	if controller != null:
@@ -360,8 +265,7 @@ func set_controller(controller: PlayerController) -> void:
 
 
 ## Called once by game/main/HotSeat.gd and game/sandbox/Sandbox.gd (through their own
-## set_camera_rig()), after Main builds the shared CameraRig -- the same
-## hand-off HotSeat.gd's own set_camera_rig() already documents.
+## set_camera_rig()) with the shared CameraRig.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
 	if rig != null:
@@ -389,11 +293,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	# the F4 panel is debug-only (game/debug/DebugMode.gd).
 	if not DebugMode.is_enabled():
 		return
-	# See tools/bootstrap_project.gd's DECISION: the gamepad half of this
-	# action is bound to X alone (every other button is already spoken for),
-	# which is also hover_lower, so a joypad press only counts as the toggle
-	# while pause_menu (Start) is also held -- the same two-action-chord
-	# technique ui/debug/NetDebugOverlay.gd's Back+Y toggle already established. A
+	# The gamepad half of this action is bound to X alone, which is also hover_lower, so a joypad
+	# press only counts as the toggle while pause_menu (Start) is also held (the Start+X chord). A
 	# keyboard press (F4) needs no modifier.
 	if event is InputEventJoypadButton and not Input.is_action_pressed(&"pause_menu"):
 		return
@@ -409,31 +310,25 @@ func _toggle_panel() -> void:
 		_controller.input_enabled = not visible
 	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED)
 	if visible:
-		# Reflects anything another system changed the live resources to
-		# since this panel last opened (a match restart's fresh MatchConfig,
-		# another peer... in practice nothing else writes these fields today,
-		# but rebuilding is cheap and this is the one moment it's worth it).
-		# also restores _selected_tab_index (below), so a
-		# close/reopen in the same session lands back on whichever tab was
-		# open, not tab 0.
+		# Reflects anything another system changed on the live resources since this panel last
+		# opened (a match restart's fresh MatchConfig). rebuild() also restores _selected_tab_index,
+		# so a close/reopen in the same session lands back on the tab that was open.
 		rebuild()
 
 
 # --- Tab memory (F4 remembers the last active tab) ----------
 
-## TabContainer.tab_changed fires both for a real click and for rebuild()'s
-## own programmatic current_tab restore -- either way this is "the tab the
-## owner should come back to", so it is also persisted immediately rather
-## than only on close, surviving a crash/quit between now and the next save.
+## TabContainer.tab_changed fires for a real click and for rebuild()'s programmatic current_tab
+## restore alike; either way it is the tab to come back to, so it is remembered here. Only a click
+## persists it (_on_tab_selected()).
 func _on_tab_changed(index: int) -> void:
 	if _rebuilding_tabs:
 		return
 	_selected_tab_index = index
 
 
-## TabContainer.tab_clicked fires only for a user click
-## on the tab bar, never for programmatic current_tab sets or
-## child add/remove, so this is the only place the tab index is persisted.
+## TabContainer.tab_clicked fires only for a user click on the tab bar, never for programmatic
+## current_tab sets or child add/remove, so this is the only place the tab index is persisted.
 func _on_tab_selected(index: int) -> void:
 	if _rebuilding_tabs:
 		return
@@ -441,11 +336,9 @@ func _on_tab_selected(index: int) -> void:
 	_save_selected_tab_index()
 
 
-## Loads just the persisted tab index from SAVE_PATH, if any -- called once
-## from _ready(), before the first rebuild() so the very first open already
-## restores it. Returns 0 (the sane default) with no saved file, an unreadable
-## one, or no matching key, exactly like _apply_saved_section()'s own
-## stale/missing-key tolerance below.
+## Loads just the persisted tab index from SAVE_PATH, if any; called once from _ready() so the very
+## first open already restores it. Returns 0 with no saved file, an unreadable one, or no matching
+## key.
 func _load_selected_tab_index() -> int:
 	var config: ConfigFile = ConfigFile.new()
 	if config.load(save_path()) != OK:
@@ -455,12 +348,9 @@ func _load_selected_tab_index() -> int:
 	return int(config.get_value(SELECTED_TAB_SECTION, SELECTED_TAB_KEY, 0))
 
 
-## Writes just the selected-tab section into SAVE_PATH -- loads whatever is
-## already on disk first (rather than a fresh ConfigFile, which save_overrides()
-## below now also does) so this never clobbers the tuning-override sections a
-## "Save override" click wrote, and vice versa: both share one file, per
-## sections, the same way save_overrides() already groups every tuning
-## resource under its own section.
+## Writes just the selected-tab section into SAVE_PATH, loading whatever is already on disk first
+## so it never clobbers the tuning-override sections a "Save override" click wrote, and vice
+## versa: both share one file, one section per concern.
 func _save_selected_tab_index() -> void:
 	if not UserPaths.persistence_allowed():
 		return
@@ -475,9 +365,9 @@ func _save_selected_tab_index() -> void:
 func _build_ui() -> void:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = "Panel"
-	# a docked bottom plate in the old F2 panel's style (disc-900 plate, theme
-	# fonts) rather than a near-fullscreen sheet, so the arena above it stays visible while a
-	# value is dragged. The tab pages scroll inside the remaining height.
+	# A docked bottom plate (disc-900 plate, theme fonts) rather than a near-fullscreen sheet, so the
+	# arena above it stays visible while a value is dragged. The tab pages scroll inside the
+	# remaining height.
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.anchor_top = 1.0 - DOCK_HEIGHT_FRACTION
 	panel.offset_left = DOCK_MARGIN_PX
@@ -506,9 +396,8 @@ func _build_ui() -> void:
 
 	_tab_container = TabContainer.new()
 	_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	# fires for both a real click *and* rebuild()'s own
-	# programmatic restore below -- either way, "whatever tab is now showing"
-	# is exactly what the next close/reopen (or app restart) should return to.
+	# Fires for a real click and for rebuild()'s programmatic restore below: either way, whatever
+	# tab is showing is what the next close/reopen (or app restart) should return to.
 	_tab_container.tab_changed.connect(_on_tab_changed)
 	_tab_container.tab_clicked.connect(_on_tab_selected)
 	layout.add_child(_tab_container)
@@ -543,9 +432,8 @@ func _rebuild_if_built() -> void:
 		rebuild()
 
 
-## Frees the whole tab UI. _rows is cleared with it so no
-## stale control references survive; the selected tab index is already
-## persisted by _on_tab_changed().
+## Frees the whole tab UI. _rows is cleared with it so no stale control references survive; the
+## selected tab index is already remembered by _on_tab_changed().
 func _free_ui() -> void:
 	if _tab_container == null:
 		return
@@ -582,16 +470,15 @@ func rebuild() -> void:
 
 	_apply_availability()
 
-	# rebuild() just replaced every tab page (a fresh
-	# TabContainer would otherwise land back on tab 0) -- restore whatever
-	# tab the owner last had open, clamped in case a stale saved index no
-	# longer fits (e.g. a client's hidden-tab availability changed the count).
+	# rebuild() just replaced every tab page (a fresh TabContainer would land on tab 0): restore the
+	# owner's last tab, clamped in case a stale saved index no longer fits (e.g. a client's
+	# hidden-tab availability changed the count).
 	if _tab_container.get_tab_count() > 0:
 		_tab_container.current_tab = clampi(_selected_tab_index, 0, _tab_container.get_tab_count() - 1)
 	_rebuilding_tabs = false
 
 
-## tabs follow what a tuner thinks about, not which Resource a
+## Tabs follow what a tuner thinks about, not which Resource a
 ## field lives in. Client-visible (look/feel) tabs first, host-only simulation
 ## tabs last (CLIENT_HIDDEN_TAB_FIRST). A resource listed on two tabs (Ghost)
 ## splits by section: hints.section_tabs names the sections that move to the
@@ -648,8 +535,8 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		list.add_child(_build_section(HAND_BUILT_CLASS, PRESET_SECTION_TITLE, preset_rows, true))
 		first_section = false
 	if tab_name == "Sky":
-		# Theme/Time/Weather/Breeze are one ordinary
-		# foldable section in the same grid as every reflected row.
+		# Theme/Time/Weather/Breeze are one ordinary foldable section in the same grid as every
+		# reflected row.
 		var scene_rows: Array[Control] = [
 			_build_theme_row(), _build_time_of_day_row(),
 			_build_weather_row(), _build_breeze_row(),
@@ -792,8 +679,8 @@ func _section_header_text(title: String, count: int, is_open: bool) -> String:
 	return "%s%s (%d)" % [SECTION_OPEN_MARK if is_open else SECTION_CLOSED_MARK, title, count]
 
 
-## The baseline a row's "(default X)" label and yellow modified-highlight
-## compare against (outcome 2). It is exactly what Reset
+## The baseline a row's "(default X)" label and yellow modified-highlight compare against. It is
+## exactly what Reset
 ## restores: the shipped .tres loaded fresh (CACHE_MODE_IGNORE, never the
 ## cached live instance) when `resource` has a resource_path, so the label and
 ## highlight can never disagree with _reset_resource(). Only a path-less
@@ -928,8 +815,8 @@ func _format_shown(value: Variant, type: int, unit: String, decimals: int) -> St
 
 
 func _build_bool_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
-	# a text toggle ("On"/"Off", pressed = lit) instead of a
-	# CheckButton whose off state was a nearly invisible dot.
+	# A text toggle ("On"/"Off", pressed = lit): a CheckButton's off state is a nearly invisible
+	# dot.
 	var check: Button = Button.new()
 	check.toggle_mode = true
 	check.custom_minimum_size = Vector2(TOGGLE_WIDTH, 0.0)
@@ -948,8 +835,7 @@ func _build_bool_row(resource: Resource, prop_name: String, class_label: String,
 	return frame["row"] as Control
 
 
-## the arena style enum as a dropdown (CURRENT, LAYERED_PLATES,
-## ROCKY_ISLAND, MACHINED_DISC); picking one rebuilds the arena mesh live.
+## The arena style enum as a dropdown; picking one rebuilds the arena mesh live.
 func _build_arena_style_row(resource: Resource, prop_name: String, class_label: String, default_value: Variant) -> Control:
 	var option: OptionButton = OptionButton.new()
 	option.name = "ArenaStyleOption"
@@ -1050,13 +936,10 @@ func _build_float_row(resource: Resource, prop_name: String, class_label: String
 	var slider: HSlider = HSlider.new()
 	slider.min_value = value_range.x
 	slider.max_value = value_range.y
-	# DECISION (ui/debug/TuningPanel.gd): step = 0 (continuous) rather than a fixed
-	# fraction of the range -- Range snaps `value` to the nearest multiple of
-	# `step` on assignment, which quantized the row's *initial* display away
-	# from the field's real current value (e.g. gravity_multiplier's exact
-	# 1.0 initial value rendered as 0.999 with a 200-step range) with no
-	# benefit: nothing here depends on a coarse arrow-key increment, and a
-	# real mouse drag is already limited to the slider's own pixel width.
+	# DECISION (ui/debug/TuningPanel.gd): step = 0 (continuous) rather than a fixed fraction of the
+	# range: Range snaps `value` to the nearest multiple of `step` on assignment, which quantized
+	# the row's initial display away from the field's real value (gravity_multiplier's exact 1.0
+	# rendered as 0.999 with a 200-step range). Nothing here needs a coarse arrow-key increment.
 	slider.step = 0.0
 	slider.value = current
 	slider.custom_minimum_size = Vector2(CONTROL_MIN_WIDTH, 0.0)
@@ -1112,11 +995,9 @@ func _values_equal(current: Variant, default_value: Variant, type: int) -> bool:
 			return current == default_value
 
 
-## Re-derives one row's modified marker/colour from its resource's *current*
-## value -- called right after a row is first built (nothing is modified yet,
-## but this keeps one code path for both cases) and again from
-## _on_field_changed() every time a control writes its resource, so the marker
-## updates live without a full rebuild(). The default column is static text.
+## Re-derives one row's modified marker/colour from its resource's *current* value: called when a
+## row is first built and again from _on_field_changed() every time a control writes its resource,
+## so the marker updates live without a full rebuild(). The default column is static text.
 func _refresh_row_marker(row: Dictionary) -> void:
 	var name_label: Label = row.get("name_label") as Label
 	if name_label == null:
@@ -1136,8 +1017,8 @@ func _refresh_row_marker(row: Dictionary) -> void:
 		name_label.remove_theme_color_override("font_color")
 
 
-## `hints`'s per-field entry, or a fallback derived from the field's current
-## value (design brief: "default [0, 4x current] for unknowns").
+## `hints`'s per-field entry, or a fallback of [0, 4x current] derived from the field's current
+## value.
 func _range_for(class_label: String, prop_name: String, current: float) -> Vector2:
 	var hinted: Vector2 = hints.range_for(class_label, prop_name) if hints != null else Vector2(NAN, NAN)
 	if not (is_nan(hinted.x) or is_nan(hinted.y)):
@@ -1145,13 +1026,10 @@ func _range_for(class_label: String, prop_name: String, current: float) -> Vecto
 	return _fallback_range(current)
 
 
-## DECISION (ui/debug/TuningPanel.gd): the design brief's fallback is literally
-## "[0, 4x current]", which degenerates for a field whose sane value sits at
-## or below zero (an unhinted negative-by-default field, or one that happens
-## to read exactly 0 when the panel first builds its row) -- an inverted or
-## zero-width range respectively. A negative current mirrors the same
-## magnitude below zero instead; a zero current gets a small symmetric
-## default rather than a slider with nowhere to go.
+## DECISION (ui/debug/TuningPanel.gd): the [0, 4x current] fallback degenerates for a field whose
+## sane value sits at or below zero (an inverted or zero-width range), so a negative current
+## mirrors the same magnitude below zero and a zero current gets a small symmetric default rather
+## than a slider with nowhere to go.
 func _fallback_range(current: float) -> Vector2:
 	if current > 0.0:
 		return Vector2(0.0, current * 4.0)
@@ -1180,38 +1058,26 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	elif resource == beacon_visual_tuning:
 		apply_beacon_tuning_live()
 	elif resource == sky_theme:
-		# the day/night cycle length is a rate, not a look; it
-		# goes through its own seam so the time of day stays put and the theme
-		# is not re-applied over a running cycle.
+		# The day/night cycle length is a rate, not a look: it goes through its own seam so the time of
+		# day stays put and the theme is not re-applied over a running cycle.
 		if _prop_name == "cycle_length_seconds":
 			apply_cycle_length_live()
 		else:
 			apply_sky_theme_live()
-			# U1: editing a preset's locked phase moves the
-			# sky now when that preset is the selected time of day.
+			# Editing a preset's locked phase moves the sky now when that preset is the selected time of
+			# day.
 			if _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
 				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
-	# BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and
-	# BeaconVisualTuning (apply_beacon_tuning_live()) are live now; HUDVisualTuning
-	# is still baked at HUD build (follow-up).
-	# ghost_tuning / territory_tuning / block_feed_config are already read
-	# live by whatever consumes them each frame/tick -- see this file's class
-	# doc for the live-apply hooks the other resources need. 
-	# block_visual_tuning/block_effects_config/beacon_visual_tuning/
-	# camera_shake_config/hud_visual_tuning need no hook either -- each is
-	# either read live per-frame/per-event already (CameraShakeConfig,
-	# BlockEffectsConfig) or baked once at construction time with no existing
-	# re-push seam on the consumer (BlockVisualTuning's toon material in
-	# BlockFactory.build(), BeaconVisualTuning's geometry in HomeFlag._build(),
-	# HUDVisualTuning's StyleBoxFlat in HUD._style_panel()/_ensure_share_row_
-	# count()) -- a value write here still takes effect for anything built
-	# from here on, matching the brief's "otherwise a value write is enough".
+	# BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and BeaconVisualTuning
+	# (apply_beacon_tuning_live()) have live hooks. ghost_tuning / territory_tuning /
+	# block_feed_config are read live each frame/tick; block_effects_config / camera_shake_config
+	# are read live per event; hud_visual_tuning is baked at HUD build. A value write here still
+	# takes effect for anything built from here on.
 
 
-## the Physics tab's own preset row, built the same way every
-## other row here is (a plain Control returned to _add_tab's caller) but not
-## reflection-built and not registered in _rows -- it doesn't belong to one
-## resource field, it writes every field of physics_tuning at once.
+## The Physics tab's own preset row: a plain Control returned to _add_tab's caller, but not
+## reflection-built and not registered in _rows, since it writes every field of physics_tuning at
+## once.
 func _build_physics_preset_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_SEPARATION)
@@ -1222,12 +1088,10 @@ func _build_physics_preset_row() -> Control:
 	row.add_child(label)
 
 	var option: OptionButton = OptionButton.new()
-	# Review fix: cube_mass only feeds BlockFactory.build()'s
-	# `mass = tuning.cube_mass * cube_count` at spawn time (game/blocks/BlockFactory.gd)
-	# -- Block.apply_physics_tuning(), the live-apply path a preset pick also
-	# runs (apply_physics_preset() below), never touches an existing body's
-	# `.mass`. So switching presets mid-match changes how heavy the NEXT block
-	# placed is, not any block already standing.
+	# cube_mass only feeds BlockFactory.build()'s `mass = tuning.cube_mass * cube_count` at spawn
+	# time; Block.apply_physics_tuning() (the live path a preset pick also runs) never touches an
+	# existing body's `.mass`. So switching presets mid-match changes how heavy the NEXT block placed
+	# is, not any block already standing.
 	option.tooltip_text = (
 		"Presets change mass only for blocks placed after the switch " +
 		"(mass is not live-applied to standing blocks). " +
@@ -1246,14 +1110,10 @@ func _build_physics_preset_row() -> Control:
 	return row
 
 
-## Loads `preset_id`'s config/physics/presets/*.tres and copies its every
-## exported field onto the live physics_tuning instance, then pushes it out
-## through the same live-apply path a slider drag already uses
-## (apply_physics_live()) and rebuild()s so every Physics slider shows the
-## new values (the same pattern reset_all() already uses below). A silent
-## no-op for an id PHYSICS_PRESETS doesn't have (defensive; the dropdown
-## itself can only emit an in-range index). Public so a test can pick a
-## preset without a real OptionButton.
+## Loads `preset_id`'s config/physics/presets/*.tres and copies its every exported field onto the
+## live physics_tuning instance, pushes it through apply_physics_live() and rebuild()s so every
+## Physics slider shows the new values. A silent no-op for an id PHYSICS_PRESETS doesn't have.
+## Public so a test can pick a preset without a real OptionButton.
 func apply_physics_preset(preset_id: String) -> void:
 	var preset: PhysicsTuning = _physics_preset_resource(preset_id)
 	if preset == null:
@@ -1267,11 +1127,10 @@ func apply_physics_preset(preset_id: String) -> void:
 	rebuild()
 
 
-## the Sky tab's "Theme" dropdown (sunset / night / any future
-## config/sky/themes/*.tres SkyThemeDef, discovered by
-## Skybox.list_available_themes()), led by's "cycle" entry (the
-## default match sky: Skybox.start_cycle(); the Time-of-day row below locks it).
-## Persists on skybox_config.theme_name (saved by Save override).
+## The Sky tab's "Theme" dropdown (sunset / night / any config/sky/themes/*.tres SkyThemeDef,
+## discovered by Skybox.list_available_themes()), led by the "cycle" entry (the default match sky:
+## Skybox.start_cycle(); the Time-of-day row below locks it). Persists on skybox_config.theme_name
+## (saved by Save override).
 func _build_theme_row() -> Control:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_SEPARATION)
@@ -1427,8 +1286,8 @@ func apply_sky_theme_id(theme_id: String) -> bool:
 	return true
 
 
-## U1: the Theme dropdown's ids: the leading "cycle" entry,
-## then every static theme file (Skybox.list_available_themes()).
+## The Theme dropdown's ids: the leading "cycle" entry, then every static theme file
+## (Skybox.list_available_themes()).
 func theme_ids() -> PackedStringArray:
 	var ids: PackedStringArray = PackedStringArray([CYCLE_THEME_ID])
 	ids.append_array(Skybox.list_available_themes())
@@ -1492,7 +1351,7 @@ func _apply_cycle_theme() -> bool:
 	return true
 
 
-## U1: the Sky tab's "Time of day" row. Running / Sunset / Dawn /
+## The Sky tab's "Time of day" row. Running / Sunset /
 ## Night / Custom (a 0..1 phase slider, editable for Custom only) drive the
 ## cycle through Skybox.set_locked_phase(); the row is disabled while a static
 ## theme is shown (nothing to lock). Local dev tuning like the cycle length:
@@ -1665,13 +1524,10 @@ func apply_physics_live() -> void:
 			block.apply_physics_tuning(physics_tuning)
 
 
-## Pushes camera_tuning's follow_distance/follow_pitch_deg onto every live
-## CameraRig immediately (.20b). Iterates CameraRig.TUNING_GROUP --
-## the same "every live instance already in the tree" idiom apply_physics_
-## live() uses for Block.TUNING_GROUP -- rather than this panel's own
-## _camera_rig reference, so the push still reaches a rig in a bare-panel
-## test that never called set_camera_rig(). Public so a test can drive it
-## directly instead of dragging a real slider.
+## Pushes camera_tuning's follow_distance/follow_pitch_deg onto every live CameraRig immediately.
+## Iterates CameraRig.TUNING_GROUP rather than this panel's own _camera_rig, so a bare-panel test
+## that never called set_camera_rig() still reaches a rig. Public so a test can drive it directly
+## instead of dragging a real slider.
 func apply_camera_tuning_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(CameraRig.TUNING_GROUP):
 		var rig: CameraRig = node as CameraRig
@@ -1679,16 +1535,10 @@ func apply_camera_tuning_live() -> void:
 			rig.apply_follow_tuning()
 
 
-## Pushes territory_visuals onto the wired Field's TerritoryOverlay shader
-## immediately, and re-applies the same resource's reflection-probe/SSR
-## fields onto every live Skybox (step 2: those two only ever
-## ran once at boot otherwise -- see game/sky/Skybox.gd's refresh_from_visuals()
-## doc). Iterates Skybox.TUNING_GROUP the same "every live instance already
-## in the tree" idiom apply_camera_tuning_live()/apply_physics_live() use
-## right above, so this half of the push works even in a bare-panel test
-## that never wired a Field. The overlay half stays a no-op if this panel was
-## never wired to a Field (a bare unit-test instance, or a moment before
-## set_field() has run).
+## Pushes territory_visuals onto the wired Field's TerritoryOverlay shader immediately, and
+## re-applies its reflection-probe/SSR fields onto every live Skybox (those only ran once at boot
+## otherwise; see Skybox.refresh_from_visuals()). Iterates Skybox.TUNING_GROUP, so that half works
+## in a bare-panel test; the overlay half is a no-op without a wired Field.
 func refresh_territory_visuals_live() -> void:
 	if _field != null:
 		var overlay: TerritoryOverlay = _field.overlay()
@@ -1700,7 +1550,7 @@ func refresh_territory_visuals_live() -> void:
 			skybox.refresh_from_visuals()
 
 
-## rebuilds every HomeFlag/GoalFlag beacon in the tree from the
+## Rebuilds every HomeFlag/GoalFlag beacon in the tree from the
 ## edited beacon_visual_tuning (their geometry and materials are baked in _build()).
 func apply_beacon_tuning_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(HomeFlag.TUNING_GROUP):
@@ -1709,7 +1559,7 @@ func apply_beacon_tuning_live() -> void:
 			flag.rebuild_beacon()
 
 
-## rebuilds the wired Field's arena mesh (top slab + side
+## Rebuilds the wired Field's arena mesh (top slab + side
 ## surfaces) from arena_side_style. Collision is a separate Field shape and is
 ## untouched; the territory material and its uniforms are kept by
 ## TerritoryOverlay.rebuild_disk_mesh(). No-op without a Field.
@@ -1721,31 +1571,24 @@ func apply_arena_style_live() -> void:
 		overlay.rebuild_disk_mesh()
 
 
-## pushes sky_theme onto every live Skybox's own public
-## re-apply method (game/sky/Skybox.gd's apply_theme(); see its own doc). Iterates Skybox.TUNING_GROUP, the same
-## "every live instance already in the tree" idiom apply_camera_tuning_live()/
-## refresh_territory_visuals_live() use, so this reaches a Skybox even in a
-## bare-panel test. Known gap (not fixed here -- Skybox.gd isn't an owned
-## file and apply_theme() doesn't touch it): Skybox._spawn_fog_volume() reads
-## cloud_deck_size_m/cloud_deck_height_m/fog_density/fog_color only once, at
-## _ready(), to build the FogVolume child's own size/position/FogMaterial --
-## apply_theme() doesn't resync those, so an edit to one of those four fields
-## only affects a Skybox that hasn't spawned its FogVolume yet.
+## Pushes sky_theme onto every live Skybox's apply_theme(). Iterates Skybox.TUNING_GROUP, so it
+## reaches a Skybox even in a bare-panel test. Known gap: Skybox._spawn_fog_volume() reads
+## cloud_deck_size_m/cloud_deck_height_m/fog_density/fog_color only once, at _ready(), and
+## apply_theme() doesn't resync them, so an edit to those four fields only affects a Skybox that
+## hasn't spawned its FogVolume yet.
 func apply_sky_theme_live() -> void:
 	for skybox: Skybox in _live_skyboxes():
-		# U1: a running cycle owns a live duplicate of the
-		# source themes; apply_theme(sky_theme) would swap it for the static
-		# material, so the edit is re-copied into the duplicate instead.
+		# A running cycle owns a live duplicate of the source themes; apply_theme(sky_theme) would
+		# swap it for the static material, so the edit is re-copied into the duplicate instead.
 		if skybox.is_cycle_active():
 			skybox.refresh_cycle_sources()
 		else:
 			skybox.apply_theme(sky_theme)
 
 
-## "control day/night length in F4":
-## pushes the Sky tab's cycle_length_seconds onto every live Skybox running a
-## CYCLE match. Skybox re-bases its phase so the time of day does not jump.
-## Local dev tuning only: nothing is replicated.
+## Pushes the Sky tab's cycle_length_seconds onto every live Skybox running a CYCLE match. Skybox
+## re-bases its phase so the time of day does not jump. Local dev tuning only: nothing is
+## replicated.
 func apply_cycle_length_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
 		var skybox: Skybox = node as Skybox
@@ -1765,8 +1608,8 @@ func _on_reset_pressed() -> void:
 ## already holds -- see ResourceLoader.CACHE_MODE_IGNORE's use in
 ## _reset_resource()). Public so a test can call it without a real Button.
 func reset_all() -> void:
-	# U1: the shipped theme_name is the static "sunset"; applying
-	# it would turn a running cycle (the default sky) into the static theme.
+	# The shipped theme_name is the static "sunset"; applying it would turn a running cycle (the
+	# default sky) into the static theme.
 	var cycle_was_active: bool = _any_cycle_active()
 	_reset_resource(camera_tuning)
 	_reset_resource(ghost_tuning)
@@ -1777,13 +1620,7 @@ func reset_all() -> void:
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
 	TuningSfxTab.reset_fields(audio_config)
-	# "Sky settings in F4 doesn't reset":
-	# sky_theme was the one preloaded tuning resource this loop never
-	# touched --'s own DECISION (this file's class doc)
-	# deliberately left it, along with Save/Copy/TuningOverrides.apply_saved, out
-	# of this roster as "a reasonable small follow-up, not done here". Reset
-	# is that follow-up; Save/Copy/TuningOverrides.apply_saved are unaffected
-	# (still out of scope -- not what the user reported).
+	# sky_theme is reset too; Save/Copy/TuningOverrides.apply_saved still skip it.
 	_reset_resource(sky_theme)
 	for theme_id: String in Skybox.list_available_themes():
 		_reset_resource(Skybox.load_theme(theme_id))
@@ -1818,9 +1655,8 @@ func _on_save_pressed() -> void:
 ## Writes every exported float/int/bool/Color field of every tuning resource
 ## into user://tuning_overrides.cfg (one ConfigFile section per resource
 ## class). Public so a test can drive/verify it without a real Button.
-## loads whatever is already on disk first -- a fresh
-## ConfigFile here would silently drop the selected-tab section
-## _save_selected_tab_index() writes on its own, independent schedule.
+## Loads whatever is already on disk first: a fresh ConfigFile would drop the selected-tab section
+## _save_selected_tab_index() writes on its own schedule.
 func save_overrides() -> Error:
 	if not UserPaths.persistence_allowed():
 		return ERR_UNAVAILABLE
@@ -1838,13 +1674,9 @@ func save_overrides() -> Error:
 	return config.save(save_path())
 
 
-## TYPE_STRING joins the allowed set here (and in
-## _copy_section() below) so config/sky/SkyboxConfig.gd's `theme_name` --
-## the F4 Theme row's own value, not reflection-built and so never reaching
-## either function through a Control -- still round-trips through Save
-## override/Copy the same as every BOOL/INT/FLOAT/COLOR field already does.
-## No existing resource this panel writes had a String field before, so nothing
-## else changes behavior.
+## TYPE_STRING joins the allowed set here (and in _copy_section() below) so
+## config/sky/SkyboxConfig.gd's `theme_name`, the F4 Theme row's own value (not reflection-built),
+## still round-trips through Save override/Copy like every BOOL/INT/FLOAT/COLOR field.
 func _write_overrides(config: ConfigFile, section: String, resource: Resource) -> void:
 	if resource == null:
 		return
