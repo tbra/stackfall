@@ -1,5 +1,5 @@
 extends Node
-## First autoload (non-singleton slice A). Compiles the remaining
+## First autoload. Compiles the remaining
 ## autoload scripts on a worker thread, one request at a time, while the main thread keeps
 ## the window message pump alive. Without it the autoload phase (several seconds of GDScript
 ## compilation) runs with no message pump and Windows shows "Not responding".

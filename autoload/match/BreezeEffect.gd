@@ -1,11 +1,9 @@
 class_name BreezeEffect
 extends WindEffect
-## Host-side Breeze: an always-on weak wind made of short
-## local GUSTS, layered independently of the weather mode and of any active
-## weather, except Storm: no NEW gust spawns while a Storm event is active
-## ("gust shouldn't occur during storm"); they
-## resume when it ends. Rules: core/weather/BreezeField.gd; numbers: config/breeze/breeze.tres
-## (BreezeTuning).
+## Host-side Breeze: an always-on weak wind made of short local GUSTS, layered
+## independently of the weather mode and of any active weather, except Storm: no NEW
+## gust spawns while a Storm event is active; they resume when it ends. Rules:
+## core/weather/BreezeField.gd; numbers: config/breeze/breeze.tres (BreezeTuning).
 ##
 ## Every spawn_interval_s the host picks one live block from its seeded RNG and
 ## accepts it with a chance that rises with the block's height above the disc
@@ -18,9 +16,9 @@ extends WindEffect
 ## DECISION (BreezeEffect): forces are applied per tick with
 ## apply_central_force, exactly like StormEffect, so they SUM with a Storm's
 ## push in the physics step. Each is clamped on its own (per-tick dv and an
-## along-heading speed cap: Breeze's is small). Since no new
-## gust spawns while a Storm is active, so the overlap is limited to a gust
-## already in flight at storm start; stopping the tick is a complete undo.
+## along-heading speed cap). Since no new gust spawns while a Storm is active,
+## the overlap is limited to a gust already in flight at storm start; stopping
+## the tick is a complete undo.
 ## DECISION (BreezeEffect): sleeping blocks are scanned on a rotating stride and
 ## woken only when the summed push reaches wake_accel, blocks that own their
 ## physics (Freeze, SpecialBehavior) are skipped, as in Storm.
@@ -149,8 +147,8 @@ func _age_and_expire(delta: float) -> void:
 func _eligible(block: Block) -> bool:
 	if not is_instance_valid(block) or not block.is_inside_tree():
 		return false
-	# A settled tower is stable-frozen STATIC after 20 s asleep; gusts wake it
-	# . Any other freeze (Freeze special) still blocks the push.
+	# A settled tower is stable-frozen STATIC after 20 s asleep; gusts wake it.
+	# Any other freeze (Freeze special) still blocks the push.
 	if WindEffect.is_stable_frozen(block):
 		return true
 	return not block.freeze and not block.is_freeze_static()
@@ -169,7 +167,7 @@ func _try_spawn() -> void:
 	var angle: float = _rng.randf() * TAU
 	var radius: float = _rng.randf_range(_bt.radius_min_m, maxf(_bt.radius_min_m, _bt.radius_max_m))
 	var duration: float = _rng.randf_range(_bt.duration_min_s, maxf(_bt.duration_min_s, _bt.duration_max_s))
-	# at most ONE gust alive at a time (a sporadic single gust).
+	# At most ONE gust alive at a time (a sporadic single gust).
 	if blocks.is_empty() or not _gusts.is_empty():
 		return
 	var block: Block = blocks[mini(int(pick * float(blocks.size())), blocks.size() - 1)]

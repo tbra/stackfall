@@ -3,12 +3,8 @@ extends RefCounted
 ## Match's block feed: bags, held/next shapes, feed_seq, interval timers,
 ## release locks, auto-drop expiry and the replicated feed mirror.
 ##
-## Split out of autoload/Match.gd (pure refactor: no behaviour change). Every
-## method here is the exact body that used to live on Match, with `_match`
-## reads standing in for whatever another controller (or Match itself) now
-## owns. See autoload/Match.gd's own header comment for the state machine
-## this feed serves. The split exists so parallel workers own separate files
-## rather than separate functions of one file.
+## See autoload/Match.gd's header comment for the state machine this feed serves;
+## `_match` reads stand in for whatever another controller (or Match) owns.
 
 var _match: MatchAutoload = null
 
@@ -17,7 +13,7 @@ var _held_shapes: Array[BlockShape] = []
 var _feed_time_left: Array[float] = []
 var _feed_expired: Array[bool] = []
 
-## (QoL experiments 1 and 2; see config/match/QolExperiments.gd).
+## QoL experiments 1 and 2 (config/match/QolExperiments.gd).
 ## _backlog[slot] holds blocks queued instead of force-dropped (host only);
 ## _backlog_mirror/_paused_mirror are what a client displays, kept by
 ## apply_replicated_qol(). _timer_pause is null unless the toggle is on.
@@ -33,15 +29,13 @@ var _qol_paused_before: Array[bool] = []
 ## Test seam: Callable() -> PackedInt32Array replaces the block-velocity scan.
 var _qol_moving_counts_source: Callable = Callable()
 
-## Spec 2.6, "Never duplicated, never lost"
-## per slot, advanced every time the slot's held block is consumed. An intent
-## carries the value its sender last saw; the host refuses one that is no
-## longer current, so a replayed, doubled or raced intent is a no-op instead
-## of silently spending the next block.
+## Spec 2.6, "Never duplicated, never lost": per slot, advanced every time the
+## slot's held block is consumed. An intent carries the value its sender last
+## saw; the host refuses one that is no longer current, so a replayed, doubled
+## or raced intent is a no-op instead of silently spending the next block.
 var _feed_seq: Array[int] = []
 
-## spec 1.4 "[ORIGINAL target]" placement cadence, restored
-## after the M2 hot-seat prototype: whether the slot's currently held piece
+## Spec 1.4 "[ORIGINAL target]" placement cadence: whether the slot's currently held piece
 ## may be released right now. Every fixed `config.block_timer` interval
 ## permits exactly one release; placing early does not restart the interval
 ## -- it hands the slot its next piece to aim/prepare immediately, but that
@@ -67,20 +61,15 @@ var _shapes_by_id: Dictionary = {}
 ## True for every real match; a sandbox match (config.sandbox) starts it
 ## false, so feed_time_left never counts down and no slot ever auto-drops —
 ## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey flips it back on to
-## deliberately exercise auto-drop. A placement still refeeds immediately
-## either way (_consume_and_refeed() runs from request_place() regardless of
-## this flag), so "unlimited blocks" falls out of the existing per-placement
-## refeed, not a separate code path.
+## exercise auto-drop. A placement still refeeds immediately either way
+## (_consume_and_refeed() runs from request_place() regardless of this flag).
 ##
 ## DECISION (autoload/Match.gd): a runtime flag read at the top of
 ## _tick_feed(), not a second MatchConfig field, because it has to change
-## while a match is running (the toggle hotkey) — config is duplicated once
-## at start_match() and normally never touched again, and reaching back into
-## it from a hotkey would blur "match settings" with "what this instance is
-## doing right now". Not implemented by setting block_timer to a huge number
-## either: that would still tick, drift, and eventually expire, and would
-## show a misleading countdown on ui/debug/SandboxPanel.gd's timer readout instead
-## of an honest "paused".
+## while a match is running and config is duplicated once at start_match().
+## Not implemented by setting block_timer to a huge number either: that would
+## still tick, drift and eventually expire, and show a misleading countdown on
+## ui/debug/SandboxPanel.gd's timer readout instead of an honest "paused".
 var _feed_timer_enabled: bool = true
 
 
@@ -125,23 +114,19 @@ func feed_progress(slot_id: int) -> float:
 	return clampf(feed_time_left(slot_id) / _match.config.block_timer, 0.0, 1.0)
 
 
-## Whether _tick_feed() is currently decrementing timers (
-## true for every real match). ui/debug/SandboxPanel.gd shows this as the timer's
-## "running"/"paused" state.
+## Whether _tick_feed() is currently decrementing timers (true for every real
+## match). ui/debug/SandboxPanel.gd shows this as the timer's "running"/"paused" state.
 func feed_timer_enabled() -> bool:
 	return _feed_timer_enabled
 
 
-## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey. A no-op call outside
-## sandbox is harmless (every real match starts true and nothing else in the
-## shipped game ever calls this), but nothing stops a caller from flipping it
-## — this file does not gate it on config.sandbox, the same way
-## set_process(false) in the test harness is trusted rather than re-checked.
+## game/sandbox/Sandbox.gd's sandbox_toggle_timer hotkey. Not gated on
+## config.sandbox: nothing else in the shipped game calls it.
 func set_feed_timer_enabled(enabled: bool) -> void:
 	_feed_timer_enabled = enabled
 
 
-## blocks the slot has queued (host: the real backlog; client:
+## Blocks the slot has queued (host: the real backlog; client:
 ## the replicated mirror). Always 0 with the backlog toggle off.
 func backlog_count(slot_id: int) -> int:
 	if _match._is_host():
@@ -153,7 +138,7 @@ func backlog_count(slot_id: int) -> int:
 	return _backlog_mirror[slot_id]
 
 
-## whether the slot's block timer is frozen by the pause toggle.
+## Whether the slot's block timer is frozen by the pause toggle.
 func timer_paused(slot_id: int) -> bool:
 	if _match._is_host():
 		return _timer_pause != null and _timer_pause.is_paused(slot_id)
@@ -176,9 +161,9 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 	var is_gift: bool = false
 	var popped: bool = false
 	if from_backlog and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
-		# DECISION: a queued block is handed out before the
-		# bag is touched, so placing "takes from the backlog first"; a pending
-		# gift carrier stays pending for the first bag draw after the backlog.
+		# DECISION: a queued block is handed out before the bag is touched, so
+		# placing takes from the backlog first; a pending gift carrier stays
+		# pending for the first bag draw after the backlog.
 		shape = _backlog[slot_id].pop_front() as BlockShape
 		popped = true
 	else:
@@ -187,7 +172,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		_next_gift_shapes.erase(slot_id)
 		_promote_staged_gift(slot_id)
 	_held_is_gift[slot_id] = is_gift
-	# review: an aim noted for the previous piece never carries over to this one.
+	# An aim noted for the previous piece never carries over to this one.
 	_match._placement.forget_aim(slot_id)
 	if is_gift:
 		_match._gifts.activate_next_special(slot_id)
@@ -206,7 +191,7 @@ func _issue_next_block(slot_id: int, from_backlog: bool = true) -> void:
 		_emit_qol_state(slot_id)
 
 
-## an eliminated slot holds nothing - the held and next block,
+## An eliminated slot holds nothing - the held and next block,
 ## its backlog, a pending gift carrier and the held special are all dropped, and
 ## held_shape()/next_shape() answer null so no intent or preview can use them.
 func clear_slot_blocks(slot_id: int) -> void:
@@ -229,51 +214,32 @@ func _tick_feed(delta: float) -> void:
 	if not _match._is_host():
 		return
 	if not _feed_timer_enabled:
-		# sandbox's default state (and sandbox_toggle_timer's
-		# "off" position) — feed_time_left is left exactly where it is, so
-		# ui/debug/SandboxPanel.gd reads a paused timer, not a frozen countdown
-		# drifting toward zero. this also means the
-		# placement-interval lock below never engages while the timer is
-		# paused -- sandbox's own "unlimited blocks" with the timer disabled
-		# gets no lock either, by the same reasoning _consume_and_refeed()'s
-		# matching DECISION explains.
+		# Sandbox's default state: feed_time_left is left exactly where it is, so
+		# ui/debug/SandboxPanel.gd reads a paused timer, not a frozen countdown.
+		# The placement-interval lock never engages while the timer is paused
+		# (see _consume_and_refeed()'s DECISION).
 		return
 	_tick_qol_pause(delta)
 	if _match.config.is_sequential_play():
-		# stackfall-reviewer finding (M6 B4 turn-based review):
-		# turn_based used to fall into the concurrent `else` branch below,
-		# which ticked down EVERY slot's timer regardless of whose turn it
-		# was -- a non-active slot could expire and auto-drop, and
-		# net/MatchNet.gd's host-side check refuses that placement as
-		# NOT_YOUR_TURN (only the active slot may act).
 		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 1.2 vs.
-		# spec 1.4's concurrent "[ORIGINAL target]"), so it takes the same
-		# single-slot branch, including the recovery just below.
+		# spec 1.4's concurrent "[ORIGINAL target]"): ticking every slot would
+		# let a non-active slot expire and auto-drop, which net/MatchNet.gd
+		# refuses as NOT_YOUR_TURN. Same single-slot branch, recovery included.
 		var active_slot: int = _match.active_slot()
 		if active_slot == -1:
 			return
 		if not _match.slot(active_slot).home_flag_alive:
-			# stackfall-reviewer finding: without this, a turn_based active
-			# slot eliminated before it ever places (e.g. a hole from another
-			# player's territory capture) left _turn_settle_wait_left at its
-			# initial -1.0 -- no settle-wait is running to advance the turn --
-			# and the match deadlocked on a slot that can never place again.
-			# Mirrors hot-seat's own pre-existing recovery exactly.
+			# An active slot eliminated before it ever places (e.g. a hole from
+			# another player's territory capture) leaves _turn_settle_wait_left
+			# at -1.0, so no settle-wait would advance the turn and the match
+			# would deadlock. Mirrors hot-seat's own recovery.
 			#
-			# DECISION (autoload/match/MatchFeed.gd, not settled by docs/
-			# the turn-lock rule): this call is a no-op whenever a
-			# settle-wait IS currently running (the active slot placed, then
-			# died before its blocks finished settling) -- advance_turn()
-			# itself doesn't touch MatchLifecycle._turn_settle_wait_left, so a
-			# stale wait would still fire its own advance_turn() once settled
-			# or capped, double-advancing the turn. That case is narrow (a
-			# slot needs to lose its home flag strictly between placing and
-			# settling, e.g. a special detonating mid-fall) and
-			# MatchLifecycle.gd is out of this package's owned files; flagged
-			# for the MatchLifecycle slot owner rather than fixed here. The
-			# reported deadlock this package fixes is the more common case --
-			# eliminated BEFORE ever placing, when no wait is running yet, so
-			# this call is exactly the hot-seat recovery it mirrors.
+			# DECISION: known gap -- if a settle-wait IS already running (the
+			# active slot placed, then lost its home flag before its blocks
+			# settled), advance_turn() does not touch
+			# MatchLifecycle._turn_settle_wait_left, so the stale wait still
+			# fires its own advance_turn() and double-advances the turn. Narrow
+			# (e.g. a special detonating mid-fall); left to MatchLifecycle.
 			_match.advance_turn()
 			return
 		if timer_paused(active_slot):
@@ -283,19 +249,17 @@ func _tick_feed(delta: float) -> void:
 			_feed_expired[active_slot] = true
 			Events.feed_timer_expired.emit(active_slot)
 	else:
-		# Spec 1.4 "[ORIGINAL target]": "players act concurrently, each
-		# handling their own supplied piece". Every slot's fixed-interval
-		# timer runs at once and several blocks may land in the same second;
-		# nothing here serialises them. Neither hot_seat nor turn_based ever
-		# reaches this branch (both take the single-active-slot branch above).
+		# Spec 1.4 "[ORIGINAL target]": players act concurrently, each
+		# handling their own supplied piece. Every slot's fixed-interval
+		# timer runs at once; nothing here serialises them.
 		for i: int in range(_match._lifecycle._slots.size()):
 			if not _match._lifecycle._slots[i].home_flag_alive:
 				continue
 			if _match._lifecycle._disconnect_grace_left[i] >= 0.0:
 				# The peer vanished: its feed stops the moment it does
-				# ("Disconnects and the in-flight held
-				# block") so a player who reconnects inside the grace period
-				# has not been auto-dropped a tower's worth of blocks.
+				# (spec "Disconnects and the in-flight held block") so a player
+				# who reconnects inside the grace period has not been
+				# auto-dropped a tower's worth of blocks.
 				continue
 			if timer_paused(i):
 				# QoL 1: frozen by an event or a topple.
@@ -304,30 +268,26 @@ func _tick_feed(delta: float) -> void:
 			if _feed_time_left[i] > 0.0 or _feed_expired[i]:
 				continue
 			if _release_locked[i]:
-				# spec 1.4: this interval's one release
-				# already happened early -- the slot has been aiming its next
-				# piece, locked, since then. The boundary just unlocks it and
-				# starts a fresh interval for it; nothing needs forcing, so no
-				# feed_timer_expired fires and _feed_expired never needs to
-				# latch true for this crossing.
+				# Spec 1.4: this interval's one release already happened early.
+				# The boundary just unlocks the next piece and starts a fresh
+				# interval; nothing is forced, so no feed_timer_expired fires.
 				_release_locked[i] = false
 				_feed_time_left[i] = _match.config.block_timer
 			elif _try_backlog_push(i):
 				# QoL 2: queued instead of forced.
 				pass
 			else:
-				# This interval's piece is still unspent: force it, exactly
-				# as spec 1.4's [ORIGINAL] auto-drop always has. _feed_expired
-				# latches until _consume_and_refeed(auto_drop = true) resolves
-				# the forced placement and starts the next interval.
+				# This interval's piece is still unspent: force it (spec 1.4
+				# auto-drop). _feed_expired latches until
+				# _consume_and_refeed(auto_drop = true) resolves the forced
+				# placement and starts the next interval.
 				_feed_expired[i] = true
 				Events.feed_timer_expired.emit(i)
 
 
-## DECISION (autoload/Match.gd): the design says a client runs
-## tick", meaning it decides nothing — but with no local decrement at all the
-## HUD's timer ring would sit frozen between the host's 1-per-block feed
-## events, which reads as a bug. So a client counts the same timers down for
+## DECISION (autoload/Match.gd): a client decides nothing in the feed tick, but
+## with no local decrement at all the HUD's timer ring would sit frozen between
+## the host's 1-per-block feed events, which reads as a bug. So a client counts the same timers down for
 ## display only: it never emits feed_timer_expired, never issues a block and
 ## never touches the bag, and every replicated feed event resets the timer to
 ## the host's value, so it cannot drift. Nothing here can duplicate or lose a
@@ -343,9 +303,9 @@ func _tick_client_display(delta: float) -> void:
 		_feed_time_left[i] = maxf(_feed_time_left[i] - delta, 0.0)
 
 
-## QoL 2: at expiry, if the backlog toggle is on and has room,
-## queue the held block and hand the slot a fresh one with a new interval
-## instead of force-dropping. Returns false (caller force-drops) when the toggle
+## QoL 2: at expiry, if the backlog toggle is on and has room, queue the held
+## block and hand the slot a fresh one with a new interval instead of
+## force-dropping. Returns false (caller force-drops) when the toggle
 ## is off, the backlog is full, or the held block is a gift.
 func _try_backlog_push(slot_id: int) -> bool:
 	var qol: QolExperiments = _match.config.qol
@@ -379,8 +339,8 @@ func _emit_qol_state(slot_id: int) -> void:
 	Events.qol_feed_changed.emit(slot_id, backlog_count(slot_id), timer_paused(slot_id))
 
 
-## QoL 1: feeds the pause rule (topple scan on an interval)
-## and announces per-slot pause changes.
+## QoL 1: feeds the pause rule (topple scan on an interval) and announces
+## per-slot pause changes.
 func _tick_qol_pause(delta: float) -> void:
 	if _timer_pause == null:
 		return
@@ -454,7 +414,7 @@ func _build_bags() -> void:
 		_paused_mirror.append(false)
 
 
-## spec 1.4 "[ORIGINAL target]" placement cadence: "Each
+## Spec 1.4 "[ORIGINAL target]" placement cadence: "Each
 ## fixed interval permits one release. Releasing early does not restart the
 ## interval: the next piece can be positioned but remains release-locked
 ## until the interval boundary. At expiry, force release only if that
@@ -463,25 +423,19 @@ func _build_bags() -> void:
 ## (request_place()'s own doc comment; never taken from the wire), so every
 ## other call here is the "released early" case.
 ##
-## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn already passes
-## to a *different* player's controls the instant a block lands
-## (strict alternation)
-## can never place twice in a row and there is nothing for a release lock to
-## prevent. Spec Part 4 M2 itself calls the hot-seat build a historical test
-## harness, not the target cadence ("A separate hot-seat/turn-based test mode
-## must not become normal play"), so this keeps hot-seat exactly as M2 shipped
-## it rather than growing it a lock it was never meant to need.
+## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn passes to a
+## *different* player's controls the instant a block lands (strict
+## alternation), so a slot can never place twice in a row and there is nothing
+## for a release lock to prevent. The spec calls hot-seat a test harness, not
+## the target cadence ("A separate hot-seat/turn-based test mode must not
+## become normal play"), so it gets no lock.
 ##
-## stackfall-reviewer finding (M6 B4 turn-based review):
-## turn_based shares the same exemption -- its turn also passes to a
-## different slot's controls once the settle-wait ends (the turn-lock rule),
-## just not the instant a block lands, so the same slot likewise never places
-## twice in the same turn and never needs a release lock either.
+## turn_based shares the exemption: its turn passes to a different slot once
+## the settle-wait ends, so the same slot never places twice in a turn.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	var released_gift: bool = is_held_gift(slot_id)
-	# The sequence advances before the new block is issued, so the
-	# feed_block_issued that tells the owner "you have a block" already
-	# carries the sequence its next intent must quote.
+	# Advance the sequence before issuing, so the feed_block_issued that tells
+	# the owner "you have a block" carries the sequence its next intent must quote.
 	_feed_seq[slot_id] += 1
 	if _match.config.is_sequential_play():
 		_feed_time_left[slot_id] = _match.config.block_timer
@@ -500,50 +454,33 @@ func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 		# The interval's own piece was just forced out at the boundary: the
 		# new one starts fresh, unlocked, for a brand new interval.
 		#
-		# `_feed_expired[slot_id]` can be true here with
-		# `auto_drop == false` -- the interval's piece was still unspent when
-		# `_tick_feed()` latched `_feed_expired` true and fired
-		# `feed_timer_expired` (see that function's own comment), but nobody
-		# answered it with the host's own forced auto_drop placement before
-		# the slot itself placed voluntarily instead (a fixture/test with no
-		# controller listening; in the real game PlayerController/MatchNet
-		# always auto-drop unconditionally on that signal, so this race does
-		# not arise there -- see their own `_on_feed_timer_expired()`).
-		# Spec 1.4 "[ORIGINAL target]": "At expiry, force release only if
-		# that interval's piece is still unspent" -- this placement is
-		# exactly the piece becoming spent, so it resolves the expiry the
-		# same way the host's own forced release would have. Without this,
-		# `_feed_expired[slot_id]` stayed latched true forever (nothing but
-		# this branch or `_tick_feed()`'s own boundary-crossing ever clears
-		# it, and that function skips a slot for as long as
-		# `_feed_expired[i]` is true), so `_tick_feed()` never counted this
-		# slot's timer down again and its next voluntary release found itself
-		# `is_release_locked()` with no boundary left to unlock it --
-		# REASON_NO_BLOCK forever.
+		# `_feed_expired[slot_id]` can be true with `auto_drop == false` when
+		# nobody answered feed_timer_expired with the host's forced placement
+		# before the slot placed voluntarily (a fixture with no controller
+		# listening; PlayerController/MatchNet always auto-drop on that signal).
+		# That placement is the piece becoming spent, so it resolves the expiry.
+		# Otherwise _feed_expired would stay latched (only this branch and
+		# _tick_feed()'s boundary crossing clear it, and _tick_feed() skips an
+		# expired slot), the timer would never count down again and the next
+		# release would be locked with no boundary to unlock it -- REASON_NO_BLOCK
+		# forever.
 		_release_locked[slot_id] = false
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
 	elif _feed_timer_enabled:
 		# Released early, with the real cadence running: the new piece may be
-		# aimed but not released until this same interval's boundary -- do
-		# NOT touch _feed_time_left, which keeps counting down from when the
-		# interval actually started (spec 1.4: "does not restart the
-		# interval").
+		# aimed but not released until this same interval's boundary. Do NOT
+		# touch _feed_time_left (spec 1.4: "does not restart the interval").
 		_release_locked[slot_id] = true
-	# else: _feed_timer_enabled is false (sandbox's default, "unlimited
-	# blocks", or between _feed_timer_enabled being switched off and any
-	# match with it disabled) -- _tick_feed() never runs the interval-
-	# boundary logic in that state, so a lock here could never be lifted by
-	# anything but this same function. Leaving _release_locked false is what
-	# "sandbox with the timer disabled has no lock" means: every placement
-	# reissues immediately, exactly like M2's original feed did.
+	# else: _feed_timer_enabled is false (sandbox's "unlimited blocks"):
+	# _tick_feed() never runs the interval-boundary logic, so a lock could never
+	# be lifted. Leaving _release_locked false means every placement reissues
+	# immediately.
 	#
-	# follow-up: every branch above updates _release_locked/
-	# _feed_time_left *before* this call, not after -- _issue_next_block()
-	# emits Events.feed_block_issued synchronously, and net/MatchNet.gd's
-	# handler reads is_release_locked()/feed_time_left() at that exact
-	# instant to replicate them, so a client's mirror must see this slot's
-	# post-placement state, not its pre-placement one.
+	# Every branch above updates _release_locked/_feed_time_left *before* this
+	# call: _issue_next_block() emits Events.feed_block_issued synchronously and
+	# net/MatchNet.gd reads is_release_locked()/feed_time_left() at that instant
+	# to replicate them, so a client's mirror must see the post-placement state.
 	_issue_next_block(slot_id)
 
 
@@ -556,16 +493,13 @@ func feed_seq(slot_id: int) -> int:
 	return _feed_seq[slot_id]
 
 
-## spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s
-## currently held piece may be released right now. game/player/PlayerController.gd
-## reads this every frame to tint the ghost distinctly from the normal
-## valid/invalid/hole states -- "a location-valid ghost does not imply that
-## the current interval permits release" (spec 1.4). Always false in
-## hot-seat and whenever the feed timer is disabled (sandbox's default), for
-## the same reasons _consume_and_refeed() never sets it in those cases. On a
-## client this is a mirror, kept accurate by apply_replicated_feed()'s
-## `host_is_locked`, not decided locally -- a client never runs
-## _consume_and_refeed() itself (request_place() is host-only).
+## Spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s currently held
+## piece may be released right now. game/player/PlayerController.gd reads this
+## every frame to tint the ghost ("a location-valid ghost does not imply that
+## the current interval permits release"). Always false in hot-seat and
+## whenever the feed timer is disabled, as _consume_and_refeed() never sets it
+## there. On a client this is a mirror kept by apply_replicated_feed()'s
+## `host_is_locked`; request_place() is host-only.
 func is_release_locked(slot_id: int) -> bool:
 	if slot_id < 0 or slot_id >= _release_locked.size():
 		return false
@@ -652,7 +586,7 @@ func replace_next_with_gift(slot_id: int) -> StringName:
 	return preview[0].id
 
 
-## hands `slot_id` its pending gift carrier right now (the
+## Hands `slot_id` its pending gift carrier right now (the
 ## gift slot's use), in place of the piece in hand. The block timer keeps
 ## running its current window, but never below `min_window_s` so a gift
 ## activated just before the boundary is not auto-dropped at once; the sequence
@@ -682,21 +616,15 @@ func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
 ## which issues without consuming, while a client never runs that at all. A
 ## client that counted its own would quote a sequence one ahead for the rest
 ## of the match and have every intent refused.
-## follow-up: `host_feed_time_left` and `host_is_locked` mirror
-## Match.feed_time_left()/is_release_locked() for this slot at the instant
-## the host issued this event (net/MatchNet.gd's _on_feed_block_issued reads
-## them synchronously off the same emit that carries shape_id/feed_seq -- see
-## _consume_and_refeed()'s and _begin_playing()'s own comments on why every
-## state update there happens before _issue_next_block()). Without this a
-## client's mirror always reset the ring to a full config.block_timer on
-## every feed event, which is wrong exactly on an early release: the host's
-## real interval did not restart, only the held shape did (spec 1.4 "does not
-## restart the interval").
 ##
-## `host_feed_time_left < 0.0` is the sentinel for "not sent" -- kept so an
-## older or manufactured event (this file's own tests included) still falls
-## back to the pre-existing "assume a fresh interval" behavior instead of
-## silently mis-reading a negative duration.
+## `host_feed_time_left` and `host_is_locked` mirror feed_time_left()/
+## is_release_locked() at the instant the host issued this event (net/MatchNet.gd
+## reads them synchronously off the same emit). Resetting the ring to a full
+## config.block_timer would be wrong on an early release: the host's interval
+## did not restart, only the held shape did (spec 1.4).
+##
+## `host_feed_time_left < 0.0` is the sentinel for "not sent": a manufactured
+## event (tests) falls back to assuming a fresh interval.
 func apply_replicated_feed(
 	slot_id: int,
 	shape_id: StringName,
@@ -709,7 +637,7 @@ func apply_replicated_feed(
 		return
 	if host_feed_seq >= 0 and host_feed_seq < _feed_seq[slot_id]:
 		return
-	# a late feed for a slot already eliminated must not hand it a block.
+	# A late feed for a slot already eliminated must not hand it a block.
 	var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
 	if seat != null and not seat.home_flag_alive:
 		return
@@ -733,25 +661,18 @@ func apply_replicated_feed(
 	_feed_expired[slot_id] = false
 
 
-## M6 B2, game/sandbox/Sandbox.gd's block-picker OptionButton: forces `slot_id`'s
+## game/sandbox/Sandbox.gd's block-picker OptionButton: forces `slot_id`'s
 ## currently held shape to `shape_id` without touching the bag, so a tester
-## can drop an exact shape on demand instead of waiting on the bag's draw
-## order. Gated exactly like MatchGifts.debug_queue_special() (that
-## function's own comment) -- host-only and config.sandbox-only, so a real
-## match can never have its held shape overwritten by a debug seam even if
-## something mistakenly called this host-side. Re-emits Events.
-## feed_block_issued exactly like _issue_next_block() does, so every listener
-## that reacts to a newly-held shape (ghost, HUD, bot controllers) picks the
-## forced shape up the normal way, with no second code path to keep in sync.
-## Does not touch _feed_seq -- this is not a real consume, so no in-flight
-## intent for the previous held shape is invalidated by it.
+## can drop an exact shape on demand. Gated like MatchGifts.debug_queue_special()
+## -- host-only and config.sandbox-only, so a real match can never have its held
+## shape overwritten. Re-emits Events.feed_block_issued like _issue_next_block()
+## does, so every listener (ghost, HUD, bot controllers) picks the forced shape
+## up the normal way. Does not touch _feed_seq: this is not a real consume, so no
+## in-flight intent for the previous held shape is invalidated.
 ##
 ## DECISION (autoload/match/MatchFeed.gd): game/sandbox/Sandbox.gd calls this
 ## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
-## new one-line Match wrapper (the shape debug_queue_special/set_special_
-## drawer/etc. all have on autoload/Match.gd) -- the sandbox rule
-## explicitly counts this file as the *only* autoload/match/ append this
-## package owns; autoload/Match.gd itself is out of this package's file list.
+## new one-line Match wrapper like debug_queue_special/set_special_drawer.
 func debug_force_next_shape(slot_id: int, shape_id: StringName) -> void:
 	if not _match._is_host():
 		return

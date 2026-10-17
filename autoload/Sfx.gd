@@ -1,5 +1,5 @@
 extends Node
-## Audio for the game's own sound effects and music (assets-audio package).
+## Audio for the game's own sound effects and music.
 ## Loads streams at runtime from res://assets/audio/sfx (in the editor) or
 ## <exe dir>/assets/effects (exported). HARD CONSTRAINT: third-party
 ## copyrighted assets (including the original Bontago's) never enter this
@@ -19,9 +19,8 @@ extends Node
 ## Music uses the bundled context playlists. Every play()/play_music()/impact-thud
 ## volume_db also adds Settings.master_volume_db() on top of this file's own
 ## AudioConfig.sfx_volume_db/music_volume_db baseline, live-updated via
-## Settings.audio_settings_changed (the options audio settings). Bontago
-## (options package): SFX playback additionally adds Settings.sfx_volume_db(),
-## music playback additionally adds Settings.music_volume_db() -- master
+## Settings.audio_settings_changed. SFX playback additionally adds
+## Settings.sfx_volume_db(), music playback Settings.music_volume_db() -- master
 ## multiplies every channel, the music/SFX sliders only ever scale their own.
 
 const LocalFeedback := preload("res://autoload/match/LocalFeedback.gd")
@@ -30,11 +29,9 @@ const AUDIO_SUBDIR: String = "assets/audio/sfx"
 
 ## Effectively-silent volume_db floor for whichever music stem is faded out
 ## of the adaptive crossfade.
-## engineering constant matching AudioServer's own convention that -80 dB
-## reads as inaudible on any reasonable output device -- so it stays a local
-## const rather than another AudioConfig field (CLAUDE.md "no magic numbers"
-## is about designer-facing tunables; this is neither designer-facing nor
-## something anyone would want to retune).
+## Engineering constant matching AudioServer's convention that -80 dB reads as
+## inaudible on any reasonable output device; not designer-facing, so it stays
+## a local const rather than an AudioConfig field.
 const MUSIC_STEM_MUTE_DB: float = -80.0
 
 ## DECISION: engine constant, not designer-facing. AudioServer
@@ -74,8 +71,7 @@ var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-## Adaptive music:
-## tense stem, on the same bus as _music_player, started in sync with it
+## Adaptive music: the tense stem, on the same bus as _music_player, started in sync with it
 ## whenever both config.music_stem_calm_file and config.music_stem_tense_file
 ## resolve to real files under _music_root_dir. Missing tense file: this
 ## player is simply never given a stream and _tense_stem_available stays
@@ -188,12 +184,12 @@ func _ready() -> void:
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
 	Events.goal_capture_progress.connect(_on_claim_progress)
 	Events.match_won.connect(_on_claim_match_won)
-	# G6: a new match must not inherit the previous match's tense stem.
+	# A new match must not inherit the previous match's tense stem.
 	Events.match_scope_reset.connect(reset_match_audio)
 	Events.match_scope_reset.connect(reset_claim_tension)
 	Settings.audio_settings_changed.connect(_on_audio_settings_changed)
-	# music is NOT started here; Main._show_main_menu() calls
-	# play_music() once the splash intro is over (or at once when there is none).
+	# Music is NOT started here; Main._show_main_menu() calls play_music() once
+	# the splash intro is over (or at once when there is none).
 
 
 func _resolve_root_dir() -> String:
@@ -338,15 +334,14 @@ func _pick_stream(event: StringName) -> AudioStream:
 			return bundled
 		if not _music_available:
 			return null
-		# DECISION (autoload/Sfx.gd review, MEDIUM): only steer
-		# music_file's own EVENT_MUSIC selection toward music_stem_calm_file
-		# once a real tense partner exists (_tense_stem_available) -- with no
-		# tense asset installed there is nothing to be "calm" relative to, so
-		# the existing music_file selection (which defaults to the same
-		# filename anyway) stays the simplest single source of truth. Once
-		# both stems are installed, the calm player must actually play the
-		# calm-labelled file rather than whatever music_file/shuffle would
-		# otherwise pick, or the two could silently mismatch.
+		# DECISION (autoload/Sfx.gd): only steer music_file's own EVENT_MUSIC
+		# selection toward music_stem_calm_file once a real tense partner exists
+		# (_tense_stem_available) -- with no tense asset installed there is
+		# nothing to be "calm" relative to, so the existing music_file selection
+		# stays the single source of truth. Once both stems are installed, the
+		# calm player must play the calm-labelled file rather than whatever
+		# music_file/shuffle would otherwise pick, or the two could silently
+		# mismatch.
 		if _tense_stem_available:
 			return _load_stream_from_root(
 				config.music_stem_calm_file, _music_root_dir, _music_streams_by_filename
@@ -408,9 +403,8 @@ func _next_sfx_player() -> AudioStreamPlayer:
 
 # --- Test seam ---------------------------------------------------------------
 
-## tests/unit/audio/test_sfx.gd points a fresh Sfx instance at a temp folder instead
-## of assets/audio/sfx, so the tests never depend on shipped files -- the same Variant/seam pattern ui/menus/MainMenu.gd's net_provider
-## uses for a value GUT can't otherwise inject.
+## tests/unit/audio/test_sfx.gd points a fresh Sfx instance at a temp folder
+## instead of assets/audio/sfx, so the tests never depend on shipped files.
 func set_root_dir_for_test(path: String) -> void:
 	_root_dir = path
 	_available = DirAccess.dir_exists_absolute(path)
@@ -480,15 +474,13 @@ func _sync_tense_player_with_calm() -> void:
 ## assert the intended crossfade direction without waiting for a live Tween
 ## or touching audio hardware.
 ##
-## DECISION (autoload/Sfx.gd review, HIGH): never mute unless
-## the tense stem is actually available -- _tense_stem_is_active alone isn't
-## enough to gate this, because it can flip true from a plain
-## Events.goal_capture_progress reading (no asset needed) even in the shipped
-## single-stream config with no tense file installed. Without this guard, the
+## DECISION (autoload/Sfx.gd): never mute unless the tense stem is actually
+## available -- _tense_stem_is_active alone isn't enough to gate this, because
+## it can flip true from a plain Events.goal_capture_progress reading (no asset
+## needed) even in the shipped single-stream config. Without this guard, the
 ## next play_music()/_on_audio_settings_changed() call would apply
 ## MUSIC_STEM_MUTE_DB to the only music stream that exists and mute it
-## permanently. _tense_stem_available true is required before this stem can
-## ever be the muted side.
+## permanently.
 func calm_stem_target_volume_db() -> float:
 	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
 	if not _tense_stem_available:
@@ -508,25 +500,20 @@ func tense_stem_target_volume_db() -> float:
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
 
 
-## Events.goal_capture_progress (spec 1.10's adaptive music, the crossfade
-## P6): the crossfade only cares how close ANY team is to capturing, not
-## which one, so team_id is unused here -- underscore-prefixed to match this
-## file's own convention for an unused handler parameter (e.g.
-## _on_player_eliminated()), even though ui/hud/HUD.gd's own sibling handler of
-## this same signal does use it for a different purpose (which team's colour
-## to draw). Events.gd's own doc comment: "team_id is -1 with progress 0 when
-## a capture breaks" -- that case falls out of the plain
-## `progress >= threshold` check below with no special-casing, since 0.0 is
-## always below music_tense_progress_threshold.
+## Events.goal_capture_progress (spec 1.10's adaptive music crossfade): the
+## crossfade only cares how close ANY team is to capturing, not which one, so
+## team_id is unused. Events.gd: "team_id is -1 with progress 0 when a capture
+## breaks" -- that case falls out of the plain `progress >= threshold` check
+## below with no special-casing, since 0.0 is always below
+## music_tense_progress_threshold.
 func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	if config.contextual_music_enabled:
 		return
-	# Hysteresis: the rising
-	# edge (calm -> tense) always uses the plain threshold; the falling edge
-	# (tense -> calm) only fires music_tense_release_margin below it, so
-	# progress hovering right at the threshold doesn't flap the crossfade
-	# every frame. config.music_tense_release_margin defaults to a small
-	# positive value; 0.0 reproduces the old single-threshold behaviour.
+	# Hysteresis: the rising edge (calm -> tense) always uses the plain
+	# threshold; the falling edge (tense -> calm) only fires
+	# music_tense_release_margin below it, so progress hovering right at the
+	# threshold doesn't flap the crossfade every frame. A margin of 0.0 means a
+	# single threshold.
 	var release_threshold: float = config.music_tense_progress_threshold - config.music_tense_release_margin
 	var want_tense: bool = (
 		progress >= config.music_tense_progress_threshold
@@ -550,11 +537,11 @@ func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	)
 
 
-## G6: Events.match_scope_reset. A match left while the tense stem
+## Events.match_scope_reset. A match left while the tense stem
 ## was up (contextual music off: only a later goal_capture_progress clears it) must
 ## not start the next match tense. Returns the stems to calm exactly as _ready() leaves
 ## them: tense flag off, an in-flight crossfade killed, each stem at its calm target.
-## Idempotent. Playlist position and context are NOT touched (audit D2: they continue
+## Idempotent. Playlist position and context are NOT touched (they continue
 ## across matches); with contextual music on the tense stem never activates and the
 ## playlist envelope owns the volume, so only the flag and tween are cleared.
 func reset_match_audio() -> void:
@@ -960,7 +947,7 @@ func _impact_streams(surface: StringName, tier: StringName, key: int) -> Array[A
 		var stream: AudioStream = _load_stream(file)
 		complete = complete and stream != null
 		resolved.append(stream)
-	# A missing file keeps the old behaviour (null entry, retried and reported
+	# A missing file keeps a null entry (retried and reported
 	# on each pick), so only a fully resolved set is cached.
 	if key >= 0 and complete:
 		_impact_stream_cache[key] = resolved
@@ -984,16 +971,15 @@ func play_ui_cue(cue: StringName) -> bool:
 
 
 ## net_peer_joined fires for a remote peer on the host and for the local peer on
-## a client once accepted. DECISION: both chime; a late-joiner
-## world replay stays silent.
+## a client once accepted. DECISION: both chime; a late-joiner world replay
+## stays silent.
 func _on_net_peer_joined(_peer_id: int, _slot_id: int, _player_name: String) -> void:
 	if _world_replay_silent:
 		return
 	play_ui_cue(&"player_joined")
 
 
-## DECISION: the local peer's own departure (host shutdown or
-## leaving) does not play player_left; kick/error have no dedicated cue.
+## DECISION: the local peer's own departure (host shutdown or leaving) does not play player_left; kick/error have no dedicated cue.
 func _on_net_peer_left(peer_id: int, _slot_id: int, _reason: int) -> void:
 	if _world_replay_silent or peer_id == Net.local_peer_id():
 		return
@@ -1008,7 +994,7 @@ func _on_loading_gate_opened() -> void:
 	play_ui_cue(&"all_players_ready")
 
 
-## the refusal sound is the refused player's own feedback. The
+## The refusal sound is the refused player's own feedback. The
 ## host sees every slot's refusals on its bus, so a remote client's (or a bot's)
 ## must stay silent here -- see autoload/match/LocalFeedback.gd.
 func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
@@ -1021,7 +1007,7 @@ func _on_world_replay_changed(active: bool) -> void:
 	_world_replay_silent = active
 
 
-## the release cue is the dropping player's own feedback. The
+## The release cue is the dropping player's own feedback. The
 ## host sees every slot's placements (bots, remote clients) and a client sees
 ## every replicated spawn, so only a block owned by this machine's human seat
 ## sounds it; impact sounds are separate and unaffected.
@@ -1059,7 +1045,7 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 		_last_gift_spawn_msec = now_msec
 
 
-## spec 1.10 "Specials have distinct warning sounds": a special
+## Spec 1.10 "Specials have distinct warning sounds": a special
 ## going off is a world event like an impact, so every instance hears every
 ## special -- the host on its own trigger, a client on the replicated one.
 ## Chained triggers of the same special inside special_cue_min_interval_s sound once.
@@ -1090,8 +1076,7 @@ func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3,
 ## A timed special (Earthquake, Magnet) was used: loop its bed for the effect's
 ## whole window. special_consumed is the one start signal every peer gets (an
 ## in-place Earthquake has no carrier on a client).
-## DECISION: the window length is the effect's own
-## effect_lifetime_s(), read dynamically so this autoload gains no compile edge
+## DECISION: the window length is the effect's own effect_lifetime_s(), read dynamically so this autoload gains no compile edge
 ## to SpecialEffect (tools/lint_layers.py L3). Magnet's pull_start_delay_s (0 by
 ## default) is inside that lifetime, so a delayed pull would hum early.
 func _on_special_consumed(_slot_id: int, special_id: StringName) -> void:
@@ -1218,7 +1203,7 @@ func _play_cue_file(filename: String) -> bool:
 	return true
 
 
-## the F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
+## The F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
 ## files directly inside the effects folder, lowercase, alphabetical. Empty with no assets.
 func effect_files() -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
@@ -1232,7 +1217,7 @@ func effect_files() -> PackedStringArray:
 	return found
 
 
-## plays one effects-folder file once on the same pool and volume a real event
+## Plays one effects-folder file once on the same pool and volume a real event
 ## uses (the F4 SFX tab's Play button). False when the file is missing or not loadable.
 func preview_file(filename: String) -> bool:
 	return _play_cue_file(filename)
@@ -1251,45 +1236,36 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 	return stream
 
 
-## DECISION (autoload/Sfx.gd): unlike the world hooks above (a
-## block drop/thud/breakage is a physical event any nearby player would
-## actually hear happen, so those play for every slot; the rejection sound is
-## personal and gated to the refused local human since), a gift claim queues a special for the whole claiming team -- it is
-## personal feedback, not a world event. Gating on "any locally-driven slot on
-## the claiming team" mirrors game/gifts/GiftCrate.gd's own "_local_watch_slot()"
-## comment and ui/hud/HUD.gd's gift toast, both already
-## local-only; a global "someone somewhere claimed a gift" chime would be
-## noise in an 8-player match with crates spawning continuously. The loop gates
-## on LocalFeedback.is_own_human_slot(): a human seat driven
-## on this machine, so hot-seat humans still hear their claims while offline
-## bots (including bot teammates) never chime.
+## DECISION (autoload/Sfx.gd): unlike the world hooks above (a block
+## drop/thud/breakage is a physical event any nearby player would hear, so
+## those play for every slot), a gift claim queues a special for the whole
+## claiming team and is personal feedback, not a world event. Gating on "any
+## locally-driven slot on the claiming team" mirrors game/gifts/GiftCrate.gd's
+## "_local_watch_slot()" and ui/hud/HUD.gd's gift toast; a global "someone
+## claimed a gift" chime would be noise in an 8-player match with crates
+## spawning continuously. The loop gates on LocalFeedback.is_own_human_slot():
+## a human seat driven on this machine, so hot-seat humans still hear their
+## claims while offline bots (including bot teammates) never chime. No quieter
+## variant for other teams' claims: they stay silent.
 ##
-## Simplest reasonable option per the brief: no quieter variant for other
-## teams' claims -- nothing else about a gift claim has non-local feedback
-## either, so this just stays silent for them rather than inventing a new
-## tunable with no other precedent to match.
-##
-## "b": `recipient_slot` is the RESOLVED
-## RECIPIENT -- the one teammate nearest the crate, not every teammate -- but
-## this sound is still a team-wide notification (a teammate should hear
-## "your team claimed a special" even on the claim that doesn't land in their
-## own queue). A single Net.is_local_slot(recipient_slot) check would only
-## ever fire for the recipient's own local slot, silently dropping the sound
-## for a teammate at a different slot index once real teams exist. Loops
-## every slot instead and plays once as soon as any locally-driven slot is
-## found on the recipient's team, so a claim landing on slot 0 plays for a
-## local player at slot 0 or its teammate slot 2 alike under TEAMS_2.
+## `recipient_slot` is the RESOLVED RECIPIENT -- the one teammate nearest the
+## crate, not every teammate -- but this sound is still a team-wide
+## notification (a teammate should hear "your team claimed a special" even on
+## a claim that doesn't land in their own queue). A single
+## Net.is_local_slot(recipient_slot) check would silently drop the sound for a
+## teammate at a different slot index. So this loops every slot and plays once
+## as soon as any locally-driven slot is on the recipient's team (a claim
+## landing on slot 0 plays for a local player at slot 0 or its teammate slot 2
+## under TEAMS_2).
 ##
 ## The loop bound is `maxi(Match.slot_count(), recipient_slot + 1)`, not just
-## Match.slot_count(): tests/unit/audio/test_sfx.gd's own gift_claimed tests call
-## this directly with no match ever started (Match.slot_count() == 0 then),
-## the same way they always have -- team_of_slot() falls back to identity
-## with no config (see _team_of_slot() below), so this bound keeps checking
-## at least slot recipient_slot itself in that case, reproducing the exact
-## single-slot check this handler used before real teams existed.
+## Match.slot_count(): tests/unit/audio/test_sfx.gd calls this directly with no
+## match started (slot_count() == 0), where team_of_slot() falls back to
+## identity (see _team_of_slot() below), so this keeps checking at least slot
+## recipient_slot itself.
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
 	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
-		# a human seat on this machine only -- offline every slot
+		# A human seat on this machine only -- offline every slot
 		# is local, so a bot claiming on its own team (or a bot teammate) would
 		# otherwise chime for a player who has nothing to do with it.
 		if not LocalFeedback.is_own_human_slot(slot_id):

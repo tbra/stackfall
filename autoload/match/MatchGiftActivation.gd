@@ -1,7 +1,6 @@
 class_name MatchGiftActivation
 extends RefCounted
-## / host-side in-place gift
-## activation. A gift whose SpecialDef.activates_in_place is true (Stackfall, Volcano,
+## Host-side in-place gift activation. A gift whose SpecialDef.activates_in_place is true (Stackfall, Volcano,
 ## Earthquake) is activated at the release point without a falling carrier: a small
 ## invisible, non-colliding, frozen anchor Block carries the effect for as long as it runs
 ## and is freed when the SpecialBehavior completes. The anchor is never registered
@@ -12,8 +11,7 @@ extends RefCounted
 const IN_PLACE_META: StringName = SpecialIds.IN_PLACE_META
 ## Meta carrying a per-match activation counter (seeds Stackfall when net_id < 0).
 const SEQ_META: StringName = SpecialIds.ACTIVATION_SEQ_META
-## DECISION: the wire
-## drops net_id < 0, so an anchor-driven special_triggered carries this sentinel instead of -1.
+## DECISION: the wire drops net_id < 0, so an anchor-driven special_triggered carries this sentinel instead of -1.
 ## It never exists in BlockRegistry, so GiftFxPresenter resolves a null block (it tolerates one).
 const IN_PLACE_NET_ID: int = 2147483647
 const ANCHOR_FREEZE_REASON: StringName = &"gift_anchor"
@@ -37,8 +35,7 @@ func setup(match_ref: MatchAutoload) -> void:
 ## the gift was activated (the caller then consumes the feed and returns REASON_OK); false leaves
 ## the normal carrier path untouched.
 ##
-## DECISION:
-## consume_glue_drop on purpose. This function pops the held gift itself (exactly once; the
+## DECISION: no consume_glue_drop, on purpose. This function pops the held gift itself (exactly once; the
 ## caller's _consume_and_refeed then refeeds the next piece). An in-place gift drops no block, so
 ## it neither bonds (a Glue charge is for a future BLOCK drop and stays banked) nor spends one.
 func try_activate(slot_id: int, def: SpecialDef, disk_origin: Vector2) -> bool:

@@ -3,9 +3,7 @@ extends RefCounted
 ## Match's gift-crate lifecycle (spec 1.6): per-window spawn rolls, the
 ## territory-tick claim/expire sweep, and one replaceable next gift per slot.
 ##
-## Split out the same way MatchFeed/MatchPlacement/MatchTerritory/MatchLifecycle
-## are (file ownership over function ownership): a
-## RefCounted wired to autoload/Match.gd via setup(self) in Match's own
+## A RefCounted wired to autoload/Match.gd via setup(self) in Match's own
 ## _ready(), so it never walks the scene tree looking for its collaborators.
 ##
 ## Host-only logic is gated exactly like MatchTerritory's (`if not
@@ -23,13 +21,12 @@ const FALLING: int = GiftWirePhase.FALLING
 const LANDED: int = GiftWirePhase.LANDED
 
 
-## The id MatchGifts.PENDING_SPECIAL_ID's default drawer hands out until P2c
-## installs the real weighted SpecialDef pick (set_special_drawer() below).
-## Also the fallback a malformed drawer result is replaced with -- see
-## _draw_special_id().
+## The id the default drawer hands out until the real weighted SpecialDef pick
+## is installed (set_special_drawer() below). Also the fallback a malformed
+## drawer result is replaced with -- see _draw_special_id().
 const PENDING_SPECIAL_ID: StringName = SpecialIds.PENDING
 
-## DECISION (autoload/match/MatchGifts.gd, M6 A4): ui/lobby/Lobby.gd's specials
+## DECISION (autoload/match/MatchGifts.gd): ui/lobby/Lobby.gd's specials
 ## checklist writes this exact literal into config.enabled_specials when the
 ## host unchecks every special (its own matching ALL_DISABLED_SENTINEL
 ## constant/DECISION) -- an autoload must not import a ui/ script just to
@@ -44,33 +41,28 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _rng_ready: bool = false
 var _next_gift_id: int = 0
 
-## The special
-## TYPE is drawn here, at claim time, on the host -- not at spawn time. Spec
-## 2.6 hands a player "a special as the next piece", so the player (and
-## later the HUD/ghost) must be able to know what they hold while aiming,
-## not just that they hold something. _draw_special_id() is the one call
-## site; P2c installs the real weighted SpecialDef.pick_weighted() draw
-## through set_special_drawer() once config/gifts/specials/ exists. Kept an
-## injectable Callable rather than a hard SpecialDef dependency so P2a and
-## P2b can land in parallel with fully disjoint files.
+## The special TYPE is drawn here, at claim time, on the host -- not at spawn
+## time. Spec 2.6 hands a player "a special as the next piece", so the player
+## (and the HUD/ghost) must know what they hold while aiming, not just that
+## they hold something. _draw_special_id() is the one call site;
+## _ensure_special_drawer_installed() installs the real weighted
+## SpecialDef.pick_weighted() draw through set_special_drawer(). Kept an
+## injectable Callable rather than a hard SpecialDef dependency.
 var _special_drawer: Callable = _default_special_drawer
 
-## M4 P2c: the roster _weighted_special_drawer() draws from, filtered to
+## The roster _weighted_special_drawer() draws from, filtered to
 ## `_match.config.enabled_specials` (empty means every special, per
-## config/match/MatchConfig.gd:57's own doc comment) once per match, plus the own
+## config/match/MatchConfig.gd's doc comment) once per match, plus the own
 ## RNG that draw uses. Reset flags (`_roster_ready`/`_special_rng_ready`) so a
 ## new match re-filters against its own config rather than reusing the
 ## previous match's roster or reseeding an already-seeded RNG.
 ##
-## DECISION (autoload/match/MatchGifts.gd, M4 P2c): the P2c package brief
-## says the real drawer is installed "on match start/setup"; there is no
-## start_match() hook this package may add one to without editing
-## autoload/match/MatchLifecycle.gd (owned by a different package, and not
-## this package's file) or autoload/Match.gd's _ready() (config is not yet
-## assigned there either). Installing lazily on first real use --
-## _ensure_special_drawer_installed(), called from _claim_gift() right before
-## _draw_special_id() -- mirrors _ensure_rng()'s own lazy convention just
-## below and needs no other file to know P2c exists.
+## DECISION (autoload/match/MatchGifts.gd): the real drawer is installed
+## lazily on first real use -- _ensure_special_drawer_installed(), called from
+## _claim_gift() right before _draw_special_id() -- not at match start:
+## autoload/Match.gd's _ready() runs before config is assigned, and a
+## start_match() hook would need MatchLifecycle to know about it. Mirrors
+## _ensure_rng()'s lazy convention.
 var _roster_ready: bool = false
 var _special_roster: Array[SpecialDef] = []
 var _special_rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -84,22 +76,20 @@ var _crates: Dictionary = {}
 
 ## Parallel to Match's slots: each inner array has zero or one next gift.
 ## A new claim replaces its element and never changes the current held piece.
-## Grown lazily by
-## _ensure_capacity() rather than sized off slot_count() at reset() time,
-## because _reset_match_state() runs *before* the new match's slots are built
-## (autoload/match/MatchLifecycle.gd's start_match(): reset, then
-## _build_slots()) -- see that file's one-line reset() call below.
+## Grown lazily by _ensure_capacity() rather than sized off slot_count() at
+## reset() time, because _reset_match_state() runs *before* the new match's
+## slots are built (autoload/match/MatchLifecycle.gd's start_match(): reset,
+## then _build_slots()).
 ##
-## "b": keyed by RECIPIENT SLOT, not by team.
-## A crate claimed in a team's territory is offered to the one teammate whose
-## home circle is nearest the crate (_resolve_recipient_slot() below), never
-## to a queue shared by the whole team -- so index i here is always slot i's
-## own queue, read/written directly, with no team_of_slot() translation.
+## Keyed by RECIPIENT SLOT, not by team. A crate claimed in a team's territory
+## is offered to the one teammate whose home circle is nearest the crate
+## (_resolve_recipient_slot() below), never to a queue shared by the whole team
+## -- so index i here is always slot i's own queue, with no team_of_slot()
+## translation.
 ##
-## DECISION (autoload/match/MatchGifts.gd, M4 P2b): this engine (Godot
-## 4.7.2) parses `Array[Array[StringName]]` as a "nested typed collections
-## are not supported" error -- verified directly against this build, not
-## assumed from docs. The outer array is therefore a plain `Array[Array]`;
+## DECISION (autoload/match/MatchGifts.gd): Godot 4.7.2 rejects
+## `Array[Array[StringName]]` ("nested typed collections are not supported").
+## The outer array is therefore a plain `Array[Array]`;
 ## each inner queue is still built exactly once, as a real `Array[StringName]`,
 ## by _new_typed_queue() below, so every element still carries StringName's
 ## runtime type check. Only the outer container's own element type is
@@ -108,8 +98,7 @@ var _pending_queues: Array[Array] = []
 ## The queued gift is separate from the currently held piece. A claim never
 ## changes this value; only the subsequent feed activates the queued gift.
 var _held_specials: Dictionary = {}
-## DECISION: a dictionary keyed by recipient slot keeps
-## charges independent of the shared GlueEffect resource and gift queue.
+## DECISION: a dictionary keyed by recipient slot keeps charges independent of the shared GlueEffect resource and gift queue.
 ## A later Glue activation replaces the count instead of adding to it.
 var _glue_drops: Dictionary = {}
 ## Absolute charge updates carry a per-slot revision so duplicate or delayed
@@ -118,18 +107,15 @@ var _glue_revisions: Dictionary = {}
 
 ## Lazily created the first time a crate needs a visual (host spawn or client
 ## mirror), as a SIBLING of Match's own blocks_parent (a child of that node's
-## own parent) -- never a child of blocks_parent itself. Review fix (regression
-## found while re-validating this change): blocks_parent's children are
-## trusted elsewhere to be exactly the placed Blocks (test_match_flow.gd's
-## `_blocks_root.get_child_count()`/`get_child(0)` assumption, and the same
-## contract BlockRegistry/SnapshotSync rely on) -- a GiftCrates container
-## parented there broke that the moment any match, hot-seat included, rolled
-## a real spawn. Freed and re-created by reset() rather than reused across
-## matches so a stale crate can never survive into a new one.
+## own parent) -- never a child of blocks_parent itself: its children are
+## trusted elsewhere to be exactly the placed Blocks (test_match_flow.gd, and
+## the contract BlockRegistry/SnapshotSync rely on). Freed and re-created by
+## reset() rather than reused across matches so a stale crate can never
+## survive into a new one.
 var _container: Node3D = null
 
 
-## true once the crate model table, GLB and toon materials were built once.
+## True once the crate model table, GLB and toon materials were built once.
 var _crate_prewarmed: bool = false
 
 
@@ -141,8 +127,8 @@ func setup(match_ref: MatchAutoload) -> void:
 
 
 ## DECISION: the first GiftCrate of a process cost 42-70 ms inside a bot's
-## placement frame (GiftModelTable load + crate GLB instantiate + toon materials), the worst frame
-## of the E6 bot bench; one throwaway build_crate_visual() at setup (host and client both run
+## placement frame (GiftModelTable load + crate GLB instantiate + toon materials),
+## the worst frame of the bot bench; one throwaway build_crate_visual() at setup (host and client both run
 ## setup) moves that cost out of the match. Idempotent; nothing is added to the tree.
 func prewarm_crate_assets() -> void:
 	if _crate_prewarmed:
@@ -153,8 +139,7 @@ func prewarm_crate_assets() -> void:
 		visual.free()
 
 
-## DECISION: an eliminated slot can never drop again, so the
-## host zeroes its Glue charges (harmless to rules) and publishes the change,
+## DECISION: an eliminated slot can never drop again, so the host zeroes its Glue charges (harmless to rules) and publishes the change,
 ## which hides the glue presentation everywhere. Clients ignore it: they get
 ## the host's zero through glue_charges_changed.
 func _on_player_eliminated_clear_glue(slot_id: int, _team_id: int) -> void:
@@ -164,15 +149,13 @@ func _on_player_eliminated_clear_glue(slot_id: int, _team_id: int) -> void:
 	_publish_glue_charges(slot_id)
 
 
-## The default drawer: always PENDING_SPECIAL_ID, until P2c installs the real
-## weighted SpecialDef pick via set_special_drawer(). Bound as a Callable
-## default at declaration time (autoload/match/MatchGifts.gd's field-order
-## comment above _special_drawer), so P2a and P2b's file sets never overlap.
+## The default drawer: always PENDING_SPECIAL_ID, until the real weighted
+## SpecialDef pick is installed via set_special_drawer().
 func _default_special_drawer() -> StringName:
 	return PENDING_SPECIAL_ID
 
 
-## Host-only entry point P2c calls once config/gifts/specials/ exists; `drawer`
+## Host-only entry point for installing a drawer; `drawer`
 ## must be a `func() -> StringName`. Passing an invalid/null Callable is not
 ## guarded here -- Callable.call() on one simply fails at the call site in
 ## _draw_special_id(), which is guarded (see its own doc comment).
@@ -188,12 +171,8 @@ func _new_typed_queue() -> Array[StringName]:
 	return queue
 
 
-## still needed by _resolve_recipient_slot() below to test
-## whether a given slot is on the claiming team at all (team membership), now
-## that `_pending_queues` itself is keyed by recipient slot, not by team --
-## held_special()/pop_pending_special()/pending_special_count()/
-## debug_queue_special() no longer translate through this.
-## `_match.config` can be null before a match ever starts; a null config falls
+## Used by _resolve_recipient_slot() to test whether a slot is on the claiming
+## team. `_match.config` can be null before a match ever starts; a null config falls
 ## back to `slot_id` itself, exactly what team_of_slot() returns for
 ## TeamMode.OFF.
 func _team_id_for_slot(slot_id: int) -> int:
@@ -202,10 +181,8 @@ func _team_id_for_slot(slot_id: int) -> int:
 	return _match.config.team_of_slot(slot_id)
 
 
-## The oldest pending special `slot_id` is holding, or &"" for none -- a
-## peek, not a pop. P2c reads this to decide whether the next spawned block
-## should be a special; the HUD (split out of this package)
-## reads pending_special_count() for the queued-count indicator.
+## The special `slot_id` is holding, or &"" for none -- a peek, not a pop.
+## The HUD reads pending_special_count() for the queued-count indicator.
 func held_special(slot_id: int) -> StringName:
 	return StringName(_held_specials.get(slot_id, &""))
 
@@ -222,8 +199,7 @@ func grant_glue_drops(slot_id: int, count: int) -> bool:
 	return true
 
 
-## DECISION: Glue is a modifier, not a held piece. On claim
-## the host grants its charges at once and leaves the queued gift and the
+## DECISION: Glue is a modifier, not a held piece. On claim the host grants its charges at once and leaves the queued gift and the
 ## feed untouched; every other gift queues as the next held piece.
 const GLUE_SPECIAL_ID: StringName = &"glue"
 const GLUE_DEF: SpecialDef = preload("res://config/gifts/specials/glue.tres")
@@ -252,8 +228,8 @@ func _queue_claimed_special(slot_id: int, special_id: StringName, immediate: boo
 	_match._feed.replace_next_with_gift(slot_id)
 
 
-## queue order is [gift that is next (if any), staged gift].
-## A later claim replaces an earlier staged gift (latest wins, as in the old rule);
+## Queue order is [gift that is next (if any), staged gift].
+## A later claim replaces an earlier staged gift (latest wins);
 ## a gift already next is never displaced.
 func _enqueue_after_next(slot_id: int, special_id: StringName, had_staged: bool) -> void:
 	var queue: Array = _pending_queues[slot_id]
@@ -270,8 +246,7 @@ func after_next_special(slot_id: int) -> StringName:
 	return StringName(queue.back()) if not queue.is_empty() else &""
 
 
-## QoL gift slot: per-slot gifts waiting to be spent with
-## use_gift_slot, oldest first. Empty (and never touched) with the toggle off.
+## QoL gift slot: per-slot gifts waiting to be spent with use_gift_slot, oldest first. Empty (and never touched) with the toggle off.
 var _gift_slots: Dictionary = {}
 
 
@@ -301,9 +276,9 @@ func gift_slot_count(slot_id: int) -> int:
 
 func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 	var contents: Array = _gift_slots.get(slot_id, [])
-	# DECISION: a claim into a full slot drops the OLDEST
-	# slotted gift (with capacity 1: the new gift replaces the old one), the
-	# same "latest claim wins" rule the block queue already uses.
+	# DECISION: a claim into a full slot drops the OLDEST slotted gift (with
+	# capacity 1: the new gift replaces the old one), the same "latest claim
+	# wins" rule the block queue uses.
 	while contents.size() >= gift_slot_capacity():
 		contents.pop_front()
 	contents.append(special_id)
@@ -320,8 +295,8 @@ func _store_in_gift_slot(slot_id: int, special_id: StringName) -> void:
 func request_use_gift_slot(slot_id: int) -> bool:
 	if _match == null or gift_slot_capacity() <= 0:
 		return false
-	# the shared host/live/slot/home/turn/held-shape preamble
-	# (same one-actor-at-a-time gate request_place uses: off-turn seats cannot spend).
+	# The shared host/live/slot/home/turn/held-shape preamble (the same
+	# one-actor-at-a-time gate request_place uses: off-turn seats cannot spend).
 	if _match._placement._intent_gate(slot_id, -1, MatchPlacement.IntentKind.GIFT_USE) != &"":
 		return false
 	var special_id: StringName = gift_slot_head(slot_id)
@@ -418,19 +393,18 @@ func activate_next_special(slot_id: int) -> void:
 	if queue.is_empty():
 		return
 	_held_specials[slot_id] = StringName(queue[0])
-	# pop only the activated gift; a staged one stays queued.
+	# Pop only the activated gift; a staged one stays queued.
 	queue.pop_front()
 
 
-## Presentation getter: the queued gift that will be the
-## slot's NEXT held piece, or &"" for none. A peek; changes no state.
+## Presentation getter: the queued gift that will be the slot's NEXT held piece, or &"" for none. A peek; changes no state.
 func next_special(slot_id: int) -> StringName:
 	if slot_id < 0 or slot_id >= _pending_queues.size():
 		return &""
 	var queue: Array = _pending_queues[slot_id]
 	if queue.is_empty():
 		return &""
-	# a lone staged gift is not next yet (after_next_special()).
+	# A lone staged gift is not next yet (after_next_special()).
 	if queue.size() == 1 and _match._feed.has_staged_gift(slot_id):
 		return &""
 	return StringName(queue[0])
@@ -446,10 +420,9 @@ func defer_held_special_after_burn(slot_id: int) -> void:
 		return
 	_ensure_capacity(slot_id)
 	var queue: Array = _pending_queues[slot_id]
-	# DECISION: a later claim already owns the next slot.
-	# A burned held gift must not replace it with the older gift again.
-	# Without a later claim, keep the existing burn behavior: retry this gift
-	# as the next held piece, replacing the next ordinary draw.
+	# DECISION: a later claim already owns the next slot, and a burned held gift
+	# must not replace it with the older gift. Without a later claim, retry this
+	# gift as the next held piece, replacing the next ordinary draw.
 	if queue.is_empty():
 		queue.append(special_id)
 		_match._feed.replace_next_with_gift(slot_id)
@@ -459,17 +432,13 @@ func defer_held_special_after_burn(slot_id: int) -> void:
 ## Consumes the held gift, or returns &"" for an ordinary piece. The next
 ## gift remains untouched until MatchFeed issues it as a held piece.
 ##
-## the one host-side emit site for Events.special_consumed --
+## The one host-side emit site for Events.special_consumed --
 ## _attach_pending_special() (autoload/match/MatchPlacement.gd) is this
 ## function's only caller, on the place-spawn non-burn path and always on a
-## throw, so a single emit here covers both consumers without a second call
-## site in MatchPlacement.gd. A burned auto-drop never reaches this call at
-## all (see that function's own doc comment on why), so it never emits either
-## -- exactly the P2c-i rule that a burn keeps the special queued. Both
-## real callers are host-only (request_place()/request_throw() refuse
-## immediately off-host), so this never runs on a client in the shipped game;
-## unit tests that call it directly (test_gift_claim.gd,
-## test_match_throw.gd) exercise the same host-only emit deliberately.
+## throw, so a single emit here covers both. A burned auto-drop never reaches
+## this call (see that function's doc comment), so it never emits either: a
+## burn keeps the special queued. Both real callers are host-only
+## (request_place()/request_throw() refuse off-host).
 func pop_pending_special(slot_id: int) -> StringName:
 	var popped: StringName = held_special(slot_id)
 	if popped == &"":
@@ -489,25 +458,19 @@ func pending_special_count(slot_id: int) -> int:
 
 ## The gift_id every debug_queue_special() claim reports.
 ## _spawn_crate_at()'s real ids start at 0 and only ever increase, so a
-## negative sentinel can never collide with one -- a client/HUD watching
-## Events.gift_claimed sees an id it can recognize as "not a real crate" if it
-## ever needs to (nothing does today).
+## negative sentinel can never collide with one.
 const DEBUG_GIFT_ID: int = -1
 
 
 ## Sandbox-only debug entry point (game/sandbox/Sandbox.gd's F9
 ## sandbox_force_special hotkey and `--force-special=`): replaces `slot_id`'s
-## next gift and emits Events.gift_claimed with
-## DEBUG_GIFT_ID, exactly the same signal _claim_gift() fires for a real
-## claim, so the HUD/ghost/client mirrors all follow the normal path with no
-## second code path to keep in sync. Skips the crate roll and the
-## territory-tick claim sweep entirely -- there is no crate to free.
+## next gift and emits Events.gift_claimed with DEBUG_GIFT_ID, the same signal
+## _claim_gift() fires for a real claim, so the HUD/ghost/client mirrors follow
+## the normal path. Skips the crate roll and the territory-tick claim sweep --
+## there is no crate to free.
 ##
-## Gated the same way _claim_gift()/tick_host() already are
-## (`if not _match._is_host(): return`) plus one more check this package adds
-## on top: `_match.config.sandbox` must also be true, so a real match can
-## never be handed a free special through this seam even if something
-## mistakenly called it host-side.
+## Gated on the host plus `_match.config.sandbox`, so a real match can never be
+## handed a free special through this seam.
 func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	if not _match._is_host():
 		return false
@@ -517,22 +480,17 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 		return false
 	_ensure_capacity(slot_id)
 	_queue_claimed_special(slot_id, special_id, true)
-	# slot_id, not a team id -- matches _claim_gift()'s own gift_claimed emit
-	# below, whose second parameter is the resolved recipient slot
-	# (Events.gd's gift_claimed signal).
+	# slot_id, not a team id: gift_claimed's second parameter is the resolved
+	# recipient slot (Events.gd).
 	Events.gift_claimed.emit(DEBUG_GIFT_ID, slot_id, special_id)
 	return true
 
 
-## Sandbox-only reset seam (game/sandbox/Sandbox.gd's F9 hotkey
-## turning back "off"): re-runs the exact same lazy install
-## _ensure_special_drawer_installed() already performs at a match's first
-## real claim, rather than a second, divergent copy of that roster-filtering
-## logic living in game/sandbox/Sandbox.gd. Resets `_roster_ready` first so the lazy
-## install actually runs again -- a forced special's own set_special_drawer()
-## call already replaced whatever ran before, so a plain
-## _ensure_special_drawer_installed() call would otherwise stay a no-op
-## forever, per its own idempotency guard.
+## Sandbox-only reset seam (game/sandbox/Sandbox.gd's F9 hotkey turning back
+## "off"): re-runs the lazy install _ensure_special_drawer_installed() performs
+## at a match's first real claim. Resets `_roster_ready` first, otherwise the
+## idempotency guard would make the call a no-op after a forced special's own
+## set_special_drawer() replaced the drawer.
 func restore_default_special_drawer() -> void:
 	_roster_ready = false
 	_ensure_special_drawer_installed()
@@ -543,29 +501,27 @@ func _ensure_capacity(slot_id: int) -> void:
 		_pending_queues.append(_new_typed_queue())
 
 
-## DECISION (autoload/match/MatchGifts.gd, M4 P1b): "the feed issues a new
-## window" is Events.feed_block_issued -- MatchFeed._issue_next_block() emits
-## it every time any slot is handed a new held piece, on an early release, a
-## forced auto-drop, or a hot-seat turn change alike. autoload/Match.gd
-## connects this to Events.feed_block_issued and forwards slot_id here.
+## DECISION (autoload/match/MatchGifts.gd): "the feed issues a new window" is
+## Events.feed_block_issued -- MatchFeed._issue_next_block() emits it every time
+## any slot is handed a new held piece, on an early release, a forced
+## auto-drop, or a hot-seat turn change alike. autoload/Match.gd connects this
+## to Events.feed_block_issued and forwards slot_id here.
 ##
 ## Feed issuance activates a queued gift in MatchFeed before this callback.
 ## Gift activation and the ordinary piece after gift use do not create new
-## ordinary placement windows, so neither gets a gift-spawn roll. Other
-## rolls are gated here by _should_roll_for_window()
-## below -- see review fix (Beads): outside hot-seat every
-## slot's window advances independently (spec 1.4's "players act
-## concurrently, each handling their own supplied piece"), so rolling here
-## unconditionally gave an N-player match ~N rolls per window instead of
-## GiftSpawner.should_spawn()'s documented "one roll per window, for the
-## whole match, not per player".
+## ordinary placement windows, so neither gets a gift-spawn roll. Other rolls
+## are gated by _should_roll_for_window(): outside hot-seat every slot's window
+## advances independently (spec 1.4), so rolling unconditionally would give an
+## N-player match ~N rolls per window instead of GiftSpawner.should_spawn()'s
+## "one roll per window, for the whole match, not per player".
 func on_feed_block_issued(slot_id: int) -> void:
 	if not _match._is_host():
 		return
 	if _match._feed._suppress_gift_roll:
 		return
-	# start grace; the roll is skipped outright, not queued.
-	# DECISION: sandbox / gift-demo matches skip the grace (testing aid; the is about real matches).
+	# Start grace; the roll is skipped outright, not queued.
+	# DECISION: sandbox / gift-demo matches skip the grace (a testing aid; the
+	# grace is about real matches).
 	if _play_time_s < _gift_config.first_gift_delay_s and not (_match.config != null and _match.config.sandbox):
 		return
 	if not _should_roll_for_window(slot_id):
@@ -573,8 +529,7 @@ func on_feed_block_issued(slot_id: int) -> void:
 	_try_spawn()
 
 
-## DECISION (autoload/match/MatchGifts.gd): outside hot-seat,
-## every slot's own window fires this signal independently, so rolling on
+## DECISION (autoload/match/MatchGifts.gd): outside hot-seat, every slot's own window fires this signal independently, so rolling on
 ## every one of them would multiply the match-wide roll by player_count. The
 ## lowest-indexed slot that still has a home flag stands in for "the match's
 ## own window" here -- it need not be synchronized with anyone else's timer
@@ -601,15 +556,13 @@ func _lowest_alive_slot() -> int:
 
 ## Spec 1.9's sudden-death bullet: "Gift probability climbs toward the
 ## maximum of the finalized spawn model (2.6)." Outside sudden death this is
-## exactly `_match.config.special_frequency` (should_spawn()'s existing
-## input, unchanged behaviour); once MatchLifecycle.sudden_death_active() is
-## true it lerps monotonically toward MatchConfig.SPECIAL_FREQUENCY_MAX --
-## GiftConfig.frequency_to_chance_max is already the finalized spawn model's
-## own maximum spawn chance (spec 1.6), so should_spawn() itself needs no
-## change, only what frequency value it is handed -- over
-## TerritoryTuning.sudden_death_ramp_s, then clamps there for the rest of the
-## match. See that tunable's own DECISION for why the ramp duration is not
-## spec-given.
+## exactly `_match.config.special_frequency`; once
+## MatchLifecycle.sudden_death_active() is true it lerps monotonically toward
+## MatchConfig.SPECIAL_FREQUENCY_MAX over TerritoryTuning.sudden_death_ramp_s,
+## then clamps there for the rest of the match. GiftConfig.frequency_to_chance_max
+## is already the spawn model's maximum chance (spec 1.6), so only the
+## frequency handed to should_spawn() changes. See the ramp tunable's DECISION
+## for why its duration is not spec-given.
 func _effective_special_frequency() -> float:
 	var base_frequency: float = float(_match.config.special_frequency) if _match.config != null else 0.0
 	if not _match._lifecycle.sudden_death_active():
@@ -660,17 +613,15 @@ func _ensure_rng() -> void:
 ## Lazily installs the real weighted-SpecialDef drawer the first time a
 ## match actually claims a crate, filtered to
 ## `_match.config.enabled_specials` (empty means every special --
-## config/match/MatchConfig.gd:57). Idempotent per match via `_roster_ready`,
+## config/match/MatchConfig.gd). Idempotent per match via `_roster_ready`,
 ## cleared by reset(). Keeps `_special_drawer` at its default
 ## (_default_special_drawer, always PENDING_SPECIAL_ID) when the filtered
-## roster is empty -- P3-P5 have not landed any config/gifts/specials/*.tres yet,
-## so a spawn with no draw stays a safe, ordinary block (see
-## MatchPlacement._spawn_block()'s own P2c extension).
+## roster is empty, so a spawn with no draw stays an ordinary block.
 func _ensure_special_drawer_installed() -> void:
 	if _roster_ready:
 		return
 	_roster_ready = true
-	# the draw honours SpecialDef.enabled_by_default (Cat is off).
+	# The draw honours SpecialDef.enabled_by_default (Cat is off).
 	# The lobby checklist and the sandbox cycle list use the same roster.
 	var all_defs: Array[SpecialDef] = SpecialDef.load_selectable_specials()
 	var enabled: Array[StringName] = _match.config.enabled_specials if _match.config != null else []
@@ -690,7 +641,7 @@ func _ensure_special_drawer_installed() -> void:
 	_special_drawer = _weighted_special_drawer
 
 
-## DECISION (autoload/match/MatchGifts.gd, M4 P2c): rng_seed + a distinct odd
+## DECISION (autoload/match/MatchGifts.gd): rng_seed + a distinct odd
 ## offset from _ensure_rng()'s own 999983, so a fixed match seed reproduces
 ## the special-type draw deterministically without ever colliding with the
 ## gift-spawn-point RNG or a slot's own bag sequence (same stride convention
@@ -706,12 +657,9 @@ func _ensure_special_rng() -> void:
 
 
 ## The real drawer, installed by _ensure_special_drawer_installed() once the
-## filtered roster is non-empty. Roulette-weighted via SpecialDef.
-## pick_weighted() -- see that function's own null-on-empty-array contract,
-## guarded against here too since `_special_roster` could in principle be
-## reassigned empty only by _ensure_special_drawer_installed() itself, which
-## never installs this Callable in that case; kept anyway so this function's
-## own contract (always a valid, non-empty StringName) never depends on that.
+## filtered roster is non-empty. Roulette-weighted via
+## SpecialDef.pick_weighted(), which returns null on an empty array; guarded
+## here too so this function always returns a valid, non-empty StringName.
 func _weighted_special_drawer() -> StringName:
 	var picked: SpecialDef = SpecialDef.pick_weighted(_special_roster, _special_rng)
 	return picked.id if picked != null else PENDING_SPECIAL_ID
@@ -873,7 +821,7 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var half: float = _match._physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
 	var crate_half: Vector3 = GiftCrate.CRATE_SIZE * 0.5
 	var pivot: Vector3 = shape.bottom_center()
-	# a held gift is one cell where its model sits, matching the
+	# A held gift is one cell where its model sits, matching the
 	# collider it will be delivered with, not the whole carrier piece.
 	if _match.held_special(slot_id) != &"":
 		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _match._physics_tuning)
@@ -930,16 +878,15 @@ func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
 	return true
 
 
-## "b", overriding this file's earlier "one
-## shared team queue" design: a crate claimed in `team_id`'s territory is
-## offered to the ONE teammate whose home circle is nearest the crate, not to
-## every teammate through a queue they all share. _resolve_recipient_slot()
-## below does that resolution; if no teammate's home flag is still alive, the
-## crate is left untouched (no claim, no crate consumed, no event).
+## A crate claimed in `team_id`'s territory is offered to the ONE teammate
+## whose home circle is nearest the crate, not to every teammate through a
+## shared queue. _resolve_recipient_slot() does that resolution; if no
+## teammate's home flag is still alive, the crate is left untouched (no claim,
+## no crate consumed, no event).
 ##
-## the latest claim replaces this recipient's next gift or
-## ordinary draw. Resolve the recipient before freeing the crate because its
-## position is needed for that choice.
+## The latest claim replaces this recipient's next gift or ordinary draw.
+## Resolve the recipient before freeing the crate because its position is
+## needed for that choice.
 func _claim_gift(gift_id: int, team_id: int) -> void:
 	if team_id < 0:
 		return
@@ -959,14 +906,14 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
 
 
-## "b" on the M6 plan's question 1: picks
-## the alive (home_flag_alive) member of `team_id` whose home circle
+## Picks the alive (home_flag_alive) member of `team_id` whose home circle
 ## (PlayerSlot.home_position, disk-local, computed once by
 ## MatchLifecycle._build_slots()) is closest to `crate_position`. Returns -1
 ## if `team_id` has no living teammate to give the special to.
 ##
-## DECISION (autoload/match/MatchGifts.gd): the spec/ settles "nearest wins" but not an exact tie (two teammates
-## equidistant from the crate). Iterating slots in ascending id order and
+## DECISION (autoload/match/MatchGifts.gd): the spec settles "nearest wins" but
+## not an exact tie (two teammates equidistant from the crate). Iterating
+## slots in ascending id order and
 ## only replacing the current best on a strict `<` (not `<=`) comparison
 ## makes the lowest slot id win a tie with no extra branching -- simplest
 ## reasonable option, not a spec requirement.
@@ -986,7 +933,7 @@ func _resolve_recipient_slot(team_id: int, crate_position: Vector2) -> int:
 	return best_slot
 
 
-## Orchestrator amendment 1: the special TYPE is drawn here, at claim time.
+## The special TYPE is drawn here, at claim time.
 ## A drawer that returns something that isn't a real, non-empty StringName is
 ## treated as a bug in whatever installed it, not trusted silently -- an
 ## empty id is held_special()'s own "nothing queued" sentinel, so queuing one
@@ -1002,11 +949,9 @@ func _draw_special_id() -> StringName:
 	return PENDING_SPECIAL_ID
 
 
-##  report ("Unclaimed presents should respawn in
-## different places when unclaimed"): captures the expiring crate's own
-## position before _free_crate_visual() erases its `_crates` entry, so
-## _relocate_after_expiry() below has something to measure the replacement's
-## minimum distance against.
+## Unclaimed crates respawn in a different place. Captures the expiring crate's own position before _free_crate_visual()
+## erases its `_crates` entry, so _relocate_after_expiry() can measure the
+## replacement's minimum distance against it.
 func _expire_gift(gift_id: int) -> void:
 	var entry: Dictionary = _crates.get(gift_id, {})
 	if entry.is_empty():
@@ -1018,7 +963,7 @@ func _expire_gift(gift_id: int) -> void:
 	_relocate_after_expiry(old_position)
 
 
-## an expired (unclaimed) crate is immediately replaced by a
+## An expired (unclaimed) crate is immediately replaced by a
 ## fresh one at a new valid random location at least
 ## GiftConfig.relocate_min_distance_m from the one it replaces, using the same
 ## seeded gift-spawn RNG and GiftSpawner.pick_spawn_point() location logic
@@ -1032,13 +977,11 @@ func _expire_gift(gift_id: int) -> void:
 ## the instant before expiry (spec 1.6 unchanged; owner instruction: "the
 ## relocated crate counts as the live crate").
 ##
-## DECISION (autoload/match/MatchGifts.gd): if no valid spot
-## clearing relocate_min_distance_m can be found (raster/grid missing, gifts
-## disabled mid-match, or _pick_relocation_point() exhausts its attempt
-## budget), this simply falls back to the existing pre- behavior
-## -- the crate stays gone and the next spawn comes from the ordinary
-## per-window roll -- rather than forcing a spawn at a too-close or invalid
-## point.
+## DECISION (autoload/match/MatchGifts.gd): if no valid spot clearing
+## relocate_min_distance_m can be found (raster/grid missing, gifts disabled
+## mid-match, or _pick_relocation_point() exhausts its attempt budget), the
+## crate stays gone and the next spawn comes from the ordinary per-window roll,
+## rather than forcing a spawn at a too-close or invalid point.
 func _relocate_after_expiry(old_position: Vector2) -> void:
 	if _match.config == null or not _match.config.gifts_enabled:
 		return
@@ -1049,9 +992,8 @@ func _relocate_after_expiry(old_position: Vector2) -> void:
 	_ensure_rng()
 	var new_point: Vector2 = _pick_relocation_point(raster, grid, old_position)
 	if GiftSpawner.is_no_spawn_point(new_point):
-		# DECISION: fall back to the existing behavior (no immediate
-		# replacement; the next ordinary per-window roll will spawn one) --
-		# see this function's own doc comment above.
+		# DECISION: no immediate replacement; the next ordinary per-window
+		# roll will spawn one (see the doc comment above).
 		return
 	_spawn_crate_at(new_point)
 
@@ -1129,9 +1071,9 @@ func _make_crate_node(point: Vector2, gift_id: int) -> GiftCrate:
 # --- The client's read model (spec 2.6) -------------------------------------
 # Called only by net/MatchNet.gd's net_match_event, only on a client (a
 # well-behaved host never receives its own replicated RPC). A client never
-# claims or expires anything itself -- these three only ever build or free a
-# visual, and the claim mirror also keeps held_special()/pending_special_
-# count() accurate for a client's own future HUD/P2c use.
+# claims or expires anything itself -- these only build or free a visual, and
+# the claim mirror keeps held_special()/pending_special_count() accurate for
+# the client's HUD.
 
 ## Interpolate visuals only. Reaching the endpoint does not grant landing,
 ## claim or expiry authority; the reliable host event commits each transition.
@@ -1198,23 +1140,16 @@ func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 		node.set_falling(false)
 
 
-## "b": the resolved RECIPIENT slot arrives
-## over the wire -- the host already picked the one teammate nearest the
-## crate in _claim_gift() before it ever replicated this event -- so this
-## bounds-checks against _match.slot_count() before it ever reaches
-## _ensure_capacity(). An unchecked garbage id would otherwise grow
-## _pending_queues without limit on every client that received it. Mirrors
-## MatchLifecycle.apply_replicated_elimination()'s own slot(slot_id)
-## null-check convention.
+## The resolved RECIPIENT slot arrives over the wire (the host already picked
+## the one teammate nearest the crate in _claim_gift()), so this bounds-checks
+## against _match.slot_count() before it reaches _ensure_capacity(): an
+## unchecked garbage id would otherwise grow _pending_queues without limit on
+## every client. net/MatchNet.gd's wire check has already rejected a malformed
+## `special_id`.
 ##
-## mirrors _claim_gift()'s own cap check (net/MatchNet.gd's wire
-## check has already rejected a malformed `special_id` by the time this
-## runs) -- a client's queue can never exceed the same
-## GiftConfig.max_pending_specials the host enforces. The crate visual is
-## freed unconditionally either way: a well-behaved host only ever sends
-## EVENT_GIFT_CLAIMED for a claim it actually accepted (amendment 3 keeps a
-## claim into a full queue from firing gift_claimed at all), so by the time a
-## client applies this, the host really did free that crate.
+## The crate visual is freed unconditionally: a well-behaved host only sends
+## EVENT_GIFT_CLAIMED for a claim it actually accepted, so the host really did
+## free that crate.
 func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_free_crate_visual(gift_id)
 	if slot_id < 0 or slot_id >= _match.slot_count():
@@ -1235,25 +1170,17 @@ func apply_replicated_expire(gift_id: int) -> void:
 	_free_crate_visual(gift_id)
 
 
-## the client mirror of pop_pending_special(), called by
-## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch (after its own wire
-## check) right before it re-emits Events.special_consumed. Keeps a client's
-## pending_special_count()/held_special() shrinking in step with the host's
-## queue, the spend-side counterpart of apply_replicated_claim()'s own
-## grow-side mirror.
+## The client mirror of pop_pending_special(), called by net/MatchNet.gd's
+## EVENT_SPECIAL_CONSUMED dispatch (after its own wire check) right before it
+## re-emits Events.special_consumed. Keeps a client's held_special() in step
+## with the host, the spend-side counterpart of apply_replicated_claim().
 ##
-## Review fix pattern (Must #1, mirrored from apply_replicated_claim()): a
-## garbage slot_id must never grow _pending_queues, so this bounds-checks
-## against _match.slot_count() and never calls _ensure_capacity() itself --
-## unlike a claim, a consumed-special mirror has nothing useful to do for a
-## slot whose queue was never grown by an earlier claim anyway.
+## A garbage slot_id must never grow _pending_queues, so this bounds-checks
+## against _match.slot_count() and never calls _ensure_capacity() itself.
 ##
-## "b", superseding the earlier M6 A1 team
-## translation here: `_pending_queues` is now keyed by recipient slot, the
-## same slot pop_pending_special() popped on the host, so this indexes
-## `slot_id` directly -- no team_of_slot() translation needed or correct
-## anymore (a teammate other than the resolved recipient never held this
-## special in the first place).
+## `_pending_queues` is keyed by recipient slot, the same slot
+## pop_pending_special() popped on the host, so this indexes `slot_id`
+## directly with no team_of_slot() translation.
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return
