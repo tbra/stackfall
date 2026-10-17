@@ -18,26 +18,20 @@ uniform float radiance_tick = 0.0;
 
 
 uniform float exposure = 0.8;
-// P6a: the painted panorama is removed. sky_yaw/pitch_offset_deg are kept only
-// because game/sky/Skybox.gd, CloudSea and the theme resources still write them (cleanup follow-up);
-// this shader no longer samples with them.
+// sky_yaw/pitch_offset_deg are kept only because game/sky/Skybox.gd, CloudSea
+// and the theme resources still write them; this shader does not sample with them.
 uniform float sky_yaw_offset_deg = 0.0;
 uniform float sky_pitch_offset_deg = 0.0;
 
-// Graphics pass 2, "lens flare from the sun"
-// + fix round "move god rays into the sky": a warm sun glow/halo and
-// crepuscular god-ray beams, drawn as part of the sky pass itself -- this
-// runs behind every opaque object (the disc, blocks, beacons) for free (a
-// sky shader is always the backmost thing drawn) and is naturally picked up
-// by ReflectionProbe/SSR the same way the painted panorama already is,
-// unlike a screen-space overlay which would have to be manually depth-
-// tested against scene geometry. game/sky/SunFlare.gd's screen-space CanvasLayer
-// keeps only the true lens-artifact elements (a tight starburst sparkle
-// directly on the sun disc, and the ghost discs along the sun->center
-// axis) -- see that file's own class doc.
+// A warm sun glow/halo and crepuscular god-ray beams, drawn as part of the sky
+// pass itself: this runs behind every opaque object (the disc, blocks, beacons)
+// for free and is picked up by ReflectionProbe/SSR, unlike a screen-space
+// overlay that would have to be depth-tested against scene geometry.
+// game/sky/SunFlare.gd's screen-space CanvasLayer keeps only the lens-artifact
+// elements (a tight starburst sparkle on the sun disc and the ghost discs along
+// the sun->center axis).
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
-// the cycle uses this same sky pass and uniforms; its
-// procedural branch hides the panorama's painted sun before the sun moves.
+// The cycle uses this same sky pass and uniforms.
 uniform float cycle_night_mix = 0.0;
 uniform vec3 cycle_night_zenith : source_color = vec3(0.008, 0.018, 0.06);
 uniform vec3 cycle_night_horizon : source_color = vec3(0.07, 0.11, 0.24);
@@ -47,7 +41,7 @@ uniform float cycle_star_cells = 105.0;
 uniform float cycle_star_threshold = 0.92;
 uniform float cycle_star_radius = 0.12;
 uniform float cycle_star_horizon_fade = 0.22;
-// Codex moon_v1 disc + halo textures (assets/textures/sky/moon), drawn at
+// Moon disc + halo textures (assets/textures/sky/moon), drawn at
 // night opposite the sun. moon_visibility is 0..1 (time of day x weather keep, set by
 // game/sky/Skybox.gd); the angular sizes and strengths come from SkyThemeDef.cycle_moon_*.
 uniform sampler2D moon_disc_tex : source_color, filter_linear_mipmap, repeat_disable;
@@ -101,17 +95,15 @@ uniform float sun_halo_softness_deg = 10.0;
 uniform float sun_core_intensity = 0.0;
 uniform float sun_halo_intensity = 0.0;
 // Long, soft god-ray beams fanning out from the sun. Two overlaid ray
-// layers (many thin + a few wide) rather than one uniform comb, matching
-// "varying widths, many thin + a few wide beams" from the mockup review.
+// layers (many thin + a few wide) rather than one uniform comb.
 uniform float ray_count = 14.0;
 uniform float ray_sharpness = 5.0;
 uniform float ray_wide_count = 4.0;
 uniform float ray_wide_sharpness = 2.0;
 uniform float ray_length_deg = 55.0;
 uniform float ray_intensity = 0.35;
-// Slow, subtle brightness wobble on the ray layer only -- "slow subtle
-// shimmer" from the mockup review; low amplitude so it reads as
-// atmospheric drift, not a flicker.
+// Slow, subtle brightness wobble on the ray layer only; low amplitude so it
+// reads as atmospheric drift, not a flicker.
 uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
 // share of the sun glow and god rays that survives weather and
@@ -122,8 +114,7 @@ uniform float ray_shimmer_amount = 0.08;
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
-// P6a: the painted panorama (and its seam fix, sway/warp drift and
-// sea-flow code) is gone; every theme runs the procedural branch below. The shared
+// Every theme runs the procedural branch below. The shared
 // noise texture drives the procedural cloud layers. All animated terms are skipped
 // in the radiance (reflection) pass.
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
@@ -149,8 +140,6 @@ uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
 
-// procedural sky P1: declarations only; the branch that
-// reads them lands in P2-P4.
 uniform float procedural_sea_mix = 1.0;
 uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
 uniform vec4 proc_mid_color : source_color = vec4(0.55, 0.36, 0.5, 1.0);
@@ -164,7 +153,7 @@ uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
 uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
 uniform float proc_sea_horizon_fade = 0.12;
 uniform float proc_strata_scale = 1.0;
-// P2 shader-only look tuning (set per theme on the material).
+// Shader-only look tuning (set per theme on the material).
 uniform float proc_gradient_bands = 8.0;
 uniform float proc_gradient_band_edge = 0.12;
 uniform float proc_sun_edge_deg = 0.25;
@@ -172,7 +161,7 @@ uniform float proc_sun_halo_bands = 4.0;
 uniform float proc_sun_halo_strength = 0.6;
 uniform float proc_horizon_glow_strength = 0.45;
 uniform float proc_horizon_glow_sun_bias = 3.0;
-// P3 shader-only look tuning: far cloud sea (below horizon) and the second
+// Shader-only look tuning: far cloud sea (below horizon) and the second
 // upper-strata layer. sea_params: x far-stratum scale, y near-stratum scale,
 // z drift speed, w cel bands. sea_heights: x far, y near stratum plane height.
 uniform vec4 proc_sea_params = vec4(0.5, 0.9, 0.004, 4.0);
@@ -191,7 +180,7 @@ uniform float proc_strata2_coverage = 0.6;
 uniform float proc_strata2_bands = 3.0;
 uniform float proc_strata2_fade_start = 0.08;
 uniform float proc_strata2_fade_height = 0.4;
-// Pass 2 upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
+// Upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
 uniform vec4 proc_upper_shape = vec4(0.15, 0.3, 0.04, 6.0);
 uniform float proc_upper_rot2 = 0.6;
 // authored cloud-card layers replace the noise overhead layers
@@ -221,11 +210,11 @@ void sky() {
 	float cos_angle = dot(eyedir, sun_dir);
 	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
 
-	// DECISION (P6a): COLOR starts black; the procedural gradient below fills it
+	// DECISION: COLOR starts black; the procedural gradient below fills it
 	// whenever procedural_sea_mix > 0 (default 1, every theme sets 1).
 	COLOR = vec3(0.0);
 
-	// Procedural gradient sky (P2), blended by procedural_sea_mix.
+	// Procedural gradient sky, blended by procedural_sea_mix.
 	// The radiance pass takes no noise taps here, so it is cheap and stable.
 	if (procedural_sea_mix > 0.0) {
 		vec3 pcol = sky_gradient(eyedir.y, proc_horizon_color.rgb, proc_mid_color.rgb, proc_zenith_color.rgb,

@@ -1,59 +1,38 @@
 shader_type spatial;
-// Spec 1.10: the block mesh stays one merged
-// solid shape -- this shader is what actually draws the
-// per-cell grid lines and the toon shading bands on its faces, it never
-// changes geometry/collision/connectivity.
-//
-// (on docs/art_mockups/08-cel-shaded-home-
-// beacons.png: "Blocks only have the black borders, the mockup shows much
-// more detailed cel-shading with highlights and shadows affected by the
-// light source"), fix round (of blocks-r1):
-//   - shadow/lit/highlight are three explicit tinted "keyframe" colours
-//     interpolated by the toon-banded N.L, not one hue scaled by a single
-//     brightness scalar -- see light()'s own comment for why.
-//   - the bright bevel band now measures distance from the *same* true UV
-//     cell edge the dark seam does (dist_to_edge = 0), so it hugs the edge
-//     and fades inward instead of drawing an inset "picture frame" square.
-//   - the specular highlight is tuned small/hard/tinted so it never washes
-//     out a whole face past the HDR glow threshold (Main.tscn's 1.1).
-//   - a subtle warm Fresnel rim light on edges facing the sun.
-// Every number above lives on config/blocks/tuning/BlockVisualTuning.gd, wired in by
+// Spec 1.10: the block mesh stays one merged solid shape; this shader draws the
+// per-cell grid lines and the toon shading bands on its faces and never
+// changes geometry, collision or connectivity. Tunables live on
+// config/blocks/tuning/BlockVisualTuning.gd, wired in by
 // game/blocks/BlockFactory.gd's `_material_for_color()`.
 //
-// Cell-grid lines: core/blocks/BlockMeshBuilder.gd already emits 0..1 UVs
-// per visible *cell* face (only exposed faces get a quad at all, so each
-// quad's UV already spans exactly one cell's face -- see that file's
-// _append_face()). Drawing a thin line wherever a UV coordinate is near 0 or
-// 1 therefore lands exactly on every cell boundary and on the shape's own
-// silhouette, with no extra per-cell bookkeeping needed here.
+// Cell-grid lines: core/blocks/BlockMeshBuilder.gd emits 0..1 UVs per visible
+// cell face (only exposed faces get a quad), so a thin line wherever a UV
+// coordinate is near 0 or 1 lands on every cell boundary and the shape's own
+// silhouette, with no per-cell bookkeeping.
 //
-// Toon bands: light() below quantizes the N.L diffuse term into
-// toon_band_count discrete steps instead of Godot's normal smooth ramp.
+// Toon bands: light() quantizes the N.L diffuse term into toon_band_count
+// discrete steps instead of Godot's smooth ramp. Shadow/lit/highlight are
+// three tinted per-channel multipliers, not colours: Godot multiplies
+// DIFFUSE_LIGHT by ALBEDO once more after light(), so baking ALBEDO into the
+// bands would square the colours. `light_gain` rescales the result;
+// LIGHT_COLOR already carries the PI factor, hence the /PI.
 //
-// Glow: `contributing` is a per-instance shader parameter (not a plain
-// uniform -- every block shares this one ShaderMaterial instance, cached by
-// slot color in game/blocks/BlockFactory.gd's `_material_for_color()`), set via
-// GeometryInstance3D.set_instance_shader_parameter(&"contributing", bool) --
-// see BlockFactory.build()'s `sleeping_state_changed` wiring for who flips it
-// and why "resting" stands in for "contributing to territory influence"
-// this milestone.
+// Bevel highlight and rim are added through SPECULAR_LIGHT so they stay
+// light-coloured instead of being tinted by ALBEDO a second time. The bevel is
+// a narrow band just inside the dark seam (peaking at the seam edge, fading
+// inward). A warm rim reads on edges facing the sun, a cool "sky bounce" rim on
+// faces turned away. The specular highlight is small and hard so it never
+// washes a face out past the HDR glow threshold (Main.tscn's 1.1).
 //
-// graphics roadmap "Improved cel-shader/toon-shader", mockup 08:
-// look rework.
-//   - The toon ramp used to bake ALBEDO into its band colours, but Godot
-//     multiplies DIFFUSE_LIGHT by ALBEDO once more after light(), so colours
-//     were squared (muddy, over-dark saturation). The bands are now pure
-//     per-channel multipliers (cool shadow / neutral lit / warm highlight) and
-//     the engine applies ALBEDO exactly once. `light_gain` rescales the
-//     result; LIGHT_COLOR already carries the PI factor, hence the /PI.
-//   - Bevel highlight and rim are added through SPECULAR_LIGHT so they stay
-//     light-coloured instead of being tinted by ALBEDO a second time.
-//   - The bevel is a narrow band just inside the dark seam (peaking at the
-//     seam edge and fading inward), giving each cell a bevelled-cube read.
-//   - A cool "sky bounce" rim reads on faces turned away from the sun.
-//   - At long range (cells only a few pixels wide) the grid line and bevel
-//     fade to a fraction of their strength so distant towers stay clean
-//     instead of collapsing to a dark mesh; everything is screen-space.
+// At long range (cells only a few pixels wide) the grid line and bevel fade to
+// a fraction of their strength so distant towers do not collapse to a dark
+// mesh; everything is screen-space.
+//
+// Glow: `contributing` is a per-instance shader parameter (every block shares
+// one ShaderMaterial per slot colour), set via
+// GeometryInstance3D.set_instance_shader_parameter(&"contributing", bool); see
+// BlockFactory.build()'s `sleeping_state_changed` wiring for who flips it.
+// "Resting" stands in for "contributing to territory influence".
 render_mode cull_back;
 #include "res://shaders/include/block_dissolve.gdshaderinc"
 
@@ -119,7 +98,7 @@ uniform float rim_cool_strength : hint_range(0.0, 1.0) = 0.16;
 // Explicit instance indices: this shader's next_pass (block_outline.gdshader)
 // shares dissolve_amount on the same MeshInstance3D, so the slots must match.
 instance uniform bool contributing : instance_index(0) = false;
-// hole dissolve progress 0..1, driven per block by
+// Hole dissolve progress 0..1, driven per block by
 // game/blocks/BlockDissolveFx.gd (instance uniform: the shared per-colour material
 // is untouched). 0 costs one branch.
 instance uniform float dissolve_amount : instance_index(1) = 0.0;

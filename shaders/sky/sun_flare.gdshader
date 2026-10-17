@@ -1,8 +1,6 @@
 shader_type canvas_item;
 render_mode blend_add, unshaded;
-// Graphics pass 2, "lens flare from the
-// sun"; fix round "move god rays into the sky, keep only the true lens
-// artifact here": the big warm halo/god-ray beams now live in
+// Lens flare. The big warm halo/god-ray beams live in
 // shaders/sky/sunset_clouds.gdshader (drawn as part of the sky pass, so they sit
 // behind every opaque object for free). This screen-space layer keeps only
 // the camera-lens artifacts: a small, tight starburst sparkle directly on
@@ -12,15 +10,14 @@ render_mode blend_add, unshaded;
 // config/sky/SunFlareConfig.gd; nothing here is a magic number, only the shape
 // of the falloff math itself.
 //
-// DECISION (shaders/sky/sun_flare.gdshader, fix round): `render_mode blend_add` --
-// the previous candidate used ordinary alpha blending, which reads as a
+// DECISION (shaders/sky/sun_flare.gdshader): `render_mode blend_add` --
+// ordinary alpha blending reads as a
 // DARK overlay wherever this shader's own accumulated color is dimmer than
 // a bright background behind it (the sky/disc/existing bloom): alpha-mixing
 // a moderately-bright warm value over a near-white background darkens it.
 // Additive blending only ever brightens, never darkens, matching how a real
-// lens flare/glow actually looks and fixing exactly the "dark grey spokes
-// painting over the disc/beacons" symptom reported against the pre-fix
-// screen-space rays (now removed; see the sky shader's own rays instead).
+// lens flare/glow actually looks, and avoids dark grey spokes painting over
+// the disc/beacons.
 //
 // All positions/sizes below are in aspect-corrected UV space: `uv` is
 // SCREEN_UV (0..1 x 0..1, origin top-left) with x rescaled by the viewport's

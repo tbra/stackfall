@@ -12,7 +12,7 @@ global uniform float sky_time;
 uniform float radiance_tick = 0.0;
 
 
-// procedural night sky for config/sky/themes/night.tres --
+// Procedural night sky for config/sky/themes/night.tres --
 // deep blue gradient, twinkling stars, a shaded moon with glow, and a
 // slowly drifting cel-banded moonlit cloud layer above the horizon. Below
 // the horizon the far cloud sea is the procedural sea (cloud_common procedural_sea_color),
@@ -57,8 +57,8 @@ uniform float grade_gamma = 1.2;
 // eyedir.y band over which the sky gradient hands over to the sea.
 uniform float sea_blend_top = 0.02;
 uniform float sea_blend_bottom = -0.03;
-// procedural sky P4: procedural cloud sea (game/sky/Skybox.gd still writes
-// procedural_sea_mix; since P6b it no longer gates the sea). Same palette-driven function as the
+// Procedural cloud sea (game/sky/Skybox.gd still writes procedural_sea_mix,
+// but it no longer gates the sea). Same palette-driven function as the
 // sunset sea, with the night cloud colours, then moonlit-graded. proc_sea_*
 // colours/fade come from the theme; the rest is set on this material.
 uniform float procedural_sea_mix = 0.0;
@@ -225,7 +225,7 @@ void sky() {
 	// Far cloud sea below the horizon.
 	float sea = smoothstep(sea_blend_top, sea_blend_bottom, eyedir.y);
 	if (sea > 0.0) {
-		// DECISION (P6b): the panorama sea is gone; always the procedural sea.
+		// DECISION: always the procedural sea (no panorama sea).
 		// Flat palette in the radiance pass (no noise taps there).
 		vec3 sea_col = mix(proc_sea_color_near.rgb, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -eyedir.y));
 		if (!AT_CUBEMAP_PASS) {
