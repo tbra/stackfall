@@ -1,7 +1,6 @@
 class_name UiText
 extends Label
-## The design system's text roles: a Label whose font, size,
-## colour and outline come from the tokens, so a screen sets a [member role] instead of calling
+## The design system's text roles: a Label whose font, size, colour and outline come from the tokens, so a screen sets a [member role] instead of calling
 ## add_theme_*_override. TITLE is the Bungee display line, HEADING the 24px heavy uppercase panel
 ## heading, BODY the 16px sentence-case description, CAPTION the 13px dust hint, VALUE a Bungee
 ## readout. [member tint] overrides the role colour (any token colour). Sizes: ArcadeVisualTuning font_size_* and

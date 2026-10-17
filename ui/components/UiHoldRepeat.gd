@@ -1,8 +1,6 @@
 class_name UiHoldRepeat
 extends RefCounted
-## The shared pad / key / mouse hold-repeat of the menu value controls (UiStepper, UiSegmentMeter;
-## folded from the per-control copies of the hold-repeat logic and the old
-## SliderNav.Repeater).
+## The shared pad / key / mouse hold-repeat of the menu value controls (UiStepper, UiSegmentMeter).
 ##
 ## One press moves one step and the event is accepted. Holding repeats after
 ## SliderNavTuning.repeat_delay_sec every repeat_interval_sec, driven by [method advance] and not by

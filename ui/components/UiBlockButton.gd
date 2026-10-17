@@ -1,7 +1,6 @@
 class_name UiBlockButton
 extends Button
-## The design system's BlockButton: a coloured face, a lit top, a
-## dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd from ArcadeVisualTuning. Screens
+## The design system's BlockButton: a coloured face, a lit top, a dark lip and a solid ledge, drawn by ui/theme/BlockStyleBox.gd from ArcadeVisualTuning. Screens
 ## pick a semantic [enum Look] and `small`; they never pass colours. A small button is a
 ## UiRowItem (BUTTON_SM): its face, lip and ledge fit inside ComponentMetrics.row_height_px so it
 ## is exactly as tall as every other item of its row. A full-size button keeps the standard
@@ -54,8 +53,8 @@ static func face_for(variant_value: Look, tuning: ArcadeVisualTuning = null) -> 
 	return arcade.disc_600_color
 
 
-## Styles any [param button] as a block of [param variant_value]. Used by the node itself and,
-## during the migration, by tscn buttons that cannot be swapped yet. Small blocks also get the
+## Styles any [param button] as a block of [param variant_value]. Used by the node itself and
+## by tscn buttons that cannot be swapped for the node. Small blocks also get the
 ## row-item contract's vertical fit (see [method fit_row_height]). The five block styleboxes come
 ## from [method shared_look]: one set per (variant, size) is built per token set and shared by
 ## every button, never mutated afterwards (UiButtonHint copies a box before it reserves room).
@@ -120,9 +119,9 @@ static func _build_look(variant_value: Look, small_block: bool, icon_only: bool,
 
 
 ## A pressed block's face is its lip colour (BlockStyleBox), and a disc face's lip is nearly the
-## panel colour, so a pressed SECONDARY / ICON block vanished into the plate.
-## Neutral faces stay their own colour when pressed (the block still drops onto its ledge and the
-## top / lip go shallow), so the pressed button is visibly there.
+## panel colour, so a pressed SECONDARY / ICON block would vanish into the plate. Neutral faces
+## keep their own colour when pressed (the block still drops onto its ledge and the top / lip go
+## shallow).
 static func _show_pressed_face(button: Button, face: Color, small_block: bool, arcade: ArcadeVisualTuning) -> void:
 	for state: String in ["pressed", "hover_pressed"]:
 		var shown: Color = face if state == "pressed" else face.lerp(Color.WHITE, arcade.block_hover_light_mix)

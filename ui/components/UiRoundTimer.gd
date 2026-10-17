@@ -1,6 +1,6 @@
 class_name UiRoundTimer
 extends PanelContainer
-## The design system's RoundTimer ("Need a round timer component"): the match
+## The design system's RoundTimer: the match
 ## clock on a hud-plate in Bungee numerals as m:ss. It counts the time left down in a limited match
 ## and, in a mode with no limit, the time played up. The last HUDVisualTuning.round_timer_hurry_seconds
 ## turn the plate edge and numerals rim gold; sudden death (overtime) swaps the clock for its flare

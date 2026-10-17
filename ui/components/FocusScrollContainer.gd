@@ -1,11 +1,8 @@
 class_name FocusScrollContainer
 extends ScrollContainer
-## ("In menus that have scrolling, for example
-## controller remapping, navigating with gamepad/arrow keys doesn't update the
-## scroll position"). A ScrollContainer that keeps whichever descendant just
-## took keyboard/gamepad focus visible -- the shared approach for every menu
-## list that can outgrow its panel (ui/menus/OptionsMenu.tscn's Settings page and
-## Controls rebind list, and ui/lobby/Lobby.tscn's settings column since use it).
+## A ScrollContainer that keeps whichever descendant just took keyboard/gamepad focus visible --
+## the shared approach for every menu list that can outgrow its panel (the options Settings page
+## and Controls rebind list, the lobby settings column).
 ##
 ## DECISION: the engine's own `follow_focus` (set here, and
 ## explicitly in the scene) does the actual scrolling -- its handler listens to
@@ -26,8 +23,7 @@ const TUNING: SliderNavTuning = preload("res://config/ui/slider_nav_tuning.tres"
 ## Reads the right-stick Y axis; tests replace it (headless Input has no real pad state).
 var scroll_axis_reader: Callable = _read_right_stick_y
 ## True once the right stick moved the view: the next ui_up / ui_down then jumps the selection to
-## the nearest control inside the visible viewport instead of scrolling back to the old one
-## .
+## the nearest control inside the visible viewport instead of scrolling back to the old one.
 var stick_scrolled: bool = false
 ## Left-stick / d-pad vertical hold: one move per push, repeat only at full deflection.
 var _hold: UiHoldRepeat = UiHoldRepeat.new(_move_selection)
@@ -41,9 +37,8 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	# menus with scrollbars don't start at the top: a list
-	# opens at its top, then follows focus as before. Deferred so it runs after the opening
-	# focus grab (whose ensure_control_visible would otherwise leave it scrolled down).
+	# A list opens at its top; the reset is deferred so it runs after the opening focus grab
+	# (whose ensure_control_visible would otherwise leave it scrolled down).
 	visibility_changed.connect(_on_visibility_changed)
 	scroll_to_top()
 

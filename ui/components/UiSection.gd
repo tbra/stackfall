@@ -1,17 +1,16 @@
 class_name UiSection
 extends VBoxContainer
-## The design system's Section: a group header inside a
-## panel (the section's caption with an optional icon on the left, a dust one-line summary of the
+## The design system's Section: a group header inside a panel (the section's caption with an optional icon on the left, a dust one-line summary of the
 ## current values on the right, never collapsible) over a main body that is always shown, and an
 ## optional Advanced block behind a disclosure bar (rim caret + "ADVANCED"). Only the Advanced
-## block collapses. Moved here from the old lobby section block.
+## block collapses.
 ##
 ## **Scene convention** (the section builds only its own header and bar; every setting control
 ## stays an authored node so its `%UniqueName` keeps resolving, and nothing is reparented at
 ## runtime):
 ## - a child named `Body` (any Control) holds the main controls,
 ## - an optional child named `Advanced` (a MarginContainer) holds the Advanced controls; it
-##   starts collapsed (plan D7: the expanded state is not persisted).
+##   starts collapsed (the expanded state is not persisted).
 ## Chip grids ([UiChipToggle]) and rows ([UiRow]) go inside Body / Advanced like any control.
 ##
 ## **Focus.** [member advanced_button] is a FOCUS_ALL toggle Button, so `ui_accept` (A on a pad) and
@@ -26,7 +25,6 @@ signal advanced_changed(open: bool)
 
 ## Text of the Advanced disclosure bar.
 const ADVANCED_CHIP_TEXT: String = "ADVANCED"
-## The disclosure triangle is drawn (not a font glyph): the same triangle turned 0 / 90 degrees.
 const BODY_NAME: StringName = &"Body"
 const ADVANCED_NAME: StringName = &"Advanced"
 
