@@ -1,28 +1,20 @@
 shader_type spatial;
-// "Same for the beacons" -- the beacons need
-// the same cel-shading detail as blocks: the crystal is a faceted bipyramid
-// with its own per-facet flat normals (HomeFlag._build_crystal_mesh()/
-// _add_facet()) -- this shader adds toon-banded diffuse with a never-near-
-// black shadow floor/cool tint, a hard-edged specular facet highlight, and
-// the crystal's own emissive glow (BeaconVisualTuning.crystal_emission,
-// pulsed live by HomeFlag._apply_pulse()), matching
-// shaders/blocks/block_cell_grid.gdshader's technique for visual consistency across
-// blocks and beacons.
+// Faceted bipyramid crystal (HomeFlag._build_crystal_mesh()/_add_facet() give per-facet
+// flat normals): toon-banded diffuse with a never-near-black cool shadow floor, a
+// hard-edged specular facet highlight and the crystal's own emissive glow
+// (BeaconVisualTuning.crystal_emission, pulsed by HomeFlag._apply_pulse()), matching
+// shaders/blocks/block_cell_grid.gdshader's technique.
 //
-// Unlike BlockFactory's block material, every HomeFlag/GoalFlag builds its
-// own dedicated ShaderMaterial instance in HomeFlag._build() (never shared or
-// colour-keyed across flags), so every uniform below is a plain uniform set
-// directly from BeaconVisualTuning/the flag's own colour in
-// HomeFlag._apply_color() -- no per-instance shader parameters needed here.
+// Every HomeFlag/GoalFlag builds its own ShaderMaterial (HomeFlag._build(), never shared
+// or colour-keyed), so every uniform below is a plain uniform set by
+// HomeFlag._apply_color() -- no per-instance shader parameters needed.
 //
-// (graphics roadmap "Textures/materials (disc/emissive)"):
-// stylized emissive rework. The toon ramp is now a per-channel multiplier
-// (Godot multiplies DIFFUSE_LIGHT by ALBEDO once after light(), the old code
-// squared it). The emission has a dimmer core and a brighter fresnel edge
-// (white-hot toward the facet silhouettes) so the gem reads as glowing from
-// within; emission_scale is a global multiplier (raise/lower for night
-// themes) and the pulse in HomeFlag multiplies emission_energy on top. Peak
-// values stay near the 1.3 glow threshold so only the pulse peak blooms.
+// The toon ramp is a per-channel multiplier (Godot multiplies DIFFUSE_LIGHT by ALBEDO
+// once after light()). The emission has a dimmer core and a brighter fresnel edge
+// (white-hot toward the facet silhouettes) so the gem reads as glowing from within;
+// emission_scale is a global multiplier and the pulse in HomeFlag multiplies
+// emission_energy on top. Peak values stay near the 1.3 glow threshold so only the
+// pulse peak blooms.
 render_mode cull_disabled;
 
 uniform vec4 albedo_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);

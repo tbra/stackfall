@@ -1,10 +1,8 @@
 shader_type spatial;
 render_mode cull_disabled, specular_disabled, fog_disabled;
 
-// The arena's side and underside for ArenaSideStyle.Style.SHADER_DOME
-// (round 4; owner: "the arenas have modelled details while the
-// top is just a shader - extend the shader down the side"). Smooth geometry with
-// NO modelled relief: this shader draws the same procedural plating as the top
+// The arena's side and underside for ArenaSideStyle.Style.SHADER_DOME. Smooth geometry
+// with NO modelled relief: this shader draws the same procedural plating as the top
 // (shaders/include/disc_plating.gdshaderinc, shared with territory.gdshader) and
 // shades it the same way (base tint, cool fill, sky and sun sheen, damped diffuse),
 // so the top, the wall and the dome read as one object.

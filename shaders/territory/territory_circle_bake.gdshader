@@ -1,7 +1,6 @@
 shader_type canvas_item;
-// bakes territory.gdshader's per-pixel circle loop into a
-// texture, rendered once per circle-set change by game/field/TerritoryOverlay.gd's
-// SubViewport (see its DECISION comment). Channels (all in [0, 1]):
+// Bakes territory.gdshader's per-pixel circle loop into a texture, rendered once per circle-set change by
+// game/field/TerritoryOverlay.gd's SubViewport. Channels (all in [0, 1]):
 //   R = best value (clamped to +-BAKE_VALUE_CLAMP_M, encoded v / (2*clamp) + 0.5)
 //   G = second-best team value (same encoding)
 //   B = (team + 1) / 16, 0 = unowned

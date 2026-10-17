@@ -1,20 +1,9 @@
 shader_type spatial;
-// ("the map disc looks like glass: a bit
-// transparent and reflective") introduced a translucent, blend_mix disk so
-// ProceduralSky reflections (Main.tscn's WorldEnvironment) would show on it
-// via SPECULAR/METALLIC below.
-//
-// DECISION (shaders/territory/territory.gdshader, 
-// "I think the disc is a mirror-like surface and not glass, so it should be
-// reflective but not transparent"): retired that translucency entirely.
-// fragment() below no longer writes ALPHA at all, so this material is
-// compile-time opaque -- not just alpha == 1.0 while still queued as
-// transparent. Removing "blend_mix"/"depth_draw_opaque" is safe because a
-// shader that never writes ALPHA is opaque by default and always depth-tests
-// and depth-writes normally; the old depth_draw_opaque comment's reasoning
-// (blocks and the ghost footprint quad depth-testing correctly against the
-// disk) no longer applies once the disk itself is not in the transparent
-// queue.
+// DECISION: the disc is opaque (fragment() never writes ALPHA), so the material is
+// compile-time opaque rather than alpha 1.0 in the transparent queue; a shader that never
+// writes ALPHA depth-tests and depth-writes normally, so blocks and the ghost footprint
+// quad test correctly against it. The disc shows ProceduralSky reflections (Main.tscn's
+// WorldEnvironment) via SPECULAR/METALLIC below.
 // DECISION (shaders/territory/territory.gdshader): specular_disabled. The "main light
 // source glaringly visible in the disc reflection" was never in the mirror
 // texture -- it is the DirectionalLight3D's own GGX specular lobe on this
@@ -34,14 +23,11 @@ render_mode cull_disabled, specular_disabled, fog_disabled;
 
 // Territory on the disk (spec 1.10, 2.5).
 //
-// **Two rendering paths.** (owner requirement: "should look
-// smooth... some kind of metaballs system") replaces the border itself —
-// smoothstepping a bilinearly-upscaled 1 m cell raster can only ever look
-// like a blurred grid, never a curve (game/field/TerritoryOverlay.gd's class doc
-// explains why territory_res cannot fix this). The analytic path below draws
-// the border as the true union of the disk-local circles
-// TerritorySolver/TerritoryGroups actually kept, which is a curve by
-// construction. The raster path is kept as the fallback for the one case the
+// **Two rendering paths.** The analytic path draws the border as the true union of the
+// disk-local circles TerritorySolver/TerritoryGroups actually kept, a curve by
+// construction (smoothstepping a bilinearly-upscaled 1 m cell raster can only look like a
+// blurred grid; game/field/TerritoryOverlay.gd's class doc explains why territory_res
+// cannot fix this). The raster path is kept as the fallback for the one case the
 // analytic path cannot bound the cost of: circle_count exceeding
 // TerritoryVisuals.max_shader_circles (game/field/TerritoryOverlay.gd sets
 // `circles_valid` to false whenever that happens, or before any circles have
@@ -68,8 +54,7 @@ render_mode cull_disabled, specular_disabled, fog_disabled;
 //                          raster (fallback) path; the analytic path derives
 //                          contested/goal-zone visuals straight from the
 //                          circle/goal lists instead.
-//   circle_tex one texel per home-anchored circle (Bontago-
-//                          ): R/G = disk-local x/z, B = radius, A =
+//   circle_tex one texel per home-anchored circle: R/G = disk-local x/z, B = radius, A =
 //                          team id. filter_nearest, read with texelFetch()
 //                          so a filtered sample never blends two circles'
 //                          rows together.
@@ -142,45 +127,22 @@ uniform float base_metallic : hint_range(0.0, 1.0) = 0.1;
 uniform float base_roughness : hint_range(0.0, 1.0) = 0.3;
 
 // -- Sun-facing sheen / diffuse cooling --------------------
-// : "the disc top reads flat maroon-brown, mockup is dark cool
-// graphite/black lacquer with a warm gold sheen gradient toward the sun".
-// Main.tscn's DirectionalLight3D is warm (look pass,
-// light_color (1, 0.94, 0.85)) -- deliberately tuned for the blocks and out
-// of scope here ("fix in the disc shading ... don't touch game/main/Main.tscn").
-// Godot's default diffuse response multiplies ALBEDO by that warm
-// LIGHT_COLOR every frame, which pushes disk_base_color's own cool grey
-// (~#23262c) toward brown wherever the top faces the sun -- confirmed:
-// disk_base_color is already the correct cool value; only the LIT result was
-// wrong. light() below (Godot 4: defining it replaces only the DIRECT
-// DirectionalLight3D diffuse/specular pass -- ambient/IBL/the planar mirror
-// above are computed elsewhere, untouched) desaturates that light's colour
-// toward its own luminance and caps its overall energy, so ambient/mirror/
-// the explicit sheen below stay the dominant read instead of a warm-lit
-// matte surface.
+// Main.tscn's DirectionalLight3D is warm and tuned for the blocks, so Godot's default
+// diffuse response (ALBEDO * warm LIGHT_COLOR) would push disk_base_color's cool grey
+// toward brown wherever the top faces the sun. light() below (defining it replaces only the
+// DIRECT DirectionalLight3D diffuse/specular pass; ambient/IBL/the planar mirror are computed
+// elsewhere) desaturates that light's colour toward its own luminance and caps its energy, so
+// ambient/mirror/the explicit sheen below stay the dominant read instead of a warm-lit matte
+// surface.
 //
-// DECISION (shaders/territory/territory.gdshader review pass): the
-// first version of disk_sheen_* was a purely POSITION-based gradient
-// (disk-local direction from center, dotted with the sun's own horizontal
-// direction) -- camera-independent, so it painted the exact same half of the
-// disc gold from every angle, which read as a correct sunset gradient in the
-// one --face-sun framing it was tuned against but as a flat gold wash (the
-// default/player camera happens to look mostly at that same "sun half") or a
-// hard diagonal terminator (the default overview framing, whose camera angle
-// crosses the gradient boundary) in every other framing. Replaced with a
-// genuine VIEW-DEPENDENT specular-style term: reflect() the camera's own
-// view ray off the disc's flat NORMAL and compare the result with the sun's
-// own direction -- standard mirror optics (this is exactly "would a perfect
-// mirror at this point show the sun's reflection to this camera"), so the
-// sheen is strong only when the camera is actually positioned to see the
-// disc mirror the sun toward it (per-pixel VIEW varies across the surface
-// even for one camera, which is what gives the mockup's own broad gradient
-// rather than a single infinitesimal hot spot), and naturally falls to
-// ~0 when the sun sits behind the camera. disk_sheen_exponent (replacing the
-// old disk_sheen_softness) is deliberately LOW (a broad lobe, not a tight
-// mirror-sharp highlight) -- a real GGX specular hot spot was already
-// rejected on this surface for the DIRECT light (see the render_mode
-// DECISION above); this is still a hand-tuned, non-physical falloff shape,
-// just now genuinely reflection-driven rather than a fixed position mask.
+// DECISION: disk_sheen_* is a VIEW-DEPENDENT specular-style term, not a position mask: a
+// position-based gradient painted the same half gold from every angle. reflect() the
+// camera's view ray off the disc's flat NORMAL and compare with the sun direction (mirror
+// optics: would a perfect mirror here show the sun to this camera). Per-pixel VIEW varies
+// across the surface, giving a broad gradient rather than one hot spot, and the term falls
+// to ~0 when the sun is behind the camera. disk_sheen_exponent is deliberately LOW (a broad
+// lobe): a real GGX hot spot was rejected for the DIRECT light (see the render_mode
+// DECISION above), so this is a hand-tuned, non-physical falloff.
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
 uniform vec3 disk_sheen_color : source_color = vec3(1.0, 0.78, 0.4);
 uniform float disk_sheen_strength : hint_range(0.0, 2.0) = 0.6;
@@ -188,10 +150,7 @@ uniform float disk_sheen_exponent : hint_range(0.5, 16.0) = 2.5;
 uniform float disk_diffuse_response : hint_range(0.0, 1.0) = 0.45;
 uniform float disk_diffuse_desaturate : hint_range(0.0, 1.0) = 0.85;
 
-// DECISION (shaders/territory/territory.gdshader): the two disk-opacity
-// uniforms that used to live here were removed -- fragment() no longer
-// writes ALPHA, so the disk is unconditionally opaque now (see the
-// render_mode comment above).
+// DECISION: the disk is unconditionally opaque (fragment() never writes ALPHA), so there are no disk-opacity uniforms.
 
 uniform float uv_scale = 0.011111;
 uniform float uv_offset = 0.5;
@@ -235,10 +194,9 @@ uniform float hole_cell_uv = 0.05;
 // sampled with a linear filter so the void follows a smooth field, not cell
 // squares. Bound by game/field/TerritoryOverlay.gd's push_cells().
 uniform sampler2D territory_hole : filter_linear, repeat_disable;
-// fix2b: false only while the uploaded territory_hole has no
-// hole cell (game/field/TerritoryOverlay.gd push_cells()); fragment() then skips the
-// void field entirely. True by default so an overlay that never uploaded keeps
-// the old always-evaluate behaviour.
+// False only while the uploaded territory_hole has no hole cell (game/field/TerritoryOverlay.gd
+// push_cells()); fragment() then skips the void field entirely. True by default so an
+// overlay that never uploaded keeps the always-evaluate behaviour.
 uniform bool void_present = true;
 // Smoothed hole mask level a pixel needs inside the overlap region (every
 // pixel of an activated cell clears it; reaches at most ~0.3 cell past one).
@@ -258,8 +216,7 @@ uniform bool circles_valid = false;
 uniform bool argmax_mode = false;
 uniform sampler2D goal_tex : filter_nearest, repeat_disable;
 uniform int goal_count = 0;
-// "the game slows down a lot after a
-// while": a coarse spatial bin over the circle list, built on the CPU by
+// A coarse spatial bin over the circle list, built on the CPU by
 // game/field/TerritoryOverlay.gd's _pack_circle_bins(). Without it every disk pixel
 // fetched every circle (O(pixels x circles), measured ~95-120 ms/frame at
 // 60-160 live blocks against ~15-30 ms with the circle loop skipped). Texel k
@@ -271,31 +228,23 @@ uniform int goal_count = 0;
 // the skipped circles never change a drawn pixel. Points outside the grid,
 // or circle_bins_valid == false, loop the whole list exactly as before.
 uniform float rim_width : hint_range(0.001, 2.0) = 0.35;
-// "the edge of the area is a bit blurry, sharpen
-// it": the ownership TINT's own smoothstep used to share rim_soft_width
-// with the glow band's coverage gate above -- crisp per the original game ("hard-edged shadows/edges"), the rim glow (rim_width/
-// rim_strength/rim_pulse_depth/rim_speed below, untouched) stays its own,
-// deliberately soft effect. See circle_path()'s own DECISION comment.
+// The ownership tint's smoothstep feathers over edge_softness_m, separate from
+// rim_soft_width (the glow band's coverage gate above), so the border reads crisp while
+// the rim glow (rim_width/rim_strength/rim_pulse_depth/rim_speed below) stays soft.
+// See circle_path()'s DECISION comment.
 uniform float edge_softness_m : hint_range(0.0, 2.0) = 0.03;
 uniform float rim_strength = 1.4;
 uniform float rim_pulse_depth : hint_range(0.0, 1.0) = 0.45;
 uniform float rim_speed = 1.6;
 
-// -- Top-surface brushed/plank grain (owner: "the dark
-// graphite top shows fine plank/brush streaks ... where it interacts with
-// the sun (top-right and bottom-centre)"). Cheap hash-based value noise in
-// disk-local meters (v_local.xz below) -- no texture sampling, no extra
-// render pass, just a handful of extra ALU ops already inside this one
-// fragment() call. Perturbs NORMAL/ROUGHNESS only, computed in fragment()
-// BEFORE both the mirror block's fresnel term and the disk_sheen block
-// below, so the streaks show up exactly where the owner described (the
-// explicit sun-sheen term and the mirror/ambient/SSR/probe specular all
-// read the perturbed NORMAL/ROUGHNESS already) while staying invisible to
-// ALBEDO/EMISSION -- the territory tint/border/shimmer/hole-rim colors
-// computed by raster_path()/circle_path() above are already finalized
-// before this block runs and are never touched by it, so fills and borders
-// cannot distort. See fragment()'s own call site for the NORMAL-basis
-// DECISION (why this does not need the mesh's own TANGENT/BINORMAL data).
+// -- Top-surface brushed/plank grain ---------------------------------------
+// Cheap hash-based value noise in disk-local meters (v_local.xz): no texture sampling or
+// extra render pass. Perturbs NORMAL/ROUGHNESS only, computed in fragment() BEFORE both the
+// mirror block's fresnel term and the disk_sheen block, so the sun sheen and the
+// mirror/ambient/SSR/probe specular all read the perturbed values while ALBEDO/EMISSION
+// (territory tint/border/shimmer/hole-rim colors, finalized by raster_path()/circle_path()
+// before this block) are never touched, so fills and borders cannot distort. See
+// fragment()'s call site for the NORMAL-basis DECISION.
 uniform float top_grain_strength : hint_range(0.0, 0.5) = 0.05;
 uniform float top_grain_scale : hint_range(0.01, 5.0) = 0.35;
 uniform float top_grain_fine_scale : hint_range(1.0, 30.0) = 6.0;
@@ -430,15 +379,13 @@ void vertex() {
 	v_local = VERTEX;
 }
 
-// problem 1 (see the disk_diffuse_* uniforms' own DECISION
-// above): only replaces the DIRECT DirectionalLight3D contribution --
-// ambient/IBL and the planar mirror EMISSION added in fragment() below are
-// untouched by defining this. Desaturating LIGHT_COLOR toward its own
-// luminance keeps the diffuse term's brightness/shading (ATTENUATION,
-// N.L via Godot's own light() call site) while dropping most of the sun's
-// warm hue, so the surface's own cool ALBEDO reads through instead of being
-// tinted brown; disk_diffuse_response then caps the whole term's energy so
-// the disc doesn't just become an evenly-lit flat grey either.
+// Only replaces the DIRECT DirectionalLight3D contribution -- ambient/IBL and the planar
+// mirror EMISSION added in fragment() are untouched by defining this. Desaturating
+// LIGHT_COLOR toward its own luminance keeps the diffuse term's brightness/shading
+// (ATTENUATION, N.L via Godot's own light() call site) while dropping most of the sun's
+// warm hue, so the surface's own cool ALBEDO reads through instead of being tinted brown;
+// disk_diffuse_response then caps the whole term's energy so the disc doesn't become an
+// evenly-lit flat grey either.
 void light() {
 	float luma = dot(LIGHT_COLOR.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 cool_light = mix(LIGHT_COLOR.rgb, vec3(luma), disk_diffuse_desaturate);
@@ -459,7 +406,7 @@ void light() {
 	DIFFUSE_LIGHT += disc_light;
 }
 
-// The raster (fallback) path: exactly's shader, unchanged.
+// The raster (fallback) path.
 // Kept whole rather than folded into the analytic path below, because spec
 // 3.3's "Bounded cost" asks for a real fallback when the circle list
 // overflows, not a best-effort partial draw with some circles silently
@@ -530,13 +477,10 @@ void raster_path(vec2 uv, vec3 base, out vec3 albedo, out vec3 emission) {
 		float(STATE_HOLE) - hole_rim_width * 2.0, float(STATE_HOLE), state_soft
 	);
 	emission += hole_rim_color.rgb * rim * hole_rim_glow;
-	// no alpha_boost anymore -- the disk is opaque outright,
-	// so tint/band/shimmer/rim already read at full strength through ALBEDO/
-	// EMISSION with no opacity trick needed.
 }
 
 // DECISION (shaders/territory/territory.gdshader): bake the circle loop.
-// Measured (a script removed in (see git history), 300 asleep blocks): uploading only the 2
+// Measured with 300 asleep blocks: uploading only the 2
 // home circles cut GPU 16.4 -> 7.6 ms, so the per-pixel circle loop (even
 // binned) dominated and scales with pixels (3440x1440 is 2.4x 1080p). The
 // loop's three outputs (best value, second-best team value, slot) are a pure
@@ -599,12 +543,9 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 	albedo = base;
 	emission = vec3(0.0);
 
-	// DECISION (shaders/territory/territory.gdshader): the tint's own
-	// coverage smoothstep now feathers over edge_softness_m (a few cm
-	// default), not rim_soft_width (still 0.25 m, the glow band's own
-	// property below) -- the two used to be the same value, which is what
-	// made the ownership boundary itself read as blurred rather than the rim
-	// glow around it. The `>= -edge_softness_m` gate matches, so tint starts
+	// DECISION: the tint's coverage smoothstep feathers over edge_softness_m (a few cm), not
+	// rim_soft_width (0.25 m, the glow band's own property below), so the ownership boundary
+	// reads crisp rather than blurred. The `>= -edge_softness_m` gate matches, so tint starts
 	// exactly where the smoothstep does rather than up to 0.25 m early.
 	// max(..., 0.0001): smoothstep(a, a, x) with a == 0 divides by zero
 	// (NaN) in GLSL, and 0.0 is a legal (deliberately "as crisp as
@@ -651,10 +592,6 @@ void circle_path(vec2 point, vec3 base, out vec3 albedo, out vec3 emission, out 
 		);
 		emission += contested_color.rgb * shimmer * contested_shimmer_strength;
 	}
-	// no alpha_boost anymore -- the disk is opaque outright,
-	// so the tint, rim, contested shimmer and goal-zone shimmer above already
-	// read at full strength through ALBEDO/EMISSION with no opacity trick
-	// needed.
 }
 
 
@@ -672,8 +609,7 @@ float void_noise(vec2 p) {
 		mix(void_hash(i + vec2(0.0, 1.0)), void_hash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 
-// "i was picturing it more as its own territory":
-// the void's signed distance (metres, > 0 inside) is the smooth overlap field
+// The void's signed distance (metres, > 0 inside) is the smooth overlap field
 // of opposing teams' circles (void_g, the same union boundary the territory
 // tints use), cut to the hole cells the raster has actually activated
 // (hole_delay, TEMPORARY/PERMANENT/OFF, closing holes all live in that mask),
@@ -727,22 +663,20 @@ void fragment() {
 	// gap is exactly the cell whose collision Field switched off. Holes stay
 	// the raster's authority for physical floor in *both* paths — a hole is
 	// never an analytic quantity (design note above).
-	// the disc collision is
-	// solid under a hole now, so the pixel is no longer discarded; it is drawn
+	// The disc collision is solid under a hole, so the pixel is not discarded; it is drawn
 	// as an animated void at the very end of fragment() (see hole_void()).
 	float void_g = -1000000.0;
 
 	vec3 albedo;
 	vec3 emission;
-	// weather snow composites disc -> snow -> territory: the
+	// Snow composites disc -> snow -> territory: the
 	// snow replaces the base albedo the territory tint is mixed onto, and the
 	// tint fill, contour, shimmer and hole rim (path emission) stay on top.
 	vec3 snow_flat_normal = NORMAL;
 	float snow = 0.0;
 	vec3 path_base = base_color.rgb;
-	// fix2b: the whole snow block is skipped (uniform branch)
-	// when there is no snow; mix(base, tone, 0.0) == base, so dry pixels are
-	// bit-identical to the old always-on code.
+	// The whole snow block is skipped (uniform branch) when there is no snow;
+	// mix(base, tone, 0.0) == base, so dry pixels are unchanged.
 	if (snow_strength > 0.0) {
 		float snow_depth = snow_coverage(v_local.xz);
 		snow = snow_strength * smoothstep(0.0, max(snow_edge_soft, 0.001), snow_depth);
@@ -806,9 +740,8 @@ void fragment() {
 		albedo *= tex_mod;
 	}
 
-	// machined panel seams + per-panel brightness (albedo only).
-	// fix2b: skipped (uniform branch) when both strengths are
-	// 0 -- the shipped look -- where every factor below is exactly 1.0.
+	// Machined panel seams + per-panel brightness (albedo only). Skipped (uniform branch)
+	// when both strengths are 0 -- the shipped look -- where every factor below is exactly 1.0.
 	if (panel_variation != 0.0 || panel_seam_strength != 0.0) {
 		vec2 panel_p = v_local.xz / max(panel_size_m, 0.01);
 		vec2 panel_id = floor(panel_p);
@@ -844,17 +777,11 @@ void fragment() {
 		}
 	}
 
-	// problem 1: the explicit warm-gold sheen -- see the
-	// disk_sheen_* uniforms' own DECISION above (view-dependent mirror-
-	// reflection term, not a fixed position mask). NORMAL/VIEW are both
-	// view-space here (same as the mirror fresnel block above); sun_view_dir
-	// is config/sky/sun_flare.tres's own world-space sun_direction transformed
-	// into that same view space so it can be compared directly. reflected is
-	// "what direction would a perfect mirror at this point send the camera's
-	// own view ray back out towards" -- when that lines up with the sun's own
-	// direction, this point genuinely mirrors the sun toward the camera, the
-	// same test a real specular highlight uses, just with a deliberately low
-	// (broad, soft) exponent instead of a photorealistic sharp one.
+	// The explicit warm-gold sheen: view-dependent mirror reflection, see the disk_sheen_*
+	// DECISION above. NORMAL/VIEW are both view-space here (as in the mirror fresnel block);
+	// sun_view_dir is the world-space sun_direction transformed into the same space. When the
+	// reflected view ray lines up with the sun, this point mirrors the sun toward the camera;
+	// the exponent is deliberately low (broad, soft).
 	vec3 sheen_normal = normalize(NORMAL);
 	vec3 sheen_view = normalize(VIEW);
 	vec3 sun_view_dir = normalize((VIEW_MATRIX * vec4(sun_direction, 0.0)).xyz);
