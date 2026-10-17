@@ -2,9 +2,8 @@ class_name WindField
 extends RefCounted
 ## Pure wind rules: direction, gust and the height response.
 ## No scene tree; the host effect and the client presentation both call these
-## NOTE (470.1): typed on StormTuning (the Storm rename). A future always-on
-## Breeze reuses these rules by extending StormTuning with its own numbers.
-## with the replicated match seed so they agree on the wind.
+## with the replicated match seed so they agree on the wind. Typed on StormTuning:
+## Breeze reuses these rules through BreezeTuning, which extends it.
 
 ## Salts splitting a seed into independent phases. Architecture only.
 const PHASE_SALT_A: int = 7919
