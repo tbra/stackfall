@@ -1,16 +1,15 @@
 class_name BotEvalTuning
 extends Resource
-## Bot V2 evaluator tunables:
-## the numbers core/ai/BotEvaluator.gd reads. Loaded as config/bots/bot_eval_tuning.tres.
+## Evaluator tunables: the numbers core/ai/BotEvaluator.gd reads. Loaded as config/bots/bot_eval_tuning.tres.
 
 ## Sunflower samples of the future influence circle read against the raster
-## for the measured AREA and WASTE terms (the plan's 64-sample probe, 297 us).
+## for the measured AREA and WASTE terms (a 64-sample probe costs ~297 us).
 @export var area_samples: int = 64
 ## AREA is reported in units of this many square metres.
 @export var area_unit_m2: float = 10.0
 ## An enemy circle's base counts as covered when it lies within the new circle
-## radius plus this many metres (the plan's "r + 0.5 m"; HoleDissolver dissolves
-## discs touching an applied hole).
+## radius plus this many metres (HoleDissolver dissolves discs touching an
+## applied hole).
 @export var kill_margin_m: float = 0.5
 ## KILL value, in "circles lost" units, of covering a living enemy home flag.
 @export var kill_home_value: float = 20.0

@@ -1,22 +1,19 @@
 class_name BlockEffectsConfig
 extends Resource
-## Tunables for game/blocks/BlockEffectsManager.gd's particle effects (
-## spec 1.10 "effects + camera shake"). Three
-## effect kinds, following the same "no magic numbers" pattern
-## config/physics/CameraShakeConfig.gd already uses for game/player/CameraRig.gd:
-## - landing dust / impact burst: Events.block_impacted_at, now TWO bursts
-##   spawned together under one wrapper Node3D (so active_effect_count() still
-##   counts it as a single "effect"): a small team-colored cubelet shower
-##   (cubelet_*) plus the original softer grey-brown dust puff (dust_*), both
-##   scaled by how hard the impact was (BlockEffectsManager._impact_intensity()).
-## - falling-block trail: a continuous, team-tinted luminous streak
-##   (trail_*) behind any block whose measured fall speed
-##   (BlockEffectsManager._update_falling_trails()) crosses
-##   trail_speed_threshold -- not an Events signal, since there is no
-##   "still falling fast" signal to listen for; see that method's own doc.
+## Tunables for game/blocks/BlockEffectsManager.gd's particle effects (spec 1.10
+## "effects + camera shake"). Three effect kinds:
+## - landing dust / impact burst: Events.block_impacted_at spawns TWO bursts
+##   together under one wrapper Node3D (so active_effect_count() counts it as a
+##   single "effect"): a small team-colored cubelet shower (cubelet_*) plus a
+##   softer grey-brown dust puff (dust_*), both scaled by how hard the impact was
+##   (BlockEffectsManager._impact_intensity()).
+## - falling-block trail: a continuous, team-tinted luminous streak (trail_*)
+##   behind any block whose measured fall speed
+##   (BlockEffectsManager._update_falling_trails()) crosses trail_speed_threshold.
+##   Not an Events signal: there is no "still falling fast" signal to listen for.
 ## - kill-plane edge-fall burst: Events.block_removed with
-##   Events.REASON_KILL_PLANE (unchanged from the original candidate), a
-##   brighter, faster burst at the block's last position before it's freed.
+##   Events.REASON_KILL_PLANE, a brighter, faster burst at the block's last
+##   position before it's freed.
 
 # --- Landing dust / impact burst (Events.block_impacted_at) -----------------
 
@@ -25,33 +22,28 @@ extends Resource
 ## burst at all -- a soft landing/settle should not visibly puff dust.
 @export var dust_impact_speed_threshold: float = 4.0
 
-## Fix round (dust rendered as "huge flat hard-edged blown-out yellow
-## rectangles" -- billboarded unshaded BoxMesh cubes overlapping into one
-## blob): dust is now a soft round billboarded quad (shaders/gifts/dust_puff.gdshader,
-## a procedural radial alpha falloff, no texture asset needed) emitted on a
-## ring around the impact point (dust_ring_*), capped well below
-## Environment.glow_hdr_threshold so it never blooms.
+## Dust is a soft round billboarded quad (shaders/gifts/dust_puff.gdshader, a
+## procedural radial alpha falloff) emitted on a ring around the impact point
+## (dust_ring_*), capped well below Environment.glow_hdr_threshold so it never
+## blooms.
 @export var dust_particle_amount: int = 9
 @export var dust_lifetime_s: float = 0.5
 @export var dust_initial_speed: float = 0.5
-## Half-angle from the UP emission direction -- kept mild since the ring
-## emission shape (dust_ring_radius_m) already spreads puffs across the
-## ground; this only adds a little outward/upward drift on top of that.
+## Half-angle from the UP emission direction; mild since the ring emission shape
+## (dust_ring_radius_m) already spreads puffs across the ground.
 @export var dust_spread_deg: float = 40.0
 @export var dust_gravity: Vector3 = Vector3(0.0, -2.0, 0.0)
 ## Base billboard quad size in meters (0.3-0.8 m range once
-## dust_size_variance_min/max is applied) -- NOT a cube edge length anymore
-## (see this section's own fix-round doc).
+## dust_size_variance_min/max is applied).
 @export var dust_scale: float = 0.55
 @export var dust_size_variance_min: float = 0.6
 @export var dust_size_variance_max: float = 1.3
-## Alpha is capped here, not just left to the shader's own falloff -- "a
-## soft round puff", never a hard, fully-opaque shape.
+## Alpha is capped here, not just left to the shader's own falloff, so the puff
+## is never a hard, fully-opaque shape.
 @export var dust_alpha_max: float = 0.42
 @export var dust_color: Color = Color(0.82, 0.78, 0.7)
 ## ParticleProcessMaterial.EMISSION_SHAPE_RING: puffs spawn spread around a
-## ring at the impact point rather than all at one origin -- "a ring-shaped
-## spread along the ground from the impact point".
+## ring at the impact point rather than all at one origin.
 @export var dust_ring_radius_m: float = 0.5
 @export var dust_ring_inner_radius_m: float = 0.15
 
@@ -68,13 +60,11 @@ extends Resource
 ## cubelet_max_particle_amount for the scaled-up cap.
 @export var cubelet_particle_amount: int = 10
 @export var cubelet_max_particle_amount: int = 24
-## Fix round ("make them actual tiny 3D cubes... shrinking/fading out
-## over ~0.8 s"): bumped from 0.45 s so the shrink+fade is actually visible,
-## not gone before it registers.
+## Long enough that the shrink+fade is visible before the cubelet is gone.
 @export var cubelet_lifetime_s: float = 0.8
 @export var cubelet_initial_speed: float = 3.0
-## Narrower than dust_spread_deg -- cubelets should read as a small shard
-## burst near the impact point, not a wide ground-hugging puff.
+## Narrower than dust_spread_deg: cubelets read as a small shard burst near the
+## impact point, not a wide ground-hugging puff.
 @export var cubelet_spread_deg: float = 55.0
 @export var cubelet_gravity: Vector3 = Vector3(0.0, -9.8, 0.0)
 ## Base BoxMesh edge length in meters (0.1-0.18 m range once
@@ -85,7 +75,7 @@ extends Resource
 @export var cubelet_size_variance_min: float = 0.75
 @export var cubelet_size_variance_max: float = 1.3
 ## Random per-particle spin (ParticleProcessMaterial.angular_velocity_min/
-## max, degrees/second) -- "tumbling", not a static thrown cube.
+## max, degrees/second), so cubelets tumble rather than fly as static cubes.
 @export var cubelet_angular_velocity_max_deg: float = 540.0
 ## How much darker shaders/gifts/cubelet.gdshader's faux-lit "shadow" faces are than
 ## its "lit" faces (0 = no shading at all, 1 = shadow faces fully black).
@@ -98,15 +88,11 @@ extends Resource
 
 # --- Falling-block trail (continuous, not an Events burst) ------------------
 
-## Fix round (the previous particle-burst trail read as "dashed/
-## dotted... not attached to the falling piece"): one continuous stretched
-## quad (shaders/gifts/trail_streak.gdshader) re-oriented and re-scaled every physics
-## step, so it has no gaps by construction and never detaches.
-## "really small and sort of weirdly centred": the three
-## 7 cm flat strips anchored 0.3 m above the body origin became one ribbon
-## as wide as the block, anchored at the block mesh's own centre and turned
-## about its travel axis to face the camera (a flat strip went edge-on from
-## many views). See BlockEffectsManager._ensure_trail()'s own doc.
+## The trail is one continuous stretched quad (shaders/gifts/trail_streak.gdshader)
+## re-oriented and re-scaled every physics step, so it has no gaps by construction
+## and never detaches. It is one ribbon as wide as the block, anchored at the block
+## mesh's own centre and turned about its travel axis to face the camera (a flat
+## strip goes edge-on from many views). See BlockEffectsManager._ensure_trail().
 
 ## Downward speed (m/s, measured from the block's own position delta each
 ## physics step -- see BlockEffectsManager._update_falling_trails()'s own
@@ -121,21 +107,18 @@ extends Resource
 @export var trail_min_width_m: float = 0.8
 @export var trail_max_width_m: float = 2.4
 ## Ribbon length (meters) = fall speed (m/s) * this factor, clamped to
-## [trail_min_length_m, trail_max_length_m] -- "length proportional to
-## speed".
+## [trail_min_length_m, trail_max_length_m] (length proportional to speed).
 @export var trail_length_per_speed_s: float = 0.3
 @export var trail_min_length_m: float = 1.0
 @export var trail_max_length_m: float = 8.0
 @export var trail_alpha_max: float = 0.9
 ## Multiplies the resolved team/fallback color for shaders/gifts/trail_streak.gdshader's
-## EMISSION -- "modest emission", well down from an earlier candidate's 2.2
-## (which read as over-bright/blown-out) but still enough to pick up
-## Main.tscn's shared HDR glow a little, matching a "luminous" streak.
+## EMISSION: modest, so it is not blown out but still picks up Main.tscn's shared
+## HDR glow a little, matching a "luminous" streak.
 @export var trail_emission_energy: float = 1.2
 ## How long a released trail (block no longer falling fast) takes to
-## disappear -- BlockEffectsManager._release_trail()'s own fade-out delay,
-## not a per-particle lifetime anymore (see this section's own fix-round
-## doc: the trail is a persistent mesh, not particles).
+## disappear -- BlockEffectsManager._release_trail()'s fade-out delay (the trail is
+## a persistent mesh, not particles).
 @export var trail_release_fade_s: float = 0.15
 ## Hard cap on simultaneously active trails (one per fast-falling block) --
 ## bounds a multiplayer match where several players drop pieces at once to a

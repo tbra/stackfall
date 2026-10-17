@@ -1,9 +1,9 @@
 class_name BlockVisualTuning
 extends Resource
-## Q1/Q2: tunables for the block toon material + inverted-hull
-## outline + cell-grid influence glow. The mesh itself stays one merged solid
-## shape per block; everything here only changes how that one
-## `ArrayMesh` is shaded and outlined, never its geometry/collision.
+## Tunables for the block toon material + inverted-hull outline + cell-grid
+## influence glow. The mesh stays one merged solid shape per block; this only
+## changes how that `ArrayMesh` is shaded and outlined, never its
+## geometry/collision.
 
 ## Inverted-hull outline pass (shaders/blocks/block_outline.gdshader): outline width
 ## in screen pixels for blocks closer than outline_fade_start_m. The push is
@@ -39,34 +39,27 @@ extends Resource
 
 ## Cell-grid line color for a block whose `contributing` per-instance shader
 ## parameter is true (settled/sleeping -- see BlockFactory.build()'s
-## `sleeping_state_changed` wiring).  
-## the owner-colour glow on landed blocks "looks bad, they should always stay
-## black", so the shipped default now equals grid_line_color; the uniform and
-## F4 slider stay so the glow can be re-enabled per session.
+## `sleeping_state_changed` wiring). With grid_line_glow_strength at 0 landed
+## blocks keep black lines; the uniform and F4 slider stay so the glow can be
+## re-enabled per session.
 @export var grid_line_glow_color: Color = Color(0.12, 0.1, 0.1)
 
 ## Emission multiplier applied to grid_line_glow_color while `contributing`
 ## is true. 0 disables the glow entirely (above); raise it on
-## the F4 "Blocks FX" tab to preview the old lit-lines look.
+## the F4 "Blocks FX" tab to preview a lit-lines look.
 @export var grid_line_glow_strength: float = 0.0
 
-## "the mockup shows much more detailed
-## cel-shading with highlights and shadows... not heavy black lines": how
-## much of grid_line_color/grid_line_glow_color to mix into the seam versus
-## the block's own albedo_color (0 = seam invisible, 1 = the old flat-replace
-## look). A darker *shade of the block's own colour* reads as a seam instead
-## of a heavy ink line.
+## How much of grid_line_color/grid_line_glow_color to mix into the seam versus
+## the block's own albedo_color (0 = seam invisible, 1 = flat replace). A darker
+## *shade of the block's own colour* reads as a seam instead of a heavy ink line.
 @export var grid_line_seam_mix: float = 0.95
 
 ## -- Toon banding: three explicit, distinctly-coloured bands ----------------
-## Fix round (of blocks-r1: "Right now all red faces are nearly
-## the same red... make the bands produce ~3 distinct values per colour").
 ## shaders/blocks/block_cell_grid.gdshader's light() builds shadow/lit/highlight
 ## "keyframe" colours from a block's own albedo_color using the tint/mix/
 ## brightness trio below, then interpolates between them by the toon-banded
-## N.L, instead of the old single shadow_floor/highlight_boost scalar (which
-## multiplied the *same* hue up/down and read as barely-different shades of
-## one red). Defaults tuned to land close to the owner's own worked example
+## N.L, so each colour gets ~3 distinct values (a single scalar would only
+## multiply the same hue up/down). Defaults land close to a worked example
 ## (base red 0.9,0.25,0.25 -> top ~#F2705E, lit ~#DE3F30, shadow ~#9E2A2E).
 
 ## Warm near-white blended into the brightest (top, sun-facing) band.
@@ -88,13 +81,9 @@ extends Resource
 @export var shadow_tint_mix: float = 1.0
 @export var shadow_brightness: float = 0.7
 
-## -- Hard-edged specular highlight (a small "plastic" light-catcher) ---------
-## Fix round ("blue blocks show large pure-white patches...
-## clamp the specular so it stays a small, hard, slightly tinted highlight
-## below the glow threshold [1.1] and never whites out a whole face"):
-## specular_strength/sharpness/softness retuned so the lit dot is small and
-## dim, and specular_albedo_tint blends the block's own colour into the
-## highlight instead of a flat pure-white patch.
+## Hard-edged specular highlight (a small "plastic" light-catcher), kept small,
+## dim and slightly tinted (specular_albedo_tint) below the glow threshold [1.1]
+## so it never whites out a whole face.
 @export var specular_color: Color = Color(1.0, 0.97, 0.9)
 ## Blinn-Phong exponent before toon-quantizing; higher is a smaller, sharper dot.
 @export var specular_sharpness: float = 64.0
@@ -106,35 +95,26 @@ extends Resource
 ## white sticker.
 @export var specular_albedo_tint: float = 0.25
 
-## -- Bevelled cell-edge highlight (hugs the true cell edge, fades inward) ----
-## Fix round (: "every cell face shows a second square drawn well
-## inside the edge... remove it. The bevel highlight must hug the actual cell
-## edge (outermost ~1-1.5 px, fading inward)"): the previous version offset
-## the bright band past the seam width, drawing a visible inset "picture
-## frame" square. Now both the seam (fragment(), always on) and the bevel
-## (light(), lit-facing only) measure distance from the *same* true UV edge
-## (dist_to_edge = 0), so the bright band starts exactly at the edge and
-## fades over bevel_highlight_width_px, with no gap or offset ring.
-## Screen-space width, in pixels, the bright edge band fades over.
+## Screen-space width, in pixels, the bright bevel band fades over. Both the seam
+## (fragment(), always on) and the bevel (light(), lit-facing only) measure
+## distance from the *same* true UV edge (dist_to_edge = 0), so the band hugs the
+## cell edge and fades inward with no gap or inset ring.
 @export var bevel_highlight_width_px: float = 2.4
 @export var bevel_highlight_color: Color = Color(1.0, 0.93, 0.8)
 ## Only applied where a face's own N.L is bright enough to be "toward the
 ## light" -- see shaders/blocks/block_cell_grid.gdshader light()'s own bevel_mask.
 @export var bevel_highlight_strength: float = 0.42
 
-## -- Subtle warm rim light on silhouette/cell edges facing the sun -----------
-## Fix round ("plus a subtle warm rim light on silhouette edges
-## facing the sun"). A cheap Fresnel term (1 - N.V), masked to the lit side,
-## kept low-strength so it reads as a soft edge glow rather than a second
-## specular pass.
+## Subtle warm rim light on silhouette edges facing the sun: a cheap Fresnel term
+## (1 - N.V), masked to the lit side, kept low-strength so it reads as a soft edge
+## glow rather than a second specular pass.
 @export var rim_color: Color = Color(1.0, 0.75, 0.5)
 @export var rim_power: float = 3.0
 @export var rim_strength: float = 0.22
 
-## -- Outline tint ("restrained... a dark tinted version of
-## the block color rather than pure black") -----------------------------------
 ## How much of a block's own colour (darkened by outline_tint_darken) to mix
-## into the outline pass versus the flat outline_color above. The outline
+## into the outline pass versus the flat outline_color above: a restrained dark
+## tint of the block color rather than pure black. The outline
 ## ShaderMaterial stays one shared instance across every slot colour
 ## (game/blocks/BlockFactory.gd's own DECISION); the tint itself reaches it through a
 ## per-instance shader parameter, not a second cached material.
@@ -143,7 +123,6 @@ extends Resource
 ## outline, so the tint still reads as a silhouette, not a lit surface.
 @export var outline_tint_darken: float = 0.35
 
-## -- cel-shader rework (mockup 08) -------------------------------
 ## Cell-grid line/bevel distance stability: once a cell face is smaller than
 ## grid_line_full_cell_px on screen the line and bevel fade toward
 ## grid_line_far_strength (reached at grid_line_far_cell_px), so a distant

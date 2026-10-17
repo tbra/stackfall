@@ -10,8 +10,8 @@ extends Resource
 ## Integer cube offsets from the shape's local origin. No two cells may repeat.
 @export var cells: Array[Vector3i] = []
 
-## Feed weight for the weighted bag (M2). Must stay positive so the M1 plain
-## random pick can still use it as a relative likelihood.
+## Feed weight for the weighted bag. Must stay positive: it is a relative
+## likelihood.
 @export var weight: float = 1.0
 
 ## Whether this shape is dealt in matches (bag, gifts, Sandbox picker). Off keeps the
@@ -32,39 +32,19 @@ extends Resource
 ## Directory scanned by load_all_shapes() for every BlockShape .tres resource.
 const SHAPES_DIR: String = "res://config/blocks/"
 
-## Reported playability: `cells`' bounding-box centre,
-## in cell units, computed once and cached. Every shape whose cells don't
-## straddle the origin symmetrically (bar3's cells run 0..2, so its centre is
-## (1, 0, 0); domino's run 0..1, so its centre is (0.5, 0, 0)) used to hang off
-## the cursor and rotate about the wrong point, because game/blocks/BlockFactory.gd
-## and autoload/Match.gd both treated cell (0, 0, 0) as the pivot.
+## Pivot of every body and ghost, in cell units, computed once and cached: the x/z
+## centre of `cells`' bounds, with y at the bottom face of the lowest cell
+## (min_y - 0.5). game/blocks/BlockFactory.gd builds every cell offset relative to
+## this point, so a body's/ghost's local origin sits at the bottom of the unrotated
+## shape instead of mid-height (which sank half the block into the disk).
 ##
-## item 3 (feel report: "the ghost/body pivot is the
-## block's middle, so half the block sinks below the cursor point and clips
-## into the disk"): the geometric centre from the earlier fixed the *rotation*
-## drift but was still a mid-height pivot for placement purposes. This is now
-## `bottom_center()` instead of `center()` — the x/z centre of the cell
-## bounds unchanged, but y is the bottom face of the lowest cell
-## (min_y - 0.5 cell, i.e. half a cube below the lowest cell's own centre)
-## rather than the vertical midpoint. game/blocks/BlockFactory.gd builds every cell
-## offset relative to this point now, so a body's/ghost's own local origin
-## (0, 0, 0) sits at the bottom of the *unrotated* shape.
+## DECISION: bottom_center() is the only pivot convention, so BlockFactory,
+## GhostPreview and Match cannot disagree about which one to use. See
+## game/player/GhostPreview.gd's own DECISION for how rotation about this origin is
+## compensated so the rotated shape's lowest point lands at the cursor height.
 ##
-## DECISION (config/blocks/BlockShape.gd): renamed rather than kept alongside
-## the old geometric-centre method — nothing in the project still wants a
-## mid-height pivot, so carrying two pivot conventions would just be a second
-## place for BlockFactory/GhostPreview/Match to disagree about which one to
-## use. See game/player/GhostPreview.gd's own DECISION for how rotation (which still
-## happens about this same local origin) is compensated so the *rotated*
-## shape's lowest point — not always this unrotated bottom-centre point after
-## a 90-degree pitch/roll — is what actually lands at the cursor height.
-##
-## DECISION (config/blocks/BlockShape.gd): cached on the instance rather than
-## recomputed every call. BlockShape.load_all_shapes() hands back the same
-## loaded Resource to every caller for a given id (Godot's resource cache), so
-## one shape's bottom_center() is computed once per process and reused by
-## every block of that shape for the rest of the run; `cells` never changes
-## after load, so there is nothing to invalidate the cache for.
+## DECISION: cached on the instance. load_all_shapes() hands back the same loaded
+## Resource per id and `cells` never changes after load, so nothing invalidates it.
 var _cached_bottom_center: Vector3 = Vector3.ZERO
 var _bottom_center_computed: bool = false
 
@@ -76,16 +56,17 @@ func bottom_center() -> Vector3:
 	return _cached_bottom_center
 
 
-## height (<= 0 for a tilted shape) of this shape's lowest collision corner relative to its
-## bottom_center() pivot once rotated by `basis`. The pivot must be raised by -this value for the
-## rotated shape to rest ON a surface instead of sinking into it. Shared by GhostPreview (human
-## placement) and BotController (bot placement) so both send the same pose.
+## Signs of the eight corners of a cube.
 const CORNER_SIGNS: Array[Vector3] = [
 	Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
 	Vector3(-1.0, -1.0, 1.0), Vector3(1.0, -1.0, 1.0), Vector3(-1.0, 1.0, 1.0), Vector3(1.0, 1.0, 1.0),
 ]
 
 
+## Height (<= 0 for a tilted shape) of this shape's lowest collision corner relative to its
+## bottom_center() pivot once rotated by `basis`. The pivot must be raised by -this value for the
+## rotated shape to rest ON a surface instead of sinking into it. Shared by GhostPreview (human
+## placement) and BotController (bot placement) so both send the same pose.
 func rotated_bottom_offset(basis: Basis, cube_size: float, cube_margin: float) -> float:
 	if cells.is_empty():
 		return 0.0
@@ -145,11 +126,9 @@ static func load_bag_shapes() -> Array[BlockShape]:
 
 ## Loads every BlockShape resource in SHAPES_DIR, sorted by id so the result is
 ## deterministic across platforms and directory-listing orders. The single
-## source of truth for "what shapes exist" — used by the M1 plain-random feed
-## (game/player/PlayerController.gd), the rain benchmark (tests/bench/bench_rain.gd),
-## and M2's weighted bag. BlockFeedConfig falls back to this when its `shapes`
-## list is empty, and core/blocks/BlockBag.gd needs the order to be stable so the
-## same rng_seed always deals the same sequence (spec 1.4).
+## source of truth for "what shapes exist". BlockFeedConfig falls back to this
+## when its `shapes` list is empty, and core/blocks/BlockBag.gd needs the order to
+## be stable so the same rng_seed always deals the same sequence (spec 1.4).
 static func load_all_shapes() -> Array[BlockShape]:
 	var shapes: Array[BlockShape] = []
 	var dir: DirAccess = DirAccess.open(SHAPES_DIR)
@@ -161,8 +140,7 @@ static func load_all_shapes() -> Array[BlockShape]:
 		# Exported PCKs list text resources as "<name>.tres.remap" (the editor's
 		# convert-text-resources-to-binary step); load() resolves the original
 		# path through that remap, so only the listing suffix needs stripping.
-		# Without this no shape/special ever loads in an exported build
-		# (feedback/playtest.md "no block ever spawns").
+		# Without this no shape/special ever loads in an exported build.
 		if file_name.ends_with(".remap"):
 			file_name = file_name.trim_suffix(".remap")
 		if file_name.ends_with(".tres"):

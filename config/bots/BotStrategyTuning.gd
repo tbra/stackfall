@@ -1,8 +1,8 @@
 class_name BotStrategyTuning
 extends Resource
-## Bot V2 strategy tunables: the
-## thresholds and intent weight vectors core/ai/BotStrategy.gd reads. Shipped values live
-## in config/bots/bot_strategy_tuning.tres. Distances are metres.
+## Strategy tunables: the thresholds and intent weight vectors
+## core/ai/BotStrategy.gd reads. Shipped values live in
+## config/bots/bot_strategy_tuning.tres. Distances are metres.
 
 @export_group("Thresholds")
 ## DEFEND: an own circle is worth defending when losing it cuts at least this many circles.

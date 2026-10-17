@@ -1,11 +1,10 @@
 class_name HoleDissolveTuning
 extends Resource
-## option A: the disc stays
-## solid under holes; a block whose footprint rests or lands on an applied
-## hole cell dissolves on the host and is removed like an edge fall.
+## The disc stays solid under holes; a block whose footprint rests or lands on an
+## applied hole cell dissolves on the host and is removed like an edge fall.
 ## game/field/HoleDissolver.gd reads every number here.
 
-## Seconds between a block touching a hole and its removal. The A2 visual fade
+## Seconds between a block touching a hole and its removal. The visual fade
 ## (Events.block_dissolve_started) plays over this span on host and clients.
 @export_range(0.0, 5.0, 0.01) var dissolve_delay_s: float = 0.35
 

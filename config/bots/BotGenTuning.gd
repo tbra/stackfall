@@ -1,6 +1,6 @@
 class_name BotGenTuning
 extends Resource
-## Bot V2 site generation tunables. Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd (orientation cap); the
+## Site generation tunables. Read by core/ai/BotCandidateGen.gd and core/ai/BotStatics.gd (orientation cap); the
 ## shipped values live in config/bots/bot_gen_tuning.tres. Distances are metres unless a
 ## name says "cubes" (one cube is PhysicsTuning.cube_size).
 
@@ -8,7 +8,7 @@ extends Resource
 ## How far inside an own circle's edge a tip site sits (the circle's reach is only
 ## useful while the origin is still inside own territory).
 @export var tip_inset_m: float = 0.3
-## Best frontier circles kept as tip anchors ("best 12").
+## Best frontier circles kept as tip anchors.
 @export var tip_anchor_count: int = 12
 ## Anchors closer than this to an already kept anchor are dropped.
 @export var tip_min_spacing_m: float = 0.75
