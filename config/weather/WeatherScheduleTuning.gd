@@ -1,8 +1,7 @@
 class_name WeatherScheduleTuning
 extends Resource
-## Host schedule numbers for weather events (
-## weather is a random EVENT, calm most of the time, one
-## weather at a time). Loaded as config/weather/weather_schedule.tres.
+## Host schedule numbers for weather events: weather is a random EVENT, calm most
+## of the time, one weather at a time. Loaded as config/weather/weather_schedule.tres.
 ##
 ## Timeline per match: initial calm -> [ramp-in, hold, ramp-out] event ->
 ## calm gap -> event -> ... Ramp lengths and the hold range are per weather

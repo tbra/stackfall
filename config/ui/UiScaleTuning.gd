@@ -6,14 +6,13 @@ extends Resource
 ## are statics here so Settings (autoload) and ui/theme/UiScale.gd share them without a ui/ dependency.
 ## Not one of the F4 tuning panel's resource classes, so no config/ui/tuning_panel_hints.tres entry.
 
-## content_scale_factor at 100%. Half the old mockup scale
-## (1280 / 960 = 1.3333), i.e. 0.6666667.
+## content_scale_factor at 100% (half of 1280 / 960).
 @export var base_scale: float = 0.6666667
 ## The stored value a fresh install gets: 100%.
 @export var default_scale: float = 1.0
 ## Smallest stored value: 0.75 x base = 0.5 effective factor.
 @export var min_scale: float = 0.75
-## Largest stored value. DECISION: 200% (2.0 x base = ~1.333 effective, logical canvas 960x540 at 1280x720); the old 220% went too big. Saved values above it clamp via sanitize().
+## Largest stored value. DECISION: 200% (2.0 x base = ~1.333 effective, logical canvas 960x540 at 1280x720). Saved values above it clamp via sanitize().
 @export var max_scale: float = 2.0
 ## Slider step; stored values are snapped to it on set and load.
 @export var step: float = 0.05
@@ -23,7 +22,7 @@ extends Resource
 @export var hud_timer_clearance_px: int = 12
 
 ## the in-match HUD scale shares the UI scale's range and step (min_scale..max_scale,
-## step); its default is default_scale (100%), so a fresh install looks as before.
+## step); its default is default_scale (100%).
 ## DECISION: minimap size is three presets (small / medium / large) in square HUD pixels; medium is the
 ## original 168 px. Index 1 is the default.
 @export var minimap_size_presets_px: PackedInt32Array = PackedInt32Array([128, 168, 224])

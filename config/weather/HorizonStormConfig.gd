@@ -4,8 +4,7 @@ extends Resource
 ## storm weather (game/weather/HorizonStormCells.gd). Presentation only.
 ## config/weather/horizon_storm.tres is the shipped instance.
 
-## Master switch. Off by default (the
-## cells looked bad); set true in config/weather/horizon_storm.tres to restore them.
+## Master switch for the horizon cells.
 @export var enabled: bool = true
 
 @export_group("Layout")
