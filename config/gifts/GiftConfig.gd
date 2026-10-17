@@ -2,41 +2,32 @@ class_name GiftConfig
 extends Resource
 ## Tunables for gift-crate spawning (spec 1.6).
 ##
-## DECISION (config/gifts/GiftConfig.gd, M4 P1a): the/22 evidence audit
-## (SPEC.md 2.6 "Gift spawning [ORIGINAL
-## target]") retired the earlier reconstructed 20 -> 45 s / 100 -> 6 s spawn
-## interval with jitter. Nothing here implements that mapping. Instead a
-## single Bernoulli roll runs once per placement window for the whole match
-## (core/gifts/GiftSpawner.should_spawn()); the lobby's special_frequency
-## (0..100) linearly scales that roll's chance up to frequency_to_chance_max.
+## DECISION: spawning is a single Bernoulli roll once per placement window for the
+## whole match (core/gifts/GiftSpawner.should_spawn()), not a timed interval (SPEC.md
+## 2.6 "Gift spawning"); the lobby's special_frequency (0..100) linearly scales the
+## roll's chance up to frequency_to_chance_max.
 ##
 ## Loaded once as config/gifts/gift_config.tres.
 ##
-## M4 P1b review fix: "once per placement window for the whole
-## match" is enforced by the caller, not by should_spawn() itself --
-## autoload/match/MatchGifts.gd rolls only for the lowest-indexed slot still
-## alive on any given feed-issue event, so an N-player concurrent match still
-## gets exactly one roll per window rather than N.
+## "Once per window for the whole match" is enforced by the caller, not by
+## should_spawn(): autoload/match/MatchGifts.gd rolls only for the lowest-indexed slot
+## still alive on any feed-issue event, so N players still get exactly one roll per window.
 
 
 ## MatchConfig.special_frequency (0..100) maps linearly to a spawn chance of
 ## 0..this. 100 -> frequency_to_chance_max, 0 -> 0.0, monotonic in between.
 @export var frequency_to_chance_max: float = 0.5
 
-## Start grace: no spawn roll runs
-## until this many seconds of host play have elapsed (the roll is skipped, not
-## queued). Counted on host physics ticks while the match is live.
+## Start grace: no spawn roll runs until this many seconds of host play have elapsed
+## (the roll is skipped, not queued). Counted on host physics ticks while the match is live.
 @export var first_gift_delay_s: float = 10.0
 
-## Hard ceiling on simultaneously live crates (
-## several gifts may be on the disc together). No new crate spawns while this
-## many are already live and unclaimed.
-## DECISION: the effective cap scales with the match:
-## ceil(players / players_per_crate), clamped to 1..max_live_crates
-## (GiftSpawner.live_cap()). Spawn chance per window is unchanged: still one
-## roll per window, so crates accumulate at most one per window and the cap
-## alone bounds the count; no extra guard needed. GiftConfig is not on the F4
-## roster, so no tuning_panel_hints entry is required.
+## Hard ceiling on simultaneously live crates. No new crate spawns while this many are
+## already live and unclaimed.
+## DECISION: the effective cap scales with the match: ceil(players / players_per_crate),
+## clamped to 1..max_live_crates (GiftSpawner.live_cap()). Crates accumulate at most one
+## per window, so the cap alone bounds the count. GiftConfig is not on the F4 roster, so
+## no tuning_panel_hints entry is required.
 @export var max_live_crates: int = 4
 ## Players needed per allowed live crate (2 players -> 1, 4 -> 2, 8 -> 4).
 @export var players_per_crate: int = 2
@@ -44,8 +35,7 @@ extends Resource
 ## every other live crate so simultaneous crates never stack.
 @export var crate_min_separation_m: float = 3.0
 
-## Seconds a crate lives before it expires unclaimed (spec 1.6, "Crate life"
-## : stationary pickups, 25 s per).
+## Seconds a crate lives before it expires unclaimed (spec 1.6, "Crate life": 25 s).
 @export var life_s: float = 25.0
 
 ## Descent begins this many metres above the field and advances on host physics ticks.
@@ -60,21 +50,15 @@ extends Resource
 ## Ignore remote cursor poses older than this; a stale pose cannot collect a gift.
 @export var cursor_max_age_s: float = 0.5
 
-##  report ("Unclaimed presents should respawn in
-## different places when unclaimed"): how far (meters, disk-local XZ distance)
-## an expired crate's immediate replacement must land from the crate it
-## replaces. MatchGifts._pick_relocation_point() retries the same seeded RNG/
-## GiftSpawner.pick_spawn_point() spawn-location logic _try_spawn() already
-## uses -- up to spawn_max_attempts times -- until a candidate clears this
-## distance, so replays stay deterministic under a fixed rng_seed.
+## How far (meters, disk-local XZ distance) an expired crate's immediate replacement must
+## land from the crate it replaces. MatchGifts._pick_relocation_point() retries the same
+## seeded GiftSpawner.pick_spawn_point() logic up to spawn_max_attempts times until a
+## candidate clears this distance, so replays stay deterministic under a fixed rng_seed.
 ##
-## DECISION (config/gifts/GiftConfig.gd): 5.0 m -- large enough that a
-## relocated crate never reads as "the same crate that didn't move" next to a
-## 1 m cube, small enough that it still fits comfortably inside a 20 m disk's
-## effective (edge-margined) radius alongside spawn_edge_margin_m. GiftConfig
-## is not on ui/debug/TuningPanel.gd's F4 roster (see this file's own "Claim
-## feedback" section DECISION below for why the whole resource is exempt), so
-## this field needs no config/ui/tuning_panel_hints.tres entry either.
+## DECISION: 5.0 m -- large enough that a relocated crate never reads as the same crate
+## next to a 1 m cube, small enough to fit inside a 20 m disk's edge-margined radius
+## alongside spawn_edge_margin_m. Exempt from the F4 hints (see the "Claim feedback"
+## DECISION below).
 @export var relocate_min_distance_m: float = 5.0
 
 ## How many random points GiftSpawner.pick_spawn_point() tries before giving
@@ -83,49 +67,24 @@ extends Resource
 
 ## Keeps a spawn point this far from the disk's rim, in meters.
 ##
-## DECISION (config/gifts/GiftConfig.gd): 2.0 m, a couple of cube widths (see
-## TerritoryTuning.goal_zone_radius's own "couple of cube widths" precedent) --
-## enough that a crate never lands somewhere a 1 m cube's footprint would
-## already clip the rim, small enough to leave nearly the whole disk eligible
-## even on the smallest map size.
+## DECISION: 2.0 m, a couple of cube widths (as TerritoryTuning.goal_zone_radius) --
+## enough that a crate never lands where a 1 m cube's footprint would clip the rim,
+## small enough to leave nearly the whole disk eligible on the smallest map.
 @export var spawn_edge_margin_m: float = 2.0
 
-## Caps each slot's FIFO of drawn-but-unspent specials (Orchestrator
-## amendment 1, M4 P2b/ — supersedes the earlier
-## single-slot "latest wins" scalar). A claim landing while a slot's queue is
-## already at this many leaves the crate alive for someone else instead of
-## consuming it (amendment 3) — nothing a slot claims is ever silently
-## discarded.
+## Caps each slot's FIFO of drawn-but-unspent specials. A claim landing while a slot's
+## queue is already at this many leaves the crate alive for someone else instead of
+## consuming it, so nothing a slot claims is ever silently discarded.
 @export var max_pending_specials: int = 3
 
-## -- Claim feedback ("I grabbed a yellow cube but
-## nothing seemed to happen"): spec 1.6's claim rule was never actually
-## broken (a crate claims only when it lands inside the claiming slot's own
-## territory), but a
-## successful claim had *no visible feedback at all*: _free_crate_visual()
-## just queue_free()s the crate node the instant it is claimed, and the HUD
-## only silently refreshed a small text counter. This section's tunables
-## drive game/gifts/GiftCrate.gd's claim-pop effect and ui/hud/HUD.gd's claim toast.
+## -- Claim feedback: the claim-pop effect (game/gifts/GiftCrate.gd) and the claim toast
+## (ui/hud/HUD.gd) that show a successful claim.
 ##
-## DECISION (config/gifts/GiftConfig.gd): these live here rather than
-## in GhostTuning's own "-- HUD --" section, which is that resource's
-## documented home for HUD tunables (ui/hud/HUD.gd's own class doc references it)
-## and where hud_reject_message_duration/hud_reject_fade_duration already
-## live. GhostTuning is one of the six resources ui/debug/TuningPanel.gd reflects
-## onto the F4 panel (tests/unit/ui/test_tuning_panel.gd's fixed roster of
-## camera_tuning/ghost_tuning/physics_tuning/territory_tuning/
-## territory_visuals/block_feed_config); any new @export field there needs a
-## config/ui/tuning_panel_hints.tres description or
-## test_every_shown_field_has_a_non_empty_description fails, and a slider
-## range too if the default is outside [0, 4x default].
-## GiftConfig is not on that roster (grep confirms no "GiftConfig." key
-## exists in tuning_panel_hints.tres) and is already the documented
-## destination for exactly this kind of value — game/gifts/GiftCrate.gd's own
-## older DECISION says as much: "move [CRATE_SIZE/UNCLAIMED_COLOR] into
-## GiftConfig if a later package needs them configurable." Keeping every new
-## field here is one fewer widely-shared file this package needs to touch,
-## with no loss of CLAUDE.md's "every tunable lives in some res://config/
-## resource" rule — GiftConfig is exactly that resource, just not wired to F4.
+## DECISION: these live here rather than in GhostTuning's "-- HUD --" section because
+## GhostTuning is on the F4 panel roster, where every new field needs a
+## config/ui/tuning_panel_hints.tres description (and possibly a slider range).
+## GiftConfig is not on that roster, so none of its fields needs a hints entry; GiftCrate's
+## own DECISION already names GiftConfig as the home for such values.
 
 ## Scale multiplier the claim-pop effect grows to before shrinking away (1.0
 ## is unscaled, matching the claimed crate's own real size at the peak).
@@ -137,25 +96,20 @@ extends Resource
 @export var claim_pop_shrink_duration_s: float = 0.28
 
 ## Seconds ui/hud/HUD.gd's "Special queued: <name>" toast stays fully visible
-## before it starts fading — mirrors GhostTuning.hud_reject_message_duration's
-## own shape (show_reject()'s own tween_interval then tween_property), for the
-## same reason the pop tunables above live here instead of there.
+## before it starts fading.
 @export var claim_toast_visible_duration_s: float = 1.5
 ## Seconds the toast then takes to fade to invisible.
 @export var claim_toast_fade_duration_s: float = 0.5
 
-## -- Not-claimable hint (spec 1.6's claim rule is territory-only [ORIGINAL]:
-## walking a held block/ghost over a crate that is not inside the local
-## player's own territory does nothing by design, and used to look identical
-## to a crate the player really could walk into and claim) -------------------
+## -- Not-claimable hint: spec 1.6's claim rule is territory-only, so a held ghost over a
+## crate outside the local player's territory does nothing by design; the pulse tells it
+## apart from a claimable crate.
 ## How close (meters, disk-local XZ distance) the local player's held ghost
 ## must be to a live, unclaimable crate before its hint pulse starts.
 @export var hint_pulse_radius_m: float = 1.5
 ## Radians/second the hint's colour blend oscillates at.
 @export var hint_pulse_speed: float = 5.0
-## The pulse blends UNCLAIMED_COLOR toward this and back (game/gifts/GiftCrate.gd's
-## _update_hint()), so an unclaimable crate visibly shimmers instead of
-## sitting static and reading exactly like a claimable one.
+## The pulse blends UNCLAIMED_COLOR toward this and back (GiftCrate._update_hint()).
 @export var hint_pulse_color: Color = Color(1.0, 1.0, 1.0, 1.0)
 
 ## -- Spawn glow: a brief flash settles into a soft idle light
@@ -175,15 +129,13 @@ extends Resource
 @export var spawn_halo_start_scale: float = 0.75
 @export var spawn_halo_end_scale: float = 2.0
 
-## -- Parachute: the visual canopy a crate wears while it
-## descends. Purely cosmetic and client-side: it follows the replicated
-## falling/landed state (GiftCrate.set_falling) and changes no descent speed,
-## landing time, claim rule or network message. GiftConfig is not on the F4
-## roster, so none of these needs a tuning_panel_hints entry.
+## -- Parachute: the visual canopy a crate wears while it descends. Purely cosmetic and
+## client-side: it follows the replicated falling/landed state (GiftCrate.set_falling)
+## and changes no descent speed, landing time, claim rule or network message.
 ## The model is built by game/gifts/ParachuteMesh.gd, animated by
 ## core/gifts/ParachuteAnim.gd and shown by game/gifts/GiftParachute.gd.
 
-## Canopy rim radius in metres (the old placeholder's 0.85 literal).
+## Canopy rim radius in metres.
 @export var chute_radius_m: float = 0.85
 ## Height of the dome above its rim, in metres.
 @export var chute_dome_height_m: float = 0.55

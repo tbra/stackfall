@@ -1,14 +1,14 @@
 class_name GiftModelTable
 extends Resource
-## One table of per-model scale/offset for the Codex 3D gift models
-## . Loaded as config/gifts/gift_model_table.tres. The crate and
+## One table of per-model scale/offset for the 3D gift models.
+## Loaded as config/gifts/gift_model_table.tres. The crate and
 ## its reveal have their own rows; every special has one row in `entries`.
 ## Physics shapes and gameplay are untouched: this only builds visuals.
 
 const TABLE_PATH: String = "res://config/gifts/gift_model_table.tres"
 const MODEL_NODE: StringName = &"GiftModel"
-## the imported models carry plain (PBR) Blender materials; every
-## built visual swaps them for cel-shaded copies with the gift ink outline.
+## The imported models carry plain (PBR) Blender materials; every built visual swaps
+## them for cel-shaded copies with the gift ink outline.
 const TOON_SHADER: Shader = preload("res://shaders/gifts/gift_toon.gdshader")
 const OUTLINE_MATERIAL: Material = preload("res://assets/models/gifts/gift_outline.tres")
 
@@ -30,7 +30,7 @@ const OUTLINE_MATERIAL: Material = preload("res://assets/models/gifts/gift_outli
 ## Opacity of the hint/owning-slot tint overlay painted over the crate model.
 @export var crate_tint_alpha: float = 0.5
 
-## cel-shade every built model (gift_toon shader + ink outline).
+## Cel-shade every built model (gift_toon shader + ink outline).
 @export var toon_enabled: bool = true
 
 static var _shared: GiftModelTable = null
@@ -44,7 +44,7 @@ static func shared() -> GiftModelTable:
 	return _shared
 
 
-## drops the shared instance on exit so its textures are freed with the tree.
+## Drops the shared instance on exit so its textures are freed with the tree.
 static func release_shared() -> void:
 	_shared = null
 	_toon_cache.clear()
@@ -108,7 +108,7 @@ func _build(entry: GiftModelEntry, world: bool) -> Node3D:
 	return root
 
 
-## plays `special_id`'s one-shot activate_animation on a visual built by
+## Plays `special_id`'s one-shot activate_animation on a visual built by
 ## build_gift_visual (the released gift body); returns whether a clip started. The clip is
 ## forced non-looping so the final pose (e.g. the fired slingshot) holds.
 func play_activate_animation(special_id: StringName, visual: Node) -> bool:
@@ -131,7 +131,7 @@ static func _player_of(node: Node) -> AnimationPlayer:
 	return found[0] as AnimationPlayer
 
 
-## gives every opaque surface under `model` the cel-shaded copy of its
+## Gives every opaque surface under `model` the cel-shaded copy of its
 ## material (surface overrides, so the shared imported mesh is untouched and
 ## material_overlay tints/blinks still layer on top). Transparent or non-standard
 ## materials are left as they are.

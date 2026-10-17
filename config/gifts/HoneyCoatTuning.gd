@@ -1,8 +1,8 @@
 class_name HoneyCoatTuning
 extends Resource
-## Look of the glue glaze: an inflated translucent jelly shell (jelly-only per slot
-## ) on placed glued blocks, the held ghost (scaled by ghost_alpha so
-## its validity colour shows through) and, as an amber tint, the HUD held/next preview.
+## Look of the glue glaze: an inflated translucent jelly shell on placed glued blocks, the
+## held ghost (scaled by ghost_alpha so its validity colour shows through) and, as an
+## amber tint, the HUD held/next preview.
 
 ## Honey yellow of the jelly.
 @export var color: Color = Color(1.0, 0.7, 0.04, 1.0)

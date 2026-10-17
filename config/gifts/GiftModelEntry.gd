@@ -1,8 +1,8 @@
 class_name GiftModelEntry
 extends Resource
 ## One row of the gift model table (config/gifts/gift_model_table.tres): how a
-## Codex GLB (assets/models/<id>_v1) is placed where the game used a
-## placeholder. Presentation only.
+## GLB (assets/models/<id>_v1) is placed where the game would use a placeholder.
+## Presentation only.
 
 ## Special id (SpecialDef.id), or a crate role name for the crate rows.
 @export var id: StringName = &""
@@ -21,7 +21,7 @@ extends Resource
 
 ## One-shot clip played when the gift is activated (released/thrown/placed as a live gift body),
 ## on every peer that builds the body's visual (BlockFactory.apply_gift_visual). The held ghost
-## never plays it. Empty: none. (paintball 'fire'); reusable by any gift.
+## never plays it. Empty: none.
 @export var activate_animation: StringName = &""
 
 ## Playback speed of the clip.
@@ -40,6 +40,6 @@ extends Resource
 @export var held_nose_axis: Vector3 = Vector3.ZERO
 
 ## Turn the held nose axis onto the aim as a yaw + pitch only, so the model keeps its up
-## (FlightFacing.upright_nose_basis). For models with a fixed "up" such as the slingshot
-## ; Rocket and Magnet use the shortest arc.
+## (FlightFacing.upright_nose_basis). For models with a fixed "up" such as the slingshot;
+## Rocket and Magnet use the shortest arc.
 @export var held_keep_upright: bool = false

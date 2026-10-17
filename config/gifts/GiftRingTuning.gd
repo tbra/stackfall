@@ -1,7 +1,7 @@
 class_name GiftRingTuning
 extends Resource
-## Pulse ring under a landed gift crate, drawn by the shared
-## PulseRing (the same node the home beacons use). Presentation only.
+## Pulse ring under a landed gift crate, drawn by the shared PulseRing (the node the home
+## beacons also use). Presentation only.
 
 @export var color: Color = Color(1.0, 0.89, 0.48, 1.0)
 ## Outer radius (m) and band thickness (m) of the ring.
