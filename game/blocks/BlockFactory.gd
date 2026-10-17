@@ -12,24 +12,17 @@ extends RefCounted
 ## no shipped shape sets `sloped_cells`: it is generic per-cell geometry that keeps the ramp
 ## capability without redoing the convex-hull math.
 ##
-## owner feel report "our blocks are made up of many smaller
-## blocks, is that necessary? the original just has solid shapes": the
-## visual side of build()/build_visual_only() below now adds exactly one
+## The visual side of build()/build_visual_only() adds exactly one
 ## MeshInstance3D per block/ghost, built by core/blocks/BlockMeshBuilder.gd
-## from the shape's own cells with interior faces removed, instead of one
-## MeshInstance3D (and visible seam) per cell. Collision is unchanged -- still
-## one CollisionShape3D per cell, a compound of boxes -- since the physics
-## shape was never the thing the owner was seeing.
+## from the shape's own cells with interior faces removed (no per-cell seams).
+## Collision stays one CollisionShape3D per cell, a compound of boxes.
 ##
-## M7 P2, spec 1.10 as amended
-## Q1/Q2: a real spawned block's material now chains an
-## inverted-hull outline pass (shaders/blocks/block_outline.gdshader) as next_pass
-## (formerly a second "BlockOutline" node) on the one
-## "BlockMesh" MeshInstance3D, whose material is now
+## Spec 1.10: a real spawned block's material chains an inverted-hull outline
+## pass (shaders/blocks/block_outline.gdshader) as next_pass on the one
+## "BlockMesh" MeshInstance3D, whose material is
 ## shaders/blocks/block_cell_grid.gdshader (toon-banded diffuse + UV-edge cell-grid
-## lines + a per-instance "contributing" glow toggle). The mesh geometry
-## itself, and the ghost-only ("BlockOutline"-less) path through
-## build_visual_only(), are unchanged -- see _add_shape_visual()'s own
+## lines + a per-instance "contributing" glow toggle). The ghost path through
+## build_visual_only() has no outline -- see _add_shape_visual()'s own
 ## DECISION comment for why the outline is gated to real blocks only.
 ##
 ## Cel shading: `_material_for_color()` and `_outline_material_singleton()` wire the
@@ -46,42 +39,34 @@ static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/blocks/tunin
 ## hole void colours and dissolve look (shared with the disc).
 const HOLE_VISUALS: HoleVisualTuning = preload("res://config/territory/hole_visual_tuning.tres")
 
-## (user-reported playability), extended by 
-## one ShaderMaterial (shaders/blocks/block_cell_grid.gdshader) per slot colour,
+## One ShaderMaterial (shaders/blocks/block_cell_grid.gdshader) per slot colour,
 ## shared by every mesh of every block that colour ever builds, instead of a
 ## new material per block. Keyed by the Color itself (Godot's Dictionary
-## supports Color keys directly); never cleared, since the whole project
-## palette is MatchConfig.player_colors' fixed 8 entries plus Color.WHITE for
-## the M1/no- sites -- at most 9 materials for the life of the
-## process.
+## supports Color keys directly); the palette is MatchConfig.player_colors' fixed
+## 8 entries plus Color.WHITE for colourless builds -- at most 9 materials until
+## release_caches().
 static var _materials_by_color: Dictionary = {}
 
-## one outline ShaderMaterial per slot colour (its tint is
+## One outline ShaderMaterial per slot colour (its tint is
 ## a plain uniform), chained as that colour's material next_pass.
 static var _outline_materials_by_color: Dictionary = {}
-## fix2b: GraphicsPreset.block_outline_enabled (Low: off). Read
+## GraphicsPreset.block_outline_enabled (Low: off). Read
 ## once from Settings when the first block material is built, then kept in step
 ## with Settings.graphics_preset_changed by _on_graphics_preset_changed().
 static var _outline_enabled: bool = true
 static var _preset_hooked: bool = false
 
 
-## `owner_slot` defaults to -1 so M1's call sites (no player slots yet) keep
-## compiling unchanged; M2's Match.request_place is the first caller to pass
-## a real slot id (spec 1.5 "height credit"). `color` defaults to white for
-## the same reason -- a block built with no colour looks exactly as it did
-## before.
+## `owner_slot` defaults to -1 (no owner); a real slot id credits height (spec
+## 1.5 "height credit"). `color` defaults to white for a block built without one.
 static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1, color: Color = Color.WHITE) -> Block:
 	var block: Block = BLOCK_SCENE.instantiate()
 	block.shape_id = shape.id
 	block.cube_count = shape.cells.size()
 	block.owner_slot = owner_slot
-	# Review fix (SHOULD-FIX 3): wires `tuning` onto the Block
-	# itself so Block._integrate_forces() reads THIS build's own instance
-	# (a non-singleton tuning a test hands in, e.g.) instead of always
-	# falling back to the shared preloaded config/physics/physics_tuning.tres --
-	# Block._ready()'s own null-check fallback stays, for a Block built
-	# without going through this factory at all.
+	# Wires `tuning` onto the Block itself so its rebound pass reads THIS build's
+	# own instance (a non-singleton tuning a test hands in, e.g.) instead of the
+	# shared config/physics/physics_tuning.tres fallback in Block._ready().
 	block.tuning = tuning
 
 	var material: PhysicsMaterial = PhysicsMaterial.new()
@@ -98,24 +83,19 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	block.angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	block.linear_damp = tuning.block_linear_damp
 	block.angular_damp = tuning.block_angular_damp
-	# in-game tuning panel, spec 1.9 "Gravity 0.5x-2x": a
-	# per-body multiplier rather than PhysicsServer3D.area_set_param() on the
-	# world's default gravity area -- gravity_scale is a plain RigidBody3D
-	# property this factory already owns end to end, needs no World3D/space
-	# lookup, and covers every future spawn automatically since every block
-	# reads the same shared `tuning` instance ui/debug/TuningPanel.gd edits live (see
-	# Block.apply_physics_tuning() for the matching live-apply path on blocks
-	# that already exist).
+	# Spec 1.9 "Gravity 0.5x-2x": a per-body multiplier rather than
+	# PhysicsServer3D.area_set_param() on the world's default gravity area, since
+	# it needs no World3D/space lookup and covers every future spawn via the shared
+	# `tuning` instance ui/debug/TuningPanel.gd edits live (see
+	# Block.apply_physics_tuning() for blocks that already exist).
 	block.gravity_scale = tuning.gravity_multiplier
 
 	var visual_material: ShaderMaterial = _material_for_color(color)
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	# The pivot (previously the geometric centre): cells are
-	# built around the shape's bottom-centre, not raw cell (0, 0, 0) -- see
-	# BlockShape.bottom_center()'s own doc comment. This is what makes the
-	# body's own local origin (0, 0, 0) coincide with the shape's own bottom
-	# face, matching the ghost's visual (build_visual_only() below) and the
-	# pivot autoload/Match.gd's request_place() now spawns at.
+	# Cells are built around the shape's bottom-centre, not raw cell (0, 0, 0) --
+	# see BlockShape.bottom_center()'s own doc comment. This makes the body's local
+	# origin coincide with the shape's bottom face, matching the ghost's visual
+	# (build_visual_only() below) and the pivot Match.request_place() spawns at.
 	var pivot: Vector3 = shape.bottom_center()
 	for cell: Vector3i in shape.cells:
 		var local_pos: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
@@ -128,18 +108,14 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 
 	_add_shape_visual(block, shape, tuning, visual_material)
 
-	# "Contributing to territory influence" has no dedicated solver signal yet, so a settled/resting block reads as contributing and an
-	# in-flight one doesn't -- RigidBody3D's own built-in sleeping state is the
-	# proxy. Fix round (review MAJOR): this only ever reflects reality on
-	# whichever peer is this body's physics authority -- a client's synced
-	# blocks are frozen kinematic (net/SnapshotSync.gd's freeze_body()) and
-	# never sleep for real, so client_tick() drives the same
-	# Block.set_contributing_visual() seam from the wire's `sleeping` flag
-	# instead (net/SnapshotSync.gd, net/Interpolator.gd). Connected
-	# unconditionally rather than gated on host/authority: a client's own
-	# sleeping_state_changed is simply inert (a frozen kinematic body never
-	# fires it for real), so it cannot race or conflict with the wire-driven
-	# call. A no-op on a ghost (build_visual_only() never calls this).
+	# "Contributing to territory influence" has no dedicated solver signal, so a
+	# settled/resting block reads as contributing and an in-flight one doesn't --
+	# RigidBody3D's own sleeping state is the proxy. It only reflects reality on
+	# the peer that is this body's physics authority: a client's synced blocks are
+	# frozen kinematic and never sleep for real, so client_tick() drives the same
+	# Block.set_contributing_visual() from the wire's `sleeping` flag
+	# (net/SnapshotSync.gd, net/Interpolator.gd). Connected unconditionally: on a
+	# client the signal is inert, so it cannot conflict with the wire-driven call.
 	block.set_contributing_visual(block.sleeping)
 	block.sleeping_state_changed.connect(
 		func() -> void: block.set_contributing_visual(block.sleeping)
@@ -148,7 +124,7 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	return block
 
 
-## a used gift appears as its gift model, not a plain block.
+## A used gift appears as its gift model, not a plain block.
 ## Hides the block mesh/outline, swaps the collision for one cube, and adds the
 ## gift's held model (SpecialDef.held_scene, else the generic crate) centred on
 ## the shape's bounds in the body's own frame. Same on host and client.
@@ -164,8 +140,8 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 		if mesh_instance != null:
 			mesh_instance.visible = false
 	var visual: Node3D = null
-	# the Codex GLB from config/gifts/gift_model_table.tres first,
-	# then the older cel-shaded held scene, then the generic crate.
+	# The GLB from config/gifts/gift_model_table.tres first, then the cel-shaded
+	# held scene, then the generic crate.
 	visual = GiftModelTable.shared().build_gift_visual(gift_id)
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
 	if visual == null and def != null and def.held_scene != null:
@@ -174,13 +150,13 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 		visual = GhostPreview.build_fallback_gift_visual(tuning.cube_size)
 	visual.name = GIFT_VISUAL_NODE
 	var centre: Vector3 = gift_cell_center(shape, tuning)
-	# a released gift swaps to its activation-scale model; it grows about the
+	# A released gift swaps to its activation-scale model; it grows about the
 	# cell's bottom face (the held preview stays 1x). Scale derives from gift_id on every peer.
 	var scale_factor: float = activation_scale_for(gift_id)
 	visual.position = centre + Vector3.UP * ((scale_factor - 1.0) * tuning.cube_size * 0.5)
 	visual.scale = visual.scale * scale_factor
 	block.add_child(visual)
-	# a gift with an activate clip (paintball 'fire') plays it as its body spawns,
+	# A gift with an activate clip (paintball 'fire') plays it as its body spawns,
 	# on every peer (this runs on the host and from the client spawn RPC).
 	GiftModelTable.shared().play_activate_animation(gift_id, visual)
 	# DECISION: the gift body's collision is ONE cube cell
@@ -203,7 +179,7 @@ static func apply_gift_visual(block: Block, shape: BlockShape, tuning: PhysicsTu
 	GiftFxPresenter.on_gift_block_spawned(block)
 
 
-## the released-gift size factor for `gift_id` (SpecialDef.activation_scale; 1.0 for unknown).
+## The released-gift size factor for `gift_id` (SpecialDef.activation_scale; 1.0 for unknown).
 static func activation_scale_for(gift_id: StringName) -> float:
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
 	if def == null or not is_finite(def.activation_scale) or def.activation_scale <= 0.0:
@@ -211,7 +187,7 @@ static func activation_scale_for(gift_id: StringName) -> float:
 	return def.activation_scale
 
 
-## where the host must put an AIMED gift's body origin so its model lands on the
+## Where the host must put an AIMED gift's body origin so its model lands on the
 ## held model. The held ghost draws the model root at `origin + gift_cell_center()` upright; a
 ## spawned body draws it at `origin + faced * root_position` (root_position includes the
 ## activation-scale lift), so turning the body to face its flight line swung the model about the
@@ -226,7 +202,7 @@ static func muzzle_matched_origin(
 	return origin + centre - faced * body_root
 
 
-## where a gift's single cell sits, in the carrier shape's own
+## Where a gift's single cell sits, in the carrier shape's own
 ## (unrotated, bottom-face-pivot) frame: the centre of the shape's bounds. The
 ## visual, the collider and the held-gift touch test all use this one point.
 static func gift_cell_center(shape: BlockShape, tuning: PhysicsTuning) -> Vector3:
@@ -245,12 +221,10 @@ static func gift_cell_center(shape: BlockShape, tuning: PhysicsTuning) -> Vector
 ## Used by GhostPreview so the held block's look matches the real one without
 ## simulating physics for it. Offset by the shape's bottom-centre exactly
 ## like build() above, so the ghost's visual and the spawned body agree on
-## where the shape's bottom face sits relative to this node's own origin
-## (previously the geometric centre);
+## where the shape's bottom face sits relative to this node's own origin.
 ## GhostPreview's own tint material is applied by the caller
-## (_apply_material_to_visual()), never here, per this package's "keep the
-## ghost's own tint logic untouched" -- it still works unchanged because it
-## walks every MeshInstance3D child, and there is now just one.
+## (_apply_material_to_visual()), never here; it walks every MeshInstance3D
+## child, and there is just one.
 static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "ShapeVisual"
@@ -258,13 +232,12 @@ static func build_visual_only(shape: BlockShape, tuning: PhysicsTuning) -> Node3
 	return root
 
 
-## Adds the visual MeshInstance3D(s) for `shape` to `parent`. The common path
-## outline added by: one MeshInstance3D named
-## "BlockMesh" holding a BlockMeshBuilder-generated mesh for the whole shape,
+## Adds the visual MeshInstance3D(s) for `shape` to `parent`. The common path is one
+## MeshInstance3D named "BlockMesh" holding a BlockMeshBuilder-generated mesh for the whole shape,
 ## with interior faces already removed; when `material` is non-null (a real
 ## spawned block, never build_visual_only()'s ghost -- see that function's own
 ## doc comment) the material carries the shared inverted-hull outline
-## ShaderMaterial as its next_pass (no second node). Falls back to the pre-existing one-mesh-per-cell path
+## ShaderMaterial as its next_pass (no second node). Falls back to a one-mesh-per-cell path
 ## (`material` per cell, no face culling, no outline) only for a shape
 ## BlockMeshBuilder.build_mesh() refuses -- see its own doc comment for
 ## exactly when that is (sloped_cells or a custom shape.mesh, neither used by
@@ -317,7 +290,7 @@ static func _material_for_color(color: Color) -> ShaderMaterial:
 	return material
 
 
-## fix2b: attaches (true) or detaches (false) the inverted-hull
+## Attaches (true) or detaches (false) the inverted-hull
 ## outline next_pass on every cached block material at once, so every live block
 ## follows a graphics preset change. Detaching drops the pass from the depth
 ## prepass, the colour pass and every shadow cascade, not just its pixels.
@@ -328,7 +301,7 @@ static func set_outline_enabled(enabled: bool) -> void:
 		material.next_pass = _outline_material_for_color(color as Color) if enabled else null
 
 
-## pushes every BlockVisualTuning / HoleVisualTuning-derived
+## Pushes every BlockVisualTuning / HoleVisualTuning-derived
 ## uniform onto a block material (creation and the live F4 refresh share this).
 static func _apply_block_params(material: ShaderMaterial) -> void:
 	material.set_shader_parameter(&"toon_band_count", VISUAL_TUNING.toon_band_count)
@@ -375,7 +348,7 @@ static func _apply_block_params(material: ShaderMaterial) -> void:
 	material.set_shader_parameter(&"dissolve_void_color", HOLE_VISUALS.void_deep_color)
 
 
-## the outline pass's counterpart of _apply_block_params().
+## The outline pass's counterpart of _apply_block_params().
 static func _apply_outline_params(material: ShaderMaterial) -> void:
 	material.set_shader_parameter(&"outline_width_px", VISUAL_TUNING.outline_width_px)
 	material.set_shader_parameter(&"outline_far_width_px", VISUAL_TUNING.outline_far_width_px)
@@ -388,7 +361,7 @@ static func _apply_outline_params(material: ShaderMaterial) -> void:
 	material.set_shader_parameter(&"dissolve_edge_width", HOLE_VISUALS.dissolve_edge_width)
 
 
-## re-sends the tuning uniforms to every cached block and outline
+## Re-sends the tuning uniforms to every cached block and outline
 ## material, so an F4 edit of BlockVisualTuning reaches blocks already standing
 ## (they share these materials). tint_color/albedo_color stay as built.
 static func refresh_visual_tuning() -> void:
@@ -398,7 +371,7 @@ static func refresh_visual_tuning() -> void:
 		_apply_outline_params(material as ShaderMaterial)
 
 
-## drops the shared materials on exit so the renderer frees them with the tree.
+## Drops the shared materials on exit so the renderer frees them with the tree.
 static func release_caches() -> void:
 	_materials_by_color.clear()
 	_outline_materials_by_color.clear()
@@ -469,8 +442,8 @@ static func _make_visual_mesh(half_size: float, sloped: bool) -> Mesh:
 
 	# DECISION (game/blocks/BlockFactory.gd): Godot's built-in PrismMesh approximates
 	# the wedge's slope visually. Its axis convention isn't guaranteed to line
-	# up exactly with the hand-built ConvexPolygonShape3D above, but M1 only
-	# needs correct wedge physics, not pixel-accurate wedge art.
+	# up exactly with the hand-built ConvexPolygonShape3D above, but only the
+	# wedge physics needs to be correct, not pixel-accurate wedge art.
 	var prism: PrismMesh = PrismMesh.new()
 	prism.size = size
 	return prism

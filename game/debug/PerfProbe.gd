@@ -1,7 +1,6 @@
 class_name PerfProbe
 extends RefCounted
-## additive microsecond probes for the F1 detailed overlay and
-## the perf CSV. Wrap an existing call:
+## Additive microsecond probes for the F1 detailed overlay and the perf CSV. Wrap an existing call:
 ##   var t: int = PerfProbe.start()
 ##   thing.tick(delta)
 ##   PerfProbe.stop(&"weather", t)

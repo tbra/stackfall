@@ -1,6 +1,6 @@
 class_name DistantBirds
 extends Node3D
-## / 470.5: occasional small flocks of birds that cross the far
+## Occasional small flocks of birds that cross the far
 ## sky. Not a permanent fixture: a few "slots" each wait a long random gap,
 ## then launch a flight (core/ambient/FlockPlanner.gd: 1-7 birds entering from
 ## the far ring, crossing past the disc at a distance and leaving the far side).

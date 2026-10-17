@@ -1,8 +1,7 @@
 class_name BlockDissolveFx
 extends Node
-## the visual half of a hole
-## dissolve. On Events.block_dissolve_started (emitted by HoleDissolver on the
-## host and by MatchNet for the clients' copy) this drives the block's
+## The visual half of a hole dissolve. On Events.block_dissolve_started (emitted
+## by HoleDissolver on the host and by MatchNet for the clients' copy) this drives the block's
 ## `dissolve_amount` *instance* shader parameter from 0 to 1 over the event's
 ## duration (HoleDissolveTuning.dissolve_delay_s): shaders/block_cell_grid.
 ## gdshader and block_outline.gdshader eat the block away with 3D noise and a

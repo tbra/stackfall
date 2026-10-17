@@ -1,7 +1,7 @@
 class_name DebugMode
 extends RefCounted
-## the single "is debug mode on?" answer. Off for players; the
-## F1 perf overlay, F3 net overlay, F4 tuning panel,
+## The single "is debug mode on?" answer. Off for players; the F1 perf
+## overlay, F3 net overlay, F4 tuning panel,
 ## sandbox F5-F11 hotkeys, --force-special and the perf CSV logger all check
 ## is_enabled() first. F12 screenshots stay ungated.
 ##
