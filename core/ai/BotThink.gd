@@ -1,10 +1,9 @@
 class_name BotThink
 extends RefCounted
-## Bot V2: one resumable think-cycle for one piece. The
-## assembled pipeline, each stage resumable under the caller's microsecond budget:
-##   STACK BotStack.analyse_step over the snapshot of the towers (.53b; sliced, one unit
-##            per body; skipped with no snapshot, which keeps the think exactly as before). 
-##            it runs FIRST, because PLAN and SITES read which blocks are sound (leaning piles).
+## Bot V2: one resumable think-cycle for one piece. The assembled pipeline,
+## each stage resumable under the caller's microsecond budget:
+##   STACK BotStack.analyse_step over the snapshot of the towers (sliced, one unit
+##            per body; skipped with no snapshot). It runs FIRST, because PLAN and SITES read which blocks are sound (leaning piles).
 ##   PLAN BotChains + BotStrategy.choose -> BotIntent (one chunk)
 ##   SITES BotCandidateGen.begin: the targeted TIP / STACK sites (one chunk)
 ##   FILL the uniform FILL draws, fill_chunk_attempts per step (sliced)
@@ -28,11 +27,11 @@ const SHIPPED_TUNING: BotTuning = preload("res://config/bots/bot_tuning.tres")
 const SITE_NONE: int = 0
 ## Support height recorded for a probe cell with no hit (hole, rim, open air).
 const NO_SUPPORT: float = -1.0
-## `-- --bot-intent-log` prints one line per decision (smoke diagnostics).
 ## Floor for the softmax temperature (a 0 would divide by zero).
 const MIN_TEMPERATURE: float = 0.001
+## `-- --bot-intent-log` prints one line per decision (smoke diagnostics).
 const INTENT_LOG_ARG: String = "--bot-intent-log"
-## weight of the newest finished think in the unit-cost and share averages.
+## Weight of the newest finished think in the unit-cost and share averages.
 ## DECISION: a const, not a tuning field: it only shapes the slice schedule, never a decision.
 const COST_AVERAGE_WEIGHT: float = 0.25
 ## Marks an average with no sample yet.
@@ -52,12 +51,12 @@ static func clear_strategy_memory(slot_id: int) -> void:
 	_strategy_memory.erase(slot_id)
 
 
-## microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
+## Microseconds per work unit of each phase (index = Phase; units: PLAN, PICK
 ## one per think, SITES one per candidate_count, FILL one per draw, PROBE / RANK / MEASURE one
 ## per site), averaged over the phases finished by every V2 bot in the process: unit costs follow
 ## the machine and the board, not the seat. NO_SAMPLE until a think has finished that phase.
 static var _unit_cost_us: PackedFloat64Array = PackedFloat64Array()
-## averaged FILL draws and generated sites per candidate_count, for the estimate
+## Averaged FILL draws and generated sites per candidate_count, for the estimate
 ## made before SITES / FILL have produced the exact counts.
 static var _fill_draw_share: float = NO_SAMPLE
 static var _site_share: float = NO_SAMPLE
@@ -94,7 +93,7 @@ var _site_job: BotCandidateGen.SiteJob = null
 ## Next candidate the sliced proxy RANK scores.
 var _rank_pos: int = 0
 var _probe_index: int = 0
-##.53b: bodies the sliced STACK phase has analysed so far.
+## Bodies the sliced STACK phase has analysed so far.
 var _stack_pos: int = 0
 ## Candidate indices ranked best first (proxy, then measured on the head).
 var _ranked: PackedInt32Array = PackedInt32Array()
@@ -105,10 +104,10 @@ var _best: BotCandidate = null
 ## Ranked positions in pick order (the chosen one first), for revalidate().
 var _pick_order: Array[int] = []
 var _decision: Decision = Decision.new()
-## this think's microseconds and work units per phase (index = Phase).
+## This think's microseconds and work units per phase (index = Phase).
 var _phase_us: PackedInt64Array = PackedInt64Array()
 var _phase_units: PackedInt64Array = PackedInt64Array()
-## opt-in cost report. Off by default: no extra clock reads, no record. When the caller
+## Opt-in cost report. Off by default: no extra clock reads, no record. When the caller
 ## sets it, step() / complete() add their wall time to `_stats_total_us` and the probe callables
 ## are timed where they are called (core stays scene-tree free; only the Callable is measured).
 var collect_stats: bool = false
@@ -118,7 +117,7 @@ var _stats_probe_calls: int = 0
 ## FILL draws made and sites they added in this think.
 var _fill_draws: int = 0
 var _fill_added: int = 0
-## the zero-targeted FILL fallback ran this think (stats only), and the sites it added.
+## The zero-targeted FILL fallback ran this think (stats only), and the sites it added.
 var _fill_fallback: bool = false
 ## Orientation index -> BotStatics.OrientationInfo of the held piece (built on first use).
 var _orientation_infos: Dictionary = {}
@@ -139,7 +138,7 @@ func _init(view: BotWorldView, profile: BotDifficultyProfile, rng: RandomNumberG
 ## Advances the think by at most about `budget_usec` microseconds (always at least one unit
 ## of work, so a zero budget still progresses). `probe(xz: Vector2)` returns
 ## {hit: bool, height: float, own: bool}. True once the decision is ready.
-## after the first unit, a unit whose averaged cost would carry the slice past
+## After the first unit, a unit whose averaged cost would carry the slice past
 ## `budget_usec` is left for the next step.
 func step(budget_usec: int, probe: Callable) -> bool:
 	var start_usec: int = Time.get_ticks_usec()
@@ -161,7 +160,7 @@ func _step_slice(budget_usec: int, probe: Callable, start_usec: int) -> bool:
 	return true
 
 
-## runs every remaining stage now (the caller's deadline tick). The decision is
+## Runs every remaining stage now (the caller's deadline tick). The decision is
 ## the one any slicing of step() reaches; unlike finish_early() nothing is skipped.
 func complete(probe: Callable) -> void:
 	var complete_start_usec: int = Time.get_ticks_usec() if collect_stats else 0
@@ -182,7 +181,7 @@ func _complete_all(probe: Callable) -> void:
 			guard = 0
 
 
-## true once thinks in this process have finished every costly phase this one
+## True once thinks in this process have finished every costly phase this one
 ## will run (PROBE, RANK and, with eval_top_k, MEASURE), so remaining_work_us() covers the whole
 ## think (before that it only knows the phases measured so far and is a lower bound).
 func has_cost_estimate() -> bool:
@@ -193,7 +192,7 @@ func has_cost_estimate() -> bool:
 	return _profile.eval_top_k <= 0 or _unit_cost_us[Phase.MEASURE] >= 0.0
 
 
-## estimated microseconds of work left, from the exact counts known so far (FILL
+## Estimated microseconds of work left, from the exact counts known so far (FILL
 ## draws left, sites left to probe / rank / measure) times the averaged unit costs; counts not
 ## known yet (before SITES / FILL) come from the averaged shares. 0 when done; a phase with no
 ## cost sample yet (the process's first thinks) counts as free.
@@ -256,7 +255,7 @@ func _finish_early_now() -> void:
 	_pick()
 
 
-## this think's cost record (null unless `collect_stats`): per-phase microseconds and
+## This think's cost record (null unless `collect_stats`): per-phase microseconds and
 ## work units (index = Phase), the step() / complete() wall total, and the time spent inside the
 ## caller's probe callables (the game-side physics queries, a part of PROBE).
 func stats_record() -> Dictionary:
@@ -458,7 +457,7 @@ func _fill_sites(max_attempts: int) -> int:
 	return draws
 
 
-## True while the view carries a snapshot (.53b) whose analysis is not finished.
+## True while the view carries a snapshot whose analysis is not finished.
 func _stack_pending() -> bool:
 	return _view.stack != null and _view.stack.body_count() > 0 and not _view.stack.is_analysed()
 
@@ -518,7 +517,7 @@ func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
 	return info
 
 
-## one ray under each real bottom cube (BotStatics.contact_probe_points, outermost
+## One ray under each real bottom cube (BotStatics.contact_probe_points, outermost
 ## cubes first), capped at the tier's stability_raycast_count. `cell_support` / `support_bodies` are
 ## parallel to `probe_points` (NO_SUPPORT / -1 for a hole or a miss). The resting plane
 ## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece; a

@@ -1,7 +1,7 @@
 class_name MatchWeather
 extends RefCounted
-## Weather as a random host-scheduled EVENT (
-## at most one weather at a time, calm most of the time).
+## Weather as a random host-scheduled EVENT: at most one weather at a time,
+## calm most of the time.
 ##
 ## Timeline per match, all decided by the host from one seed:
 ##   calm (WeatherScheduleTuning.first_delay_s)
@@ -14,7 +14,7 @@ extends RefCounted
 ## the same WeatherTuning ramp curve, so the host sends state per phase change
 ## rather than per frame.
 ##
-## DECISION (autoload/match/MatchWeather.gd): lobby mapping, per the above, revised by 470.1: a TYPE mode (STORM/RAIN/
+## DECISION: lobby mapping: a TYPE mode (STORM/RAIN/
 ## SNOW/...) is CONSTANT weather: after WeatherScheduleTuning.constant_start_delay_s
 ## the type ramps in, holds at full intensity for the whole match and never
 ## ramps out. RANDOM = one type drawn at match start, then constant. CHANGING =
@@ -79,8 +79,7 @@ var _phase_t: float = 0.0
 var _hold_total: float = 0.0
 var _intensity: float = 0.0
 var _effect: WeatherEffect = null
-## the always-on gust layer; it spawns no gusts while a Storm is
-## active.
+## The always-on gust layer; it spawns no gusts while a Storm is active.
 ## DECISION: it lives here because MatchWeather already owns the host check,
 ## the per-frame tick and the PLAYING/teardown lifecycle; it never touches the
 ## schedule or the epoch.
