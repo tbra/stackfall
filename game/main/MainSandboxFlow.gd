@@ -1,7 +1,7 @@
 class_name MainSandboxFlow
 extends MainSandboxFlowPort
-## MF1: the hot-seat, sandbox and tutorial entry points moved verbatim out of
-## game/main/Main.gd so Main.gd no longer compiles HotSeat/Sandbox/Tutorial.
+## The hot-seat, sandbox and tutorial entry points, split out of game/main/Main.gd
+## so Main.gd does not compile HotSeat/Sandbox/Tutorial.
 ## Main loads this script on demand through MenuPrewarmQueue.ensure_script() and keeps one-line
 ## forwarders for every old member name tests/tools call. DECISION: this file reads Main's
 ## underscore-prefixed state through `main_node` (one module split in two; tests already do).
@@ -12,7 +12,7 @@ var main_node: Main:
 		return main as Main
 
 
-# --- Hot-seat: byte-identical to M2 ------------------------------------------
+# --- Hot-seat ------------------------------------------
 
 func start_hot_seat_match() -> void:
 	Sfx.set_music_context(&"gameplay")
@@ -81,8 +81,8 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
 	main_node._horizon_islands.rebuild_for_map(config.map_def(), main_node._world_environment.environment if main_node._world_environment != null else null)
-	# (the day/night cycle did not cycle in the sandbox). The Skybox cycle reads
-	# the one shared match clock (SnapshotSync.sky_cycle_seconds()), which only runs between begin_match()
+	# The Skybox cycle reads the one shared match clock (SnapshotSync.sky_cycle_seconds()),
+	# which only runs between begin_match()
 	# and end_match(). DECISION: begin the real SnapshotSync like a normal match (one clock, no second
 	# sky clock): offline host_tick() only advances the clock and returns before any selection or send,
 	# and nothing it turns on ends or times a sandbox. Teardown is the ordinary end_match_world().
@@ -96,38 +96,28 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	main_node._debug_overlay = debug_overlay
 	main_node.add_child(debug_overlay)
 
-	# `--force-special=<id>` sets the same state F9
-	# (sandbox_force_special) toggles at runtime, so a scripted sandbox launch
-	# can start already forcing one special. _sandbox is already _ready()
-	# (add_child() above runs it synchronously -- Main is already inside the
-	# tree by the time _start_sandbox_match_with_args() runs from its own
-	# _ready()), so its roster cache exists by the time this reaches it.
+	# `--force-special=<id>` sets the state F9 (sandbox_force_special) toggles at
+	# runtime. _sandbox is already _ready() (add_child() runs it synchronously), so
+	# its roster cache exists by the time this reaches it.
 	var forced: String = _sandbox_force_special_arg(args)
 	# --force-special is a debug tool; ignored unless debug mode.
 	if forced != "" and DebugMode.is_enabled():
 		sandbox.force_special_by_id(StringName(forced))
 
 
-## The Main Menu's entry point (ui/MainMenu.
-## gd's %SandboxButton, wired to this signal in _show_main_menu() below),
-## unlike _start_sandbox_match()'s CLI-only one above: reachable only once
-## the ordinary menu/lobby path in _ready() has already connected Events.
-## match_state_changed, so Match.start_match()'s own (LOBBY -> LOADING) emit
-## inside _start_sandbox_match_with_args() below would otherwise also run
-## _build_match_world() -- which builds a *HotSeat*-driven world, not this
-## function's own Sandbox one, and duplicates the field rebuild/overlay/
-## debug-overlay work _start_sandbox_match_with_args() already does.
+## The Main Menu's entry point (ui/menus/MainMenu.gd's %SandboxButton), unlike the
+## CLI-only start_sandbox_match(): reachable only once the ordinary menu/lobby path
+## in _ready() has connected Events.match_state_changed, so Match.start_match()'s
+## (LOBBY -> LOADING) emit would otherwise also run _build_match_world(), which
+## builds a *HotSeat*-driven world, not the Sandbox one, and duplicates the field
+## rebuild/overlay/debug-overlay work.
 ##
-## _world_built = true here is now belt-and-braces rather than the only
-## guard: _on_match_state_changed() itself diverts every state change away
-## from _build_match_world()/_end_match_world() while _sandbox is a live
-## instance (round 2 -- see that handler's own DECISION), which
-## is also what makes a later sandbox_reset_field (F5, game/sandbox/Sandbox.gd's
-## _reset_field()) safe: round 1 found that this line alone only suppressed
-## the duplicate build on this *first* start, not on a later reset, because
-## nothing re-armed it once _end_match_world() ran and cleared it back to
-## false. _start_sandbox_match_with_args([]) below still runs byte-identical
-## to the CLI path: default player count, no forced special.
+## _world_built = true here is belt-and-braces: _on_match_state_changed() itself
+## diverts every state change away from _build_match_world()/_end_match_world()
+## while _sandbox is a live instance (see that handler's DECISION), which is also
+## what makes a later sandbox_reset_field (F5, game/sandbox/Sandbox.gd's
+## _reset_field()) safe. start_sandbox_match_with_args([]) runs the same as the CLI
+## path: default player count, no forced special.
 func start_sandbox_from_menu() -> void:
 	main_node._sandbox_preset = null
 	_launch_sandbox_from_menu()
@@ -135,15 +125,13 @@ func start_sandbox_from_menu() -> void:
 
 func _launch_sandbox_from_menu() -> void:
 	main_node._clear_menu_and_lobby()
-	# G5: this path bypasses _build_match_world(), so it needs
-	# its own new-match reset -- before Sandbox.set_camera_rig() below, which
-	# re-sets CameraRig.suppress_pad_home_focus that reset_view() clears.
+	# This path bypasses _build_match_world(), so it needs its own new-match reset,
+	# before Sandbox.set_camera_rig() below, which re-sets
+	# CameraRig.suppress_pad_home_focus that reset_view() clears.
 	main_node._reset_match_scope()
 	main_node._world_built = true
-	# fix round 2: _build_match_world() (which owns this same
-	# line for every other match-start path) never runs for sandbox-from-menu
-	# -- see the `_world_built = true` line right above -- so this path needs
-	# its own explicit unsuppress.
+	# _build_match_world() owns this line for every other match-start path and never
+	# runs for sandbox-from-menu, so this path needs its own explicit unsuppress.
 	main_node._pause_menu.suppressed = false
 	start_sandbox_match_with_args(PackedStringArray())
 
@@ -240,14 +228,13 @@ func _sandbox_force_special_arg(args: PackedStringArray) -> String:
 
 func start_tutorial_from_menu() -> void:
 	main_node._clear_menu_and_lobby()
-	# G5: same bypass of _build_match_world() as the sandbox
-	# start above, so the same new-match reset.
+	# Same bypass of _build_match_world() as the sandbox start above, so the same
+	# new-match reset.
 	main_node._reset_match_scope()
 	main_node._world_built = true
-	# see ui/menus/PauseMenu.gd's own `suppressed` doc comment --
-	# Tutorial already owns ui_cancel/Escape for its own quit gesture, and the
-	# two scenes' _unhandled_input() dispatch order relative to each other
-	# (unrelated siblings under this node) is not a documented guarantee.
+	# See PauseMenu's `suppressed` doc: Tutorial owns ui_cancel/Escape for its own
+	# quit gesture, and the dispatch order of the two scenes' _unhandled_input()
+	# (unrelated siblings) is not a documented guarantee.
 	main_node._pause_menu.suppressed = true
 	var tutorial: Tutorial = main_node._load_scene(Main.TUTORIAL_SCENE_PATH).instantiate() as Tutorial
 	main_node._tutorial = tutorial
@@ -278,21 +265,15 @@ func _build_tutorial_config() -> MatchConfig:
 	return config
 
 
-## ui/menus/Tutorial.gd's own `finished` signal (step 5 completing, or ui_cancel at
-## any step -- see its own doc comment): frees the Tutorial subtree
-## start_tutorial_from_menu() above built and returns to the Main Menu.
-## ui/menus/Tutorial.gd already called Match.abort_match() itself before emitting
-## (consuming Match's own public API, not this package's -- Events.
-## match_state_changed's own (-> LOBBY) emit has already run
-## _on_match_state_changed()'s existing _end_match_world() call by the time
-## this handler runs, the same way start_sandbox_from_menu()'s own
-## _world_built guard above does), so this only has to clean up the one node
-## this package added.
+## ui/menus/Tutorial.gd's `finished` signal (step 5 completing, or ui_cancel at any
+## step): frees the Tutorial subtree start_tutorial_from_menu() built and returns to
+## the Main Menu. Tutorial already called Match.abort_match() before emitting, so
+## _on_match_state_changed()'s _end_match_world() has run by now; this only cleans
+## up the one node added here.
 func on_tutorial_finished() -> void:
 	if main_node._tutorial != null and is_instance_valid(main_node._tutorial):
 		main_node._tutorial.queue_free()
 	main_node._tutorial = null
-	# fix round 2: _show_main_menu() below now owns re-
-	# suppressing/force-closing this menu for every "no match world" screen,
-	# so no explicit `= false` write belongs here -- see its own doc comment.
+	# _show_main_menu() owns re-suppressing/force-closing this menu for every "no
+	# match world" screen, so no explicit `= false` write belongs here.
 	main_node._show_main_menu()

@@ -2,18 +2,16 @@ class_name Main
 extends Node3D
 ## The game's entry point: a router, not a match.
 ##
-## This is the one file nobody but the integrator owns (as in M2), and it
-## stays deliberately thin: every system self-wires through the Events bus or
+## It stays deliberately thin: every system self-wires through the Events bus or
 ## a `Variant` provider seam, so Main only ever hands pieces to each other
 ## once, in the right order, and reacts to the handful of signals that mark a
 ## state change.
 ##
 ## **Two paths.**
-##   - `--hot-seat` reaches exactly what M2 built: register_world() ->
-##     start_match() -> place_flags() -> set_overlay_source(), with one
-##     HotSeat.tscn whose PlayerController follows Events.turn_changed. No
-##     menu, no lobby, no networking autoload is touched — test_hot_seat.gd
-##     and every M2 match-flow test still pin this path byte-identical.
+##   - `--hot-seat`: register_world() -> start_match() -> place_flags() ->
+##     set_overlay_source(), with one HotSeat.tscn whose PlayerController follows
+##     Events.turn_changed. No menu, no lobby, no networking autoload is touched;
+##     test_hot_seat.gd and the match-flow tests pin this path.
 ##   - Everything else shows ui/menus/MainMenu.tscn, then ui/lobby/Lobby.tscn once Net
 ##     enters HOST or CLIENT (Events.net_mode_changed — apply_command_line()'s
 ##     --host/--join/--headless-host fire it exactly the same as the menu's
@@ -28,9 +26,9 @@ extends Node3D
 ##     start_match() itself runs first when a match is restarted from any
 ##     later state -- and when Net drops to OFFLINE, which also aborts the
 ##     stale Match so it stops ticking and the next host/join starts from a
-##     clean LOBBY .
+##     clean LOBBY.
 ##
-## **Wiring order matters**, same reason as M2: Match.register_world() must
+## **Wiring order matters**: Match.register_world() must
 ## happen before start_match() (it configures BlockRegistry's host authority
 ## from Net's *current* mode, so it cannot run before Net has actually joined
 ## or hosted); Field.place_flags() and Field.set_overlay_source() must happen
@@ -43,20 +41,13 @@ extends Node3D
 ## (net/SnapshotSync.gd), so Main never has to branch on is_host()/is_client()
 ## itself. client_tick() writes global_transform and must run from
 ## _physics_process, never _process (frozen bodies are driven from the physics step).
-##
-## M2's other ticks (10 Hz solve, 5 Hz overlay upload, the hole backlog and
-## the settled rule) are unchanged and still live inside Match, TerritoryOverlay
-## and Field/BlockRegistry themselves — see the M2 doc this file used to carry.
 
 ## Default lobby settings for the hot-seat build. start_match() duplicates and
 ## sanitizes it, so the resource on disk is never mutated.
 @export var match_config: MatchConfig = preload("res://config/match/match_defaults.tres")
-## Spec Part 4 M2 accepts on "two players take turns on one PC", so
-## `--hot-seat` starts a two-player hot-seat match. Both live in MatchConfig
-## rather than as literals here (CLAUDE.md: no magic numbers).
+## Players in the `--hot-seat` match: two take turns on one PC.
 @export var player_count: int = 2
-## tunables for the unlisted `--sandbox` debug entry point
-## below (CLAUDE.md: no magic numbers — see config/match/SandboxConfig.gd).
+## Tunables for the unlisted `--sandbox` debug entry point (config/match/SandboxConfig.gd).
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
@@ -83,20 +74,14 @@ const TOWER_TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_toppl
 const TUTORIAL_SCENE_PATH: String = "res://ui/menus/Tutorial.tscn"
 const REMOTE_CURSORS_SCENE_PATH: String = "res://game/player/RemoteCursors.tscn"
 const NET_DEBUG_OVERLAY_SCENE_PATH: String = "res://ui/debug/NetDebugOverlay.tscn"
-## (M7 P42, : "there's no pause menu, I can't
-## abandon a game and go back to the main menu or quit the game").
+## In-match pause menu: abandon a game and go back to the main menu, or quit.
 const PAUSE_MENU_SCENE_PATH: String = "res://ui/menus/PauseMenu.tscn"
-## ("the win screen always says 'Team x wins!'
-## even when not playing in teams"). Self-contained the same way
-## ui/menus/PauseMenu.gd is (see its own header) -- it self-wires to
-## Events.match_results_ready/match_state_changed, so this is only an
-## instantiate-and-hide, no further wiring in this file.
+## Self-wires to Events.match_results_ready/match_state_changed (like PauseMenu),
+## so this is only an instantiate-and-hide.
 const RESULTS_SCREEN_SCENE_PATH: String = "res://ui/menus/ResultsScreen.tscn"
 ## hold-to-show live scoreboard (action show_scores).
 const SCOREBOARD_SCENE_PATH: String = "res://ui/hud/ScoreboardOverlay.tscn"
-## covers the LOBBY -> LOADING ->
-## COUNTDOWN window instead of leaving the idle centre-beacon camera shot on
-## screen -- see ui/menus/LoadingScreen.gd's own header doc.
+## Covers the LOBBY -> LOADING -> COUNTDOWN window; see ui/menus/LoadingScreen.gd.
 const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
 
 @onready var _field: Field = $Field
@@ -106,15 +91,14 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
 @onready var _skybox: Skybox = $Skybox
 ## cosmetic horizon island ring, rebuilt wherever the sky set loads.
 @onready var _horizon_islands: HorizonIslands = $HorizonIslands
-## M7 P1: the one WorldEnvironment in game/main/Main.tscn --
-## _apply_graphics_preset() below forwards ssr_enabled/volumetric_fog_enabled
-## to its Environment resource. Null-checked rather than assumed non-null so a
-## stripped-down test fixture without this node stays a safe no-op.
+## The one WorldEnvironment in game/main/Main.tscn: _apply_graphics_preset()
+## forwards ssr_enabled/volumetric_fog_enabled to its Environment. Null-checked
+## so a stripped-down test fixture without this node stays a no-op.
 @onready var _world_environment: WorldEnvironment = $WorldEnvironment
 
 ## serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
 var _prewarm_queue: MenuPrewarmQueue = null
-## MF4: true while the queue loads behind the menu (interactive launches only;
+## True while the queue loads behind the menu (interactive launches only;
 ## headless, agent-probe and CLI-flag runs keep the synchronous on-demand loads).
 var _prewarm_background: bool = false
 ## The menu has been shown once, so _process may advance the queue (the Lobby chunk loads first).
@@ -144,30 +128,20 @@ var _sandbox_preset: SandboxConfig = null
 var _tutorial: Node = null
 var _remote_cursors: Node = null
 var _debug_overlay: Node = null
-## built once below, right where Events.match_state_changed/
-## net_mode_changed are connected -- kept alive for every menu/lobby/match
-## screen that follows (main menu, lobby, sandbox-from-menu, tutorial-from-
-## menu, a real online host/client match), the same "instantiate once, self-
-## wire through Events" contract this file's own header describes. Never
-## built for --hot-seat/the CLI-only --sandbox debug entry point above (both
-## `return` out of _ready() before reaching this): this file's own header
-## requires --hot-seat stay byte-identical to M2, and --sandbox is explicitly
-## "not player-facing" (see _start_sandbox_match()'s own doc) -- the finding this package answers was about the ordinary menu-driven
-## game, which start_sandbox_from_menu()/start_tutorial_from_menu() below
-## already cover.
-## MF5: the four overlays are created on first need (ensure), not in
-## _ready(). `_pause_menu` & co. are lazy accessors (the flows and tests read them and always
-## get an instance); the `*_node` fields are the raw slots, null until created, for the paths
-## that must NOT create one (main-menu entry, territory callbacks).
+## The four overlays (pause menu, results screen, scoreboard, loading screen) are
+## created on first need (ensure), not in _ready(). `_pause_menu` & co. are lazy
+## accessors (the flows and tests read them and always get an instance); the
+## `*_node` fields are the raw slots, null until created, for the paths that must
+## NOT create one (main-menu entry, territory callbacks). None is built for
+## --hot-seat or the CLI-only --sandbox entry point: both return out of _ready()
+## before Events.match_state_changed is connected.
 var _pause_menu_node: PauseMenu = null
 var _pause_menu: PauseMenu:
 	get:
 		return _ensure_pause_menu()
-## built once alongside _pause_menu above, for the same reason
-## (self-wired via Events, inert until it has something to show). Unlike
-## _pause_menu it needs no `suppressed` gate: it only ever appears in
-## response to Events.match_results_ready (never a raw key press), so there
-## is no toggle input to suppress during Tutorial/hot-seat/sandbox.
+## Built alongside _pause_menu and self-wired via Events. Needs no `suppressed`
+## gate: it only appears in response to Events.match_results_ready, never a raw
+## key press.
 var _results_screen_node: ResultsScreen = null
 var _results_screen: ResultsScreen:
 	get:
@@ -176,39 +150,24 @@ var _scoreboard_node: ScoreboardOverlay = null
 var _scoreboard: ScoreboardOverlay:
 	get:
 		return _ensure_scoreboard()
-## built once, right alongside _pause_menu above (same
-## "instantiate once, self-wire" contract this file's own header describes),
-## never for --hot-seat/the CLI-only --sandbox debug entry point (both return
-## out of _ready() before Events.match_state_changed is even connected below,
-## same reason _debug_overlay is skipped there too).
+## Built alongside _pause_menu; same --hot-seat/--sandbox exclusion.
 var _loading_screen_node: LoadingScreen = null
 var _loading_screen: LoadingScreen:
 	get:
 		return _ensure_loading_screen()
 var _start_pending: bool = false
-## M5 P5: one instance per bot slot in the match currently
-## built, built in _build_match_world() (or _start_headless_bot_match_with_
-## args()'s own reuse of it) and freed in _end_match_world() -- see
-## _spawn_bot_controllers()'s own doc for why this lives here rather than in
-## a P4 lobby append.
+## One instance per bot slot in the match currently built; freed in
+## _end_match_world(). See _spawn_bot_controllers().
 var _bot_controllers: Array[Node] = []
 
-## M8 P5 (spec 2.7 "Stable-block optimization"): one instance for the match
-## currently built, same build/teardown lifecycle as _bot_controllers above
-## (built in _build_match_world(), freed in _end_match_world()) -- see
-## _build_match_world()'s own single wiring-point comment. Host-gated inside
-## the manager itself (game/blocks/StableBlockManager.gd's own `Net.is_host()`
-## check), so building one on a client too costs nothing and stays inert,
-## exactly the reasoning _spawn_bot_controllers()'s own doc comment already
-## gives for BotController.
+## One instance for the match currently built, same lifecycle as _bot_controllers.
+## Host-gated inside the manager (Net.is_host()), so building one on a client costs
+## nothing and stays inert.
 var _stable_block_manager: Node = null
 
-## review finding 2: diagnostics-only cadence for the
-## `HEADLESS_BOTS` progress line printed by _on_headless_bots_report_tick()
-## below, while a `--headless-host --bots=<n>` match is running. Not a
-## gameplay tunable (CLAUDE.md's "no magic numbers" targets values that affect
-## rules or feel; this only affects how chatty a CI log is), so it stays a
-## const here rather than moving to a config/*.tres resource.
+## Diagnostics-only cadence of the `HEADLESS_BOTS` progress line printed by
+## _on_headless_bots_report_tick() during a `--headless-host --bots=<n>` match. Not
+## a gameplay tunable, so it stays a const here.
 const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
 
 ## Diagnostics-only state for the `HEADLESS_BOTS` progress line: see
@@ -248,9 +207,9 @@ func _exit_tree() -> void:
 	ExitRelease.release_if_quitting()
 
 
-## a window close once Boot has handed over is a real quit.
-## MF4, R7: while the background prewarm owns the close request, the quit
-## waits for the in-flight chunk (the message pump stays alive) and no further chunk starts.
+## A window close once Boot has handed over is a real quit. While the background
+## prewarm owns the close request, the quit waits for the in-flight chunk (the
+## message pump stays alive) and no further chunk starts.
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
 		return
@@ -336,7 +295,7 @@ func _activate_late_if_loaded() -> void:
 ## Match + MatchNet late_activate (WeatherNet child included) must exist
 ## before any session starts or a replicated packet can arrive, so every flow calls this first
 ## (idempotent). Blocks only for what the background queue has not delivered yet: the in-flight
-## request is collected (never cancelled, R7/F1), the rest loads synchronously.
+## request is collected (never cancelled), the rest loads synchronously.
 func _ensure_late_active() -> void:
 	if _late_active():
 		return
@@ -422,10 +381,8 @@ func _await_prewarmed(paths: PackedStringArray) -> bool:
 func _ready() -> void:
 	print(_boot_line())
 
-	# load any saved tuning-panel overrides onto the shared
-	# tuning singletons before anything else in the tree reads them (nothing
-	# does yet at this point -- see ui/debug/TuningPanel.gd's own doc comment on why
-	# that ordering doesn't matter either way).
+	# Load any saved tuning-panel overrides onto the shared tuning singletons before
+	# anything else in the tree reads them.
 	TuningOverrides.apply_saved()
 
 	# synchronous runs (headless, CLI flags, probes) build the autoloads' late
@@ -433,23 +390,17 @@ func _ready() -> void:
 	if not _wants_background_prewarm():
 		_ensure_late_active()
 
-	# M7 P1: connected before the hot-seat/sandbox early
-	# returns below so those offline entry points get the current graphics
-	# preset applied too, even though they skip the main menu and lobby
-	# entirely. current_graphics_preset() never returns null (Settings loads
-	# a default at its own _ready()), so the initial call always has a preset
-	# to apply.
+	# Connected before the hot-seat/sandbox early returns so those entry points get
+	# the graphics preset applied too. current_graphics_preset() never returns null.
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
 	Settings.window_mode_changed.connect(_on_window_mode_changed)
 	_apply_graphics_preset(Settings.current_graphics_preset())
 	# opt-in adaptive quality (idle unless the Options toggle is on).
 	add_child(QualityGovernorDriver.new())
 
-	# M7 P4: applies the persisted window mode (borderless
-	# fullscreen by default) over whatever project.godot's own boot-time
-	# window settings produced. Settings.apply_window_mode()'s own guards
-	# already skip headless/editor/--position runs, so this is a no-op for
-	# the test suite and off-screen probe tools.
+	# Applies the persisted window mode over project.godot's boot-time window
+	# settings; apply_window_mode() skips headless/editor/--position runs, so tests
+	# and off-screen probes are unaffected.
 	Settings.apply_window_mode()
 
 	_build_debug_tools()
@@ -465,12 +416,12 @@ func _ready() -> void:
 
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
-	# the gameplay half of mid-match admission. Net must not
-	# name Match, so MatchNet (the membrane that reads both) answers which seat
-	# a late joiner may take and whether a returning peer's slot is still its.
+	# Mid-match admission, gameplay half. Net must not name Match, so MatchNet (which
+	# reads both) answers which seat a late joiner may take and whether a returning
+	# peer's slot is still its.
 	Net.set_seat_policy(MatchNet.pick_open_seat, MatchNet.seat_reclaimable)
 
-	# MF5: the overlays are built by _ensure_overlays() (lobby entry / loading announced / first
+	# The overlays are built by _ensure_overlays() (lobby entry / loading announced / first
 	# use), never here; Events wiring that must exist before then stays below.
 	Events.match_loading_announced.connect(_on_match_loading_announced)
 	Events.territory_updated.connect(_on_loading_territory_updated)
@@ -501,12 +452,9 @@ func _ready() -> void:
 	# has already swapped the menu for the lobby by the time we get here.
 	Net.apply_command_line()
 
-	# M5 P5: a headless host has no human to click the
-	# Lobby's own Start button, so `--headless-host --bots=<n>` (n > 0) skips
-	# straight past that wait -- see _start_headless_bot_match_with_args()'s
-	# own doc. A no-op (and so byte-identical to today) for every other
-	# --headless-host command line: the function itself gates on --bots=<n>
-	# being present and > 0.
+	# A headless host has no human to click Start, so `--headless-host --bots=<n>`
+	# (n > 0) skips the lobby wait; the function gates on --bots=<n> itself, so other
+	# --headless-host command lines are unaffected.
 	if _has_cmdline_flag("headless-host"):
 		_start_headless_bot_match_with_args(OS.get_cmdline_user_args())
 	# `-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]` starts the same debug
@@ -593,11 +541,9 @@ func _on_window_mode_changed(_id: StringName) -> void:
 	_apply_frame_cap.call_deferred(Settings.current_graphics_preset())
 
 
-## M7 P1: applies every field GraphicsPreset (config/
-## GraphicsPreset.gd) currently declares. Connected to
-## Settings.graphics_preset_changed and also called once at startup above, so
-## a mid-match preset change (Options screen, not built yet) and the initial
-## boot value both reach the same place.
+## Applies every field GraphicsPreset (config/graphics/GraphicsPreset.gd) declares.
+## Connected to Settings.graphics_preset_changed and called once at startup, so a
+## mid-match preset change and the initial boot value reach the same place.
 func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 	var viewport: Viewport = get_viewport()
 	if viewport != null:
@@ -610,18 +556,10 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 		if viewport.scaling_3d_mode != mode:
 			viewport.scaling_3d_mode = mode
 
-	# DECISION: Godot 4 has no per-Viewport or per-light
-	# directional-shadow-atlas size -- RenderingServer.
-	# directional_shadow_atlas_set_size() is the only API surface (confirmed
-	# via ClassDB.class_get_method_list(&"RenderingServer"); Viewport only
-	# exposes positional_shadow_atlas_size, for OmniLight3D/SpotLight3D). It's
-	# a global, write-only call (no getter to assert against in a test), so it
-	# applies to every DirectionalLight3D in the process, which is correct
-	# here (game/main/Main.tscn has exactly one). `is_16bits = true` is the mandatory
-	# second argument, passed as the engine's own unmodified default
-	# (project.godot has no rendering/lights_and_shadows/directional_shadow/
-	# 16_bits override) -- not a preset-tunable value, so it isn't a
-	# GraphicsPreset field.
+	# DECISION: Godot 4 has no per-Viewport directional-shadow-atlas size;
+	# RenderingServer.directional_shadow_atlas_set_size() is the only API and it is
+	# global (applies to every DirectionalLight3D; Main.tscn has exactly one).
+	# `is_16bits = true` is the engine default, not a preset tunable.
 	RenderingServer.directional_shadow_atlas_set_size(preset.shadow_atlas_size, true)
 
 	# frame cap per preset (the headless server/tests keep the engine
@@ -641,10 +579,9 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
 
 
-# --- Hot-seat / sandbox / tutorial: forwarders (MF1) -------
+# --- Hot-seat / sandbox / tutorial: forwarders -------
 #
-# The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue
-# (the menu-first flow split).
+# The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue.
 
 func _start_hot_seat_match() -> void:
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
@@ -685,7 +622,7 @@ func start_tutorial_from_menu() -> void:
 
 
 ## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
-## is built lazily here (synchronous path); MF4 owns the background start and eager flags.
+## is built lazily here (synchronous path); _start_background_prewarm() owns the background start.
 func _sandbox_flow_port() -> MainSandboxFlowPort:
 	if _sandbox_flow == null:
 		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
@@ -700,7 +637,7 @@ func _apply_match_sky(config: MatchConfig) -> void:
 	_skybox.configure_match_sky(config)
 
 
-# --- Headless bot match: forwarders (MF2) ------------------
+# --- Headless bot match: forwarders ------------------
 #
 # The bodies live in game/main/MainHeadlessBotsFlow.gd, loaded on demand through the prewarm queue;
 # the headless/CLI path stays synchronous. State fields (_headless_*) stay here.
@@ -754,7 +691,7 @@ func _menu_prewarm_queue() -> MenuPrewarmQueue:
 
 # --- Menu / lobby routing -----------------------------------------------------
 
-## MF5: instantiates one overlay through the prewarm queue (blocks only for the remaining chunk
+## Instantiates one overlay through the prewarm queue (blocks only for the remaining chunk
 ## when it is still prewarming, plain load() otherwise). Each _ensure_* creates once.
 func _ensure_pause_menu() -> PauseMenu:
 	if _pause_menu_node == null:
@@ -815,12 +752,9 @@ func _show_main_menu() -> void:
 	# play_music() is idempotent: a later return to the menu keeps the running music.
 	Sfx.play_music()
 	_clear_menu_and_lobby()
-	# fix round 2 (orchestrator review): the main menu is a
-	# "no match world" screen -- force_close() handles the case where the
-	# match ended by some means other than PauseMenu's own Leave button (e.g.
-	# a host disconnect on a client, reaching this via _on_net_mode_changed()
-	# below) while the overlay happened to be open; `suppressed = true` then
-	# keeps pause_menu inert here, same as start_tutorial_from_menu()'s own.
+	# The main menu is a "no match world" screen: force_close() covers a match that ended
+	# by another route (e.g. a host disconnect on a client, via _on_net_mode_changed())
+	# while the overlay was open; `suppressed` keeps it inert here.
 	if _pause_menu_node != null:
 		_pause_menu_node.force_close()
 		_pause_menu_node.suppressed = true
@@ -835,9 +769,8 @@ func _show_main_menu() -> void:
 
 
 ## DECISION: Play local → Vs bots starts from the normal lobby with one human
-## and no bot preloaded (ai_count 0, one open seat). The user asked for no
-## default bot (playtest). The lobby remains editable before Start,
-## while LAN discovery stays off for this local entry point.
+## and no bot preloaded (ai_count 0, one open seat). The lobby remains editable
+## before Start, while LAN discovery stays off for this local entry point.
 func start_bots_from_menu(player_name: String) -> void:
 	if not await _await_prewarmed(PackedStringArray()):
 		return
@@ -874,8 +807,7 @@ func _show_lobby() -> void:
 	# Menu and lobby share a playlist; navigation must not restart the song.
 	Sfx.set_music_context(&"menu")
 	_clear_menu_and_lobby()
-	# fix round 2: see _show_main_menu()'s own comment just
-	# above -- the lobby is equally a "no match world" screen.
+	# Like _show_main_menu(): the lobby is equally a "no match world" screen.
 	_ensure_overlays()
 	_pause_menu_node.force_close()
 	_pause_menu_node.suppressed = true
@@ -883,13 +815,10 @@ func _show_lobby() -> void:
 	add_child(_lobby)
 	_lobby.connect(&"start_requested", _on_lobby_start_pressed)
 	_lobby.connect(&"back_requested", _on_lobby_back_requested)
-	# Must happen only once Net.is_host()/is_client() reflects the real mode
-	# (register_world() reads it immediately, to set BlockRegistry's host
-	# authority), which is exactly what firing here, after net_mode_changed,
-	# guarantees -- and must happen before start_match(), on every instance:
-	# the host calls that directly from the lobby, but a client's copy runs
-	# the moment net/MatchNet.gd's net_match_start RPC arrives, with no chance
-	# for Main to get in ahead of it any other way.
+	# Must run once Net.is_host()/is_client() reflects the real mode (register_world()
+	# reads it to set BlockRegistry's host authority) and before start_match() on every
+	# instance: a client's start_match() runs the moment MatchNet's net_match_start RPC
+	# arrives, so Main cannot get in ahead of it any other way.
 	Match.register_world(_field, _registry, _blocks_container)
 
 
@@ -910,16 +839,12 @@ func _on_net_mode_changed(mode: int) -> void:
 		_end_match_world()
 		_watch_bots_active = false
 		# DECISION (game/main/Main.gd): Net.leave() does not know about Match, so
-		# the match is aborted here, where the session's end is routed.
-		# Without it Match stayed PLAYING/END on the main menu -- still
-		# ticking feed timers and the territory solve against a world that
-		# no longer exists -- and the next host/join's start_match() came
-		# from that stale state . abort_match() emits
-		# (old -> LOBBY), which _on_match_state_changed() below answers with
-		# the same _end_match_world() (idempotent, so the order of these two
-		# lines does not matter); it is skipped when Match is already in the
-		# lobby so a client whose host quit before starting sees no
-		# LOBBY -> LOBBY emit.
+		# the match is aborted here, where the session's end is routed. Otherwise
+		# Match stays PLAYING/END on the main menu, still ticking feed timers and
+		# the territory solve, and the next start_match() starts from that stale
+		# state. abort_match() emits (old -> LOBBY), which _on_match_state_changed()
+		# answers with the same idempotent _end_match_world(); it is skipped when
+		# Match is already in the lobby so no LOBBY -> LOBBY emit happens.
 		if Match.state() != Match.State.LOBBY:
 			Match.abort_match()
 		_show_main_menu()
@@ -958,27 +883,26 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 	Match.start_match(config)
 
 
-## Client side of the above: raise the overlay as soon as the host announces.
-## rarely used scenes are loaded on first use instead of
-## preloaded at parse time. No member keeps the PackedScene: the resource cache
-## holds it while an instance is alive and releases it afterwards.
+## Rarely used scenes load on first use instead of at parse time. No member keeps
+## the PackedScene: the resource cache holds it while an instance is alive and
+## releases it afterwards.
 func _load_scene(path: String) -> PackedScene:
 	if _prewarm_background and _menu_prewarm_queue().config.all_paths().has(path):
 		return _prewarm_queue.ensure(path) as PackedScene  # never load() beside an in-flight chunk
 	return load(path) as PackedScene
 
 
-## threaded prefetch of the match-start scene set so the
-## world build's _load_scene() calls do not hitch (called while the lobby /
-## loading screen is up).
+## Threaded prefetch of the match-start scene set so the world build's
+## _load_scene() calls do not hitch (called while the lobby / loading screen is up).
 func _prefetch_match_scenes() -> void:
 	if _prewarm_background:
-		return  # the serial queue owns these (a second threaded request could hang, plan F1)
+		return  # the serial queue owns these (a second threaded request could hang)
 	for path: String in [HOT_SEAT_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 			ResourceLoader.load_threaded_request(path)
 
 
+## Client side of _on_lobby_start_pressed(): raise the overlay as soon as the host announces.
 func _on_match_loading_announced() -> void:
 	if Match.state() != Match.State.LOBBY:
 		return
@@ -1007,67 +931,42 @@ func _on_loading_readiness_timed_out() -> void:
 		Net.leave()
 
 
-## ui/lobby/Lobby.gd's %BackButton (redo #3, review finding #1):
-## _show_lobby() above is only ever entered from _on_net_mode_changed() once
-## Net is already HOST or CLIENT, so this needs no host/client branch --
-## Net.leave()'s own contract ("the host disconnects everyone ... first",
-## autoload/Net.gd) stops LAN/Steam advertising and drops peers for a host,
-## or simply disconnects for a client, either way emitting
-## Events.net_mode_changed(OFFLINE). _on_net_mode_changed() answers that the
-## same way it answers a mid-match disconnect: _end_match_world(), an
-## abort_match() skipped here too (Match is still LOBBY, the match never
-## started), then _show_main_menu() -- the exact online-branch behaviour
-## _on_pause_leave_requested() below already relies on for the pause menu's
-## own Leave button.
+## ui/lobby/Lobby.gd's %BackButton. _show_lobby() is only entered once Net is HOST
+## or CLIENT, so no host/client branch is needed: Net.leave() stops advertising and
+## drops peers for a host, or disconnects for a client, emitting
+## Events.net_mode_changed(OFFLINE). _on_net_mode_changed() then answers as for a
+## mid-match disconnect (_end_match_world(), no abort_match() since Match is still
+## LOBBY, then _show_main_menu()).
 func _on_lobby_back_requested() -> void:
 	Net.leave()
 
 
 ## ui/menus/PauseMenu.gd's own leave_match_requested (Leave match, confirmed).
 ## DECISION (game/main/Main.gd, minor ambiguity): the online/offline split lives
-## here, not in ui/menus/PauseMenu.gd (which never touches Net/Match -- see its own
-## doc comment on this signal), because this file already owns exactly this
-## split for the symmetric case, Net dropping to OFFLINE
-## (_on_net_mode_changed() above): online (host or client alike --
-## autoload/Net.gd's own leave() doc: "Safe to call... The host disconnects
-## everyone... first"), Net.leave() already tears the match world down and
-## shows the main menu through that same handler; offline (sandbox), there is
-## no Net transition to react to, so this aborts the match directly
-## (idempotent from LOBBY, matching _on_net_mode_changed()'s own guard) and
-## shows the menu itself. _sandbox is freed explicitly because it is this
-## package's own node, outside _end_match_world()'s ownership (see its own var
-## doc comment above). A tutorial session never reaches this handler:
-## ui/menus/PauseMenu.gd is suppressed for its whole duration (start_tutorial_from_
-## menu()/_on_tutorial_finished() above) -- Tutorial keeps its own existing
-## ui_cancel -> _end_tutorial() quit gesture unmodified.
+## here, not in ui/menus/PauseMenu.gd (which never touches Net/Match), because this
+## file already owns the symmetric case, Net dropping to OFFLINE
+## (_on_net_mode_changed() above). Online (host or client), Net.leave() tears the
+## match world down and shows the main menu through that handler. Offline (sandbox)
+## there is no Net transition, so this aborts the match directly (idempotent from
+## LOBBY) and shows the menu itself. _sandbox is freed here because it is outside
+## _end_match_world()'s ownership. A tutorial session never reaches this handler:
+## PauseMenu is suppressed for its whole duration.
 ##
-## DECISION (game/main/Main.gd round 3): _sandbox is freed and
-## nulled *before* Match.abort_match() below, not after. _on_match_state_
-## changed()'s own round 2 fix diverts every (-> LOBBY)
-## reaction away from _end_match_world() while _sandbox is still a live
-## instance (see that handler's own DECISION) -- freeing it first here means
-## abort_match()'s (old -> LOBBY) emit instead takes the ordinary
-## _end_match_world() path, which is the only place that clears _world_built
-## back to false. The previous order (abort_match() first, free second) left
-## _world_built stuck true for the rest of this Main instance's life: the
-## *next* ordinary (non-sandbox) match's _build_match_world() call then hit
-## its own `if _world_built: return` guard and silently built nothing at all
-## (no HotSeat, RemoteCursors, bot controllers or debug overlay) -- not a
-## duplicate build, since Main never built any of those for a sandbox match
-## to begin with (_on_match_state_changed()'s own doc). _field.clear_match_
-## state() still runs exactly once, now via _end_match_world() itself instead
-## of the diverted branch's own direct call, so a reset's visible field-clear
-## behavior is unchanged. The online path above needs no matching fix: Net.
-## leave() reaches _end_match_world() through _on_net_mode_changed() (a
-## different handler, never diverted by _sandbox -- sandbox matches are
-## always offline, so _sandbox is never live while Net.mode() != OFFLINE).
-## tests/unit/main/test_sandbox.gd covers this with a regression test.
+## DECISION (game/main/Main.gd): _sandbox is freed and nulled *before*
+## Match.abort_match(), not after. While _sandbox is live, _on_match_state_changed()
+## diverts every (-> LOBBY) reaction away from _end_match_world(); freeing it first
+## lets abort_match()'s emit take the ordinary _end_match_world() path, the only
+## place that clears _world_built. The reverse order left _world_built stuck true,
+## so the next ordinary match's _build_match_world() hit its `if _world_built:
+## return` guard and built nothing. The online path needs no such fix: sandbox
+## matches are always offline, so _sandbox is never live while Net is online.
+## tests/unit/main/test_sandbox.gd covers it.
 func _on_pause_leave_requested() -> void:
 	if Net.mode() != Net.Mode.OFFLINE:
 		Net.leave()
 		return
 	if _sandbox != null and is_instance_valid(_sandbox):
-		# (G8). ROOT CAUSE: queue_free() only frees at the end of the
+		# ROOT CAUSE: queue_free() only frees at the end of the
 		# frame, so the sandbox's PlayerController still ran _process once more after
 		# the abort below had reset the camera (-> _end_match_world() ->
 		# _reset_match_scope() -> CameraRig.reset_view()) and wrote its follow position
@@ -1084,9 +983,8 @@ func _on_pause_leave_requested() -> void:
 	_show_main_menu()
 
 
-## "return to lobby option from pause
-## menu": what ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here
-## because only Main may name Net and Match for it (the menu's own header).
+## What ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here because
+## only Main may name Net and Match for it (the menu's own header).
 ## HOST: enabled -- every hosted session has a lobby to go back to, a local
 ## "Vs bots" game included (Net.host_game() without advertising). CLIENT: shown
 ## disabled (DECISION: only the host can end a match for everyone; a client's
@@ -1137,13 +1035,10 @@ func _on_pause_return_to_lobby_requested() -> void:
 
 # --- Building the match world (host and client alike) ------------------------
 
-## MatchLifecycle._build_slots() (autoload/match/
-## MatchLifecycle.gd's start_match()) already ran before the LOBBY -> LOADING
-## emit this feeds, so every slot's display_name/is_bot is already final for
-## the match that is about to build -- collected into a plain array so
-## ui/menus/LoadingScreen.gd never has to reach for the Match singleton itself
-## (same dependency-injection shape as ui/hud/HUD.gd's match_provider seam, for
-## the same reason: a bare array of PlayerSlot.new(...) is trivial to test).
+## Collected into a plain array so ui/menus/LoadingScreen.gd never reaches for the
+## Match singleton (same injection shape as ui/hud/HUD.gd's match_provider seam).
+## Every slot's display_name/is_bot is already final: MatchLifecycle's slot build
+## ran before the LOBBY -> LOADING emit this feeds.
 func _loading_screen_slots() -> Array[PlayerSlot]:
 	var slots: Array[PlayerSlot] = []
 	for i: int in range(Match.slot_count()):
@@ -1153,9 +1048,9 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 	return slots
 
 
-# --- Match world: forwarders (MF3) --------------------------
+# --- Match world: forwarders --------------------------
 #
-# The bodies live in game/main/MainMatchFlow.gd. R4: `_on_match_state_changed` is connected in _ready()
+# The bodies live in game/main/MainMatchFlow.gd. `_on_match_state_changed` is connected in _ready()
 # and also fires from a client's net_match_start RPC with no other Main involvement, so every
 # forwarder resolves the flow through `_match_flow_port()` (ensure_script first, bound once)
 # before the first LOBBY -> LOADING reaction. The coroutine bodies are awaited so a test or caller
@@ -1165,7 +1060,7 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 ## the match-world rules (state routing, world build/teardown, loading hand-off).
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
-		_ensure_overlays()  # MF5: sandbox/bots/test entries never pass the lobby
+		_ensure_overlays()  # sandbox/bots/test entries never pass the lobby
 	var match_flow: MainMatchFlowPort = _match_flow_port()
 	match_flow.on_match_state_changed(from_state, to_state)
 
@@ -1237,7 +1132,7 @@ func _has_cmdline_flag(flag: String) -> bool:
 	return false
 
 
-## One-line report of the settings M0 is required to get right (spec 2.1, 2.7).
+## One-line report of the settings the project must get right (spec 2.1, 2.7).
 func _boot_line() -> String:
 	var version: String = str(Engine.get_version_info().get("string", "unknown"))
 	var physics_engine: String = str(ProjectSettings.get_setting("physics/3d/physics_engine", "?"))

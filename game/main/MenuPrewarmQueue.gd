@@ -1,6 +1,6 @@
 class_name MenuPrewarmQueue
 extends RefCounted
-## MF0: the single serial background loader behind the main menu
+## The single serial background loader behind the main menu.
 ## At most one threaded request is ever in flight (overlapping
 ## threaded loads of scripts with shared closures can hang), and every on-demand load goes through
 ## ensure() so a main-thread load never stalls behind a different chunk (F2). Never reuse Boot's
@@ -131,7 +131,7 @@ func _advance() -> void:
 		var path: String = _queue[0]
 		_queue.remove_at(0)
 		if _loaded.has(path) or not exists_callable.call(path):
-			continue  # already loaded, or not created yet (later package): skip
+			continue  # already loaded, or the file does not exist: skip
 		if request_callable.call(path) == OK:
 			_in_flight = path
 		# else: could not queue; ensure() falls back to a synchronous load.

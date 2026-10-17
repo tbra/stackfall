@@ -4,88 +4,60 @@ extends Node3D
 ## Input Map actions bootstrap_project.gd defines. CLAUDE.md: no raw keycodes
 ## and no deep node paths — this rig only ever reaches its own Camera3D child.
 ##
-## original-style block-locked camera, spec 1.5: the original's camera is
-## attached to the held block, so by default (CameraTuning.follow_block) this
-## rig's pivot (_target) tracks whatever position PlayerController reports
-## through set_follow_position() every frame, smoothed by
-## tuning.follow_lag_seconds, instead of sitting still until panned. Orbit
-## (camera_mode + mouse, or the gamepad's right stick, unconditionally) and
-## zoom still work the same as before; pan and the snap-to-home/goal actions
-## are no-ops in follow mode, since there is no free target to move -- see
-## the DECISION comments below. Setting follow_block = false on the
-## CameraTuning resource restores the exact pre-free-orbit behaviour
-## (manual pan, snap-to actions), so a test can still pin it deliberately.
+## Original-style block-locked camera, spec 1.5: by default
+## (CameraTuning.follow_block) this rig's pivot (_target) tracks whatever position
+## PlayerController reports through set_follow_position() every frame, smoothed by
+## tuning.follow_lag_seconds. Orbit (camera_mode + mouse, or the gamepad's right
+## stick, unconditionally) and zoom work in both modes; pan and the snap-to-home/goal
+## actions are no-ops in follow mode, since there is no free target to move -- see
+## the DECISION comments below. follow_block = false gives the free camera (manual
+## pan, snap-to actions).
 ##
-## "the mmb rotation issue persists, can the camera
-## just be locked in place while mmb is pressed?" -- feedback/rotation-issue.png:
-## made the follow target track the held ghost's rotated geometric
-## centre instead of its node origin, but any shape whose mass isn't
-## symmetric about its own rotation axis still slides that centre while
-## rotate_drag (MMB) spins it, so the camera still visibly moved. This rig
-## now freezes completely -- target, yaw, pitch and distance -- for as long
-## as rotate_drag is held (see _rotate_drag_frozen()), and resumes following
-## on release through the same follow_lag lerp/snap _process() already runs
-## every other frame.
+## While rotate_drag (MMB) is held the rig freezes completely -- target, yaw, pitch
+## and distance (see _rotate_drag_frozen()) -- because the held ghost's geometric
+## centre slides under MMB rotation for shapes whose mass is not symmetric about the
+## rotation axis, and the camera would visibly move. It resumes following on release
+## through the same follow_lag lerp/snap _process() runs every other frame.
 
 @export var tuning: CameraTuning = preload("res://config/player/camera_tuning.tres")
 @export var map_def: MapDef = preload("res://config/match/maps/round.tres")
 
-## M7 P4, spec 1.10 "camera shake": tunables for the decaying
+## Spec 1.10 "camera shake": tunables for the decaying
 ## offset _update_transform() adds on top of the normal orbit position
 ## whenever Events.block_impacted fires hard enough. See shake_offset().
 @export var shake_config: CameraShakeConfig = preload("res://config/physics/camera_shake.tres")
 ## which specials trigger a shake (disc-shaking/toppling only).
 @export var disc_shake: DiscShakeConfig = preload("res://config/physics/disc_shake.tres")
 
-## .20b (F4 tuning panel live-apply): every CameraRig adds itself
+## F4 tuning panel live-apply: every CameraRig adds itself
 ## to this group in _ready(), the same idea as game/blocks/Block.gd's TUNING_GROUP,
 ## so ui/debug/TuningPanel.gd can push a live camera_tuning edit onto whichever rig
 ## is actually in the tree (get_tree().get_nodes_in_group(TUNING_GROUP))
 ## without needing its own set_camera_rig() wiring to have run first.
 const TUNING_GROUP: StringName = &"tuning_camera"
 
-## (owner test "the ghost block is a bit jittery
-## when I'm moving around and especially when scrolling and it moves up and
-## down"). ROOT CAUSE: this rig is a static child of game/main/Main.tscn (created
-## before HotSeat/Sandbox, whose PlayerController is add_child()'d afterward
-## at runtime), and Godot calls _process() in ascending process_priority order
-## with tree position only as the tie-break for equal priority (both default
-## to 0 here) -- so this rig's _process() ran BEFORE PlayerController's every
-## single frame, in every mode (hot-seat, sandbox, networked host and client;
-## same HotSeat.tscn/Main.gd structure in each). set_follow_position() below
-## is only ever called from PlayerController._process(), after it has already
-## moved the ghost for this frame -- so this rig's own _process() was reading
-## last frame's ghost position, one whole render frame stale, then never
-## catching up until the *next* frame reads the value PlayerController is
-## about to write this one. Under constant mouse motion at a variable
-## renderer frame rate that stale gap itself varies frame to frame, which
-## reads as jitter rather than a fixed lag; it is worst on the wheel
-## (_step_hover's one-shot manual_hover_offset jump lands on the ghost
-## immediately but the camera doesn't see it for a full frame), matching
-## "especially when scrolling and it moves up and down" exactly.
-## DECISION (game/player/CameraRig.gd): not a gameplay tunable (CLAUDE.md's
-## Resource/no-magic-numbers rule is about tunables a designer retunes; this
-## is a fixed processing-order fact, the same category as e.g. GhostPreview's
-## _CORNER_SIGNS table), so it stays a local const rather than moving into
-## CameraTuning. Any positive value works -- it only needs to be greater than
-## every other default-priority (0) node's, chiefly PlayerController's -- so
-## this rig's _target always reflects the *same* frame's ghost position,
-## regardless of where either node sits in the tree.
+## Process order: this rig is a static child of game/main/Main.tscn, created before
+## the PlayerController that HotSeat/Sandbox add at runtime, and _process() runs in
+## ascending process_priority order with tree position only breaking ties. Both
+## defaulted to 0, so this rig's _process() ran before PlayerController's every
+## frame and read last frame's ghost position (set_follow_position() is only called
+## from PlayerController._process()), which shows as jitter under mouse motion and
+## on the height wheel.
+## DECISION (game/player/CameraRig.gd): not a gameplay tunable (a fixed
+## processing-order fact, like GhostPreview's _CORNER_SIGNS table), so it stays a
+## local const rather than a CameraTuning field. Any positive value works: it only
+## needs to exceed every default-priority (0) node's, chiefly PlayerController's.
 const _PROCESS_PRIORITY_AFTER_GHOST: int = 1
 
-## how close (meters) _target must get to _follow_position
-## before begin_follow_transition()'s easing is considered finished (see
-## _process()'s own use of this below). Not a gameplay tunable in the
-## CameraTuning sense -- CLAUDE.md's Resource/no-magic-numbers rule is about
-## values a designer would retune for feel; this is only "close enough to be
-## imperceptible", the same category as this file's own shake_offset()
-## epsilon (0.0001) and _current_shake_amplitude()'s, just sized in meters
-## rather than a unit amplitude fraction.
+## How close (meters) _target must get to _follow_position before
+## begin_follow_transition()'s easing is considered finished. Not a gameplay
+## tunable: it is only "close enough to be imperceptible", the same category as
+## the shake epsilon (0.0001), sized in meters.
 const _DROP_RECOVER_CONVERGED_M: float = 0.001
 
-## game/sandbox/Sandbox.gd's own
-## sandbox_next_slot hotkey is gamepad Back, which camera_snap_home also binds.
-## DECISION (game/player/CameraRig.gd, orchestrator review): game/sandbox/Sandbox.gd sets this
+## Sandbox's own sandbox_next_slot hotkey is gamepad Back, which camera_snap_home
+## also binds.
+## DECISION (game/player/CameraRig.gd): game/sandbox/Sandbox.gd sets this
 ## true so a *gamepad* Back press there stays next-slot only; keyboard 1/2 and
 ## gamepad X (focus goal) keep working in the sandbox, where the owner tests
 ## most. Sandbox's Back+X comparison chord is already excluded by
@@ -107,13 +79,11 @@ var _target: Vector3 = Vector3.ZERO
 ## every frame. Only read when tuning.follow_block.
 var _follow_position: Vector3 = Vector3.ZERO
 
-## Camera-jump regression ("Camera always jumps up after block drops or
-## when clicking the drop button"): true for as long as _process() is easing
-## _target into _follow_position over tuning.drop_recover_seconds instead of
-## hard-snapping to it -- see begin_follow_transition()'s own doc comment for
-## why, and _process()'s follow_block branch for how it clears itself once
-## _target has actually caught up (rather than on a fixed timer, so it never
-## flips back to hard-snap mode with a residual gap still showing).
+## True while _process() eases _target into _follow_position over
+## tuning.drop_recover_seconds instead of hard-snapping to it (see
+## begin_follow_transition()). Clears itself once _target has caught up rather than
+## on a fixed timer, so it never flips back to hard-snap mode with a residual gap
+## still showing.
 var _drop_recovering: bool = false
 
 ## camera shake: the amplitude (meters) of the shake impulse
@@ -158,7 +128,7 @@ var _focus_hold_elapsed_s: float = 0.0
 ## True for exactly as long as PEEK is actively holding the camera on
 ## _focus_target_point (past tuning.focus_hold_threshold_s, still held).
 ## game/player/PlayerController.gd reads this through is_peeking() to suppress
-## ghost-cursor movement and placement while it's true ("the ghost/cursor never moves during peek").
+## ghost-cursor movement and placement while it's true.
 var _peek_active: bool = false
 ## True while _process() is gliding _target/_distance/_pitch back to the
 ## normal follow framing after a PEEK release, until it converges (the same
@@ -204,18 +174,12 @@ func _ready() -> void:
 	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
-	# owner log: "Interpolated Camera3D triggered from outside
-	# physics process" -- the same warning the removed DiscMirror's own class doc
-	# already root-caused and fixed for its mirror camera, : this rig's
-	# own global_position (_update_transform() below sets it every frame via
-	# `global_position = _target`) and its Camera3D child's position/rotation
-	# (_camera.look_at()) are both fully re-derived every rendered _process()
-	# frame from mouse/gamepad input, never from _physics_process -- so with
-	# project.godot's physics/common/physics_interpolation on, the
-	# RenderingServer's physics-tick smoothing only ever adds lag on top of a
-	# pose that is already correct for this frame, and logs this same warning
-	# for both nodes. OFF makes both always show their latest logical
-	# transform with no server-side smoothing between physics ticks.
+	# This rig's global_position and its Camera3D child's transform are fully
+	# re-derived every rendered _process() frame from mouse/gamepad input, never from
+	# _physics_process, so with physics/common/physics_interpolation on the
+	# RenderingServer's smoothing only adds lag and logs "Interpolated Camera3D
+	# triggered from outside physics process". OFF makes both show their latest
+	# logical transform.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_camera.fov = effective_fov_deg()
@@ -244,11 +208,10 @@ func _apply_default_view() -> void:
 		_update_transform()
 
 
-## ("I can still move the camera with
-## the joystick while the round end screen shows"). True while the pause menu or
-## the results screen is open: orbit, pan, zoom and snap input are all ignored.
-## Driven only by the Events bus (pause_menu_*, match_results_ready; cleared by
-## match_scope_reset and reset_view()), so no UI node is referenced.
+## True while the pause menu, the results screen or the chat input is open: orbit,
+## pan, zoom and snap input are all ignored. Driven only by the Events bus
+## (pause_menu_*, chat_input_*, match_results_ready; cleared by match_scope_reset and
+## reset_view()), so no UI node is referenced.
 func is_input_blocked() -> bool:
 	return _pause_open or _results_open or _chat_open
 
@@ -283,21 +246,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_input_blocked():
 		return
 	if _rotate_drag_frozen():
-		# freeze consumes every camera input this rig would
-		# otherwise react to (orbit motion, pan motion, zoom keys, snap
-		# actions) while rotate_drag is held -- see this method's own
-		# doc comment on _rotate_drag_frozen() for why. PlayerController has
-		# its own separate _unhandled_input() and still receives this same
-		# event undisturbed (Godot dispatches _unhandled_input to every
-		# listening node, not just the first), so the ghost keeps rotating.
+		# The freeze consumes every camera input (orbit, pan, zoom keys, snap actions)
+		# while rotate_drag is held; see _rotate_drag_frozen(). PlayerController has
+		# its own _unhandled_input() and still receives this event (Godot dispatches
+		# it to every listening node), so the ghost keeps rotating.
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
 		if Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
-			# (spec 1.3 "Camera orbit (hold + drag)" [ORIGINAL,
-			# owner test]): camera_orbit (RMB) is now the primary
-			# hold; camera_mode (C) stays wired as the keyboard alias for the
-			# exact same gesture.
+			# camera_orbit (RMB) is the primary hold (spec 1.3 "Camera orbit (hold +
+			# drag)"); camera_mode (C) stays wired as the keyboard alias for the same
+			# gesture.
 			_yaw -= motion.relative.x * tuning.mouse_orbit_speed
 			_pitch -= motion.relative.y * tuning.mouse_orbit_speed
 			_clamp_pitch()
@@ -311,26 +270,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_transform()
 		return
 
-	# Owner controller update (re-confirmed
-	# ): camera_zoom_in/out are keyboard-only now (Z/X) -- the
-	# gamepad triggers no longer fire them at all (tools/bootstrap_project.gd),
-	# so both always zoom regardless of block_held; the old "trigger zoom only
-	# while free" scoping is moot now that no trigger binds these actions.
-	# The gamepad's own zoom gesture (LT + left stick, continuous) is
-	# PlayerController._drive_gamepad_zoom() -> zoom_continuous() below, driven
-	# every frame rather than through this event handler.
-	# the wheel used to double as zoom too; it is now block
-	# height only (ghost_tuning's hover_raise/hover_lower), so it is out of
-	# this action entirely (see tools/bootstrap_project.gd).
+	# camera_zoom_in/out are keyboard-only (Z/X; tools/bootstrap_project.gd), so both
+	# always zoom regardless of block_held. The gamepad's zoom gesture (LT + left
+	# stick, continuous) is PlayerController._drive_gamepad_zoom() ->
+	# zoom_continuous(), driven every frame rather than through this handler. The
+	# wheel is block height only (ghost_tuning's hover_raise/hover_lower), so it is
+	# not bound to this action.
 	if event.is_action_pressed(&"camera_zoom_in"):
 		_zoom(-1.0)
 	elif event.is_action_pressed(&"camera_zoom_out"):
 		_zoom(1.0)
 	# snap is off while tuning.snap_enabled is false.
 	elif tuning.snap_enabled and event.is_action_pressed(&"camera_snap_home"):
-		# camera_snap_goal no longer shares B with rotate_snap
-		# (tools/bootstrap_project.gd), so camera_snap_home's own press/release
-		# needs no block_held gate either -- see _on_focus_pressed()'s own
+		# camera_snap_home's own press/release needs no block_held gate either -- see
+		# _on_focus_pressed()'s own
 		# DECISION for the one gate that IS still needed (goal's shared X).
 		if not (suppress_pad_home_focus and event is InputEventJoypadButton):
 			_on_focus_pressed(&"camera_snap_home")
@@ -350,28 +303,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	if _rotate_drag_frozen():
-		# "the mmb rotation issue persists, can the
-		# camera just be locked in place while mmb is pressed?": returning
-		# here before touching _target/_yaw/_pitch/_distance or calling
-		# _update_transform() leaves global_transform bit-for-bit whatever it
-		# was last frame, regardless of what PlayerController's own
-		# set_follow_position() reports this frame (the ghost's rotated
-		# centre moves during a drag whenever the held shape isn't symmetric
-		# about its rotation axis -- alone did not stop that) or what
-		# the height wheel/gamepad stick/right-stick orbit did. Releasing
-		# rotate_drag needs no special "resume" code: the very next
-		# non-frozen _process() lerps _target toward whatever
-		# _follow_position has meanwhile become, at the normal
-		# follow_lag_seconds rate (an instant snap when that tuning is 0, the
-		# shipped default) -- exactly the same path every other frame already
-		# takes.
+		# Returning here before touching _target/_yaw/_pitch/_distance or calling
+		# _update_transform() leaves global_transform bit-for-bit as last frame,
+		# whatever PlayerController's set_follow_position() reports (the ghost's
+		# rotated centre moves during a drag for asymmetric shapes) or what the
+		# height wheel/gamepad stick did. Releasing rotate_drag needs no resume code:
+		# the next non-frozen _process() lerps _target toward _follow_position at the
+		# normal follow_lag_seconds rate (an instant snap at the shipped default of 0).
 		return
 	# The gamepad's right stick always free-orbits (spec 1.3's camera row has
 	# no gamepad hold requirement; see test_project_setup.gd's DEVICE_EXCEPTIONS
-	# for camera_mode). removed the previous rotate_free_hold
-	# conflict here: that action is now rotation_mode, which reuses the *left*
-	# stick (PlayerController._accumulate_rotation_drag), so the right stick no
-	# longer has a second job to gate against.
+	# for camera_mode). The left stick belongs to rotation_mode
+	# (PlayerController._accumulate_rotation_drag), so the right stick has no
+	# second job to gate against.
 	var look_x: float = 0.0
 	var look_y: float = 0.0
 	if not is_input_blocked():
@@ -383,23 +327,19 @@ func _process(delta: float) -> void:
 		_clamp_pitch()
 
 	if tuning.follow_block:
-		# spec 1.5, "the camera is attached to the held
-		# block": smoothly close the distance to wherever PlayerController
-		# last reported the ghost, rather than a hard snap -- an exponential
-		# approach so a sudden large motion (e.g. a mode switch) doesn't jerk
-		# the camera. follow_lag_seconds == 0 degrades to an exact snap.
-		# while _drop_recovering (see begin_follow_transition()),
-		# use tuning.drop_recover_seconds as the approach's time constant
-		# instead of follow_lag_seconds, even when the latter is 0 -- the one
-		# discontinuous re-target this eases into must not hard-snap just
-		# because ordinary movement is tuned to.
-		# PEEK and its own return glide own _target/_distance/
-		# _pitch outright while either is active -- the ordinary follow lerp
-		# below (and _drop_recovering, a discontinuous re-target of the same
-		# kind PEEK's own return glide already handles) must not fight them
-		# for the same three fields. _update_focus_hold() only ever starts a
-		# PEEK while tuning.follow_block, so this branch is the only place
-		# that needs to know about it.
+		# spec 1.5, "the camera is attached to the held block": smoothly close the
+		# distance to wherever PlayerController last reported the ghost, an
+		# exponential approach so a sudden large motion (e.g. a mode switch) does not
+		# jerk the camera. follow_lag_seconds == 0 degrades to an exact snap.
+		# While _drop_recovering (see begin_follow_transition()),
+		# tuning.drop_recover_seconds is the time constant instead, even when
+		# follow_lag_seconds is 0: the one discontinuous re-target this eases into
+		# must not hard-snap just because ordinary movement is tuned to.
+		# PEEK and its return glide own _target/_distance/_pitch outright while either
+		# is active, so the ordinary follow lerp below (and _drop_recovering) must not
+		# fight them for those fields. _update_focus_hold() only starts a PEEK while
+		# tuning.follow_block, so this branch is the only place that needs to know
+		# about it.
 		_update_focus_hold(delta)
 		if _peek_active:
 			_approach_focus(_focus_target_point, tuning.focus_peek_distance, tuning.focus_peek_pitch_deg, tuning.focus_peek_transition_s, delta)
@@ -414,10 +354,6 @@ func _process(delta: float) -> void:
 				weight = 1.0 - exp(-delta / lag_seconds)
 			_target = _target.lerp(_follow_position, clampf(weight, 0.0, 1.0))
 			if _drop_recovering and _target.distance_to(_follow_position) <= _DROP_RECOVER_CONVERGED_M:
-				# clears itself the moment _target has actually
-				# caught up, rather than on a fixed timer -- so flipping back to
-				# hard-snap mode (follow_lag_seconds, usually 0) never leaves a
-				# visible residual gap to snap across.
 				_drop_recovering = false
 	else:
 		# DECISION (game/player/CameraRig.gd): camera_pan_* shares its gamepad axis
@@ -463,44 +399,25 @@ func set_spectator_pose(pivot: Vector3, distance: float, pitch_deg: float) -> vo
 	_update_transform()
 
 
-## Camera-jump regression ("Camera always jumps up after block drops or
-## when clicking the drop button"). ROOT CAUSE: this rig's follow-block mode
-## hard-snaps _target to whatever set_follow_position() reports every frame
-## whenever tuning.follow_lag_seconds is 0 (the shipped default since ,
-## "matches the original's feel best" for ordinary, small, continuous
-## per-frame ghost motion). game/player/PlayerController.gd's own
-## _apply_spawn_clearance() (/) raises the newly issued
-## ghost's manual_hover_offset -- and so its followed rotated_center_world()
-## height -- in one single frame, the instant the next piece would otherwise
-## spawn inside the block just placed: the ordinary case of building on your
-## own stack. That is a genuinely discontinuous re-target, not the ghost
-## sliding under the cursor, but this rig's _process() had no way to tell the
-## two apart -- both are just "a new set_follow_position() value" -- so it
-## hard-snapped to that new height exactly like any other frame, which is the
-## reported jump.
-##
-## game/player/PlayerController.gd calls this once, at the exact call site that
-## produces that discontinuous re-target (_apply_spawn_clearance(), right
-## where it raises manual_hover_offset), so this rig eases its next several
-## set_follow_position() updates toward the ghost over tuning.
-## drop_recover_seconds instead of snapping (_process()'s own follow_block
-## branch) -- without touching follow_lag_seconds or softening the
-## always-continuous cursor-driven motion the owner already tuned to feel
-## instant.
+## Eases the next several set_follow_position() updates toward the ghost over
+## tuning.drop_recover_seconds instead of snapping. With follow_lag_seconds at its
+## shipped 0 this rig hard-snaps _target to the reported position every frame, which
+## suits small continuous ghost motion but not the one discontinuous re-target
+## PlayerController._apply_spawn_clearance() produces when it raises the new ghost's
+## manual_hover_offset in a single frame (building on your own stack): snapping
+## there is a visible camera jump. PlayerController calls this at exactly that call
+## site, so follow_lag_seconds and the continuous cursor-driven motion are
+## untouched.
 func begin_follow_transition() -> void:
 	_drop_recovering = true
 
 
-## item 4 (owner feel report: match start should look from the
-## player's home flag toward the disk centre, not the generic yaw = 0
-## default): called once by PlayerController.set_home_position() when a
-## controller binds to a real slot. Points this rig's yaw so its offset (see
-## _update_transform()) sits on the `home_position` side of `look_at_position`
-## -- i.e. the camera looks *toward* the centre from behind the block, the
-## same framing a reference screenshot of the original game shows -- and seeds both _target and
-## _follow_position at the home flag so there is no one-frame jump back to
-## wherever the target used to sit before PlayerController's own
-## set_follow_position() call this same frame takes over.
+## Called once by PlayerController.set_home_position() when a controller binds to
+## a real slot. Points this rig's yaw so its offset (see _update_transform()) sits
+## on the `home_position` side of `look_at_position`, i.e. the camera looks toward
+## the centre from behind the block, and seeds both _target and _follow_position at
+## the home flag so there is no one-frame jump before PlayerController's
+## set_follow_position() takes over.
 func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.ZERO) -> void:
 	var away: Vector2 = Vector2(home_position.x - look_at_position.x, home_position.z - look_at_position.z)
 	if away.length() > 0.0001:
@@ -510,15 +427,12 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 	_update_transform()
 
 
-## ("leaving match and starting a new match
-## doesn't reset properly ... my camera and zoom level were the same as when i
-## left the old match"). ROOT CAUSE: this rig is a static child of game/main/Main.tscn
-## that outlives every match, and a match start only re-aimed yaw/target
-## (begin_start_framing()/set_home_view()), so the previous match's zoom
-## distance, pitch, peek/focus state, shake and queued snap/turn tweens carried
-## over. game/main/Main.gd calls this when a match world is built and torn down; it
-## puts every field back to what _ready() leaves on a fresh launch.
-## G4: that includes suppress_pad_home_focus, which only
+## This rig is a static child of game/main/Main.tscn that outlives every match, and
+## a match start only re-aims yaw/target (begin_start_framing()/set_home_view()), so
+## the previous match's zoom distance, pitch, peek/focus state, shake and queued
+## snap/turn tweens would carry over. game/main/Main.gd calls this when a match
+## world is built and torn down; it puts every field back to what _ready() leaves on
+## a fresh launch. That includes suppress_pad_home_focus, which only
 ## game/sandbox/Sandbox.gd sets (and re-sets in its own set_camera_rig() on the next
 ## sandbox start), so a lobby match after a sandbox session has gamepad Back =
 ## focus home again.
@@ -553,19 +467,17 @@ func reset_view() -> void:
 	_apply_default_view()
 
 
-## feedback/051026/3.png: match-start
-## entry point, called when the ready gate opens. There is no separate countdown
-## camera: this sets the FINAL gameplay view at once -- yaw from the home beacon
-## (set_home_view()), pitch and distance from CameraTuning's start_* values (the
-## low, wide angle the user prefers, feedback/051026/3.png) -- and the ordinary ghost-follow takes
-## over from the first frame, so nothing eases or shifts at GO. Player orbit
-## and zoom work as normal afterwards.
-## "START CAMERA STILL NOT FIXED": the pivot
-## is the held piece's follow anchor at its spawn pose (_start_pivot()), the
-## point the follow tracks on the first PLAYING frame -- not the bare beacon,
-## which sits ~2 m nearer the centre and ~3.5 m lower, so the view used to jump
-## by that much at GO. PlayerController keeps feeding that same anchor through
-## the countdown (its _present_countdown_hold()).
+## Match-start entry point, called when the ready gate opens. There is no separate
+## countdown camera: this sets the FINAL gameplay view at once (yaw from the home
+## beacon via set_home_view(); pitch and distance from CameraTuning's start_*
+## values, the low, wide angle) and the ordinary ghost-follow takes over from the
+## first frame, so nothing eases or shifts at GO. Player orbit and zoom work as
+## normal afterwards.
+## The pivot is the held piece's follow anchor at its spawn pose (_start_pivot()),
+## the point the follow tracks on the first PLAYING frame, not the bare beacon
+## (~2 m nearer the centre and ~3.5 m lower), which would make the view jump by that
+## much at GO. PlayerController keeps feeding that same anchor through the
+## countdown (its _present_countdown_hold()).
 ## Returns false, leaving the camera alone, when the slot has no beacon.
 func begin_start_framing(slot_id: int) -> bool:
 	_local_slot = slot_id
@@ -577,10 +489,9 @@ func begin_start_framing(slot_id: int) -> bool:
 	_target = pivot
 	_follow_position = pivot
 	_drop_recovering = false
-	# "3 is the preferred view" (feedback/051026/3.png, the low
-	# wide start angle) -- CameraTuning's start_* pitch/distance, held from the
-	# ready gate through PLAYING with no shift; the follow keeps it until the
-	# player moves the camera.
+	# CameraTuning's start_* pitch/distance (the low wide start angle), held from the
+	# ready gate through PLAYING with no shift; the follow keeps it until the player
+	# moves the camera.
 	_distance = clampf(tuning.start_distance_m, tuning.zoom_min, _zoom_max())
 	_pitch = deg_to_rad(tuning.start_pitch_deg)
 	_has_start_pose = true
@@ -646,9 +557,7 @@ func set_local_slot(slot_id: int) -> void:
 ## True only while PEEK is actively holding the camera on a focus target (past
 ## tuning.focus_hold_threshold_s, camera_snap_home/goal still held) -- not
 ## during the brief return glide after release. game/player/PlayerController.gd
-## reads this every frame to suppress ghost-cursor movement and placement
-## ("the ghost/cursor never moves
-## during peek").
+## reads this every frame to suppress ghost-cursor movement and placement.
 func is_peeking() -> bool:
 	return _peek_active
 
@@ -665,7 +574,7 @@ func _on_fov_override_changed(_degrees: float) -> void:
 	_camera.fov = effective_fov_deg()
 
 
-## .20b (F4 tuning panel live-apply): re-snapshots _distance/_pitch
+## F4 tuning panel live-apply: re-snapshots _distance/_pitch
 ## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
 ## does. Called once by _ready() and again by ui/debug/TuningPanel.gd's
 ## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
@@ -699,7 +608,7 @@ func get_yaw() -> float:
 	return _yaw
 
 
-## Test/inspection seam (.20b): the rig's current pitch, in
+## Test/inspection seam: the rig's current pitch, in
 ## radians, the same units get_yaw() already uses.
 func get_pitch() -> float:
 	return _pitch
@@ -714,7 +623,7 @@ func get_target() -> Vector3:
 	return _target
 
 
-## M7 P4, spec 1.10 "camera shake": the current shake offset
+## Spec 1.10 "camera shake": the current shake offset
 ## _update_transform() adds to the camera's local position, in meters -- zero
 ## when no impact has happened yet, when the last shake has fully decayed, or
 ## when Settings.camera_shake_enabled() is false. Exposed as its own getter
@@ -744,8 +653,7 @@ func _clamp_pitch() -> void:
 	_pitch = clampf(_pitch, deg_to_rad(tuning.min_pitch_deg), deg_to_rad(tuning.max_pitch_deg))
 
 
-## "the mmb rotation issue persists, can the camera
-## just be locked in place while mmb is pressed?": true for exactly as long
+## True for exactly as long
 ## as rotate_drag is held, on whichever device -- Input.is_action_pressed()
 ## already reads every binding the Input Map has for the action (mouse and
 ## gamepad alike; tools/bootstrap_project.gd), so a pad binding added there
@@ -760,9 +668,7 @@ func _clamp_pitch() -> void:
 ## camera_orbit/camera_mode, so starting or continuing an RMB-orbit drag
 ## while MMB is already down does nothing until MMB is released, and holding
 ## RMB first and then also pressing MMB freezes the rig mid-orbit exactly
-## like any other frozen frame. This matches the plain-language brief ("the
-## camera just be locked in place while mmb is pressed") without a second
-## precedence rule to test and explain.
+## like any other frozen frame, without a second precedence rule to test and explain.
 func _rotate_drag_frozen() -> bool:
 	return Input.is_action_pressed(&"rotate_drag")
 
@@ -785,32 +691,27 @@ func _zoom(direction: float) -> void:
 	_distance = clampf(_distance + direction * tuning.zoom_step, tuning.zoom_min, _zoom_max())
 
 
-## spec 1.4 "mouse wheel zooms while held" [ORIGINAL, owner
-## test]: called by PlayerController when the wheel fires while
-## camera_mode/camera_orbit is held, using its own tunable (orbit_zoom_step)
-## instead of zoom_step, which the dedicated Z/X zoom keys and gamepad
-## triggers already use via _zoom() -- letting the held-orbit wheel feel be
-## tuned independently.
+## spec 1.4 "mouse wheel zooms while held": called by PlayerController when the
+## wheel fires while camera_mode/camera_orbit is held, using its own tunable
+## (orbit_zoom_step) instead of zoom_step, which the dedicated Z/X zoom keys use
+## via _zoom() -- letting the held-orbit wheel feel be tuned independently.
 func zoom_by_orbit_step(direction: float) -> void:
 	if _rotate_drag_frozen():
-		# PlayerController calls this directly (not through
-		# this rig's own _unhandled_input, which already guards itself above)
-		# whenever camera_orbit/camera_mode is held and the wheel fires; if
-		# the player also holds rotate_drag at the same time, freeze wins --
+		# PlayerController calls this directly (not through this rig's
+		# _unhandled_input, which guards itself above) when camera_orbit/camera_mode
+		# is held and the wheel fires; if rotate_drag is also held, freeze wins --
 		# see the DECISION on _rotate_drag_frozen().
 		return
 	_distance = clampf(_distance + direction * tuning.orbit_zoom_step, tuning.zoom_min, _zoom_max())
 
 
-## Owner controller update (re-confirmed
-## "LT held + left stick up/down = zoom camera in/out,
-## continuous"): called every frame by PlayerController._drive_gamepad_zoom()
-## while camera_zoom_modifier (LT) is held and not aiming a throw, with
-## `amount` already scaled by tuning.gamepad_trigger_zoom_speed and the
-## frame's delta -- unlike zoom_by_orbit_step's fixed per-notch step, this is
-## a continuous analog rate that tracks how far the stick is pushed. Frozen
-## exactly like zoom_by_orbit_step while rotate_drag is held, for the same
-## reason (see _rotate_drag_frozen()'s own doc comment).
+## Called every frame by PlayerController._drive_gamepad_zoom() while
+## camera_zoom_modifier (LT) is held and not aiming a throw (LT + left stick
+## up/down = zoom in/out, continuous), with `amount` already scaled by
+## tuning.gamepad_trigger_zoom_speed and the frame's delta. Unlike
+## zoom_by_orbit_step's fixed per-notch step, this is a continuous analog rate.
+## Frozen like zoom_by_orbit_step while rotate_drag is held (see
+## _rotate_drag_frozen()).
 func zoom_continuous(amount: float) -> void:
 	if _rotate_drag_frozen():
 		return
@@ -977,10 +878,9 @@ func _resolve_goal_target() -> Vector3:
 	return target
 
 
-## the camera shakes only for gift specials that shake the
-## disc or risk toppling towers (DiscShakeConfig). Rides the replicated
-## special_triggered, so every peer shakes. Block landings, volcano spew and
-## other cosmetic events no longer shake it.
+## The camera shakes only for gift specials that shake the disc or risk toppling
+## towers (DiscShakeConfig). Rides the replicated special_triggered, so every peer
+## shakes. Block landings, volcano spew and other cosmetic events do not shake it.
 func _on_special_triggered(_net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
 	if not Settings.camera_shake_enabled():
 		return

@@ -1,13 +1,13 @@
 class_name MainMatchFlow
 extends MainMatchFlowPort
-## MF3: the match-world flow (state routing, loading hand-off, world build/teardown,
-## bot controllers, scope reset) moved verbatim out of game/main/Main.gd.
-## Main keeps one forwarder per old name and loads this script before the first match_state_changed
-## reaction (R4: the client's net_match_start RPC arrives with no Main involvement, so the Main
+## The match-world flow (state routing, loading hand-off, world build/teardown,
+## bot controllers, scope reset), split out of game/main/Main.gd.
+## Main keeps one forwarder per name and loads this script before the first match_state_changed
+## reaction (the client's net_match_start RPC arrives with no Main involvement, so the Main
 ## forwarder of `_on_match_state_changed` always ensures this flow first). State fields stay on Main
 ## because tests read them; this file reads and writes them through `main_node` (DECISION: one
 ## module split in two, as MainSandboxFlow does). The loading-generation guard stays on Main
-## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await (R5).
+## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await.
 
 const HUD_SCENE_PATH: String = "res://ui/hud/HUD.tscn"
 const TUNING_PANEL_SCENE_PATH: String = "res://ui/debug/TuningPanel.tscn"
@@ -17,7 +17,7 @@ var main_node: Main:
 	get:
 		return main as Main
 
-# Read-only views of Main's persistent world nodes, so the moved bodies read as they did on Main.
+# Read-only views of Main's persistent world nodes.
 var _field: Field:
 	get:
 		return main_node._field
@@ -52,12 +52,12 @@ var _pause_menu: PauseMenu:
 func on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
 		Sfx.set_music_context(&"gameplay")
-	# Spec 2.6: joining is lobby-only in M3a. Net must not name Match, so the
+	# Spec 2.6: joining is lobby-only unless the config allows mid-match joins. Net must not name Match, so the
 	# match flow flips Net's gate here, where every state change is routed: a
 	# handshake arriving while the match is past LOBBY is refused with
 	# JoinError.MATCH_IN_PROGRESS, and abort_match()'s (old -> LOBBY) emit
 	# reopens it (Net.leave() also resets it itself). On a client this is a
-	# harmless flag write; _rpc_handshake is host-gated .
+	# harmless flag write; _rpc_handshake is host-gated.
 	#
 	# spec 2.6 "Mid-match joins can be enabled in settings":
 	# a live match also admits new joiners when its config allows it. LOADING
@@ -74,44 +74,24 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
 	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 
-	# DECISION (game/main/Main.gd round 2): a sandbox reset
-	# (sandbox_reset_field, F5 -- game/sandbox/Sandbox.gd's _reset_field()) re-runs
-	# Match.start_match() with its own current config, which always goes back
-	# through abort_match() first (MatchLifecycle.start_match()'s own doc: "A
-	# start from anything but LOBBY first goes back through the lobby"), so a
-	# reset fires this handler twice in a row, synchronously: (X -> LOBBY)
-	# then (LOBBY -> LOADING). game/sandbox/Sandbox.gd already owns the whole world
-	# for every slot in a sandbox match (its own PlayerController/GhostPreview
-	# subtree -- never Main's _hot_seat) and already replays Field.
-	# place_flags()/set_overlay_source() itself right after start_match()
-	# returns (see _reset_field()'s own doc) -- so routing this pair through
-	# the ordinary _end_match_world()/_build_match_world() below tore down and
-	# then rebuilt a *second*, independent HotSeat (_build_match_world() has
-	# no way to know a Sandbox is already serving every slot) bound to the
-	# same local slot Sandbox's own controller already drives, both then
-	# reading input for it (round 1's reproduction: LOCAL_HELD_GROUP count
-	# growing 2 -> 3 -> 4 -> 5 across resets).
+	# DECISION (game/main/Main.gd): a sandbox reset (sandbox_reset_field, F5;
+	# game/sandbox/Sandbox.gd's _reset_field()) re-runs Match.start_match(), which
+	# goes back through abort_match() first, so this handler fires twice in a row,
+	# synchronously: (X -> LOBBY) then (LOBBY -> LOADING). Sandbox already owns the
+	# world for every slot (its own PlayerController/GhostPreview subtree, never
+	# Main's _hot_seat) and replays Field.place_flags()/set_overlay_source() itself
+	# right after start_match() returns. Routing the pair through the ordinary
+	# _end_match_world()/_build_match_world() would build a second HotSeat bound to
+	# the slot Sandbox's controller already drives, both reading input for it.
 	#
-	# Checked against the live _sandbox instance rather than Match.config.
-	# sandbox: Tutorial also sets that flag on its own config (start_tutorial_
-	# from_menu()'s _build_tutorial_config()), and its _on_tutorial_finished()
-	# teardown still needs the ordinary _end_match_world() reaction to
-	# (-> LOBBY) to run -- unlike Sandbox, Tutorial has a real "return to
-	# menu" exit and never mid-session-resets. _sandbox is non-null for
-	# exactly the lifetime of a sandbox match on this Main instance (no
-	# "return to menu" path out of sandbox exists today), so this only ever
-	# diverts the reaction while a sandbox match is actually live.
+	# Checked against the live _sandbox instance rather than Match.config.sandbox:
+	# Tutorial also sets that flag, and its _on_tutorial_finished() teardown still
+	# needs the ordinary _end_match_world() reaction to (-> LOBBY).
 	#
-	# _field.clear_match_state() is still run directly on the (X -> LOBBY)
-	# half, so a reset still actually clears holes/tilt/physical-balance state
-	# the same way it visibly did before this fix (the previous, buggy
-	# _end_match_world() call happened to do that too, as a side effect of
-	# also building the duplicate world) -- everything else _end_match_world()/
-	# _build_match_world() would otherwise touch (SnapshotSync, _remote_
-	# cursors, bot controllers, the debug overlay Sandbox already built itself
-	# in _start_sandbox_match_with_args()) is correctly left alone; Sandbox's
-	# own place_flags()/set_overlay_source() calls right after start_match()
-	# returns pick the field back up from there.
+	# _field.clear_match_state() still runs directly on the (X -> LOBBY) half, so a
+	# reset clears holes/tilt/physical-balance state; everything else the ordinary
+	# path would touch (SnapshotSync, _remote_cursors, bot controllers, the debug
+	# overlay) is left alone.
 	if main_node._sandbox != null and is_instance_valid(main_node._sandbox):
 		if to_state == Match.State.LOBBY:
 			_field.clear_match_state()
@@ -120,10 +100,8 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 			# own CameraRig.suppress_pad_home_focus (only a camera reset clears it).
 			_reset_match_scope(false)
 		elif Match.is_start_transition(from_state, to_state) and Match.config != null:
-			# owner screenshot: the sandbox showed the painted sunset after
-			# F5: the scope reset on the (X -> LOBBY) half returns the Skybox to its launch
-			# sky (the static painted-panorama sunset), so the restart sets the sandbox's sky
-			# up again like at entry.
+			# The scope reset on the (X -> LOBBY) half returns the Skybox to its launch
+			# sky, so the restart sets the sandbox's sky up again like at entry.
 			main_node._apply_match_sky(Match.config)
 			# a new match restarts the shared clock (day/night cycle) too.
 			SnapshotSync.begin_match(Match.registry(), Match.config.map_def())
@@ -153,7 +131,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
 		_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
-		# . # DECISION: the 3-2-1 must start once the loading screen
+		# DECISION: the 3-2-1 must start once the loading screen
 		# is gone, not run down behind it. Held from here until
 		# _finish_loading_when_ready() releases it (a reset/abort also clears it).
 		# Skipped headless: no loading screen is ever rendered there, and tests
@@ -168,7 +146,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 func _finish_loading_when_ready(generation: int) -> void:
 	while not main_node._world_built:
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -180,7 +158,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
 	while not main_node._first_territory_ready:
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -190,7 +168,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 	_loading_screen.warm_common_materials()
 	for frame: int in range(_loading_screen.tuning.stable_frames):
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -206,17 +184,17 @@ func _finish_loading_when_ready(generation: int) -> void:
 		(main_node._hot_seat as HotSeat).controller().set_process(main_node._controller_was_processing)
 		(main_node._hot_seat as HotSeat).controller().set_process_unhandled_input(main_node._controller_was_handling_input)
 	await _loading_screen.fade_out()
-	# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+	# DECISION: Main may be freed while this coroutine is suspended.
 	if not is_instance_valid(main):
 		return
 	# the screen is gone; now the 3-2-1 starts running down.
 	_release_countdown_hold(generation)
 
 
-## review: every exit of the loading hand-off (overlay already
-## hidden, cancelled, timed out, superseded) must free the countdown hold, or a
-## match could sit held. A stale generation belongs to a newer load, which owns
-## the hold now, so only the current generation releases.
+## Every exit of the loading hand-off (overlay already hidden, cancelled, timed
+## out, superseded) must free the countdown hold, or a match could sit held. A
+## stale generation belongs to a newer load, which owns the hold now, so only the
+## current generation releases.
 func _release_countdown_hold(generation: int) -> void:
 	if generation == main_node._loading_generation:
 		Match.set_countdown_held(false)
@@ -236,10 +214,9 @@ func build_match_world() -> void:
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = _loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active()
 	main_node._clear_menu_and_lobby()
-	# fix round 2: every real (host/client/headless-bot) match
-	# reaches this one guarded builder -- start_sandbox_from_menu() above is
-	# the only match-start path that bypasses it (see its own doc comment),
-	# so it needs its own copy of this line.
+	# Every real (host/client/headless-bot) match reaches this one guarded builder;
+	# start_sandbox_from_menu() is the only match-start path that bypasses it, so it
+	# needs its own copy of this line.
 	_pause_menu.suppressed = false
 
 	var config: MatchConfig = Match.config
@@ -248,7 +225,7 @@ func build_match_world() -> void:
 	_loading_screen.set_stage("Placing flags", _loading_screen.tuning.flags_progress)
 	if stage_build:
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -258,7 +235,7 @@ func build_match_world() -> void:
 	_loading_screen.set_stage("Preparing territory", _loading_screen.tuning.territory_progress)
 	if stage_build:
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -275,7 +252,7 @@ func build_match_world() -> void:
 	_loading_screen.set_stage("Preparing players", _loading_screen.tuning.players_progress)
 	if stage_build:
 		await main_node.get_tree().process_frame
-		# DECISION (MF3, R5): Main may be freed while this coroutine is suspended.
+		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
@@ -285,17 +262,12 @@ func build_match_world() -> void:
 	main_node._remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
 	main_node.add_child(main_node._remote_cursors)
 
-	# M5 P5: a HotSeat instance always binds Net.local_slot()
-	# (0 on the host, whether online, offline or the headless-bots path
-	# above), so it must not be built when that slot itself is a bot -- the
-	# all-bot `--bots=<n>` acceptance command (config.player_count ==
-	# config.ai_count, no `--players=` override) leaves no human slot at all.
-	# A mixed lobby match (some humans, some bots) still gets it exactly as
-	# before: humans always fill the lowest slot ids first (MatchLifecycle.
-	# _build_slots()'s `is_bot = i >= player_count - ai_count`), so
-	# Net.local_slot() is never a bot slot on any path but this one.
-	# a mid-match spectator (Net.local_slot() == -1) gets no
-	# controller at all.
+	# A HotSeat instance always binds Net.local_slot() (0 on the host), so it must not
+	# be built when that slot is a bot: the all-bot `--bots=<n>` command
+	# (config.player_count == config.ai_count) leaves no human slot. A mixed lobby
+	# match still gets it: humans fill the lowest slot ids first
+	# (MatchLifecycle._build_slots()'s `is_bot = i >= player_count - ai_count`).
+	# A mid-match spectator (Net.local_slot() == -1) gets no controller at all.
 	# DECISION: it watches through the default camera rig
 	# with no HotSeat -- there is no slot for one to drive.
 	if main_node._watch_bots_active and DebugMode.is_enabled():
@@ -307,17 +279,10 @@ func build_match_world() -> void:
 		hot_seat.set_camera_rig(_camera_rig)
 		hot_seat.set_field(_field)
 		hot_seat.bind_local_slot(Net.local_slot())
-		# owner test "the original lets me keep moving
-		# once I hit the edge of the screen": HotSeat.gd's own _ready() already
-		# calls this unconditionally (this scene is the exact same HOT_SEAT_SCENE_PATH scene
-		# --hot-seat uses), so it should already be captured by the time
-		# add_child() above returns. Called again here, explicitly, the same way
-		# HotSeat.gd/Sandbox.gd each call it for their own subtree: this world
-		# build is the one place that wires a controller into a match Main itself
-		# owns, so it gets its own direct call rather than depending solely on a
-		# child scene's _ready() timing -- idempotent (enable_mouse_capture() just
-		# re-sets Input.mouse_mode) and a no-op headless, so it changes nothing
-		# for --headless-host or the test suite.
+		# HotSeat.gd's _ready() already captures the mouse; called again here because
+		# this is the one place that wires a controller into a match Main owns, so
+		# it does not depend on a child scene's _ready() timing. Idempotent and a
+		# no-op headless.
 		hot_seat.controller().enable_mouse_capture()
 		main_node._controller_was_processing = hot_seat.controller().is_processing()
 		main_node._controller_was_handling_input = hot_seat.controller().is_processing_unhandled_input()
@@ -327,12 +292,9 @@ func build_match_world() -> void:
 
 	spawn_bot_controllers(config)
 
-	# Single wiring point for the stable-block manager: built here, right
-	# alongside _spawn_bot_controllers() above, for the same reason every
-	# other host-only match manager already lives in this function --
-	# BlockRegistry.all_blocks() only has anything to scan once _registry
-	# itself is populated, which SnapshotSync.begin_match(Match.registry(),
-	# ...) above has already done by this point.
+	# Single wiring point for the stable-block manager, alongside
+	# _spawn_bot_controllers(): BlockRegistry.all_blocks() only has anything to scan
+	# once _registry is populated, which SnapshotSync.begin_match() above has done.
 	main_node._stable_block_manager = StableBlockManager.new()
 	main_node.add_child(main_node._stable_block_manager)
 	main_node._stable_block_manager.setup(_registry)
@@ -340,14 +302,10 @@ func build_match_world() -> void:
 	main_node._debug_overlay = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
 	main_node.add_child(main_node._debug_overlay)
 
-	# M7 P1: re-applies the current preset once the match
-	# world exists. _world_environment is a static child of Main today, so
-	# this is a no-op repeat of the _ready()-time call -- kept here anyway
-	# because this is the one shared scene-load path (lobby-driven and
-	# headless-bot matches alike), so a later package that adds a
-	# WorldEnvironment under the field rebuilt above (P3's FogVolume) picks up
-	# the current preset without this package having to guess at that
-	# not-yet-built structure.
+	# Re-applies the current preset once the match world exists. _world_environment is
+	# a static child of Main, so today this repeats the _ready()-time call; kept
+	# because this is the one shared scene-load path (lobby-driven and headless-bot
+	# matches alike).
 	main_node._apply_graphics_preset(Settings.current_graphics_preset())
 	main_node._world_built = true
 	main_node._world_building = false
@@ -363,20 +321,16 @@ func build_spectator(config: MatchConfig) -> void:
 	spectator.build_presentation(main_node._load_scene(HUD_SCENE_PATH), main_node._load_scene(TUNING_PANEL_SCENE_PATH), _field)
 
 
-## One BotController per bot slot, for the
-## headless-only-bots path above (_start_headless_bot_match_with_args()'s own
-## Match.start_match() reaches this function too, via Events.match_state_
-## changed -- see its own doc) and an ordinary mixed human+bot lobby match
-## alike -- the trailing `config.ai_count` slots, exactly matching
-## MatchLifecycle._build_slots()'s own `is_bot` assignment
-## (`i >= player_count - ai_count`). Host-gated inside BotController itself
-## (`game/bots/BotController.gd`'s own `_is_host()` check), so building one on a
-## client too costs nothing and stays inert.
+## One BotController per bot slot (the trailing `config.ai_count` slots, matching
+## MatchLifecycle._build_slots()'s `is_bot` assignment), for both the
+## headless-only-bots path (_start_headless_bot_match_with_args() reaches this via
+## Events.match_state_changed) and an ordinary mixed human+bot lobby match.
+## Host-gated inside BotController (`_is_host()`), so building one on a client costs
+## nothing and stays inert.
 ##
-## Lobby rework: each bot gets its own seat's difficulty
-## (MatchConfig.ai_difficulty_for_slot(): slot_ai_difficulties[slot] when the
-## lobby set per-seat values, else the lobby-wide ai_difficulty -- so `--bots=N`,
-## sandbox and every older config keep the single shared difficulty).
+## Each bot gets its own seat's difficulty (MatchConfig.ai_difficulty_for_slot():
+## slot_ai_difficulties[slot] when the lobby set per-seat values, else the
+## lobby-wide ai_difficulty).
 func spawn_bot_controllers(config: MatchConfig) -> void:
 	var first_bot_slot: int = config.player_count - config.ai_count
 	for slot_id: int in range(first_bot_slot, config.player_count):
@@ -386,21 +340,15 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 		main_node._bot_controllers.append(bot)
 
 
-## ("leaving match and starting a new match
-## doesn't reset properly ... my camera and zoom level were the same as when i
-## left the old match and the arena still had rain puddles"; owner requirement:
-## after leaving a match and starting another, everything is as if freshly
-## launched). ROOT CAUSE: the CameraRig, the Field's RainPuddles layer and a
-## number of autoloads/presentation nodes are persistent, so they outlived every
-## match; a match start re-aimed only the camera's yaw/target, and puddles dry
-## over RainTuning.puddle_dry_time_s. This is the one presentation-reset entry:
-## Main resets the children it owns
-## directly, then emits Events.match_scope_reset for every persistent holder it
-## cannot name. Run when a match world is built, when one is torn down (also a
-## cancelled staged build and a menu sandbox/tutorial) and on a sandbox reset;
-## synchronous and idempotent, so the next match starts like a fresh launch.
-## `reset_camera` is false only for a sandbox reset (F5), where the player keeps
-## their view.
+## The one presentation-reset entry for a fresh-launch match start. The CameraRig,
+## the Field's RainPuddles layer and a number of autoloads/presentation nodes are
+## persistent and would otherwise outlive every match (a match start re-aims only
+## the camera's yaw/target; puddles dry over RainTuning.puddle_dry_time_s). Main
+## resets the children it owns directly, then emits Events.match_scope_reset for
+## every persistent holder it cannot name. Run when a match world is built, when
+## one is torn down (also a cancelled staged build and a menu sandbox/tutorial) and
+## on a sandbox reset; synchronous and idempotent. `reset_camera` is false only for
+## a sandbox reset (F5), where the player keeps their view.
 func _reset_match_scope(reset_camera: bool = true) -> void:
 	RainPuddles.clear_on(_field)
 	if reset_camera and _camera_rig != null:
@@ -409,7 +357,7 @@ func _reset_match_scope(reset_camera: bool = true) -> void:
 
 
 func end_match_world() -> void:
-	# (G5). DECISION: the scope reset runs before the _world_built
+	# DECISION: the scope reset runs before the _world_built
 	# early return, so every (-> LOBBY) -- including a staged build that was
 	# cancelled before it finished (_world_built still false), and a CLI
 	# --sandbox, which never sets it -- leaves a launch-state camera, dry arena
@@ -427,8 +375,7 @@ func end_match_world() -> void:
 	SnapshotSync.end_match()
 	# Field is persistent (unlike everything else torn down below) and Match's
 	# own teardown never touches it, so its flags, overlay raster reference
-	# and open holes would otherwise still belong to the match that just ended
-	# .
+	# and open holes would otherwise still belong to the match that just ended.
 	_field.clear_match_state()
 	# and the menu/lobby behind it looks like a fresh launch too.
 	_reset_match_scope()

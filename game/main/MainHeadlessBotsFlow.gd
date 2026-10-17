@@ -1,6 +1,6 @@
 class_name MainHeadlessBotsFlow
 extends MainHeadlessBotsFlowPort
-## MF2: the `--headless-host --bots=<n>` flow moved verbatim out of game/main/Main.gd
+## The `--headless-host --bots=<n>` flow, split out of game/main/Main.gd.
 ## Main loads this script on demand through MenuPrewarmQueue and keeps a
 ## forwarder for every old member name; the state fields (_headless_*) stay on Main because tests
 ## and tools read them. DECISION: signal/timer callbacks connect to Main's forwarders so
@@ -15,27 +15,21 @@ var main_node: Main:
 var _headless_bots_start_physics_frame: int = 0
 
 
-# --- Headless bot match: `--bots=<n>` (M5 P5) -----------------
+# --- Headless bot match: `--bots=<n>` -----------------
 #
 # `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
 # [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
-# config.hot_seat = false -- the real feed/territory/win loop, unlike
-# --sandbox above) with `n` bot-driven seats and no human required to click
-# the Lobby's Start button. Unlike --hot-seat/--sandbox this does NOT return
-# early out of _ready(): Events.match_state_changed/net_mode_changed are
-# already connected and Net.apply_command_line() has already run host_game()
-# for --headless-host by the time _ready() reaches this call, so
-# Match.start_match() below's own (LOBBY -> LOADING) emit runs the normal
-# _build_match_world() exactly as a lobby-started match would -- only the
-# "wait for a human to press Start" step is skipped. This is deliberate: it
-# is what lets _build_match_world()'s own bot-controller wiring (below) serve
-# both this entry point and an ordinary mixed human+bot lobby match with one
-# piece of code, rather than a second, divergent
-# world-build path. host_game() can still fail (its port already bound, say)
-# and leave Net at OFFLINE despite --headless-host being present on the
-# command line; _net_is_hosting()'s guard below refuses to build a match in
-# that case rather than silently running every bot against a session nothing
-# can ever join.
+# config.hot_seat = false: the real feed/territory/win loop) with `n` bot-driven
+# seats and no human required to click the Lobby's Start button. Unlike
+# --hot-seat/--sandbox this does NOT return early out of _ready(): Events wiring
+# is already connected and Net.apply_command_line() has already run host_game(),
+# so Match.start_match()'s (LOBBY -> LOADING) emit runs the normal
+# _build_match_world() exactly as a lobby-started match would; only the wait for a
+# human to press Start is skipped, so one bot-controller wiring serves both this
+# entry point and a mixed human+bot lobby match. host_game() can still fail (port
+# already bound, say) and leave Net at OFFLINE; _net_is_hosting()'s guard refuses
+# to build a match in that case rather than running every bot against a session
+# nothing can join.
 
 func start_match_with_args(args: PackedStringArray) -> void:
 	var bots: int = _bots_arg(args)
@@ -45,17 +39,11 @@ func start_match_with_args(args: PackedStringArray) -> void:
 		# Lobby wait-for-Start path, unaffected.
 		return
 	if not _net_is_hosting():
-		# review finding 1: --headless-host's own host_game()
-		# call (Net.apply_command_line(), already run by the time _ready()
-		# reaches this branch -- see this function's own doc above) can fail
-		# to bind its port and leave Net at OFFLINE. Net.is_host() cannot see
-		# that failure (autoload/Net.gd's own doc: "True on the host **and
-		# offline**" -- offline is the normal, successful state for
-		# --sandbox/--hot-seat and every existing unit test's own fixture),
-		# so _net_is_hosting() below checks Net.mode() directly instead.
-		# Building a bot match with nobody actually hosting would run every
-		# bot and the whole feed/territory/win loop against a session no
-		# client, and no acceptance harness, could ever reach.
+		# --headless-host's host_game() call can fail to bind its port and leave Net at
+		# OFFLINE. Net.is_host() cannot see that (it is true on the host **and
+		# offline**), so _net_is_hosting() checks Net.mode() directly. A bot match with
+		# nobody hosting would run the whole loop against a session no client could
+		# reach.
 		push_error(
 			"--headless-host --bots=%d: Net never became the host (host_game() likely failed to bind its port) -- refusing to start a bot match with no host." % bots
 		)
@@ -126,9 +114,8 @@ func _on_think_cost_elapsed() -> void:
 	main_node.get_tree().quit(0)
 
 
-## Builds and starts one headless bot match. Without --loop-matches this is
-## exactly the previous Match.start_match + diagnostics pair; with it, each
-## match after the first gets a fresh rng_seed.
+## Builds and starts one headless bot match. With --loop-matches, each match
+## after the first gets a fresh rng_seed.
 func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	var config: MatchConfig = _build_headless_bot_config(bots, args)
 	main_node._headless_loop_index += 1
@@ -200,7 +187,7 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 ## per-slot `slot:placed/lost/peak_height_m` (comma-separated), read from the live
 ## MatchStats, so bot_h2h-style logs can show blocks lost per placement and tower height.
 ## Appended after teams= so the existing regexes keep matching.
-## a 4th field, peak180 = peak height reached by 180 s of match time (the E7 height
+## a 4th field, peak180 = peak height reached by 180 s of match time (the height
 ## gate). DECISION: sampled on the 5 s report tick (so <=5 s late, peak is monotone); a match that
 ## ends before 180 s reports its final peak.
 const PEAK_SNAPSHOT_S: float = 180.0
@@ -234,20 +221,16 @@ func _headless_slot_teams() -> String:
 	return ",".join(parts)
 
 
-## review finding 1: true only when Net actually became the
-## HOST, unlike Net.is_host() (autoload/Net.gd: "True on the host **and
-## offline**"), which cannot tell a genuine offline mode apart from
-## --headless-host's own host_game() call having failed to bind. A private
-## helper rather than inlining `Net.mode() == Net.Mode.HOST` at the one call
-## site above, so a test that needs to force either outcome has exactly one
-## seam to reach for.
+## True only when Net actually became the HOST, unlike Net.is_host() (true on the
+## host **and offline**), which cannot tell a genuine offline mode apart from
+## --headless-host's host_game() having failed to bind. A helper so a test has one
+## seam to force either outcome.
 func _net_is_hosting() -> bool:
 	return Net.mode() == Net.Mode.HOST
 
 
-## `--bots=<n>`, same "-"-stripping/PREFIX convention as _sandbox_player_
-## count()/_sandbox_force_special_arg() above. 0 when absent -- see
-## _start_headless_bot_match_with_args()'s own "feature off by default" doc.
+## `--bots=<n>`, same "-"-stripping/PREFIX convention as the other arg parsers.
+## 0 when absent (feature off by default).
 func _bots_arg(args: PackedStringArray) -> int:
 	const PREFIX: String = "bots="
 	for raw: String in args:
@@ -272,12 +255,9 @@ func _seconds_arg(args: PackedStringArray) -> float:
 	return 0.0
 
 
-## Same "players="-reading loop as _sandbox_player_count(), with a different
-## absent-flag default (0, so `maxi(bots, ...)` below reduces to exactly
-## `bots` with no --players given -- every seat is a bot, the shape of the
-## headless acceptance command) -- kept separate from
-## _sandbox_player_count() rather than reused, since that function's own
-## absent-flag default (sandbox_config.default_player_count) is wrong here.
+## Same "players="-reading loop as MainSandboxFlow._sandbox_player_count(), with a
+## different absent-flag default (0, so `maxi(bots, ...)` reduces to `bots`: every
+## seat is a bot); kept separate because the sandbox default is wrong here.
 func _headless_bot_players_arg(args: PackedStringArray) -> int:
 	const PREFIX: String = "players="
 	for raw: String in args:
@@ -289,22 +269,15 @@ func _headless_bot_players_arg(args: PackedStringArray) -> int:
 	return 0
 
 
-## Same lobby-settings-minus-a-few-overrides shape as _build_hot_seat_config()/
-## _build_sandbox_config() above: `config.player_count` may be raised past
-## `bots` by `--players=<n2>` to leave human seats idle (the flag matches the
-## --sandbox --players= form but is not required for the acceptance criterion); `config.sandbox` stays false (unlike
-## --sandbox's own config) -- this is a real match, real timers/cadence, the
-## whole point being that the real feed/territory/win loop survives N
-## concurrent bots, not sandbox's relaxed rules.
+## Same lobby-settings-minus-a-few-overrides shape as the hot-seat/sandbox
+## builders: `config.player_count` may be raised past `bots` by `--players=<n2>` to
+## leave human seats idle; `config.sandbox` stays false, so the real timers/cadence
+## and feed/territory/win loop run.
 func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	# DECISION (game/main/Main.gd, deferred from):
-	# Net.match_config_override() (set by --match-config=<path>, parsed inside
-	# Net's own host branch -- autoload/Net.gd's _apply_command_line_args())
-	# takes over `match_config`'s usual role as the duplication source here,
-	# extending this function's existing duplicate-then-override shape rather
-	# than adding a second, parallel config path. Null (no flag, or a
-	# rejected path/type) leaves this exactly as it was before the flag
-	# existed.
+	# DECISION (game/main/Main.gd): Net.match_config_override() (set by
+	# --match-config=<path>, parsed in Net's host branch) replaces `match_config` as
+	# the duplication source here, extending the existing duplicate-then-override
+	# shape. Null (no flag, or a rejected path/type) leaves the default.
 	var base_config: MatchConfig = main_node.match_config
 	if Net.match_config_override() != null:
 		base_config = Net.match_config_override()
@@ -472,21 +445,14 @@ func _mode_arg(args: PackedStringArray) -> int:
 	return -1
 
 
-# --- Headless bot match diagnostics (review finding 2) ---------
+# --- Headless bot match diagnostics ---------
 #
-# The literal acceptance command (`--headless-host --bots=8 --seconds=60`) has
-# no console to watch, so this prints one `HEADLESS_BOTS` line every
-# HEADLESS_BOTS_REPORT_INTERVAL_S and a final one right before the --seconds
-# quit, each carrying the wall-clock time since the match began, Match's own
-# state name and how many blocks have been placed so far (Events.block_placed
-# -- autoload/Events.gd: "a block became a live physics body, either placed by
-# a player or auto-dropped when its feed timer ran out", exactly what a bot's
-# own placements are). Diagnostics only: nothing here feeds a rule or a test
-# assertion about gameplay, only a human (or tools/triage_log.py) reading the
-# log. `bots_active` from the brief is omitted -- BotController's own _state
-# (game/bots/BotController.gd) has no public accessor and this file does not own
-# that script, so reading it here is not "cheaply readable" without editing a
-# file outside this package's ownership.
+# The `--headless-host --bots=8 --seconds=60` run has no console to watch, so this
+# prints one `HEADLESS_BOTS` line every HEADLESS_BOTS_REPORT_INTERVAL_S and a final
+# one right before the --seconds quit: wall-clock time since the match began,
+# Match's state name and blocks placed so far (Events.block_placed fires for a
+# bot's placements too). Diagnostics only: nothing here feeds a rule.
+# BotController's own _state is not exposed, so bots_active is not reported.
 
 func _start_headless_bots_diagnostics() -> void:
 	# Idempotent: a --loop-matches restart must not double-connect
@@ -504,10 +470,9 @@ func _start_headless_bots_diagnostics() -> void:
 	main_node.add_child(main_node._headless_bots_report_timer)
 
 
-## Torn down from _end_match_world() (idempotent: a no-op for every match
-## world that never called _start_headless_bots_diagnostics() above, since
-## _headless_bots_report_timer stays null and Events.block_placed was never
-## connected by this instance).
+## Torn down from _end_match_world(). Idempotent: a no-op when
+## _start_headless_bots_diagnostics() never ran (report timer null, block_placed
+## never connected).
 func _stop_headless_bots_diagnostics() -> void:
 	if Events.block_placed.is_connected(main_node._on_headless_bots_block_placed):
 		Events.block_placed.disconnect(main_node._on_headless_bots_block_placed)
@@ -525,11 +490,9 @@ func _on_headless_bots_report_tick() -> void:
 	print(_headless_bots_periodic_line())
 
 
-## _start_headless_bot_match_with_args()'s own `--seconds=<n>` quit timer,
-## above: prints one last line (with the same counters the periodic line
-## used) so the acceptance command's log always ends with a placements total,
-## even when the process quits between two HEADLESS_BOTS_REPORT_INTERVAL_S
-## ticks.
+## The --seconds quit timer set up in start_match_with_args(): prints one last
+## line (same counters as the periodic line) so the log always ends with a
+## placements total, even when the process quits between two report ticks.
 func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
 	if Match.state() == Match.State.PLAYING:
@@ -595,17 +558,15 @@ func _headless_bots_wall_s() -> float:
 	return float(Time.get_ticks_msec() - main_node._headless_bots_start_msec) / 1000.0
 
 
-## Match.State's own name for Match.state() (e.g. "PLAYING"), read the same
-## way an enum-to-string helper would if Match exported one: Dictionary.
-## find_key() on the enum itself, since GDScript enums are plain Dictionaries
-## under the hood. "UNKNOWN" only if Match.state() is ever a value the enum
-## does not declare, which should not be possible.
+## Match.State's name for Match.state() (e.g. "PLAYING"), via Dictionary.find_key()
+## on the enum. "UNKNOWN" only if Match.state() is a value the enum does not
+## declare.
 func _headless_bots_state_name() -> String:
 	var key: Variant = Match.State.find_key(Match.state())
 	return str(key) if key != null else "UNKNOWN"
 
 
-# --- Training overrides (BT5) ---------------------------------
+# --- Training overrides ---------------------------------
 #
 # `--bot-difficulty=<easy|normal|hard|0..2>` sets every bot slot; `--bot-difficulty-slots=<slot:level,...>`
 # (absolute slot ids; bots occupy the LAST `bots` of `--players` slots) overrides named bot slots only;
