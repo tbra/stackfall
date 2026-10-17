@@ -1,8 +1,7 @@
 class_name CameraShakeConfig
 extends Resource
 ## Camera shake tunables (spec 1.10 effects + camera shake), driven by
-## Events.block_impacted. Keeps game/player/CameraRig.gd free of magic numbers per
-## CLAUDE.md.
+## Events.block_impacted and read by game/player/CameraRig.gd.
 
 ## Maximum shake offset in meters (anvil/bomb/rocket impacts; the disc
 ## tilt shake scales it by DiscShakeConfig.disc_tilt_amplitude_fraction).

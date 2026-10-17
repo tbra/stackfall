@@ -1,34 +1,24 @@
 class_name TutorialStep
 extends Resource
-## One step of the tutorial (spec 1.2 "Tutorial"):
-## config/match/TutorialConfig.gd's own `steps` array.
+## One step of the tutorial (spec 1.2 "Tutorial"), an element of
+## TutorialConfig.steps.
 ##
-## DECISION (config/match/TutorialStep.gd): the plan's own sketch nests this class
-## inside TutorialConfig.gd (`class Step: extends Resource ...`). Reproduced
-## while building config/match/tutorial_config.tres: Godot 4.7.2's ResourceSaver
-## cannot round-trip a typed `Array[TutorialConfig.Step]` of an *inner*
-## Resource class through a saved .tres -- it writes the inner class's own
-## `[sub_resource type="GDScript"]` block with no source body, and loading the
-## file back then fails the TypedArray's own script check ("Attempted to
-## assign an object into a TypedArray, that does not inherit from
-## 'GDScript'"), silently emptying `steps` to size 0 with no load error
-## surfaced anywhere else. A top-level script has none of that problem --
-## the same pattern every other Resource array in this project already uses
-## (config/gifts/specials/*.tres's SpecialDef, config/maps/*.tres's MapDef) -- so
-## this file exists instead of the nested class the plan sketched.
+## DECISION: a top-level script, not a class nested in TutorialConfig. Godot 4.7.2's
+## ResourceSaver cannot round-trip a typed array of an inner Resource class through
+## a .tres: it writes the inner class as a `[sub_resource type="GDScript"]` block
+## with no source, and loading fails the TypedArray script check and silently
+## empties `steps` with no load error. Top-level Resource arrays (SpecialDef,
+## MapDef) do not have the problem.
 
-## Not read by ui/menus/Tutorial.gd itself (which only ever indexes `steps` by
-## position) -- for the inspector/a future step list UI, and so a test can
-## assert on which step is active by name rather than a bare int.
+## Not read by ui/menus/Tutorial.gd (which indexes `steps` by position); lets a
+## test assert which step is active by name.
 @export var id: StringName = &""
 ## `{action}` / `{a|b}` tokens render the bound action's glyph for the
 ## active device (ui/hud/InputPromptFlow.gd); never type key or button names here.
-## Shown in ui/menus/Tutorial.gd's prompt overlay while this step is
-## active. Placeholder wording ("no art
-## direction decisions -- plain placeholder styling").
+## Shown in ui/menus/Tutorial.gd's prompt overlay while this step is active.
 @export var prompt_text: String = ""
 ## One of ui/menus/Tutorial.gd's own SIGNAL_* constants (block_placed,
 ## orientation_changed, territory_claimed, special_consumed, camera_moved).
-## An unrecognized value simply never completes -- see ui/menus/Tutorial.gd's own
-## doc comment on why that fails safe rather than silently advancing.
+## An unrecognized value never completes (fails safe instead of advancing; see
+## ui/menus/Tutorial.gd).
 @export var completion_signal: StringName = &""
