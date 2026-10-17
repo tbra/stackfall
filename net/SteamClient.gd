@@ -5,24 +5,17 @@ extends RefCounted
 ## The only file besides autoload/Net.gd's _make_steam_host_peer() /
 ## _make_steam_client_peer() that may touch the Engine "Steam" singleton or a
 ## lobby-list/lobby-data call. Peer instantiation itself still stays inside
-## Net (no other file may name a concrete peer class) — this file only ever reaches Steam's matchmaking API, never
-## SteamMultiplayerPeer.
+## Net (no other file may name a concrete peer class); this file only reaches
+## Steam's matchmaking API, never SteamMultiplayerPeer.
 ##
-## Extension-optional static typing: the
-## whole res://addons/godotsteam/ directory is gitignored, so most checkouts have no `.gdextension` file and no
+## Extension-optional static typing: the whole res://addons/godotsteam/
+## directory is gitignored, so most checkouts have no `.gdextension` file and no
 ## `Steam` class registered at all. This script must still parse cleanly
 ## there, so `Steam` is never written as a static type or bare identifier —
 ## only reached through Engine.get_singleton(&"Steam"), held as a plain
 ## `Object`, and driven with duck-typed `.call(...)` / `.connect(...)`,
 ## mirroring autoload/Net.gd's `_apply_peer_timeout()` pattern for
 ## ENetPacketPeer one file over. `ClassDB.class_exists(&"Steam")` is the gate.
-##
-## Every method call and signal name here was verified against the actual
-## GodotSteam 4.22.1 addon installed on this machine ('s
-## spike), not guessed from documentation alone — see
-## netcode-F-probe_methods.log, netcode-F-probe_signals2.log,
-## netcode-F-probe_method_sigs.log and netcode-F-probe_comp.log in the
-## worker's scratch directory.
 
 ## A lobby finished initializing (or steamInitEx failed / the extension is
 ## absent). `status` is Steamworks' own steamInitEx() status (0 ok, 1 other
@@ -60,8 +53,7 @@ const STATUS_EXTENSION_NOT_INSTALLED: int = -1
 const KEY_GAME: StringName = &"game"
 const KEY_VERSION: StringName = &"version"
 const KEY_MAP: StringName = &"map"
-## DECISION (deviation from the three-key list): a fourth key
-## for the host's display name. discovered_lobbies()'s documented return
+## DECISION (deviation from the three-key list): a fourth key for the host's display name. discovered_lobbies()'s documented return
 ## shape includes "name" for the list row, and Steam's lobby object itself
 ## has no host-display-name field the way it has a member count — the LAN
 ## advert's {name} field has no Steam-native equivalent, so it needs its own
@@ -70,8 +62,7 @@ const KEY_HOST_NAME: StringName = &"host_name"
 const KEY_MATCH_CONFIG: StringName = &"match_config"
 
 ## Steamworks' own comparison operator for addRequestLobbyListStringFilter();
-## verified present as Steam.LOBBY_COMPARISON_EQUAL == 0 on the installed
-## addon (netcode-F-probe_comp.log). Equality is the only comparison this
+## Steam.LOBBY_COMPARISON_EQUAL == 0. Equality is the only comparison this
 ## project's lobby tags ever need.
 const _LOBBY_COMPARISON_EQUAL: int = 0
 
@@ -116,12 +107,8 @@ func is_available() -> bool:
 ## hood). Steamworks is a manual-dispatch C API: every async signal this file
 ## forwards (lobby_created, lobby_match_list, lobby_joined, lobby_data_update,
 ## join_requested) is queued internally and never actually fires unless this
-## is called regularly, no matter how long a caller waits. Found empirically
-## while running the windowed smoke test: host_online() reached a real Steam client (steamInitEx()
-## already answered status 0, createLobby() returned no error), but
-## lobby_created never arrived even after 15+ seconds — GodotSteam requires a
-## periodic run_callbacks() call the same way any Steamworks integration does,
-## and nothing in this codebase was calling it. `Net._process()` calls this
+## is called regularly, no matter how long a caller waits (createLobby() can
+## succeed and lobby_created still never arrive). `Net._process()` calls this
 ## every frame once _steam_ready is true (autoload/Net.gd).
 func run_callbacks() -> void:
 	if _steam == null:

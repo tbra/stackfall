@@ -7,7 +7,7 @@ extends Node
 ##
 ## Owned and driven by autoload/Net.gd — nothing else instances it. It knows
 ## nothing about ENet or Steam: it moves one Dictionary and never touches the
-## game peer, which is why the browser still works unchanged in M3b.
+## game peer, so the browser works the same under either transport.
 ##
 ## **Known limitation, by design:** PacketPeerUDP.bind() does not set
 ## SO_REUSEADDR, so only one process per machine can listen on 47777. Two

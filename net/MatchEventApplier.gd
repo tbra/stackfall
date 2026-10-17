@@ -1,5 +1,5 @@
 extends Node
-## Client-side apply of host -> client match events (S3c-C1).
+## Client-side apply of host -> client match events.
 ##
 ## A child of the MatchNet autoload, built by MatchNet.late_activate() so the
 ## ~400-line validation/dispatch below is compiled after the first frame instead
@@ -19,8 +19,7 @@ func _authority() -> Variant:
 	return _net._authority()
 
 
-## Validates and applies one host-authored match event. Every guard that used
-## to live in net_match_event is unchanged.
+## Validates and applies one host-authored match event.
 func apply_event(event: StringName, args: Array) -> void:
 	match event:
 		MatchNet.EVENT_CAT_STARTED:
@@ -63,7 +62,7 @@ func apply_event(event: StringName, args: Array) -> void:
 			# own.
 			var turn_slot: int = int(args[0])
 			var running: MatchConfig = _authority().config
-			# Turn-based (M6 B4) mirrors the host's slot verbatim like hot-seat:
+			# Turn-based mirrors the host's slot verbatim like hot-seat:
 			# the client-side active-slot gate and turn banner must agree with
 			# the host on whose turn it is.
 			if running != null and not running.is_sequential_play():
@@ -109,11 +108,10 @@ func apply_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_qol(args[0], args[1], args[2])
 			Events.qol_feed_changed.emit(args[0], args[1], args[2])
 		MatchNet.EVENT_PLACEMENT_REJECTED:
-			# an input boundary like every other wire payload
-			# here, and a refusal is the refused player's own feedback: the
-			# host now sends it to the owning peer alone, so anything naming a
-			# slot this instance does not drive (an older host's broadcast, the
-			# host's own seat) is dropped rather than sounded.
+			# an input boundary like every other wire payload; a refusal is the
+			# refused player's own feedback, so anything naming a slot this
+			# instance does not drive (including the host's own seat) is dropped
+			# rather than sounded.
 			if _session().is_host() or args.size() != 2 or not args[0] is int:
 				return
 			if not (args[1] is String or args[1] is StringName):
@@ -127,11 +125,9 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			Events.placement_rejected.emit(rejected_slot, StringName(args[1]))
 		MatchNet.EVENT_PLACEMENT_RELOCATED:
-			# an input boundary like the refusal above, with
-			# the same own-seat-only rule: the host sends this to the owning
-			# peer alone, so another seat's relocation (an older host's
-			# broadcast) or a malformed or out-of-disk point never reaches
-			# the cursor/camera jump.
+			# an input boundary like the refusal above, with the same own-seat-only
+			# rule: a malformed or out-of-disk point, or another seat's
+			# relocation, never reaches the cursor/camera jump.
 			if _session().is_host() or args.size() != 2 or not args[0] is int or not args[1] is Vector2:
 				return
 			var relocated_slot: int = args[0]
@@ -163,11 +159,10 @@ func apply_event(event: StringName, args: Array) -> void:
 				return
 			_authority().apply_replicated_mode_state(mode_state)
 		MatchNet.EVENT_MATCH_RESULTS:
-			# an input boundary exactly like every other wire
-			# payload in this dispatch -- a malformed or truncated args array
-			# (an older/ancient build) must not reach a results-screen
-			# consumer half-typed. See ResultsValidation.validate_results_payload()'s
-			# own doc comment for why this rejects rather than defaults.
+			# an input boundary like every other wire payload here: a malformed or
+			# truncated args array must not reach a results-screen consumer
+			# half-typed. See ResultsValidation.validate_results_payload() for why
+			# this rejects rather than defaults.
 			if args.size() < 1:
 				return
 			var validated: Dictionary = ResultsValidation.validate_results_payload(args[0])
@@ -228,18 +223,16 @@ func apply_event(event: StringName, args: Array) -> void:
 			if claimed_gift_id < 0 or _net._gift_wire_phases.get(claimed_gift_id, -1) == MatchNet.GiftWirePhase.REMOVED:
 				return
 			var slot_id: int = int(args[1])
-			# Review fix (Must #1): bounds-check slot_id here too, next to the
-			# id<0 check above, so a garbage value never even reaches
-			# MatchGifts.apply_replicated_claim() (which now also refuses it,
-			# defense in depth) or the Events bus other listeners read.
+			# bounds-check slot_id here too, next to the id<0 check above, so a
+			# garbage value never reaches MatchGifts.apply_replicated_claim()
+			# (which also refuses it) or the Events bus other listeners read.
 			if slot_id < 0 or slot_id >= _authority().slot_count():
 				return
-			# Orchestrator amendment 1 (M4 P2b): the third argument is the
-			# special id drawn for this claim. A short args array (an older
-			# or malformed sender) is dropped rather than defaulted, unlike
-			# MatchNet.EVENT_FEED_ISSUED's optional trailing fields -- there is no
-			# safe "not sent" default for a special id the way there is for
-			# an unset feed_time_left.
+			# the third argument is the special id drawn for this claim. A short
+			# args array is dropped rather than defaulted, unlike
+			# MatchNet.EVENT_FEED_ISSUED's optional trailing fields: there is no
+			# safe "not sent" default for a special id the way there is for an
+			# unset feed_time_left.
 			if args.size() < 3:
 				return
 			var special_id: StringName = StringName(args[2])
@@ -270,21 +263,15 @@ func apply_event(event: StringName, args: Array) -> void:
 			_authority().apply_replicated_gift_expired(expired_gift_id)
 			Events.gift_expired.emit(expired_gift_id)
 		MatchNet.EVENT_SPECIAL_TRIGGERED:
-			# M4 P2c-ii: mirrors game/gifts/specials/SpecialBehavior.gd's own trigger
-			# to every client -- a client runs no SpecialBehavior of its own
-			# (Events.special_triggered is only ever emitted host-side, see
-			# _on_special_triggered() above), so this dispatch is the only
-			# place a client ever learns a special fired; it is a purely
-			# read-model/effects signal (Known limitations: no remote arm/
-			# trigger visuals yet), never fed back into Match.
+			# mirrors game/gifts/specials/SpecialBehavior.gd's own trigger to every
+			# client. A client runs no SpecialBehavior of its own
+			# (Events.special_triggered is only emitted host-side), so this dispatch
+			# is the only place a client learns a special fired; it is a read-model/
+			# effects signal, never fed back into Match.
 			#
-			# Review fix (Should #1): a short args array (an older or
-			# malformed sender) is dropped before any args[1..3] read, exactly
-			# MatchNet.EVENT_GIFT_CLAIMED's own args.size() guard above -- args[0]
-			# alone is safe to read unconditionally (net_match_event's own
-			# dispatch never calls with an empty array), but nothing past it
-			# is, and no partial state (a queued net_id with no matching
-			# emit) may result from a truncated payload.
+			# A short args array is dropped before any args[1..3] read, like
+			# MatchNet.EVENT_GIFT_CLAIMED's guard above: no partial state (a queued
+			# net_id with no matching emit) may result from a truncated payload.
 			if args.size() < 4:
 				return
 			var triggered_net_id: int = int(args[0])
@@ -315,9 +302,8 @@ func apply_event(event: StringName, args: Array) -> void:
 			# apply one to itself, belt-and-braces on top of the RPC config.
 			if _session().is_host():
 				return
-			# a short args array (an older or malformed
-			# sender) is dropped before either arg is read, exactly
-			# MatchNet.EVENT_GIFT_CLAIMED's/MatchNet.EVENT_SPECIAL_TRIGGERED's own guard.
+			# a short args array is dropped before either arg is read, like
+			# MatchNet.EVENT_GIFT_CLAIMED's and EVENT_SPECIAL_TRIGGERED's guard.
 			if args.size() < 2:
 				return
 			var consumed_slot_id: int = int(args[0])

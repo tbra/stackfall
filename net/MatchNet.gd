@@ -11,7 +11,7 @@ extends Node
 ## it turns a local action into either a direct Match call (host) or an RPC
 ## (client), and turns the host's outcomes into replication. Nothing in
 ## core/ or Match may call rpc() directly, and nothing here may decide a rule.
-## When M3b swaps the peer, not a line of this file changes.
+## Swapping the transport changes nothing in this file.
 ##
 ## **The host's local player is latency-free.** submit_place() on the host
 ## calls Match.request_place() inline, in the same frame as the click. Only a
@@ -25,7 +25,7 @@ extends Node
 ## issues, rejections, eliminations, the win, kill-plane despawns — this node
 ## mirrors by listening to the same bus the rest of the game listens to
 ## (CLAUDE.md's "use a global signal bus to decouple systems"). A client
-## re-emits them locally, so every M2 consumer (the HUD, the ghost, Field)
+## re-emits them locally, so every consumer (the HUD, the ghost, Field)
 ## works on a client with no idea it is networked.
 
 ## Reliable gameplay traffic uses channel 0 (the MultiplayerAPI default).
@@ -89,7 +89,7 @@ var _gift_spawn_notified: Dictionary = {}
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
-## M4 P2c-ii: mirrors game/gifts/specials/SpecialBehavior.gd's own trigger, via
+## mirrors game/gifts/specials/SpecialBehavior.gd's own trigger, via
 ## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
 ## Events.special_triggered (host only). See _on_special_triggered() below.
 const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
@@ -138,7 +138,7 @@ var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tunin
 ## directory, so it happens once and only where a spawn needs it.
 var _shapes_by_id: Dictionary = {}
 
-## M4 P2c-ii: EVENT_SPECIAL_TRIGGERED's chain_depth wire bound
+## EVENT_SPECIAL_TRIGGERED's chain_depth wire bound
 ## (SpecialTuning.max_chain_depth). A separate preload rather than reading
 ## through _authority() -- the config is architecture-fixed for the build,
 ## the same reason _physics_tuning above is preloaded rather than read from
@@ -156,7 +156,7 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon
 ## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
 ## is what proves the host would have sent them. Game code never reads it.
 var replicated_dissolve_starts: Array[int] = []
-## Host: net ids of blocks currently fused into a FusedBody (Glue fusion WP5).
+## Host: net ids of blocks currently fused into a FusedBody.
 var _fused_ids: Dictionary = {}
 ## net ids of charged glue drops coated at spawn (cleared when their
 ## last bond ends, as that is when the coat is removed).
@@ -297,7 +297,7 @@ var _match_start_sent: bool = false
 ## 3.4: the host checks every intent; a peer with no world yet cannot have
 ## formed a legitimate one), its cursors and cat targets are dropped.
 var _replay_pending: Dictionary = {}
-## peer_id -> seconds its replay has gone unacknowledged (LOW4 timeout).
+## peer_id -> seconds its replay has gone unacknowledged.
 var _replay_age: Dictionary = {}
 var _next_replay_id: int = 1
 ## Client only: true from the moment this instance becomes a CLIENT until the
@@ -648,9 +648,9 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 ## authorizes a remote sender: unseated (no slot) and mid-match (not
 ## State.END) requests are both dropped on the host's floor. The host's own
 ## local call skips only the sender-slot check (see _match_flow_state_allows()
-## below and its review-fix doc) -- it is validated on State.END exactly like
+## below) -- it is validated on State.END exactly like
 ## a remote request, since a stray local call mid-match must not restart or
-## abandon every other player's match either (review fix).
+## abandon every other player's match either.
 func request_replay() -> void:
 	if _session().is_host():
 		if _match_flow_state_allows():
@@ -683,15 +683,14 @@ func _replay_current_match() -> void:
 	_authority().start_match(current)
 
 
-## review fix: the state half of both request_replay()'s and
+## The state half of both request_replay()'s and
 ## request_return_to_lobby()'s authorization, shared by their trusted
 ## host-local branch above (request_replay()'s own doc explains why a local
 ## call is still checked against this) and _remote_may_request_match_flow()
 ## below (a remote request's other check, sender-holds-a-slot, has no local
 ## equivalent -- the host's own process always "holds a slot" in the sense
 ## that matters here). A replay/return mid-PLAYING would restart or abandon
-## every other player's match out from under them with no confirmation,
-## which nothing in this package's brief asks for.
+## every other player's match out from under them with no confirmation.
 func _match_flow_state_allows() -> bool:
 	return int(_authority().state()) == int(MatchPhase.State.END)
 
@@ -1002,7 +1001,7 @@ func reset_counters() -> void:
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_replay_pending.clear()
 	_replay_age.clear()
-	# Test-only instrumentation; bounded per match (review ).
+	# Test-only instrumentation; bounded per match.
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
 	replicated_dissolve_starts.clear()
@@ -1064,14 +1063,11 @@ func _apply_throw_intent(
 ## feed, an eliminated slot, a stale feed_seq — all REASON_NO_BLOCK) and it
 ## was not its turn in hot-seat.
 ##
-## user test: every other reason used to mean the
-## block was consumed regardless, because spec 1.5 threw a rejected block off
-## the map rather than handing it back. That is still true for an auto-drop
-## (a forced release always lands somewhere, relocated or burned), but a
-## manual (auto_drop == false) refusal now spends nothing at all
-## (MatchPlacement.request_place()'s own DECISION) — only REASON_OK consumes
-## for a manual release, so `auto_drop` has to be part of this decision now,
-## not just the reason.
+## An auto-drop (a forced release) always lands somewhere, relocated or
+## burned, so it consumes the block for any reason; a manual
+## (auto_drop == false) refusal spends nothing at all
+## (MatchPlacement.request_place()'s own DECISION), so only REASON_OK
+## consumes for a manual release.
 static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 	if reason == PlacementRules.REASON_NO_BLOCK or reason == PlacementRules.REASON_NOT_YOUR_TURN:
 		return false
@@ -1136,7 +1132,7 @@ func _handle_place_intent(
 		return
 	if feed_seq < 0:
 		# Match.request_place() reads a negative feed_seq as "don't check" —
-		# the sentinel M2's local call sites and the host's own timer rely on.
+		# the sentinel local call sites and the host's own timer rely on.
 		# From the wire it would switch off the "never duplicated" defence (1)
 		# for whoever sends it, so a remote intent has
 		# to quote the sequence it was actually issued.
@@ -1277,7 +1273,7 @@ func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Qua
 	return origin.y >= config.pos_min_y and origin.y <= config.pos_max_y
 
 
-## M4 P1b wire safety for EVENT_GIFT_SPAWNED, following _pose_is_acceptable's
+## Wire safety for EVENT_GIFT_SPAWNED, following _pose_is_acceptable's
 ## own pattern: a malformed or out-of-disk position from a bad or ancient build
 ## is dropped rather than trusted, since a client only ever uses this position
 ## to place a visual and to compute the cell it later frees for.
@@ -1301,7 +1297,7 @@ func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 	return position.length() <= radius + 0.01
 
 
-## M4 P2b wire safety, reused by EVENT_SPECIAL_TRIGGERED's def_id (M4 P2c-ii)
+## Wire safety, reused by EVENT_SPECIAL_TRIGGERED's def_id
 ## as well as EVENT_GIFT_CLAIMED's third argument: the id is trusted only if
 ## it is shaped like one of ours -- non-empty, at most 32 characters,
 ## [A-Za-z0-9_] only -- following _gift_wire_ok's own "a malformed or ancient
@@ -1345,15 +1341,13 @@ func _known_special_ids() -> Dictionary:
 	return _special_ids_by_id
 
 
-## M4 P2c-ii tightening of _special_id_wire_ok() for EVENT_GIFT_CLAIMED only
-## (orchestrator amendment 1's "P2c tightens it to roster membership"): a
+## Tightening of _special_id_wire_ok() for EVENT_GIFT_CLAIMED only: a
 ## claimed special id is trusted only if it is shaped like one of ours AND is
 ## either MatchGifts.PENDING_SPECIAL_ID (the default drawer's placeholder,
 ## always valid regardless of roster -- see MatchPlacement._attach_pending_
 ## special()'s own "safe default" handling of it) or actually a member of the
-## running roster. An empty res://config/gifts/specials/ (P3-P5 not landed yet)
-## therefore lets only the placeholder through, exactly as it should: there is
-## no real special for any other id to name yet.
+## running roster. An empty res://config/gifts/specials/ therefore lets only
+## the placeholder through: there is no real special for any other id to name.
 func _gift_special_id_wire_ok(special_id: String) -> bool:
 	if not _special_id_wire_ok(special_id):
 		return false
@@ -1492,7 +1486,7 @@ func _on_turn_changed(slot_id: int) -> void:
 ## Events.feed_block_issued's own signature is untouched; this is the RPC
 ## payload, not the signal.
 ##
-## follow-up: also rides feed_time_left()/is_release_locked()
+## Also rides feed_time_left()/is_release_locked()
 ## for this slot, read at this exact moment -- Match's own _consume_and_
 ## refeed()/_begin_playing() update both before calling _issue_next_block(),
 ## which is what emits Events.feed_block_issued and triggers this handler
@@ -1520,7 +1514,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 ## last update_cursor it received for that slot — at NetConfig.cursor_hz that
 ## is at worst 67 ms stale, and closest_valid_point() relocates from there
 ## anyway. A slot this instance controls locally (every slot offline, which is
-## all of M2's hot-seat) is left to its own PlayerController, whose ghost is
+## all of hot-seat) is left to its own PlayerController, whose ghost is
 ## exact and costs nothing.
 func _on_feed_timer_expired(slot_id: int) -> void:
 	if not _session().is_host():
@@ -1536,9 +1530,9 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	_apply_intent(slot_id, origin, orientation_index, free_quat, true, _authority().feed_seq(slot_id))
 
 
-## follow-up to , the first
-## block "loads inside the home beacon": where the host auto-drops a slot it
-## has never heard a cursor from. Match.default_ghost_origin() is the home flag
+## The origin the host auto-drops from for a slot it has never heard a cursor
+## from, so the first block does not load inside the home beacon.
+## Match.default_ghost_origin() is the home flag
 ## at disc level, which is inside the beacon's socket and crystal (the beacon is
 ## invisible to the placement ray and the spawn-clearance query), so the origin
 ## is raised until the unrotated block's lowest point clears the beacon top by
@@ -1551,7 +1545,7 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 ## DECISION: world UP, not field-local up, matching PlayerController's own
 ## hover and Match.default_ghost_origin()'s own world-space result. Tilt modes
 ## rotate the Field by at most a few degrees, which still leaves the block well
-## clear of the beacon (review ).
+## clear of the beacon.
 func _afk_fallback_origin(slot_id: int) -> Vector3:
 	var home: Vector3 = _authority().default_ghost_origin(slot_id)
 	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
@@ -1567,12 +1561,10 @@ func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName,
 		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
 
 
-## "the host could hear my block rejected
-## sound": a refusal is feedback for the refused player alone. It used to be
-## broadcast to every peer, so the host's own bus (and every other client's)
-## saw each client's refusals; now it goes only to the peer that holds the slot
-## -- never the host's own seat, a bot's or a vacated one, which have no remote
-## peer to tell. The host's own seat reacts to Match's local emit directly.
+## A refusal is feedback for the refused player alone, so it goes only to the
+## peer that holds the slot -- never the host's own seat, a bot's or a vacated
+## one, which have no remote peer to tell. The host's own seat reacts to
+## Match's local emit directly.
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if not _session().is_host():
 		return
@@ -1595,14 +1587,14 @@ func _remote_peer_of_slot(slot_id: int) -> int:
 	return peer_id
 
 
-## mirrors an auto-drop's relocation to the owning client so its
+## Mirrors an auto-drop's relocation to the owning client so its
 ## cursor and camera can jump to where the block landed.
 ##
-## audit after the refusal fix: that jump is the owning seat's
-## own feedback, so it goes to that peer alone, exactly like a refusal, instead
-## of to every client that would only ignore it (PlayerController and the HUD
-## drop a slot that is not theirs). Never the host's own seat (it reacts to
-## Match's local emit), a bot's, or a vacated one: no remote peer to tell.
+## That jump is the owning seat's own feedback, so it goes to that peer alone,
+## like a refusal, instead of to every client that would only ignore it
+## (PlayerController and the HUD drop a slot that is not theirs). Never the
+## host's own seat (it reacts to Match's local emit), a bot's, or a vacated
+## one: no remote peer to tell.
 func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	if not _session().is_host():
 		return
@@ -1670,11 +1662,10 @@ func _on_gift_expired(gift_id: int) -> void:
 		replicate_match_event(EVENT_GIFT_EXPIRED, [gift_id])
 
 
-## M4 P2c-ii: autoload/match/MatchPlacement._on_special_behavior_triggered()
+## autoload/match/MatchPlacement._on_special_behavior_triggered()
 ## emits Events.special_triggered only on the host (game/gifts/specials/
-## SpecialBehavior.gd only ever attaches there -- see that file's own header
-## and orchestrator amendment 2), so this mirrors it to every client exactly
-## like _on_gift_spawned above.
+## SpecialBehavior.gd only ever attaches there), so this mirrors it to every
+## client exactly like _on_gift_spawned above.
 func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
 	if _session().is_host():
 		# QoL 1: a special freezes block timers for a while.
@@ -2072,7 +2063,7 @@ func seat_reclaimable(slot_id: int) -> bool:
 	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
 
 
-## review LOW4: a joiner that never acks its replay would stay
+## A joiner that never acks its replay would stay
 ## intent-gated with its cursors dropped forever. Past
 ## config.replay_ack_timeout the host drops it cleanly.
 ## DECISION: drop, not retry. A second replay would re-send spawns for bodies
