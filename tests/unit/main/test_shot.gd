@@ -16,7 +16,7 @@ func test_out_is_required() -> void:
 
 
 func test_single_shot_from_flags() -> void:
-	var result: Dictionary = _parse(["--target=lobby", "--kind=hosted", "--seats=8", "--style=cards", "--sheet"])
+	var result: Dictionary = _parse(["--target=lobby", "--kind=hosted", "--seats=8", "--style=board", "--sheet"])
 	assert_eq(result["error"], "")
 	assert_true(result["sheet"])
 	var shots: Array = result["shots"]
@@ -26,7 +26,7 @@ func test_single_shot_from_flags() -> void:
 	assert_eq(shot["seats"], 8)
 	assert_eq(shot["kind"], ShotTargets.LOBBY_HOSTED)
 	assert_eq(shot["style"], 3)
-	assert_eq(shot["name"], "lobby_hosted_8seats_cards")
+	assert_eq(shot["name"], "lobby_hosted_8seats_board")
 
 
 func test_shots_json_overrides_flag_defaults() -> void:

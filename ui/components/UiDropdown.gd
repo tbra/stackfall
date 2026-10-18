@@ -9,7 +9,7 @@ extends Button
 ## ui_up / ui_down, held, echoed or from a pad) is never consumed while closed and never changes
 ## the value: only picking a row does.
 ##
-## It mirrors the slice of OptionButton's API the screens use (add_item, set_item_icon,
+## It mirrors the slice of OptionButton's API the screens use (add_item,
 ## set_item_disabled, select, `selected`, `item_count`, `item_selected`), so every
 ## caller keeps the same stored int: [signal item_selected] carries the index, and setting
 ## [member selected] from code (a replicated config) does NOT emit, like OptionButton.
@@ -136,12 +136,6 @@ func get_item_icon(index: int) -> Texture2D:
 
 func is_item_disabled(index: int) -> bool:
 	return index >= 0 and index < _disabled_items.size() and _disabled_items[index]
-
-
-func set_item_icon(index: int, texture: Texture2D) -> void:
-	if index >= 0 and index < _icons.size():
-		_icons[index] = texture
-		_refresh()
 
 
 func set_item_disabled(index: int, value: bool) -> void:

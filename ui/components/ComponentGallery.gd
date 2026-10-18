@@ -109,6 +109,7 @@ func _ready() -> void:
 	elif page == PAGE_TEXT:
 		columns.add_child(_panel("TEXT ROLES", _text_rows()))
 		columns.add_child(_panel("WELL", _well_rows()))
+		columns.add_child(_panel("PLATE / BAR / GRID", _plate_rows()))
 	elif page == PAGE_DIALOG:
 		columns.add_theme_constant_override("separation", arcade.space_5_px)
 		columns.add_child(_dialog_plate("Leave match?", "Leave this match and return to the main menu?", UiBlockButton.Look.DANGER, "Leave match", "", false))
@@ -500,6 +501,43 @@ func _well_rows() -> Array[Control]:
 	column.add_child(UiText.make(UiText.Role.CAPTION, "192.168.1.20 - 2/8 players"))
 	well.add_child(column)
 	rows.append(well)
+	return rows
+
+
+func _plate_rows() -> Array[Control]:
+	var rows: Array[Control] = []
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var tuning: LobbyLayoutTuning = load("res://config/ui/lobby_layout_tuning.tres") as LobbyLayoutTuning
+	var lane: UiPlate = UiPlate.new()
+	lane.paint(arcade.disc_800_color.lerp(arcade.player_2_color, tuning.seat_board_lane_tint_mix), arcade.radius_block_px, arcade.space_2_px, arcade.space_2_px, arcade.player_2_color, arcade.section_rule_px)
+	var cap: UiPlate = UiPlate.new()
+	cap.paint(arcade.player_2_color, arcade.radius_chip_px, arcade.space_2_px, arcade.space_1_px)
+	var cap_text: UiText = UiText.make(UiText.Role.CAPTION, "TEAM 2")
+	cap_text.set_face(arcade.player_2_color)
+	cap.add_child(cap_text)
+	var column: UiStack = UiStack.new()
+	column.gap_px = arcade.space_2_px
+	column.add_child(cap)
+	var grid: UiGrid = UiGrid.new()
+	grid.columns = tuning.seat_board_columns
+	grid.h_gap_px = arcade.space_2_px
+	grid.v_gap_px = arcade.space_2_px
+	for label_text: String in ["One", "Two", "Three", "Four"]:
+		var cell: UiBlockButton = UiBlockButton.new()
+		cell.text = label_text
+		grid.add_child(cell)
+	column.add_child(grid)
+	var bar: UiBar = UiBar.new()
+	bar.gap_px = arcade.space_2_px
+	bar.add_child(UiText.make(UiText.Role.BODY, "Bar:"))
+	bar.add_child(UiBlockButton.new())
+	column.add_child(bar)
+	lane.add_child(column)
+	rows.append(lane)
+	var header: UiPlate = UiPlate.new()
+	header.paint(Color.TRANSPARENT, 0, arcade.space_3_px, arcade.space_1_px, arcade.disc_600_color, 0, arcade.section_rule_px)
+	header.add_child(UiText.make(UiText.Role.CAPTION, "PLAYER  (rule plate)"))
+	rows.append(header)
 	return rows
 
 

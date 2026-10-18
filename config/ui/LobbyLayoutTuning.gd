@@ -84,16 +84,15 @@ extends Resource
 @export var open_seat_border_px: int = 2
 @export_range(0.0, 1.0, 0.05) var open_seat_diamond_alpha: float = 0.45
 
-## Players-row variants (ui/lobby/LobbySeatRow.gd). Colour of team 1..4 on the team chip,
-## the group header band and the row edge (the pick wraps past the end); Random keeps the neutral chip.
+## Players-row looks (ui/lobby/LobbySeatRow.gd). Colour of team 1..4 on the team blocks, the board's lane caps and
+## fields (the pick wraps past the end); Random keeps the neutral block.
 @export var seat_team_colors: PackedColorArray = PackedColorArray([
 	Color("#ff7a59"), Color("#4aa8ff"), Color("#5fd38a"), Color("#c08cff"),
 ])
-## Width of a team-coloured edge band on a row / card / group header, in px.
-@export var seat_team_band_px: int = 4
-## Seat cards (CARDS variant): grid columns and the marker's edge in px.
-@export var seat_card_columns: int = 2
-@export var seat_card_marker_px: int = 40
-## Team chip: how much brighter the hovered chip is and how much darker its rim is than the team colour.
-@export_range(0.0, 1.0, 0.01) var seat_team_hover_lighten: float = 0.18
-@export_range(0.0, 1.0, 0.01) var seat_team_border_darken: float = 0.3
+## Roster tiles: grid columns, the hero marker's edge in px and how much of the player's colour washes the tile.
+@export var seat_tile_columns: int = 4
+@export var seat_tile_marker_px: int = 48
+@export_range(0.0, 1.0, 0.01) var seat_tile_tint_mix: float = 0.22
+## Versus board: lanes side by side, and how much of the team colour tints a lane's field.
+@export var seat_board_columns: int = 2
+@export_range(0.0, 1.0, 0.01) var seat_board_lane_tint_mix: float = 0.14

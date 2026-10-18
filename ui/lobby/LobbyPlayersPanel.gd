@@ -140,7 +140,7 @@ var _blocker_known: bool = false
 ## Which header controls were focus stops at the last _refresh_header() (-1 = never): a change
 ## tells the Lobby to rewire its loop even when no row was redrawn.
 var _header_focus_state: int = -1
-## group headers / the card grid of the non-classic looks (rebuilt with the rows).
+## the table header / tile grid / lane grid of the non-classic looks (rebuilt with the rows).
 var _extras: Array[Node] = []
 ## The debug-only "Row style" dropdown at the top of the panel (null with debug mode off).
 var _style_selector: UiDropdown = null
@@ -672,117 +672,153 @@ func _connect_row(row: LobbySeatRow) -> void:
 	row.remove_requested.connect(_on_remove_requested)
 
 
-## Puts the built rows in the list the way the current look wants them: one per
-## line (CLASSIC / SLOT), under team headers (GROUPED, rows ordered by group so the focus loop reads
-## top to bottom) or in a card grid (CARDS, row-major). _player_rows is always the visual order.
+## Puts the built rows in the list the way the current look wants them: one per line (CLASSIC), under a column
+## header with zebra stripes (TABLE), in a tile grid (TILES, row-major) or in team lanes side by side (BOARD,
+## lane by lane). _player_rows is always the visual order, which is also the focus order.
 func _place_rows(built: Array[LobbySeatRow]) -> void:
 	var style: int = LobbySeatVariants.current()
-	if style == LobbySeatVariants.Style.GROUPED:
-		built = _sorted_by_group(built)
-	var columns: Array[VBoxContainer] = []
-	var grid: Control = null
-	if style == LobbySeatVariants.Style.CARDS:
-		grid = _make_card_grid()
-		_player_list.add_child(grid)
-		_extras.append(grid)
-		for column: Node in grid.get_children():
-			if column is VBoxContainer:
-				columns.append(column as VBoxContainer)
-	var last_group: int = GROUP_NONE
+	match style:
+		LobbySeatVariants.Style.TILES:
+			_place_tiles(built)
+		LobbySeatVariants.Style.BOARD:
+			_place_board(built)
+		_:
+			if style == LobbySeatVariants.Style.TABLE:
+				_add_table_header()
+			for row: LobbySeatRow in built:
+				_connect_row(row)
+				if style == LobbySeatVariants.Style.TABLE:
+					row.set_stripe(_player_rows.size() % 2 == 1)
+				_player_list.add_child(row)
+				_player_rows.append(row)
+
+
+func _add_extra(node: Control) -> void:
+	_player_list.add_child(node)
+	_extras.append(node)
+
+
+## TABLE: the icon header above the aligned cells; it names the same columns the rows reserve.
+func _add_table_header() -> void:
+	var header: LobbySeatTableHeader = LobbySeatTableHeader.new()
+	header.build(
+		layout_tuning, _team_cap() > 0, _align_bot_columns, LobbySeatRow.mute_column_active(mute_column_override),
+		_align_bot_columns and _is_editable
+	)
+	_add_extra(header)
+
+
+## TILES: `seat_tile_columns` equal columns, tiles dealt across in row-major order.
+func _place_tiles(built: Array[LobbySeatRow]) -> void:
+	var grid: UiGrid = UiGrid.new()
+	grid.name = "TileGrid"
+	grid.columns = maxi(layout_tuning.seat_tile_columns, 1)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.h_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	grid.v_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	_add_extra(grid)
 	for row: LobbySeatRow in built:
 		_connect_row(row)
-		if style == LobbySeatVariants.Style.GROUPED and _group_of(row) != last_group:
-			last_group = _group_of(row)
-			_add_group_header(built, last_group)
-		if grid != null:
-			columns[_player_rows.size() % columns.size()].add_child(row)
-		else:
-			_player_list.add_child(row)
+		grid.add_child(row)
 		_player_rows.append(row)
-	if grid != null:
-		_wire_card_columns(layout_tuning.seat_card_columns)
+	var hops: Array[Array] = []
+	for index: int in range(built.size() - 1):
+		if (index + 1) % grid.columns != 0:
+			hops.append([built[index], built[index + 1]])
+	_wire_hops(hops)
 
 
-## The card grid: `seat_card_columns` equal columns side by side, cards dealt across them in row-major order
-## (every card reserves the same height, so the columns line up like a grid).
-func _make_card_grid() -> Control:
-	var grid: UiRow = UiRow.new()
-	grid.name = "CardGrid"
-	grid.label.visible = false
+## BOARD: one lane per team (a lane for every team of the lobby, so a seat can be sent to an empty one), the
+## seat-less and Random picks in an extra lane; free-for-all is two neutral lanes holding half the seats each.
+func _place_board(built: Array[LobbySeatRow]) -> void:
+	var cap: int = _team_cap()
+	var lanes: Array[LobbySeatLane] = []
+	var lane_rows: Array[Array] = []
+	if cap > 0:
+		var groups: Dictionary = {}
+		for row: LobbySeatRow in built:
+			var team: int = _lane_team(row)
+			if not groups.has(team):
+				groups[team] = []
+			(groups[team] as Array).append(row)
+		var order: Array[int] = []
+		for team: int in range(1, cap + 1):
+			order.append(team)
+		for team: int in [LANE_RANDOM, LANE_SPECTATORS]:
+			if groups.has(team):
+				order.append(team)
+		for team: int in order:
+			var members: Array = groups.get(team, [])
+			lane_rows.append(members)
+			lanes.append(_make_lane(team, members.size()))
+	else:
+		var half: int = ceili(float(built.size()) / float(maxi(layout_tuning.seat_board_columns, 1)))
+		for column: int in range(maxi(layout_tuning.seat_board_columns, 1)):
+			var members: Array = built.slice(column * half, (column + 1) * half)
+			lane_rows.append(members)
+			lanes.append(_make_lane(LANE_NONE, members.size()))
+	var grid: UiGrid = UiGrid.new()
+	grid.name = "LaneGrid"
+	grid.columns = maxi(layout_tuning.seat_board_columns, 1)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for _column: int in range(maxi(layout_tuning.seat_card_columns, 1)):
-		var column: UiStack = UiStack.new()
-		column.gap_px = MenuStyleFactory.arcade_tuning().space_2_px
-		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-		grid.add_child(column)
-	return grid
+	grid.h_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	grid.v_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
+	_add_extra(grid)
+	for index: int in range(lanes.size()):
+		grid.add_child(lanes[index])
+		for row_node: Variant in lane_rows[index]:
+			var row: LobbySeatRow = row_node as LobbySeatRow
+			_connect_row(row)
+			lanes[index].add_row(row)
+			_player_rows.append(row)
+	var hops: Array[Array] = []
+	for index: int in range(lanes.size() - 1):
+		if (index + 1) % grid.columns == 0:
+			continue
+		var here: Array = lane_rows[index]
+		var there: Array = lane_rows[index + 1]
+		for slot: int in range(here.size()):
+			if not there.is_empty():
+				hops.append([here[slot], there[mini(slot, there.size() - 1)]])
+	_wire_hops(hops)
 
 
-const GROUP_SPECTATORS: int = 1000
-const GROUP_RANDOM: int = 999
-const GROUP_FFA: int = 0
-const GROUP_NONE: int = -1
+const LANE_RANDOM: int = 999
+const LANE_SPECTATORS: int = 1000
+const LANE_NONE: int = 0
 
 
-## Group of a row in the GROUPED look: its team (1..), Random after the numbered teams, the seat-less
-## after those; one group for free-for-all.
-func _group_of(row: LobbySeatRow) -> int:
+## The lane a seat sits in: its team (1..), Random after the numbered teams, the seat-less last.
+func _lane_team(row: LobbySeatRow) -> int:
 	if row.seat_key == LobbySeats.KEY_NONE:
-		return GROUP_SPECTATORS
-	if not row.show_team:
-		return GROUP_FFA
-	return row.team_pick if row.team_pick > MatchConfig.TEAM_PICK_RANDOM else GROUP_RANDOM
+		return LANE_SPECTATORS
+	return row.team_pick if row.team_pick > MatchConfig.TEAM_PICK_RANDOM else LANE_RANDOM
 
 
-func _sorted_by_group(rows: Array[LobbySeatRow]) -> Array[LobbySeatRow]:
-	var ordered: Array[LobbySeatRow] = rows.duplicate()
-	# sort_custom is not stable: break ties on the original index.
-	var index_of: Dictionary = {}
-	for index: int in range(rows.size()):
-		index_of[rows[index]] = index
-	ordered.sort_custom(func(a: LobbySeatRow, b: LobbySeatRow) -> bool:
-		var group_a: int = _group_of(a)
-		var group_b: int = _group_of(b)
-		if group_a != group_b:
-			return group_a < group_b
-		return int(index_of[a]) < int(index_of[b])
-	)
-	return ordered
-
-
-func _add_group_header(rows: Array[LobbySeatRow], group: int) -> void:
-	var seats: int = 0
-	for row: LobbySeatRow in rows:
-		if _group_of(row) == group:
-			seats += 1
-	var title: String = "Free for all"
+func _make_lane(team: int, seats: int) -> LobbySeatLane:
+	var title: String = ""
 	var tint: Color = Color.TRANSPARENT
-	match group:
-		GROUP_FFA:
-			title = "Free for all"
-		GROUP_SPECTATORS:
+	match team:
+		LANE_NONE:
+			title = ""
+		LANE_SPECTATORS:
 			title = "Spectators"
-		GROUP_RANDOM:
+		LANE_RANDOM:
 			title = "Random team"
 		_:
-			title = PlayerNames.team_label(group)
-			tint = LobbySeatRow.team_color_of(layout_tuning, group)
-	var header: LobbySeatGroupHeader = LobbySeatGroupHeader.new()
-	header.build(layout_tuning, title, tint, seats)
-	_player_list.add_child(header)
-	_extras.append(header)
+			title = PlayerNames.team_label(team)
+			tint = LobbySeatRow.team_color_of(layout_tuning, team)
+	var lane: LobbySeatLane = LobbySeatLane.new()
+	lane.build(layout_tuning, title, tint, seats)
+	return lane
 
 
-## CARDS: left / right also hop between the cards of a grid line (the row wiring stops at a card's
-## own edge), so the pad can walk every control sideways as well as down.
-func _wire_card_columns(columns: int) -> void:
-	var cols: int = maxi(columns, 1)
-	for index: int in range(_player_rows.size() - 1):
-		if (index + 1) % cols == 0:
-			continue
-		var left: Array[Control] = (_player_rows[index] as LobbySeatRow).focusable_controls()
-		var right: Array[Control] = (_player_rows[index + 1] as LobbySeatRow).focusable_controls()
+## left / right hop between the rows of side-by-side cells (the row wiring stops at a row's own edge), so the
+## pad can walk sideways across tiles and lanes as well as down. Each pair is [left row, right row].
+func _wire_hops(pairs: Array[Array]) -> void:
+	for pair: Array in pairs:
+		var left: Array[Control] = (pair[0] as LobbySeatRow).focusable_controls()
+		var right: Array[Control] = (pair[1] as LobbySeatRow).focusable_controls()
 		if left.is_empty() or right.is_empty():
 			continue
 		left.back().focus_neighbor_right = left.back().get_path_to(right.front())
