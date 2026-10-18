@@ -54,50 +54,59 @@ class _Slot:
 
 var _instance: MultiMeshInstance3D = null
 var _material: ShaderMaterial = null
-var _theme: SkyThemeDef = null
+var _def: SkyCycleDef = null
 var _slots: Array[_Slot] = []
 var _per_slot: int = 0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _clock: float = 0.0
 
 
-## Rebuilds the scheduler from `theme` (birds hidden when it has none or
-## `enabled` is false). Safe to call repeatedly.
+## Transitional: converts the old theme through the migration adapter (all three roles
+## the same theme) until the themes are deleted; use configure_cycle.
 func configure(theme: SkyThemeDef, enabled: bool) -> void:
+	if theme == null:
+		configure_cycle(null, enabled)
+		return
+	configure_cycle(SkyThemeMigration.cycle_from_themes(theme, theme, theme), enabled)
+
+
+## Rebuilds the scheduler from `def` (birds hidden when it has none or
+## `enabled` is false). Safe to call repeatedly.
+func configure_cycle(def: SkyCycleDef, enabled: bool) -> void:
 	if _instance != null:
 		_instance.queue_free()
 		_instance = null
 	_material = null
 	_slots.clear()
-	_theme = null
+	_def = null
 	set_process(false)
-	if theme == null or theme.bird_material == null or theme.bird_flock_count <= 0 or not enabled:
+	if def == null or def.bird_material == null or def.bird_flock_count <= 0 or not enabled:
 		visible = false
 		return
-	_material = theme.bird_material.duplicate() as ShaderMaterial
+	_material = def.bird_material.duplicate() as ShaderMaterial
 	if _material == null:
 		visible = false
 		return
 	visible = true
-	_theme = theme
-	if theme.bird_seed == 0:
+	_def = def
+	if def.bird_seed == 0:
 		_rng.randomize()
 	else:
-		_rng.seed = theme.bird_seed
+		_rng.seed = def.bird_seed
 	_clock = 0.0
 	_material.set_shader_parameter(CLOCK_PARAMETER, _clock)
-	_per_slot = maxi(maxi(theme.bird_flock_size_max, theme.bird_flock_size_min), 1)
+	_per_slot = maxi(maxi(def.bird_flock_size_max, def.bird_flock_size_min), 1)
 	var multimesh: MultiMesh = MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
 	multimesh.mesh = build_bird_mesh()
-	multimesh.instance_count = theme.bird_flock_count * _per_slot
+	multimesh.instance_count = def.bird_flock_count * _per_slot
 	for index: int in range(multimesh.instance_count):
 		_park(multimesh, index)
-	for slot_index: int in range(theme.bird_flock_count):
+	for slot_index: int in range(def.bird_flock_count):
 		var slot: _Slot = _Slot.new()
 		slot.first_index = slot_index * _per_slot
-		slot.timer_s = _rng.randf_range(theme.bird_first_delay_min_s, maxf(theme.bird_first_delay_max_s, theme.bird_first_delay_min_s))
+		slot.timer_s = _rng.randf_range(def.bird_first_delay_min_s, maxf(def.bird_first_delay_max_s, def.bird_first_delay_min_s))
 		_slots.append(slot)
 	_instance = MultiMeshInstance3D.new()
 	_instance.name = "Flocks"
@@ -108,7 +117,7 @@ func configure(theme: SkyThemeDef, enabled: bool) -> void:
 	_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The shader moves vertices far from the instance origins, so the culling
 	# box must cover the whole sky volume.
-	var extent: float = theme.bird_path_radius_m + theme.bird_altitude_max_m + theme.bird_spacing_m * float(_per_slot)
+	var extent: float = def.bird_path_radius_m + def.bird_altitude_max_m + def.bird_spacing_m * float(_per_slot)
 	_instance.custom_aabb = AABB(Vector3(-extent, -extent, -extent), Vector3.ONE * extent * 2.0)
 	add_child(_instance)
 	set_process(true)
@@ -121,7 +130,7 @@ func _process(delta: float) -> void:
 ## Advances the flight clock and the launch/finish schedule by `delta` seconds
 ## (called by _process; tests call it directly).
 func advance(delta: float) -> void:
-	if _theme == null or _instance == null:
+	if _def == null or _instance == null:
 		return
 	_clock += delta
 	var any_flying: bool = false
@@ -141,9 +150,9 @@ func advance(delta: float) -> void:
 
 
 func _launch(slot: _Slot) -> void:
-	var count: int = FlockPlanner.pick_flock_size(_theme, _rng)
+	var count: int = FlockPlanner.pick_flock_size(_def, _rng)
 	count = mini(count, _per_slot)
-	var flight: FlockPlanner.Flight = FlockPlanner.plan(_theme, _rng, count)
+	var flight: FlockPlanner.Flight = FlockPlanner.plan(_def, _rng, count)
 	var multimesh: MultiMesh = _instance.multimesh
 	var flock_basis_velocity: Vector3 = flight.velocity
 	for bird: int in range(_per_slot):
@@ -167,7 +176,7 @@ func _finish(slot: _Slot) -> void:
 	for bird: int in range(_per_slot):
 		_park(_instance.multimesh, slot.first_index + bird)
 	slot.flying = false
-	slot.timer_s = _rng.randf_range(_theme.bird_gap_min_s, maxf(_theme.bird_gap_max_s, _theme.bird_gap_min_s))
+	slot.timer_s = _rng.randf_range(_def.bird_gap_min_s, maxf(_def.bird_gap_max_s, _def.bird_gap_min_s))
 
 
 static func _park(multimesh: MultiMesh, index: int) -> void:
