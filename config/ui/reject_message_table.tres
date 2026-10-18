@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="RejectMessageTable" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/ui/RejectMessageTable.gd" id="1_t"]
+
+[resource]
+script = ExtResource("1_t")
+messages = {
+"contested": "Another team's territory is in the way.",
+"empty_footprint": "That block has no shape. Pick another.",
+"goal_zone": "You can't build next to a goal flag.",
+"hole": "There is nothing to build on there.",
+"no_block": "You have no block to place.",
+"not_a_special": "You have no gift to throw.",
+"not_your_turn": "Wait for your turn.",
+"off_disk": "Keep the block on the disc.",
+"outside_territory": "You can only build inside your territory."
+}
+fallback_message = "You can't place that block there."
