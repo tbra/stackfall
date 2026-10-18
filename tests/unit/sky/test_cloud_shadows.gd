@@ -89,7 +89,9 @@ func test_skybox_cloud_scale_dims_light_and_resets() -> void:
 	var clear: float = light.light_energy
 	assert_gt(clear, 0.0)
 	skybox.set_sun_cloud_scale(0.5)
+	skybox.flush_weather()
 	assert_almost_eq(light.light_energy, clear * 0.5, 0.0001)
 	skybox.set_sun_cloud_scale(1.0)
+	skybox.flush_weather()
 	assert_almost_eq(light.light_energy, clear, 0.0001)
 

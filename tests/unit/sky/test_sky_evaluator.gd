@@ -140,6 +140,7 @@ func _flare() -> SunFlare:
 ## Every value the live Skybox wrote that a SkyFrame field carries, keyed by field name. Values a
 ## writer leaves untouched (unset uniforms, aurora look while hidden) are left out.
 func _live_values(skybox: Skybox, frame: SkyFrame) -> Dictionary[StringName, Variant]:
+	skybox.flush_weather()
 	var values: Dictionary[StringName, Variant] = {}
 	var sky: ShaderMaterial = skybox.environment.sky.sky_material as ShaderMaterial
 	for field: StringName in SKY_FIELDS:

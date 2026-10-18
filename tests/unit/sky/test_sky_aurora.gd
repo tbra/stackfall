@@ -8,7 +8,6 @@ extends GutTest
 const NIGHT_PHASE: float = 0.75
 const NOON_PHASE: float = 0.25
 var _original_preset_id: StringName
-var _original_chance: float = 0.0
 
 
 func before_each() -> void:
@@ -16,13 +15,9 @@ func before_each() -> void:
 	Settings.set_graphics_preset(&"high")
 	# these tests check the per-night fade, so every night shows it here;
 	# the per-night roll itself is covered by test_sky_aurora_nights.gd.
-	var source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
-	_original_chance = source.aurora_night_chance
-	source.aurora_night_chance = 1.0
 
 
 func after_each() -> void:
-	Skybox.load_theme(Skybox.DEFAULT_THEME_ID).aurora_night_chance = _original_chance
 	Settings.set_graphics_preset(_original_preset_id)
 
 
@@ -35,6 +30,8 @@ func _wired_skybox() -> Skybox:
 	skybox.environment = environment
 	skybox.theme = SkyThemeDef.new()
 	add_child_autofree(skybox)
+	# The facade owns a private copy of the sky definition, so the always-shown night is set on it.
+	skybox.sky_def.aurora_night_chance = 1.0
 	return skybox
 
 
@@ -57,8 +54,9 @@ func _visibility(skybox: Skybox) -> float:
 func test_a_live_theme_edit_reaches_the_shader() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
-	skybox.theme.aurora_intensity = 1.7
-	skybox.theme.aurora_color_low = Color(0.9, 0.2, 0.3)
+	skybox.sky_def.aurora_intensity = 1.7
+	skybox.sky_def.aurora_color_low = Color(0.9, 0.2, 0.3)
+	skybox.refresh_sky_def()
 	skybox.set_cycle_phase(NIGHT_PHASE + 0.01)
 	assert_almost_eq(float(_param(skybox, &"aurora_intensity")), 1.7, 0.0001)
 	assert_eq(_param(skybox, &"aurora_color_low"), Color(0.9, 0.2, 0.3))
@@ -103,8 +101,10 @@ func test_storm_hides_the_aurora() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
 	skybox.set_storm_sky(1.0, Skybox.load_theme("storm"))
+	skybox.flush_weather()
 	assert_almost_eq(_visibility(skybox), 0.0, 0.0001, "a full storm covers the aurora like the moon")
 	skybox.set_storm_sky(0.0, null)
+	skybox.flush_weather()
 	assert_almost_eq(_visibility(skybox), 1.0, 0.0001, "clear again")
 
 
@@ -112,9 +112,11 @@ func test_overcast_dims_the_aurora() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
 	skybox.set_overcast(1.0, 0.5, 0.6, 0.4, Color(0.4, 0.4, 0.5), 0.5)
+	skybox.flush_weather()
 	var dimmed: float = _visibility(skybox)
 	assert_true(dimmed > 0.0 and dimmed < 1.0, "overcast keeps some aurora, not all (got %s)" % dimmed)
 	skybox.set_overcast(0.0, 1.0, 1.0, 1.0, Color.WHITE, 0.0)
+	skybox.flush_weather()
 	assert_almost_eq(_visibility(skybox), 1.0, 0.0001, "clear sky again")
 
 

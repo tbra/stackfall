@@ -11,6 +11,11 @@ extends RefCounted
 const SKY_TIME_GLOBAL: StringName = &"sky_time"
 const SKY_SUN_DIR_GLOBAL: StringName = &"sky_sun_dir"
 const SKY_MOON_DIR_GLOBAL: StringName = &"sky_moon_dir"
+## Sea mix of the cycle's procedural sky look (0 would be a black sky): a constant the evaluator does
+## not carry, written once at bind.
+const PROCEDURAL_SEA_MIX: float = 1.0
+const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_disc.png")
+const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_halo.png")
 
 ## Total uniform writes since bind (tests and the bench read it).
 var total_writes: int = 0
@@ -27,6 +32,10 @@ var _written: Dictionary[StringName, Variant] = {}
 func bind(sky: Sky, template: ShaderMaterial) -> ShaderMaterial:
 	forget()
 	_material = template.duplicate() as ShaderMaterial
+	# Constant uniforms, written once (a per-tick write would dirty the radiance for nothing).
+	_material.set_shader_parameter(&"moon_disc_tex", MOON_DISC_TEXTURE)
+	_material.set_shader_parameter(&"moon_halo_tex", MOON_HALO_TEXTURE)
+	_material.set_shader_parameter(&"procedural_sea_mix", PROCEDURAL_SEA_MIX)
 	if sky != null:
 		sky.sky_material = _material
 	return _material
@@ -77,13 +86,15 @@ func stage(frame: SkyFrame) -> void:
 	_wanted[&"moon_halo_strength"] = frame.moon_halo_strength
 	_wanted[&"moon_brightness"] = frame.moon_brightness
 	_wanted[&"aurora_visibility"] = frame.aurora_visibility
-	_wanted[&"aurora_intensity"] = frame.aurora_intensity
-	_wanted[&"aurora_color_low"] = frame.aurora_color_low
-	_wanted[&"aurora_color_mid"] = frame.aurora_color_mid
-	_wanted[&"aurora_color_top"] = frame.aurora_color_top
-	_wanted[&"aurora_speed"] = frame.aurora_speed
-	_wanted[&"aurora_base_height"] = frame.aurora_base_height
-	_wanted[&"aurora_curtain_height"] = frame.aurora_curtain_height
+	# The look is staged only while the aurora is visible (it is never drawn otherwise).
+	if frame.aurora_visibility > 0.0:
+		_wanted[&"aurora_intensity"] = frame.aurora_intensity
+		_wanted[&"aurora_color_low"] = frame.aurora_color_low
+		_wanted[&"aurora_color_mid"] = frame.aurora_color_mid
+		_wanted[&"aurora_color_top"] = frame.aurora_color_top
+		_wanted[&"aurora_speed"] = frame.aurora_speed
+		_wanted[&"aurora_base_height"] = frame.aurora_base_height
+		_wanted[&"aurora_curtain_height"] = frame.aurora_curtain_height
 	_wanted[&"sun_effect_scale"] = frame.sun_effect_scale
 
 

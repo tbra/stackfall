@@ -13,6 +13,11 @@ const PRESET_LOW: StringName = &"low"
 const PRESET_MEDIUM: StringName = &"medium"
 const PRESET_HIGH: StringName = &"high"
 const PRESET_IDS: Array[StringName] = [PRESET_LOW, PRESET_MEDIUM, PRESET_HIGH]
+## INTENDED CHANGE (boot and reset sky; the default is still to be confirmed): boot and
+## reset are the cycle locked at SkyboxConfig.theme_name (default sunset = the locked Day phase 0.47),
+## no longer the static sunset theme. These states therefore assert the golden's locked-Day state
+## instead of their own old-facade snapshot (P_<preset>_boot compares to P_<preset>_0.47).
+const BOOT_STATE_REFERENCE: Dictionary = {"W_after_reset": "L_0.47"}
 const LOCKED_PHASES: Array[float] = [0.03, 0.10, 0.25, 0.38, 0.47, 0.52, 0.62, 0.75, 0.95]
 const PRESET_PHASES: Array[float] = [0.25, 0.47, 0.75]
 ## First match seed whose night 0 shows the aurora (SkyVariation.aurora_night_shown at 0.1).
@@ -472,7 +477,10 @@ func test_live_facade_matches_the_golden() -> void:
 		assert_true(got.has(state), "state %s captured" % state)
 		if not got.has(state):
 			continue
-		var problems: Array[String] = diff_state(want[state] as Dictionary, got[state] as Dictionary, retired)
+		var reference: String = BOOT_STATE_REFERENCE.get(state, state) as String
+		if state.ends_with("_boot"):
+			reference = "P_%s_0.47" % state.trim_prefix("P_").trim_suffix("_boot")
+		var problems: Array[String] = diff_state(want[reference] as Dictionary, got[state] as Dictionary, retired)
 		assert_eq(problems.size(), 0, "state %s: %s" % [state, str(problems.slice(0, 6))])
 		checked += 1
 	assert_gt(checked, 60, "the golden covers every group")
