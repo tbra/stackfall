@@ -28,9 +28,11 @@ func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
 	var base: float = environment.fog_aerial_perspective
 	skybox.set_weather_fog(1.0, _fog.max_opacity, _fog.depth_begin_m, _fog.depth_end_m,
 		_fog.fog_color, _fog.fog_tint_strength, _fog.sky_affect)
+	skybox.flush_weather()
 	assert_gt(base, 0.0)
 	assert_almost_eq(environment.fog_aerial_perspective, 0.0, 0.0001, "flat fog colour like the disc (night sky is black)")
 	skybox.set_weather_fog(0.0, 0.0, 0.0, 0.0, Color.WHITE, 0.0)
+	skybox.flush_weather()
 	assert_almost_eq(environment.fog_aerial_perspective, base, 0.0001)
 
 
