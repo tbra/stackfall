@@ -10,10 +10,10 @@ extends Node3D
 ## demo. Distant clumps fade into the procedural far cloud sea
 ## (sampled along the view ray in the puff shader), so there is no seam.
 ##
-## Placement is deterministic (SkyThemeDef.cloud_seed). Every puff top stays
-## at or below SkyThemeDef.cloud_top_max_m, far under the disc's underside
+## Placement is deterministic (SkyCycleDef.cloud_seed). Every puff top stays
+## at or below SkyCycleDef.cloud_top_max_m, far under the disc's underside
 ## and the 0..72 m play volume. game/sky/Skybox.gd owns one of these and calls
-## configure() on theme and graphics-preset changes.
+## configure_cycle() on cycle and graphics-preset changes.
 
 ## Render layer bit the puffs live on (layer 19). Skybox.PROBE_CULL_MASK (the disc ReflectionProbe's mask) excludes it: the
 ## puffs sit below the disc plane and must never appear in its reflection.
@@ -70,13 +70,6 @@ const BILLBOARD_CORNERS: int = 6
 ## group the live CloudSea joins so game/sky/SunFlare.gd can ask it whether the
 ## puffs hide the sun without a node path.
 const GROUP: StringName = &"cloud_sea"
-## Sun-occlusion records (see sun_ray_cloud_occlusion()): one row per puff in _occ_puffs.
-## Row layout: centre x, y, z, horizontal radius, vertical radius (both inflated like the
-## shader's hull), and the world Y of the flat-base cut (NO_BASE_CUT when round).
-const OCC_PUFF_STRIDE: int = 6
-const NO_BASE_CUT: float = -1.0e30
-## The shader's `round_base_from` default: a base plane at or above it means whole ellipsoids.
-const ROUND_BASE_FROM: float = 0.9
 ## Sentinel for sun_ray_cloud_occlusion(): use the live drift offset.
 const OCC_LIVE_DRIFT: Vector2 = Vector2(-1.0e30, -1.0e30)
 const DRIFT_OFFSET_PARAMETER: StringName = &"drift_offset"
@@ -85,10 +78,6 @@ const DRIFT_EXCLUSION_FADE_PARAMETER: StringName = &"drift_exclusion_fade_m"
 const SHADER_TIME_ROLLOVER_SETTING: String = "rendering/limits/time/time_rollover_secs"
 ## Engine default of the setting above (the shader's TIME wraps here).
 const SHADER_TIME_ROLLOVER_DEFAULT_S: float = 3600.0
-## Rays flatter than this are treated as horizontal by the clump height-slab prefilter.
-const OCC_FLAT_RAY: float = 1.0e-6
-const OCC_DEFAULT_TUNING: SunFlareConfig = preload("res://config/sky/sun_flare.tres")
-
 ## One placement layer: the sea below the disc, or the cloud banks past its
 ## edge. Both draw through the same MultiMesh.
 class _Layer:
@@ -187,31 +176,12 @@ var _inflate: float = 0.0
 var disc_radius_m: float = MapDef.RADIUS_LARGE
 var _exclusion_radius_m: float = 0.0
 var _disc_ceiling_m: float = 0.0
-## sun-occlusion bounds, recorded by configure() for every clump of both
-## instances (bounds only; no physics body exists for the puffs). Clump arrays share one
-## index; a clump's puffs are rows first..first+count of _occ_puffs. Positions are in the
-## clump's rest frame: the shader slides each clump by drift_offset * its speed (wrapped), so
-## queries shift the ray back instead of every clump forward.
-var _occ_puffs: PackedFloat32Array = PackedFloat32Array()
-var _occ_centre: PackedVector3Array = PackedVector3Array()
-var _occ_radius: PackedFloat32Array = PackedFloat32Array()
-var _occ_speed: PackedFloat32Array = PackedFloat32Array()
-## per clump, its rest (x, z), wrap domain half-side and exclusion radius (0 =
-## none), the same numbers the shader reads from the instance colour.
-var _occ_rest: PackedVector2Array = PackedVector2Array()
-var _occ_domain: PackedFloat32Array = PackedFloat32Array()
-var _occ_excl: PackedFloat32Array = PackedFloat32Array()
+## sun-occlusion bounds, recorded by configure() for every clump of both instances (bounds only;
+## no physics body exists for the puffs).
+var _bounds: CloudOcclusionBounds = CloudOcclusionBounds.new()
 ## The shared cloud wind integral last pushed by set_drift_offset().
 var _drift_offset: Vector2 = Vector2.ZERO
 var drift_config: CloudDriftConfig = CloudDriftState.DEFAULT_CONFIG
-var _occ_y_low: PackedFloat32Array = PackedFloat32Array()
-var _occ_y_high: PackedFloat32Array = PackedFloat32Array()
-var _occ_first: PackedInt32Array = PackedInt32Array()
-var _occ_count: PackedInt32Array = PackedInt32Array()
-## 1 for clumps of the upper layer, which the shader dithers away near the camera.
-var _occ_upper: PackedByteArray = PackedByteArray()
-var _occ_clear_start_m: float = 0.0
-var _occ_clear_end_m: float = 0.0
 
 
 ## Storm tint. Re-bases the live puff material on `base` (the
@@ -272,10 +242,82 @@ func set_drift_offset(offset: Vector2) -> void:
 		_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, offset)
 
 
-## Rebuilds the puffs from `theme`. `density` (GraphicsPreset.cloud_puff_density,
-## 0..1) scales the theme's clump count; 0 hides the cloud sea. `sky_material`
-## is the active sky material whose grade/procedural uniforms the puffs copy.
+## Rebuilds the puffs from the old theme: converts it through SkyThemeMigration and hands the
+## sky material's shared uniforms over as the puff snapshot (transitional; Skybox moves to
+## configure_cycle()). `density` (GraphicsPreset.cloud_puff_density, 0..1) scales the clump
+## count; 0 hides the cloud sea. `sky_material` is the active sky material whose grade and
+## procedural uniforms the puffs copy.
 func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS,
+		billboard_distance_m: float = 0.0) -> void:
+	var def: SkyCycleDef = null
+	if theme != null:
+		def = SkyThemeMigration.cycle_from_themes(theme, theme, theme)
+		# The cycle has one (procedural) look; a theme that turned it off had no far ring and
+		# no far-fade cap.
+		if not theme.sky_look_procedural:
+			def.proc_far_count = 0
+			def.proc_far_fade_cap = 1.0
+	var snapshot: SkyFrame = SkyFrame.new()
+	var sky: ShaderMaterial = sky_material as ShaderMaterial
+	if sky != null:
+		for parameter: StringName in SHARED_SKY_PARAMETERS:
+			var value: Variant = sky.get_shader_parameter(parameter)
+			if value != null:
+				snapshot.puff_shared[parameter] = value
+	configure_cycle(def, snapshot, density, subdivisions, billboard_distance_m)
+
+
+## Writes the puff channel of an evaluated frame (plan 4.1 steps 6-7), the cycle's tick values:
+## cel tones, sky cloud tones, moonlit grade, sea colours the far fade targets, light and sun
+## direction. While `frame.storm_amount` > 0 the storm copy follows (quirk Q1): the frame's
+## puff_shared set (the storm-blended sky's shared uniforms) is re-copied onto the puff material
+## and the storm-lerped tones are written over it, in the order apply_storm_tint() used. Outside
+## a storm puff_shared is never written here (quirk Q3: the far-fade gradient is only copied at
+## configure_cycle() and on a storm), nor are exposure and sea coverage, which travel inside
+## puff_shared.
+func apply_frame(frame: SkyFrame) -> void:
+	if _material == null or frame == null:
+		return
+	_write_tones(frame)
+	_material.set_shader_parameter(&"grade_dark", frame.puff_grade_dark)
+	_material.set_shader_parameter(&"grade_mid", frame.puff_grade_mid)
+	_material.set_shader_parameter(&"grade_light", frame.puff_grade_light)
+	_material.set_shader_parameter(&"grade_amount", frame.puff_grade_amount)
+	_material.set_shader_parameter(&"proc_sea_color_near", frame.puff_sea_color_near)
+	_material.set_shader_parameter(&"proc_sea_color_far", frame.puff_sea_color_far)
+	_material.set_shader_parameter(&"light_direction", frame.puff_light_direction)
+	_material.set_shader_parameter(&"sun_direction", frame.puff_sun_direction)
+	if frame.storm_amount > 0.0:
+		# Q1: the storm copy overwrites the sky cloud tones and sea colours just written, so the
+		# frame's tones (already storm-lerped) go back on top, as apply_storm_tint() did.
+		_copy_shared(frame.puff_shared)
+		_write_tones(frame)
+
+
+## The puff cel tones and the sky cloud tones of `frame`.
+func _write_tones(frame: SkyFrame) -> void:
+	_material.set_shader_parameter(&"shadow_color", frame.puff_shadow_color)
+	_material.set_shader_parameter(&"mid_color", frame.puff_mid_color)
+	_material.set_shader_parameter(&"lit_color", frame.puff_lit_color)
+	_material.set_shader_parameter(&"rim_color", frame.puff_rim_color)
+	_material.set_shader_parameter(&"cloud_shadow_color", frame.puff_cloud_shadow_color)
+	_material.set_shader_parameter(&"cloud_mid_color", frame.puff_cloud_mid_color)
+	_material.set_shader_parameter(&"cloud_lit_color", frame.puff_cloud_lit_color)
+	_material.set_shader_parameter(&"cloud_rim_color", frame.puff_cloud_rim_color)
+
+
+## Copies the snapshot of sky values the puff far fade shares onto the puff material.
+func _copy_shared(shared: Dictionary[StringName, Variant]) -> void:
+	for parameter: StringName in SHARED_SKY_PARAMETERS:
+		if shared.has(parameter):
+			_material.set_shader_parameter(parameter, shared[parameter])
+
+
+## Rebuilds the puffs from `def`. `snapshot.puff_shared` is the sky-uniform snapshot the puffs'
+## far fade is copied from (quirk Q3: SkyEvaluator.puff_snapshot, from the evening key at cycle
+## start and from the live frame on a preset change). `density` scales the clump counts; 0 hides
+## the cloud sea.
+func configure_cycle(def: SkyCycleDef, snapshot: SkyFrame, density: float, subdivisions: int = PUFF_SUBDIVISIONS,
 		billboard_distance_m: float = 0.0) -> void:
 	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
 	for node: MultiMeshInstance3D in [_instance, _far, _upper, _upper_far]:
@@ -287,21 +329,23 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_upper_far = null
 	_material = null
 	_cycle_base.clear()
-	_clear_occlusion_bounds()
-	var layers: Array[_Layer] = _layers_for(theme, density)
+	_bounds.clear()
+	var layers: Array[_Layer] = _layers_for(def, density)
 	var clumps: int = 0
 	for layer: _Layer in layers:
 		clumps += layer.clumps
-	if theme == null or theme.cloud_puff_material == null or clumps <= 0 or theme.cloud_puffs_per_clump <= 0:
+	if def == null or def.cloud_puff_material == null or clumps <= 0 or def.cloud_puffs_per_clump <= 0:
 		visible = false
 		return
-	_material = theme.cloud_puff_material.duplicate() as ShaderMaterial
+	_material = def.cloud_puff_material.duplicate() as ShaderMaterial
 	if _material == null:
 		visible = false
 		return
 	_inflate = hull_inflate(_material)
-	_exclusion_radius_m = exclusion_radius_m(theme, disc_radius_m)
-	_disc_ceiling_m = disc_ceiling_m(theme, disc_radius_m)
+	_bounds.inflate = _inflate
+	_bounds.drift_config = drift_config
+	_exclusion_radius_m = exclusion_radius_m(def, disc_radius_m)
+	_disc_ceiling_m = disc_ceiling_m(def, disc_radius_m)
 	visible = true
 	add_to_group(WeatherFogShader.GROUP)
 	add_to_group(GROUP)
@@ -309,22 +353,18 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 	_material.set_shader_parameter(DRIFT_EDGE_FADE_PARAMETER, drift_config.edge_fade_m)
 	_material.set_shader_parameter(DRIFT_EXCLUSION_FADE_PARAMETER, drift_config.exclusion_fade_m)
 	_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, _drift_offset)
-	_material.set_shader_parameter(FLAT_BASE_PARAMETER, theme.cloud_flat_base)
-	_material.set_shader_parameter(FAR_FADE_CAP_PARAMETER, theme.proc_far_fade_cap if theme.sky_look_procedural else 1.0)
+	_material.set_shader_parameter(FLAT_BASE_PARAMETER, def.cloud_flat_base)
+	_material.set_shader_parameter(FAR_FADE_CAP_PARAMETER, def.proc_far_fade_cap)
 	# Transparent-pass draw (see the shader's DECISION): first among
 	# transparents, so ghosts, particles and birds blend over the clouds.
 	_material.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MIN
 	apply_lighting(lighting)
-	var sky: ShaderMaterial = sky_material as ShaderMaterial
-	if sky != null:
-		for parameter: StringName in SHARED_SKY_PARAMETERS:
-			var value: Variant = sky.get_shader_parameter(parameter)
-			if value != null:
-				_material.set_shader_parameter(parameter, value)
+	if snapshot != null:
+		_copy_shared(snapshot.puff_shared)
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = theme.cloud_seed
-	var sea_nodes: Array[MultiMeshInstance3D] = _build_instances("Puffs", layers, theme, subdivisions, rng, theme.cloud_flat_base)
+	rng.seed = def.cloud_seed
+	var sea_nodes: Array[MultiMeshInstance3D] = _build_instances("Puffs", layers, def, subdivisions, rng, def.cloud_flat_base)
 	_instance = sea_nodes[0]
 	_far = sea_nodes[1]
 	add_child(_instance)
@@ -332,10 +372,10 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 		add_child(_far)
 	# the same puffs, shader, material and lighting again above
 	# the disc, always present (weather only changes its lighting).
-	var upper_layers: Array[_Layer] = _upper_layers_for(theme, density)
+	var upper_layers: Array[_Layer] = _upper_layers_for(def, density)
 	if not upper_layers.is_empty():
-		rng.seed = theme.cloud_seed + upper_tuning.upper_seed_offset
-		var upper_nodes: Array[MultiMeshInstance3D] = _build_instances("UpperPuffs", upper_layers, theme, subdivisions, rng, upper_layers[0].flat_base)
+		rng.seed = def.cloud_seed + upper_tuning.upper_seed_offset
+		var upper_nodes: Array[MultiMeshInstance3D] = _build_instances("UpperPuffs", upper_layers, def, subdivisions, rng, upper_layers[0].flat_base)
 		_upper = upper_nodes[0]
 		_upper_far = upper_nodes[1]
 		add_child(_upper)
@@ -347,13 +387,13 @@ func configure(theme: SkyThemeDef, density: float, sky_material: Material = null
 ## The MultiMeshInstance3Ds of the clumps of `layers`, drawn with the shared puff material:
 ## [hull puffs, impostor puffs]. Clumps at or beyond _billboard_distance_m go to the impostor
 ## instance (null when none does); the hull instance always exists.
-func _build_instances(node_name: String, layers: Array[_Layer], theme: SkyThemeDef, subdivisions: int,
+func _build_instances(node_name: String, layers: Array[_Layer], def: SkyCycleDef, subdivisions: int,
 		rng: RandomNumberGenerator, flat_base: float) -> Array[MultiMeshInstance3D]:
 	var near: _Stage = _Stage.new()
 	var far: _Stage = _Stage.new()
 	for layer: _Layer in layers:
 		for _clump: int in range(layer.clumps):
-			_add_clump(near, far, theme, layer, rng)
+			_add_clump(near, far, def, layer, rng)
 	# The culling box must cover the whole wrap domain the shader slides puffs inside.
 	var extent: float = 0.0
 	var low: float = INF
@@ -404,8 +444,7 @@ func _apply_upper_parameters() -> void:
 		return
 	_material.set_shader_parameter(CLEAR_FADE_START_PARAMETER, upper_tuning.upper_clear_fade_start_m)
 	_material.set_shader_parameter(CLEAR_FADE_END_PARAMETER, upper_tuning.upper_clear_fade_end_m)
-	_occ_clear_start_m = upper_tuning.upper_clear_fade_start_m
-	_occ_clear_end_m = upper_tuning.upper_clear_fade_end_m
+	_bounds.set_clear_fade(upper_tuning.upper_clear_fade_start_m, upper_tuning.upper_clear_fade_end_m)
 
 
 func _apply_upper_parameters_to(node: MultiMeshInstance3D) -> void:
@@ -434,28 +473,28 @@ static func _float_param(material: ShaderMaterial, name: StringName, fallback: f
 
 ## Clearance (m) kept around the disc: cloud_disc_clearance_ratio of the largest
 ## field radius.
-static func disc_clearance_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
-	return radius_m * theme.cloud_disc_clearance_ratio
+static func disc_clearance_m(def: SkyCycleDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return radius_m * def.cloud_disc_clearance_ratio
 
 
 ## Radius (m) of the cylinder around the disc axis no puff may rise out of the
 ## under-disc ceiling inside: the largest field plus the clearance.
-static func exclusion_radius_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
-	return radius_m + disc_clearance_m(theme, radius_m)
+static func exclusion_radius_m(def: SkyCycleDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return radius_m + disc_clearance_m(def, radius_m)
 
 
 ## World Y no puff top inside the exclusion cylinder may exceed: the disc's
 ## underside (MapDef.disk_height below y 0) minus the clearance.
-static func disc_ceiling_m(theme: SkyThemeDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
-	return -MapDef.new().disk_height - disc_clearance_m(theme, radius_m)
+static func disc_ceiling_m(def: SkyCycleDef, radius_m: float = MapDef.RADIUS_LARGE) -> float:
+	return -MapDef.new().disk_height - disc_clearance_m(def, radius_m)
 
 
 ## The overcast layer above the disc -- clumps over a disc of
 ## upper_ring_outer_m around the axis, flat bases from height_m up, scaled by the
 ## density preset like the sea (Low also uses upper_clump_count_low).
-func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
+func _upper_layers_for(def: SkyCycleDef, density: float) -> Array[_Layer]:
 	var layers: Array[_Layer] = []
-	if upper_tuning == null or theme == null:
+	if upper_tuning == null or def == null:
 		return layers
 	var upper: _Layer = _Layer.new()
 	var count: int = upper_tuning.upper_clump_count_low if upper_low else upper_tuning.upper_clump_count
@@ -477,70 +516,70 @@ func _upper_layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
 	upper.base_max_m = upper.base_min_m + upper_tuning.upper_base_spread_m
 	upper.radius_min_m = upper_tuning.upper_clump_radius_min_m
 	upper.radius_max_m = upper_tuning.upper_clump_radius_max_m
-	upper.top_max_m = upper.base_max_m + upper.radius_max_m * (theme.cloud_clump_height_ratio * (1.0 + SIZE_JITTER) + 1.0)
+	upper.top_max_m = upper.base_max_m + upper.radius_max_m * (def.cloud_clump_height_ratio * (1.0 + SIZE_JITTER) + 1.0)
 	layers.append(upper)
 	return layers
 
 
 ## The sea layer and (when the theme has any) the cloud-bank layer, with the
 ## density preset applied to both clump counts.
-static func _layers_for(theme: SkyThemeDef, density: float) -> Array[_Layer]:
+static func _layers_for(def: SkyCycleDef, density: float) -> Array[_Layer]:
 	var layers: Array[_Layer] = []
-	if theme == null:
+	if def == null:
 		return layers
 	var scale: float = clampf(density, 0.0, 1.0)
 	var sea: _Layer = _Layer.new()
-	sea.clumps = int(round(float(theme.cloud_clump_count) * scale))
-	sea.ring_inner_m = theme.cloud_ring_inner_m
-	sea.ring_outer_m = theme.cloud_ring_outer_m
-	sea.radial_bias = theme.cloud_radial_bias
-	sea.base_min_m = theme.cloud_base_min_m
-	sea.base_max_m = theme.cloud_base_max_m
+	sea.clumps = int(round(float(def.cloud_clump_count) * scale))
+	sea.ring_inner_m = def.cloud_ring_inner_m
+	sea.ring_outer_m = def.cloud_ring_outer_m
+	sea.radial_bias = def.cloud_radial_bias
+	sea.base_min_m = def.cloud_base_min_m
+	sea.base_max_m = def.cloud_base_max_m
 	# the sea layer rides cloud_puff_raise_m higher; the disc
 	# clearance clamp in _write_puff() keeps it clear of the disc and play volume.
-	sea.base_min_m += theme.cloud_puff_raise_m
-	sea.base_max_m += theme.cloud_puff_raise_m
-	sea.top_max_m = theme.cloud_top_max_m + theme.cloud_puff_raise_m
-	sea.radius_min_m = theme.cloud_clump_radius_min_m
-	sea.radius_max_m = theme.cloud_clump_radius_max_m
+	sea.base_min_m += def.cloud_puff_raise_m
+	sea.base_max_m += def.cloud_puff_raise_m
+	sea.top_max_m = def.cloud_top_max_m + def.cloud_puff_raise_m
+	sea.radius_min_m = def.cloud_clump_radius_min_m
+	sea.radius_max_m = def.cloud_clump_radius_max_m
 	layers.append(sea)
 	var banks: _Layer = _Layer.new()
-	banks.clumps = int(round(float(theme.cloud_bank_count) * scale))
+	banks.clumps = int(round(float(def.cloud_bank_count) * scale))
 	banks.kind = CloudDriftMath.KIND_BANK
-	banks.ring_inner_m = theme.cloud_bank_ring_inner_m
-	banks.ring_outer_m = theme.cloud_bank_ring_outer_m
+	banks.ring_inner_m = def.cloud_bank_ring_inner_m
+	banks.ring_outer_m = def.cloud_bank_ring_outer_m
 	banks.radial_bias = 1.0
-	banks.base_min_m = theme.cloud_bank_base_min_m
-	banks.base_max_m = theme.cloud_bank_base_max_m
-	banks.top_max_m = theme.cloud_bank_top_max_m
-	banks.radius_min_m = theme.cloud_bank_radius_min_m
-	banks.radius_max_m = theme.cloud_bank_radius_max_m
+	banks.base_min_m = def.cloud_bank_base_min_m
+	banks.base_max_m = def.cloud_bank_base_max_m
+	banks.top_max_m = def.cloud_bank_top_max_m
+	banks.radius_min_m = def.cloud_bank_radius_min_m
+	banks.radius_max_m = def.cloud_bank_radius_max_m
 	layers.append(banks)
 	# DECISION: the below-horizon cloud sea of the procedural
 	# look is a far ring of the same 3D puffs (they already read well and need no
 	# new art) rather than a shader-only height field; the sky shader keeps only a
 	# flat violet cloud floor and haze between them. Gated on the toggle so the
 	# painted look is unchanged.
-	if theme.sky_look_procedural and theme.proc_far_count > 0:
+	if def.proc_far_count > 0:
 		var far: _Layer = _Layer.new()
 		far.kind = CloudDriftMath.KIND_FAR
-		far.clumps = int(round(float(theme.proc_far_count) * scale))
-		far.ring_inner_m = theme.proc_far_ring_inner_m
-		far.ring_outer_m = theme.proc_far_ring_outer_m
-		far.radial_bias = theme.proc_far_radial_bias
-		far.base_min_m = theme.proc_far_base_min_m
-		far.base_max_m = theme.proc_far_base_max_m
-		far.top_max_m = theme.proc_far_top_max_m + theme.cloud_puff_raise_m
-		far.base_min_m += theme.cloud_puff_raise_m
-		far.base_max_m += theme.cloud_puff_raise_m
-		far.radius_min_m = theme.proc_far_radius_min_m
-		far.radius_max_m = theme.proc_far_radius_max_m
+		far.clumps = int(round(float(def.proc_far_count) * scale))
+		far.ring_inner_m = def.proc_far_ring_inner_m
+		far.ring_outer_m = def.proc_far_ring_outer_m
+		far.radial_bias = def.proc_far_radial_bias
+		far.base_min_m = def.proc_far_base_min_m
+		far.base_max_m = def.proc_far_base_max_m
+		far.top_max_m = def.proc_far_top_max_m + def.cloud_puff_raise_m
+		far.base_min_m += def.cloud_puff_raise_m
+		far.base_max_m += def.cloud_puff_raise_m
+		far.radius_min_m = def.proc_far_radius_min_m
+		far.radius_max_m = def.proc_far_radius_max_m
 		layers.append(far)
 	return layers
 
 
 ## Adds one clump's puffs to the `near` or `far` stage.
-func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rng: RandomNumberGenerator) -> void:
+func _add_clump(near: _Stage, far: _Stage, def: SkyCycleDef, layer: _Layer, rng: RandomNumberGenerator) -> void:
 	var azimuth: float = rng.randf() * TAU
 	# Uniform over the ring's area, not its radius.
 	# A radial bias above 1 crowds clumps toward the inner (near) edge.
@@ -549,12 +588,12 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 	var ring_radius: float = sqrt(lerpf(inner_sq, outer_sq, pow(rng.randf(), maxf(layer.radial_bias, 0.01))))
 	var centre: Vector3 = Vector3(cos(azimuth) * ring_radius, 0.0, sin(azimuth) * ring_radius)
 	var clump_radius: float = rng.randf_range(layer.radius_min_m, layer.radius_max_m)
-	var clump_height: float = clump_radius * theme.cloud_clump_height_ratio * rng.randf_range(1.0 - SIZE_JITTER, 1.0 + SIZE_JITTER)
+	var clump_height: float = clump_radius * def.cloud_clump_height_ratio * rng.randf_range(1.0 - SIZE_JITTER, 1.0 + SIZE_JITTER)
 	var base_y: float = rng.randf_range(layer.base_min_m, layer.base_max_m)
 	base_y = minf(base_y, layer.top_max_m - clump_height)
 	# the clump's own speed times its layer's depth rate (near layers slide
 	# faster: parallax). The shader moves it along the shared wind by drift_offset * speed.
-	var speed: float = rng.randf_range(theme.cloud_drift_speed_min_mps, theme.cloud_drift_speed_max_mps)
+	var speed: float = rng.randf_range(def.cloud_drift_speed_min_mps, def.cloud_drift_speed_max_mps)
 	var angular_speed: float = speed * CloudDriftMath.layer_rate(layer.kind, drift_config)
 	# A below-disc clump that starts clear of the exclusion cylinder is not height-clamped, so
 	# it must dissolve before it drifts into the play volume (the shader reads the radius at
@@ -566,8 +605,8 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 		excl_gone = _exclusion_radius_m + reach
 	var rest: Color = Color(centre.x, centre.z, layer.ring_outer_m, excl_gone)
 	var stage: _Stage = far if _billboard_distance_m > 0.0 and ring_radius >= _billboard_distance_m else near
-	var flat: float = layer.flat_base if layer.is_upper else theme.cloud_flat_base
-	var total: int = theme.cloud_puffs_per_clump
+	var flat: float = layer.flat_base if layer.is_upper else def.cloud_flat_base
+	var total: int = def.cloud_puffs_per_clump
 	var detail_count: int = int(float(total) * DETAIL_SHARE) if total > 2 else 0
 	# DECISION: an impostor clump is far away, where the small cauliflower
 	# puffs sitting on the big ones are a few pixels at most: it draws its body puffs only.
@@ -578,7 +617,7 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 	var body_count: int = total - detail_count
 	var body_centres: Array[Vector3] = []
 	var body_radii: Array[float] = []
-	var first_puff: int = _occ_puffs.size() / OCC_PUFF_STRIDE
+	var first_puff: int = _bounds.puff_rows()
 	for puff: int in range(body_count):
 		var spread: float = 0.0 if puff == 0 else sqrt(rng.randf()) * SPREAD_FRACTION
 		var angle: float = rng.randf() * TAU
@@ -601,7 +640,7 @@ func _add_clump(near: _Stage, far: _Stage, theme: SkyThemeDef, layer: _Layer, rn
 		direction.y *= layer.vertical_scale
 		var at: Vector3 = body_centres[host] + direction * body_radii[host] * DETAIL_SURFACE_OFFSET
 		_write_puff(stage, at, radius, layer, rng, angular_speed, base_y, clump_height, flat, rest)
-	_record_clump_bounds(first_puff, angular_speed, layer.is_upper, rest)
+	_bounds.record_clump(first_puff, angular_speed, layer.is_upper, rest)
 
 
 func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
@@ -620,150 +659,21 @@ func _write_puff(stage: _Stage, at: Vector3, radius: float, layer: _Layer,
 	if not layer.is_upper and footprint < _exclusion_radius_m:
 		at.y = minf(at.y, _disc_ceiling_m - inflated)
 	var basis: Basis = Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(radius * stretch, height, radius * stretch))
-	_record_puff(at, radius * stretch, height, flat)
+	_bounds.record_puff(at, radius * stretch, height, flat)
 	stage.transforms.append(Transform3D(basis, at))
 	stage.customs.append(Color(angular_speed, rng.randf() * TAU, base_y, clump_height))
 	stage.colors.append(rest)
 
 
-## Appends one puff's occlusion row (a spheroid: horizontal radius
-## `horizontal`, vertical radius `vertical`, both grown by the shader's hull inflation).
-func _record_puff(at: Vector3, horizontal: float, vertical: float, flat: float) -> void:
-	var grow: float = 1.0 + _inflate
-	var cut: float = NO_BASE_CUT if flat >= ROUND_BASE_FROM else at.y - vertical * flat
-	_occ_puffs.append_array(PackedFloat32Array([at.x, at.y, at.z, horizontal * grow, vertical * grow, cut]))
-
-
-## Closes the clump whose puffs start at row `first_puff`: its bounding sphere
-## (rest frame), height slab and drift speed.
-func _record_clump_bounds(first_puff: int, angular_speed: float, is_upper: bool, rest: Color) -> void:
-	var rows: int = _occ_puffs.size() / OCC_PUFF_STRIDE
-	var low: Vector3 = Vector3(INF, INF, INF)
-	var high: Vector3 = Vector3(-INF, -INF, -INF)
-	for row: int in range(first_puff, rows):
-		var base: int = row * OCC_PUFF_STRIDE
-		var reach: Vector3 = Vector3(_occ_puffs[base + 3], _occ_puffs[base + 4], _occ_puffs[base + 3])
-		var at: Vector3 = Vector3(_occ_puffs[base], _occ_puffs[base + 1], _occ_puffs[base + 2])
-		low = low.min(at - reach)
-		high = high.max(at + reach)
-	var centre: Vector3 = (low + high) * 0.5
-	var radius: float = 0.0
-	for row: int in range(first_puff, rows):
-		var base: int = row * OCC_PUFF_STRIDE
-		var at: Vector3 = Vector3(_occ_puffs[base], _occ_puffs[base + 1], _occ_puffs[base + 2])
-		radius = maxf(radius, at.distance_to(centre) + maxf(_occ_puffs[base + 3], _occ_puffs[base + 4]))
-	_occ_centre.append(centre)
-	_occ_radius.append(radius)
-	_occ_speed.append(angular_speed)
-	_occ_rest.append(Vector2(rest.r, rest.g))
-	_occ_domain.append(rest.b)
-	_occ_excl.append(rest.a)
-	_occ_y_low.append(low.y)
-	_occ_y_high.append(high.y)
-	_occ_first.append(first_puff)
-	_occ_count.append(rows - first_puff)
-	_occ_upper.append(1 if is_upper else 0)
-
-
-func _clear_occlusion_bounds() -> void:
-	_occ_puffs.clear()
-	_occ_centre.clear()
-	_occ_radius.clear()
-	_occ_speed.clear()
-	_occ_rest.clear()
-	_occ_domain.clear()
-	_occ_excl.clear()
-	_occ_y_low.clear()
-	_occ_y_high.clear()
-	_occ_first.clear()
-	_occ_count.clear()
-	_occ_upper.clear()
-	_occ_clear_start_m = 0.0
-	_occ_clear_end_m = 0.0
-
-
-## How much the puffs hide the sun seen along the ray from `from` toward the
-## unit-ish `dir`, 0 (clear sky) .. 1 (fully hidden). The sun is at infinity, so the ray is a
-## half-line. Cheap bounds test, no physics: clumps first by a height slab and a bounding
-## sphere (each clump's wind shift undone on the ray: the shader moves clumps by
-## drift_offset * their speed, wrapped), then only the few puffs of a clump the ray
-## enters, as spheroids with a soft silhouette (`tuning.cloud_edge_softness`) and the
-## shader's camera-clearance fade for the upper layer. Transmittances multiply, so several
-## thin puffs add up. `drift` is the integrated cloud wind to evaluate at (the live one by default).
-## The CloudSea node is assumed to sit at the world origin, as Skybox places it.
+## How much the puffs hide the sun seen along the ray from `from` toward `dir`, 0 (clear sky) ..
+## 1 (fully hidden); see CloudOcclusionBounds.query(). `drift` is the integrated cloud wind to
+## evaluate at (the live one by default). The CloudSea node is assumed to sit at the world origin,
+## as Skybox places it.
 func sun_ray_cloud_occlusion(from: Vector3, dir: Vector3, tuning: SunFlareConfig = null, drift: Vector2 = OCC_LIVE_DRIFT) -> float:
-	var clumps: int = _occ_speed.size()
-	if clumps == 0 or not visible or dir.length_squared() <= 0.0:
+	if not visible:
 		return 0.0
-	var settings: SunFlareConfig = tuning if tuning != null else OCC_DEFAULT_TUNING
-	var ray: Vector3 = dir.normalized()
 	var wind: Vector2 = _drift_offset if drift == OCC_LIVE_DRIFT else drift
-	var flat_ray: bool = absf(ray.y) < OCC_FLAT_RAY
-	var transmittance: float = 1.0
-	for clump: int in range(clumps):
-		# Height slab: the half-line must reach this clump's height range at all.
-		if flat_ray:
-			if from.y < _occ_y_low[clump] or from.y > _occ_y_high[clump]:
-				continue
-		elif maxf((_occ_y_low[clump] - from.y) / ray.y, (_occ_y_high[clump] - from.y) / ray.y) < 0.0:
-			continue
-		var rest: Vector2 = _occ_rest[clump]
-		var wrapped: Vector2 = CloudDriftMath.wrapped_position(rest, CloudDriftMath.clump_shift(wind, _occ_speed[clump]), _occ_domain[clump])
-		var shown: float = CloudDriftMath.visibility(wrapped, _occ_domain[clump], _occ_excl[clump], drift_config)
-		if shown <= 0.0:
-			continue
-		var moved: Vector2 = wrapped - rest
-		var origin: Vector3 = Vector3(from.x - moved.x, from.y, from.z - moved.y)
-		var heading: Vector3 = ray
-		var to_centre: Vector3 = _occ_centre[clump] - origin
-		var along: float = to_centre.dot(heading)
-		var radius: float = _occ_radius[clump]
-		if along < -radius or to_centre.length_squared() - along * along > radius * radius:
-			continue
-		var first: int = _occ_first[clump]
-		var upper: bool = _occ_upper[clump] != 0
-		for row: int in range(first, first + _occ_count[clump]):
-			transmittance *= 1.0 - _puff_cover(origin, heading, row, upper, settings) * shown
-		if transmittance <= 0.0:
-			return 1.0
-	return clampf(1.0 - transmittance, 0.0, 1.0)
-
-
-## One puff's share (0..1) of hiding the ray `origin` + t * `heading` (rest frame): the ray
-## through the spheroid, soft toward its silhouette, clipped to the flat base and, for the
-## upper layer, faded by the shader's camera-clearance dither.
-func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, settings: SunFlareConfig) -> float:
-	var base: int = row * OCC_PUFF_STRIDE
-	var horizontal: float = _occ_puffs[base + 3]
-	var vertical: float = _occ_puffs[base + 4]
-	var local: Vector3 = Vector3((origin.x - _occ_puffs[base]) / horizontal, (origin.y - _occ_puffs[base + 1]) / vertical,
-			(origin.z - _occ_puffs[base + 2]) / horizontal)
-	var local_heading: Vector3 = Vector3(heading.x / horizontal, heading.y / vertical, heading.z / horizontal)
-	var speed_sq: float = local_heading.length_squared()
-	var along: float = local.dot(local_heading)
-	var miss_sq: float = maxf(local.length_squared() - along * along / speed_sq, 0.0)
-	if miss_sq >= 1.0:
-		return 0.0
-	var closest: float = -along / speed_sq
-	var half_chord: float = sqrt((1.0 - miss_sq) / speed_sq)
-	var t_in: float = closest - half_chord
-	var t_out: float = closest + half_chord
-	var cut: float = _occ_puffs[base + 5]
-	if cut > NO_BASE_CUT:
-		if heading.y > OCC_FLAT_RAY:
-			t_in = maxf(t_in, (cut - origin.y) / heading.y)
-		elif heading.y < -OCC_FLAT_RAY:
-			t_out = minf(t_out, (cut - origin.y) / heading.y)
-		elif origin.y < cut:
-			return 0.0
-	if t_out <= maxf(t_in, 0.0):
-		return 0.0
-	var softness: float = clampf(settings.cloud_edge_softness, 0.0, 1.0)
-	var cover: float = 1.0 - smoothstep(1.0 - softness, 1.0, sqrt(miss_sq))
-	if upper and _occ_clear_end_m > 0.0:
-		var entry_y: float = origin.y + maxf(t_in, 0.0) * heading.y
-		cover *= smoothstep(_occ_clear_start_m, maxf(_occ_clear_end_m, _occ_clear_start_m + OCC_FLAT_RAY), entry_y - origin.y)
-	return cover
+	return _bounds.ray_cover(from, dir, tuning, wind)
 
 
 ## Centre height of a body puff whose top would be `top`: its bottom plane (at
@@ -772,6 +682,11 @@ func _puff_cover(origin: Vector3, heading: Vector3, row: int, upper: bool, setti
 ## With flat = 1 the puff just rests on base_y.
 static func puff_centre_y(top: float, radius: float, base_y: float, flat: float, sink_m: float = 0.0) -> float:
 	return maxf(top - radius, base_y + radius * flat - sink_m)
+
+
+## The sun-occlusion bounds recorded by the last configure.
+func occlusion() -> CloudOcclusionBounds:
+	return _bounds
 
 
 func puff_material() -> ShaderMaterial:
