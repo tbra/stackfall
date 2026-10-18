@@ -135,7 +135,7 @@ func _single_puff_sea() -> CloudSea:
 
 
 func _puff_centre(sea: CloudSea) -> Vector3:
-	return Vector3(sea._occ_puffs[0], sea._occ_puffs[1], sea._occ_puffs[2])
+	return Vector3(sea.occlusion().puffs[0], sea.occlusion().puffs[1], sea.occlusion().puffs[2])
 
 
 ## The visibility _process() last handed the flare shader, read off the rect's material.

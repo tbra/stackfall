@@ -73,3 +73,31 @@ func _inradius(mesh: ArrayMesh) -> float:
 		smallest = minf(smallest, absf(normal.dot(a)))
 	return smallest
 
+
+
+func _cycle() -> SkyCycleDef:
+	return SkyThemeMigration.cycle_from_themes(Skybox.load_theme("sunset"), Skybox.load_theme("dawn"), Skybox.load_theme("night"))
+
+
+## The disc clearance, exclusion cylinder and ceiling read the cycle def.
+func test_disc_clearance_exclusion_and_ceiling_follow_the_cycle() -> void:
+	var def: SkyCycleDef = SkyCycleDef.new()
+	def.cloud_disc_clearance_ratio = 0.25
+	assert_almost_eq(CloudSea.disc_clearance_m(def, 100.0), 25.0, 0.0001)
+	assert_almost_eq(CloudSea.exclusion_radius_m(def, 100.0), 125.0, 0.0001)
+	assert_almost_eq(CloudSea.disc_ceiling_m(def, 100.0), -MapDef.new().disk_height - 25.0, 0.0001)
+
+
+## Placement layers come from the cycle: sea, banks and the far ring, density scaling each count.
+func test_layers_come_from_the_cycle_def() -> void:
+	var def: SkyCycleDef = _cycle()
+	var full: Array = CloudSea._layers_for(def, 1.0)
+	assert_eq(full[0].clumps, def.cloud_clump_count, "the sea layer takes the cycle clump count")
+	assert_almost_eq(full[0].base_min_m, def.cloud_base_min_m + def.cloud_puff_raise_m, 0.0001)
+	assert_eq(full[1].clumps, def.cloud_bank_count)
+	assert_eq(full.size(), 3 if def.proc_far_count > 0 else 2)
+	var half: Array = CloudSea._layers_for(def, 0.5)
+	assert_eq(half[0].clumps, int(round(float(def.cloud_clump_count) * 0.5)))
+	def.proc_far_count = 0
+	assert_eq(CloudSea._layers_for(def, 1.0).size(), 2, "no far ring without far clumps")
+	assert_eq(CloudSea._layers_for(null, 1.0).size(), 0)
