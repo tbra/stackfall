@@ -61,6 +61,7 @@ const LIGHTING_PROPERTIES: Array[StringName] = [
 ## Everything one state needs: the facade under test and its scene neighbours.
 class Rig extends RefCounted:
 	var skybox: Skybox = null
+	var ambient: AmbientLife = null
 	var environment: Environment = null
 	var light: DirectionalLight3D = null
 	var flare: SunFlare = null
@@ -92,6 +93,8 @@ static func _make_rig(host: Node, preset_id: StringName, clock_s: float = 0.0) -
 	rig.flare = SunFlare.new()
 	host.add_child(rig.flare)
 	rig.flare.set_process(false)
+	rig.ambient = AmbientLife.build(null, null)
+	host.add_child(rig.ambient)
 	rig.skybox = Skybox.new()
 	rig.skybox.config = SkyboxConfig.new()
 	rig.skybox.environment = rig.environment
@@ -105,6 +108,7 @@ static func _make_rig(host: Node, preset_id: StringName, clock_s: float = 0.0) -
 
 static func _free_rig(rig: Rig) -> void:
 	rig.skybox.free()
+	rig.ambient.free()
 	rig.flare.free()
 	rig.light.free()
 	MatchContext.install(rig.previous_context)
@@ -153,7 +157,7 @@ static func _interval(rig: Rig) -> float:
 
 
 static func _probe_life_is_night(rig: Rig) -> bool:
-	return rig.skybox._cycle_life_is_night
+	return rig.ambient._is_night
 
 
 static func _probe_lighting(rig: Rig) -> Object:

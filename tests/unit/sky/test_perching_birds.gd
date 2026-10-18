@@ -8,6 +8,7 @@ const MAX_STEPS: int = 600
 const FAR_CAMERA: Vector3 = Vector3(0.0, 60.0, 400.0)
 
 var _manager: PerchingBirds = null
+var _ambient: AmbientLife = null
 
 
 func _life(count: int = 1) -> AmbientLifeConfig:
@@ -135,6 +136,8 @@ func test_match_state_change_clears_birds() -> void:
 
 
 func _make_skybox() -> Skybox:
+	_ambient = AmbientLife.build(null, null)
+	add_child_autofree(_ambient)
 	var sky: Sky = Sky.new()
 	sky.sky_material = ProceduralSkyMaterial.new()
 	var environment: Environment = Environment.new()
@@ -152,12 +155,12 @@ func test_birds_are_sunset_only_and_fireflies_night_only() -> void:
 	assert_not_null(skybox.sky_def.ambient_life)
 	assert_not_null(night_life)
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for("sunset"))
-	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
-	assert_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
+	assert_true((_ambient.get_node("PerchingBirds") as PerchingBirds).visible)
+	assert_null(_ambient.get_node("Fireflies").get_node_or_null("Motes"))
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for("night"))
-	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
-	assert_not_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
-	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night_life.fireflies_count)
+	assert_false((_ambient.get_node("PerchingBirds") as PerchingBirds).visible)
+	assert_not_null(_ambient.get_node("Fireflies").get_node_or_null("Motes"))
+	assert_eq((_ambient.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night_life.fireflies_count)
 
 
 func test_freed_block_never_reaches_typed_calls_during_polls() -> void:

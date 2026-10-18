@@ -4,7 +4,7 @@ extends Node3D
 ##   - `sky_def` (SkyCycleDef) is the one description of the sky; SkyEvaluator turns it into
 ##     SkyFrames in three cached stages (A tick, B storm, C weather), each behind a dirty flag.
 ##   - SkyCycleClock owns the phase; SkyWeatherState holds the presenters' requests.
-##   - SkyDomeWriter, SkyEnvironmentWriter, CloudSea.apply_frame and SkyAmbientLife write the
+##   - SkyDomeWriter, SkyEnvironmentWriter and CloudSea.apply_frame write the
 ##     result; SkyReflections owns the probe, SSR and the radiance cadence.
 ## Weather setters only store state and set a dirty bit. `_process` runs after the presenters
 ## (process_priority) and calls flush_weather() once per frame; every accessor that reads
@@ -97,13 +97,10 @@ var _dome: SkyDomeWriter = SkyDomeWriter.new()
 var _look_theme: SkyThemeDef = null
 var _env_writer: SkyEnvironmentWriter = SkyEnvironmentWriter.new()
 var _reflections: SkyReflections = SkyReflections.new()
-var _life: SkyAmbientLife = SkyAmbientLife.new()
 var _cloud_sea: CloudSea = null
 var _fog_volume: FogVolume = null
 var _cloud_drift: CloudDriftState = CloudDriftState.new()
 var _cloud_lighting: CloudLighting = CloudLighting.new()
-## Mirror of SkyAmbientLife.is_night(); cleared whenever the ambient life is reconfigured.
-var _cycle_life_is_night: bool = false
 var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
 var _pinned_sky_time_s: float = -1.0
 var _pinned_cloud_drift_s: float = -1.0
@@ -128,7 +125,6 @@ func _ready() -> void:
 		sky_def = sky_def.duplicate() as SkyCycleDef
 	_preset = Settings.current_graphics_preset()
 	_aurora_preset_on = _preset == null or _preset.aurora_enabled
-	var field_node: Field = get_node_or_null(field_path) as Field if not field_path.is_empty() else null
 	var registry_node: BlockRegistry = get_node_or_null(registry_path) as BlockRegistry if not registry_path.is_empty() else null
 	var probe: ReflectionProbe = get_node_or_null(reflection_probe_path) as ReflectionProbe if not reflection_probe_path.is_empty() else null
 	var light: DirectionalLight3D = get_node_or_null(light_path) as DirectionalLight3D if not light_path.is_empty() else null
@@ -148,7 +144,6 @@ func _ready() -> void:
 	_cloud_sea.lighting = _cloud_lighting
 	_cloud_sea.upper_tuning = CEILING_TUNING
 	add_child(_cloud_sea)
-	_life.build(self, field_node, registry_node)
 	_launch_theme_name = config.theme_name
 	_launch_cycle = config.theme_name == CYCLE_THEME_ID
 	_launch_lock_phase = _launch_lock_for(config.theme_name)
@@ -454,8 +449,7 @@ func _write_frame(tick_ran: bool, storm_ran: bool) -> void:
 		_service_storm_probe()
 	_push_flares(tick_ran, storm_ran)
 	if tick_ran:
-		_life.update_night(sky_def, _out_frame.night, _preset, _disc_radius_for_ambient_life())
-		_cycle_life_is_night = _life.is_night()
+		Events.sky_time_of_day_changed.emit(_cycle_phase_last, _out_frame.night)
 
 
 ## Light wired after _ready (a fixture sets light_path late): rebind the writer and rewrite.
@@ -651,9 +645,10 @@ func set_sun_cloud_scale(scale: float) -> void:
 
 # --- ambient life and clouds ------------------------------------------------------------------
 
-## Rebuilds the cloud sea and the ambient life from `sky_def` (never duplicating them). The puffs
+## Rebuilds the cloud sea from `sky_def` (never duplicating it) and publishes
+## `Events.sky_ambient_configured` for the ambient life. The puffs
 ## copy their far-fade snapshot (quirk Q3) from the evening key at cycle start, else from the
-## live frame. Clears the night flag with the ambient life's own reset.
+## live frame.
 func _rebuild_ambient(from_cycle_start: bool) -> void:
 	var preset: GraphicsPreset = _preset
 	if _cloud_sea != null:
@@ -666,8 +661,17 @@ func _rebuild_ambient(from_cycle_start: bool) -> void:
 		var snapshot: SkyFrame = SkyFrame.new()
 		SkyEvaluator.puff_snapshot(sky_def, source, snapshot)
 		_cloud_sea.configure_cycle(sky_def, snapshot, density, subdivisions, billboard_m)
-	_life.configure(sky_def, preset, _disc_radius_for_ambient_life())
-	_cycle_life_is_night = false
+	Events.sky_ambient_configured.emit(sky_def, preset, _disc_radius_for_ambient_life())
+
+
+## Re-emits the current ambient configuration and time of day for a subscriber created after
+## this sky booted (Main builds the ambient life once the scene is up).
+func republish_ambient() -> void:
+	if sky_def == null:
+		return
+	Events.sky_ambient_configured.emit(sky_def, _preset, _disc_radius_for_ambient_life())
+	if _has_tick:
+		Events.sky_time_of_day_changed.emit(_cycle_phase_last, _out_frame.night)
 
 
 func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:

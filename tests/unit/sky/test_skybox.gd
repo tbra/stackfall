@@ -2,6 +2,7 @@ extends GutTest
 ## game/sky/Skybox.gd (spec 1.10): theme, cycle, fog volume, reflection probe and SSR.
 
 var _skybox: Skybox = null
+var _ambient: AmbientLife = null
 
 ## saved/restored the same way tests/unit/test_main_graphics_
 ## preset.gd's own _original_preset_id does -- the real "Settings" autoload
@@ -245,6 +246,8 @@ func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
 ## a locked Night until the lock changed.
 func _make_locked_night_skybox() -> Skybox:
 	Settings.set_graphics_preset(&"high")
+	_ambient = AmbientLife.build(null, null)
+	add_child_autofree(_ambient)
 	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
@@ -269,9 +272,9 @@ func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
 		assert_true(colour.is_equal_approx(night_puffs.get_shader_parameter(parameter) as Color), "%s: puff %s is the night mix" % [label, parameter])
 	var sun: Vector3 = (skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
 	assert_true((puffs.get_shader_parameter(&"light_direction") as Vector3).is_equal_approx(sun), "%s: puffs are lit from the cycle sun, not the authored one" % label)
-	assert_false((skybox.get_node("DistantBirds") as DistantBirds).visible, "%s: no distant day birds at night" % label)
-	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible, "%s: the night life config has no perching birds" % label)
-	assert_true((skybox.get_node("Fireflies") as Fireflies).visible, "%s: fireflies swarm at night" % label)
+	assert_false((_ambient.get_node("DistantBirds") as DistantBirds).visible, "%s: no distant day birds at night" % label)
+	assert_false((_ambient.get_node("PerchingBirds") as PerchingBirds).visible, "%s: the night life config has no perching birds" % label)
+	assert_true((_ambient.get_node("Fireflies") as Fireflies).visible, "%s: fireflies swarm at night" % label)
 
 
 func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void:
