@@ -429,6 +429,10 @@ static func _is_close(a: Variant, b: Variant) -> bool:
 ## Differences between `expected` and `actual` (one state); names in `retired` are not compared
 ## in the sky-material group.
 static func diff_state(expected: Dictionary, actual: Dictionary, retired: Array) -> Array[String]:
+	# DECISION: radiance_tick is a wall-clock refresh counter (not a look value), so a slow run
+	# legitimately differs from the golden; it is skipped, every look channel stays compared.
+	var skipped: Array = retired.duplicate()
+	skipped.append("radiance_tick")
 	var problems: Array[String] = []
 	for group: String in expected.keys():
 		var want: Variant = expected[group]
@@ -437,14 +441,14 @@ static func diff_state(expected: Dictionary, actual: Dictionary, retired: Array)
 			var want_dict: Dictionary = want as Dictionary
 			var got_dict: Dictionary = got as Dictionary if got is Dictionary else {}
 			for key: String in want_dict.keys():
-				if group == "sky" and retired.has(key):
+				if group == "sky" and skipped.has(key):
 					continue
 				if not got_dict.has(key):
 					problems.append("%s.%s missing" % [group, key])
 				elif not _is_close(want_dict[key], got_dict[key]):
 					problems.append("%s.%s expected %s got %s" % [group, key, want_dict[key], got_dict[key]])
 			for key: String in got_dict.keys():
-				if not want_dict.has(key) and not (group == "sky" and retired.has(key)):
+				if not want_dict.has(key) and not (group == "sky" and skipped.has(key)):
 					problems.append("%s.%s unexpected" % [group, key])
 		elif not _is_close(want, got):
 			problems.append("%s expected %s got %s" % [group, want, got])
