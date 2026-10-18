@@ -277,7 +277,7 @@ func test_special_indicator_shows_a_count_badge_once_a_second_special_is_queued(
 	Events.gift_claimed.emit(1, 0, &"jumping_bean")
 
 	assert_true(hud._special_indicator.visible)
-	assert_eq(hud._special_indicator.text, "Jumping Bean ×2")
+	assert_eq(hud._special_indicator.text, "Hopper ×2")
 
 
 func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
@@ -306,7 +306,7 @@ func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name(
 	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
-	assert_eq(_toast_texts(hud), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]))
+	assert_eq(_toast_texts(hud), PackedStringArray(["SPECIAL QUEUED: HOPPER"]))
 	assert_almost_eq(_toast(hud, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001)
 
 
@@ -334,11 +334,11 @@ func test_gift_claimed_toast_reaches_both_teammates_under_teams_2() -> void:
 	Events.gift_claimed.emit(0, 0, &"jumping_bean")
 
 	assert_eq(
-		_toast_texts(hud_slot0), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
+		_toast_texts(hud_slot0), PackedStringArray(["SPECIAL QUEUED: HOPPER"]),
 		"team 0's claim must show on slot 0's own HUD"
 	)
 	assert_eq(
-		_toast_texts(hud_slot2), PackedStringArray(["SPECIAL QUEUED: JUMPING BEAN"]),
+		_toast_texts(hud_slot2), PackedStringArray(["SPECIAL QUEUED: HOPPER"]),
 		"team 0's claim must also show on its teammate slot 2's HUD"
 	)
 
