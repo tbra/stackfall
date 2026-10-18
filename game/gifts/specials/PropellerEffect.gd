@@ -3,10 +3,10 @@ extends SpecialEffect
 ## Propeller special (spec 1.6: "stands where it lands, then lifts itself and
 ## blows for its duration"). It activates where the gift is dropped, like the Volcano. The
 ## SpecialDef is `activates_in_place`, so it triggers at once on the host's
-## invisible anchor and detonate() spawns a standalone PropellerStand that rises
-## out of the disc, spins, and runs DiscForce.apply(sign -1) every tick for
-## `disc_force.duration_s` (the Anvil in reverse: it raises the side it stands
-## on). Clients draw the same stand from the replicated special_triggered
+## invisible anchor and detonate() spawns a standalone PropellerStand: a team-colour
+## party balloon clipped to the disc at the drop point that inflates, rises, and runs
+## DiscForce.apply(sign -1) every tick for `disc_force.duration_s` (the Anvil in reverse:
+## it raises the side it stands on), then POPs. Clients draw the same stand from the replicated special_triggered
 ## (GiftFxPresenter._build_propeller); there is no carrier body on any peer.
 ##
 ## No per-block state lives on this shared Resource; the stand owns its clock.
@@ -22,17 +22,17 @@ extends SpecialEffect
 ## test_propeller_effect.gd asserts it stays within 0.5x-2x.
 @export var disc_force: DiscForceTuning = DiscForceTuning.new()
 
-## Visual rest height (m) above the surface once the model has risen (smoothstepped).
-@export var emerge_height_m: float = 0.6
+## Party balloon presentation tunables (BalloonRig); the timings below belong to the gift.
+@export var fx: BalloonFxTuning = BalloonFxTuning.new()
 
-## Seconds the model takes to rise out of the disc.
-@export var emerge_s: float = 0.8
+## Seconds the balloon takes to inflate at the clip (the force starts at once).
+@export var inflate_s: float = 0.5
 
-## Seconds at the end of the effect the model sinks back into the disc.
-@export var sink_s: float = 0.6
+## Seconds the inflated balloon takes to rise to the end of its string.
+@export var rise_s: float = 0.8
 
-## Depth (m) below the surface the model starts from, so it is hidden inside the disc.
-@export var start_depth_m: float = 5.0
+## String length (m): the balloon's rest height above the clip once it has risen.
+@export var string_length_m: float = 3.2
 
 
 ## In place: no falling carrier to wait for.
@@ -63,4 +63,4 @@ func wants_early_trigger(_block: Block, _behavior: SpecialBehavior) -> bool:
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	if block == null or not block.is_inside_tree():
 		return
-	PropellerStand.spawn_host(self, block.global_position)
+	PropellerStand.spawn_host(self, block.global_position, block.owner_slot)

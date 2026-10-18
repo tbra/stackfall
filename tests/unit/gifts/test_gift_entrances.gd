@@ -107,7 +107,7 @@ func _stand() -> PropellerStand:
 	return null
 
 
-func test_propeller_rises_out_of_the_disc_at_the_drop_point_without_a_carrier() -> void:
+func test_propeller_balloon_is_clipped_at_the_drop_point_without_a_carrier() -> void:
 	_start()
 	assert_eq(_release(0, &"propeller"), PlacementRules.REASON_OK)
 	assert_eq(_blocks_root.get_child_count(), 0, "no carrier in blocks_parent")
@@ -119,14 +119,14 @@ func test_propeller_rises_out_of_the_disc_at_the_drop_point_without_a_carrier() 
 	var effect: PropellerEffect = SpecialDef.find_by_id(&"propeller").effect as PropellerEffect
 	var home: Vector2 = Match.slot(0).home_position
 	assert_lt(_field.disk_local_from_world(stand.global_position).distance_to(home), DROP_POINT_TOLERANCE_M, "at the drop point")
-	var visual: Node3D = stand.get_child(0) as Node3D
-	assert_not_null(visual, "the gift model is the stand's child")
-	if visual == null:
+	var rig: BalloonRig = stand._rig
+	assert_not_null(rig, "the balloon rig is the stand's child")
+	if rig == null:
 		return
-	assert_lt(visual.position.y, 0.0, "starts below the surface")
-	stand.tick(effect.emerge_s)
-	assert_almost_eq(visual.position.y, effect.emerge_height_m, HEIGHT_EPSILON_M, "risen to the emerge height")
-	assert_gt(visual.get_child_count(), 0, "the gift model is built")
+	assert_false(rig._body.visible, "starts deflated")
+	stand.tick(effect.inflate_s + effect.rise_s)
+	assert_true(rig._body.visible, "inflated")
+	assert_almost_eq(rig._knot_position.length(), effect.string_length_m + effect.fx.clip_thickness_m * 2.0, HEIGHT_EPSILON_M, "risen to the end of its string")
 
 
 func test_black_hole_opens_up_underneath_the_drop_point_without_a_carrier() -> void:
