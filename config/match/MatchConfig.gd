@@ -44,7 +44,7 @@ enum WeatherMode { OFF, STORM, RAIN, SNOW, FOG, RANDOM, CHANGING }
 
 ## Lobby "Map" time of day. CYCLE = the running
 ## day/night cycle, the DEFAULT. DAY ("Sunset"), NIGHT and DAWN are that same
-## cycle locked at a fixed phase (SkyThemeDef.locked_phase_for). RANDOM = the
+## cycle locked at a fixed phase (SkyCycleDef.locked_phase_for). RANDOM = the
 ## host picks one of the three locked ones at match start
 ## (autoload/match/MatchLifecycle.gd), never the running cycle, and replicates
 ## the concrete id in sky_theme_resolved, so every client shows the same sky.
@@ -62,7 +62,7 @@ const SKY_THEME_IDS: PackedStringArray = [SKY_ID_SUNSET, SKY_ID_NIGHT, SKY_ID_DA
 const SKY_VARIATION_SEED_UNRESOLVED: int = -1
 const SKY_VARIATION_SEED_MAX: int = 2147483647
 ## sky_start_phase's "not resolved" value (the cycle then opens at
-## SkyThemeDef.cycle_start_phase).
+## SkyCycleDef.cycle_start_phase).
 const SKY_START_PHASE_UNRESOLVED: float = -1.0
 
 ## Game mode. Appended-only like the other enums: ints ride
@@ -200,7 +200,7 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## falls back to it, keeping seeded tests and bot loops reproducible.
 @export var sky_variation_seed: int = SKY_VARIATION_SEED_UNRESOLVED
 ## the phase (0..1, Skybox cycle phase) a running Cycle sky opens at.
-## -1 = not resolved (opens at SkyThemeDef.cycle_start_phase). The host rolls it once
+## -1 = not resolved (opens at SkyCycleDef.cycle_start_phase). The host rolls it once
 ## per match from the match seed (resolve_sky_start_phase) and it rides in to_dict(),
 ## so every peer, and the loading screen backdrop, agree. Unused by locked presets.
 @export var sky_start_phase: float = SKY_START_PHASE_UNRESOLVED
@@ -643,8 +643,8 @@ func effective_sky_variation_seed() -> int:
 
 ## The theme id a match should show: the host's resolved id when present, else
 ## the mode's own (an unresolved RANDOM falls back to DAY, i.e. "sunset"). A
-## running CYCLE has no theme of its own and also reads "sunset" here (the
-## structural theme the cycle is built from); use is_sky_cycle_running() /
+## running CYCLE has no locked id of its own and also reads "sunset" here (the
+## structural sky the cycle is built from); use is_sky_cycle_running() /
 ## locked_sky_id() to tell the cycle apart.
 func effective_sky_theme() -> String:
 	if sky_theme_resolved != "":
@@ -663,7 +663,7 @@ func is_sky_cycle_running() -> bool:
 
 ## The concrete id ("sunset", "night" or "dawn") the cycle is locked at, or ""
 ## while the cycle is running. Derived only from replicated fields, so every
-## peer agrees; feed it to SkyThemeDef.locked_phase_for().
+## peer agrees; feed it to SkyCycleDef.locked_phase_for().
 func locked_sky_id() -> String:
 	if is_sky_cycle_running():
 		return ""

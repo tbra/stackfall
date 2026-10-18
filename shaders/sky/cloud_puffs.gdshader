@@ -6,7 +6,7 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // (game/sky/CloudSea.gd builds one MultiMesh of flat-bottomed low-poly spheres
 // clustered into cumulus clumps). Opaque and toon-lit in the shader itself
 // (no scene lights, shadows or fog), so the same material works at sunset
-// and at night from theme colours alone.
+// and at night from keyframe colours alone.
 //
 // Per-pixel shape: the mesh is only an inflated bounding hull. Each fragment
 // intersects its view ray with the puff's ellipsoid, whose radius is pushed
@@ -30,7 +30,7 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // (shadow/mid/lit) with pixel-crisp edges; a sun-side and backlit fresnel
 // rim; darker flat undersides.
 // Seamless far fade: with distance (and depth below the disc) the colour
-// blends into exactly the sky colour behind the puff -- the theme's
+// blends into exactly the sky colour behind the puff -- the cycle's
 // procedural sky/sea sampled along the view ray (moonlit-graded at night) -- so
 // distant clumps melt into the far cloud sea with no seam or edge.
 // Near fade: fragments close to the camera dissolve (ordered dither) so a
@@ -82,7 +82,7 @@ uniform vec3 cloud_shadow_color : source_color = vec3(0.34, 0.27, 0.47);
 uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
 uniform vec3 cloud_rim_color : source_color = vec3(1.0, 0.9, 0.66);
-// Copied from SkyThemeDef.cloud_flat_base: the mesh's flat base plane, in
+// Copied from SkyCycleDef.cloud_flat_base: the mesh's flat base plane, in
 // unit-sphere space below each puff's centre.
 uniform float flat_base = 0.15;
 
@@ -458,7 +458,7 @@ void fragment() {
 	col = mix(col, vec3(weather_luma), weather_desaturate) * (1.0 - weather_dim);
 	vec3 tone_floor = weather_floor * mix(mix(floor_shadow_ratio, floor_mid_ratio, to_mid), 1.0, to_lit);
 	col = max(col, tone_floor * floor_on);
-	// Same exposure as the sky, so theme colours can be picked straight from
+	// Same exposure as the sky, so keyframe colours can be picked straight from
 	// the sky.
 	col *= exposure;
 

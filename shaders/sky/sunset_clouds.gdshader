@@ -39,7 +39,7 @@ uniform float cycle_star_radius = 0.12;
 uniform float cycle_star_horizon_fade = 0.22;
 // Moon disc + halo textures (assets/textures/sky/moon), drawn at
 // night opposite the sun. moon_visibility is 0..1 (time of day x weather keep, set by
-// game/sky/Skybox.gd); the angular sizes and strengths come from SkyThemeDef.cycle_moon_*.
+// game/sky/Skybox.gd); the angular sizes and strengths come from SkyCycleDef.cycle_moon_*.
 uniform sampler2D moon_disc_tex : source_color, filter_linear_mipmap, repeat_disable;
 uniform sampler2D moon_halo_tex : source_color, filter_linear_mipmap, repeat_disable;
 uniform vec3 moon_direction = vec3(-0.963087, -0.069011, 0.260192);
@@ -54,7 +54,7 @@ uniform float moon_halo_fill = 0.9375;
 // aurora borealis curtains (cloud_common aurora_borealis) behind the moon
 // at night. aurora_visibility is 0..1 (night x weather keep x graphics preset, set by
 // game/sky/Skybox.gd, so it is exactly 0 by day, in a storm and on Low); the rest come from
-// SkyThemeDef.aurora_*.
+// SkyCycleDef.aurora_*.
 uniform float aurora_visibility : hint_range(0.0, 1.0) = 0.0;
 uniform float aurora_intensity = 0.45;
 uniform vec3 aurora_color_low : source_color = vec3(0.12, 1.0, 0.42);
@@ -107,7 +107,7 @@ uniform float ray_shimmer_amount = 0.08;
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 
 
-// Every theme runs the procedural branch below. The shared
+// The cycle runs the procedural branch below. The shared
 // noise texture drives the procedural cloud layers. All animated terms are skipped
 // in the radiance (reflection) pass.
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
@@ -130,7 +130,7 @@ uniform float proc_sun_glow_strength = 1.0;
 uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
 uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
 uniform float proc_sea_horizon_fade = 0.12;
-// Shader-only look tuning (set per theme on the material).
+// Shader-only look tuning (set per sky on the material).
 uniform float proc_gradient_bands = 8.0;
 uniform float proc_gradient_band_edge = 0.12;
 uniform float proc_sun_edge_deg = 0.25;
@@ -154,7 +154,7 @@ void sky() {
 	float angle_deg = degrees(acos(clamp(cos_angle, -1.0, 1.0)));
 
 	// DECISION: COLOR starts black; the procedural gradient below fills it
-	// whenever procedural_sea_mix > 0 (default 1, every theme sets 1).
+	// whenever procedural_sea_mix > 0 (default 1, every cycle sets 1).
 	COLOR = vec3(0.0);
 
 	// Procedural gradient sky, blended by procedural_sea_mix.
