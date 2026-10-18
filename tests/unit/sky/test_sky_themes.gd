@@ -26,17 +26,19 @@ func _make_skybox(theme: SkyThemeDef) -> Array:
 	return [skybox, environment, light]
 
 
-func test_apply_theme_writes_light_and_environment() -> void:
+func test_locked_night_writes_the_night_light_and_environment() -> void:
 	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
 	var parts: Array = _make_skybox(load(SUNSET_PATH) as SkyThemeDef)
 	var skybox: Skybox = parts[0]
 	var environment: Environment = parts[1]
 	var light: DirectionalLight3D = parts[2]
-	skybox.apply_theme(night)
-	assert_almost_eq(light.light_energy, night.light_energy, 0.0001)
-	assert_eq(light.light_color, night.light_color)
+	skybox.set_locked_phase(skybox.sky_def.cycle_locked_phase_night)
+	var def: SkyCycleDef = skybox.sky_def
+	var moon_key: float = smoothstep(0.0, def.light_key_ramp_sin, -skybox.sun_direction().y)
+	assert_almost_eq(light.light_energy, night.light_energy * def.night.moon_light_ratio * moon_key, 0.0001)
+	assert_true(light.light_color.is_equal_approx(night.light_color))
 	assert_almost_eq(environment.ambient_light_energy, night.ambient_energy, 0.0001)
-	assert_almost_eq(environment.glow_hdr_threshold, night.glow_hdr_threshold, 0.0001)
+	assert_almost_eq(environment.glow_hdr_threshold, skybox.sky_def.glow_hdr_threshold, 0.0001, "glow threshold is cycle structure")
 
 
 func _ambient_child_count(skybox: Skybox) -> int:
@@ -72,37 +74,29 @@ func test_live_theme_switch_is_stable_and_matches_the_theme() -> void:
 	var flare: SunFlare = SunFlare.new()
 	add_child_autofree(flare)
 	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
 	var saved_theme_name: String = skybox.config.theme_name
 	assert_true(skybox.set_theme_by_id("night"))
 	await get_tree().process_frame
 	var baseline: int = _ambient_child_count(skybox)
 	var night_puffs: int = _puff_count(skybox.get_node("CloudSea") as CloudSea)
-	assert_eq(night_puffs, (night.cloud_clump_count + night.cloud_bank_count) * night.cloud_puffs_per_clump
-		if Settings.current_graphics_preset() == null
-		else _puff_count(skybox.get_node("CloudSea") as CloudSea))
 	for cycle: int in range(4):
 		assert_true(skybox.set_theme_by_id("sunset"))
-		assert_eq(light.light_color, sunset.light_color)
-		assert_almost_eq(light.light_energy, sunset.light_energy, 0.0001)
-		assert_almost_eq(environment.ambient_light_energy, sunset.ambient_energy, 0.0001)
-		assert_almost_eq(environment.fog_density, sunset.fog_density, 0.000001)
-		assert_true(flare._theme_enabled)
+		assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001)
+		assert_true(flare._theme_enabled, "the sunset sun is up")
 		assert_true(skybox.set_theme_by_id("night"))
-		assert_eq(light.light_color, night.light_color)
-		assert_almost_eq(light.light_energy, night.light_energy, 0.0001)
+		assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_night, 0.0001)
+		assert_true(light.light_color.is_equal_approx(night.light_color))
 		assert_almost_eq(light.rotation_degrees.x, night.light_rotation_deg.x, 0.001)
-		assert_almost_eq(environment.glow_hdr_threshold, night.glow_hdr_threshold, 0.0001)
-		assert_eq(environment.sky.sky_material, night.sky_material)
+		assert_almost_eq(environment.glow_hdr_threshold, skybox.sky_def.glow_hdr_threshold, 0.0001, "glow threshold is cycle structure")
+		assert_eq(environment.sky.sky_material, skybox.theme.sky_material, "one live sky material")
 		assert_false(flare._theme_enabled, "night hides the sunset-aimed flare")
 		var fog: FogVolume = skybox.get_node_or_null("CloudDeck") as FogVolume
-		assert_eq(fog.size, night.cloud_deck_size_m)
-		assert_eq((fog.material as FogMaterial).albedo, night.fog_color)
+		assert_eq(fog.size, skybox.sky_def.cloud_deck_size_m)
+		assert_true((fog.material as FogMaterial).albedo.is_equal_approx(night.fog_color), "the deck wears the night fog")
 		await get_tree().process_frame
 		assert_eq(_puff_count(skybox.get_node("CloudSea") as CloudSea), night_puffs, "same puff count each night switch")
 		assert_eq(_ambient_child_count(skybox), baseline, "no leaked or duplicated nodes")
 	assert_true(skybox.set_theme_by_id("sunset"))
-	assert_eq(environment.sky.sky_material, sunset.sky_material)
 	assert_false(skybox.set_theme_by_id("no_such_theme"))
 	skybox.config.theme_name = saved_theme_name
 
@@ -341,16 +335,16 @@ func test_the_palette_fades_from_dawn_to_sunset_across_the_dusk_window() -> void
 	var middle: float = (window.x + window.y) * 0.5
 	skybox.set_cycle_phase(middle)
 	var halfway: Color = dawn.proc_zenith_color.lerp(sunset.proc_zenith_color, 0.5)
-	assert_true(skybox.theme.proc_zenith_color.is_equal_approx(halfway), "half dawn, half sunset at the window middle")
+	assert_true(skybox.current_frame().proc_zenith_color.is_equal_approx(halfway), "half dawn, half sunset at the window middle")
 	assert_true(_sky_color(_live_sky(skybox), &"proc_zenith_color").is_equal_approx(halfway), "and on the live sky")
 	var previous: float = -1.0
 	for step: int in range(0, 17):
 		skybox.set_cycle_phase(window.x + (window.y - window.x) * float(step) / 16.0)
-		var progress: float = _color_distance(skybox.theme.proc_zenith_color, dawn.proc_zenith_color)
+		var progress: float = _color_distance(skybox.current_frame().proc_zenith_color, dawn.proc_zenith_color)
 		assert_gte(progress, previous - 0.00001, "the zenith drifts monotonically toward sunset (step %d)" % step)
 		previous = progress
 	skybox.set_cycle_phase(window.y)
-	assert_eq(skybox.theme.proc_zenith_color, sunset.proc_zenith_color, "the sunset palette is complete at the window end")
+	assert_eq(skybox.current_frame().proc_zenith_color, sunset.proc_zenith_color, "the sunset palette is complete at the window end")
 
 
 ## C1b variation, "lets add some variation and just set
@@ -376,7 +370,6 @@ func _look(skybox: Skybox) -> Dictionary:
 	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
 	return {
 		"exposure": float(sky.get_shader_parameter(&"exposure")),
-		"cloud_coverage": float(sky.get_shader_parameter(&"cloud_coverage")),
 		"sea_coverage": float(sky.get_shader_parameter(&"proc_sea_coverage")),
 		"puff_exposure": float(puffs.get_shader_parameter(&"exposure")),
 		"puff_sea_coverage": float(puffs.get_shader_parameter(&"proc_sea_coverage")),
@@ -386,31 +379,29 @@ func _look(skybox: Skybox) -> Dictionary:
 func test_the_running_cycle_varies_exposure_and_coverage_inside_the_configured_ranges() -> void:
 	var skybox: Skybox = _variation_skybox(MatchConfig.SkyThemeMode.CYCLE)[0] as Skybox
 	var theme: SkyThemeDef = skybox.theme
-	assert_true(theme.variation_enabled, "fixture: the shipped sunset varies the cycle")
+	var def: SkyCycleDef = skybox.sky_def
+	assert_true(def.variation_enabled, "fixture: the shipped sunset varies the cycle")
 	var lowest: float = INF
 	var highest: float = -INF
 	for second: int in range(0, 300, 2):
 		skybox.update_cycle_clock(float(second))
 		var look: Dictionary = _look(skybox)
-		assert_between(look["exposure"], theme.variation_exposure_min, theme.variation_exposure_max, "exposure at %s s" % second)
-		assert_between(look["cloud_coverage"], theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max, "cloud coverage at %s s" % second)
-		assert_between(look["sea_coverage"], theme.variation_sea_coverage_min, theme.variation_sea_coverage_max, "sea coverage at %s s" % second)
+		assert_between(look["exposure"], def.variation_exposure_min, def.variation_exposure_max, "exposure at %s s" % second)
+		assert_between(look["sea_coverage"], def.variation_sea_coverage_min, def.variation_sea_coverage_max, "sea coverage at %s s" % second)
 		var phase: float = skybox.current_cycle_phase()
 		assert_eq(look["exposure"], SkyVariation.exposure_at(theme, phase, VARIATION_SEED), "exposure is the pure function at %s s" % second)
-		assert_eq(look["cloud_coverage"], SkyVariation.cloud_coverage_at(theme, phase, VARIATION_SEED), "coverage is the pure function at %s s" % second)
 		assert_eq(look["sea_coverage"], SkyVariation.sea_coverage_at(theme, phase, VARIATION_SEED), "sea is the pure function at %s s" % second)
 		assert_eq(look["puff_exposure"], look["exposure"], "the puffs' far fade shares the sky exposure at %s s" % second)
 		assert_eq(look["puff_sea_coverage"], look["sea_coverage"], "and the sea coverage at %s s" % second)
 		lowest = minf(lowest, look["exposure"])
 		highest = maxf(highest, look["exposure"])
-	assert_gt(highest - lowest, 0.4 * (theme.variation_exposure_max - theme.variation_exposure_min), "the exposure really moves over a cycle")
+	assert_gt(highest - lowest, 0.4 * (def.variation_exposure_max - def.variation_exposure_min), "the exposure really moves over a cycle")
 
 
 func test_the_variation_never_writes_the_shipped_theme_materials_and_reset_restores_the_launch_sky() -> void:
 	var sunset: SkyThemeDef = Skybox.load_theme("sunset")
 	var source: ShaderMaterial = sunset.sky_material as ShaderMaterial
 	var launch_exposure: float = float(source.get_shader_parameter(&"exposure"))
-	var launch_coverage: float = float(source.get_shader_parameter(&"cloud_coverage"))
 	var launch_sea: float = float(source.get_shader_parameter(&"proc_sea_coverage"))
 	var parts: Array = _variation_skybox(MatchConfig.SkyThemeMode.CYCLE)
 	var skybox: Skybox = parts[0] as Skybox
@@ -419,14 +410,12 @@ func test_the_variation_never_writes_the_shipped_theme_materials_and_reset_resto
 		skybox.update_cycle_clock(clock)
 	skybox.set_overcast(1.0, 0.5, 0.6, OVERCAST_EXPOSURE_SCALE, Color(0.4, 0.4, 0.5), 0.5)
 	assert_eq(float(source.get_shader_parameter(&"exposure")), launch_exposure, "the cycle varies its own duplicate, not sunset.tres")
-	assert_eq(float(source.get_shader_parameter(&"cloud_coverage")), launch_coverage)
 	assert_eq(float(source.get_shader_parameter(&"proc_sea_coverage")), launch_sea)
 	skybox.reset_to_launch()
-	assert_false(skybox.is_cycle_active(), "reset: back on the static launch theme")
+	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "reset: the cycle locked at the launch sky")
 	var restored: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
-	assert_eq(float(restored.get_shader_parameter(&"exposure")), launch_exposure, "reset: the launch exposure, no overcast, no variation")
-	assert_eq(float(restored.get_shader_parameter(&"cloud_coverage")), launch_coverage)
-	assert_eq(float(restored.get_shader_parameter(&"proc_sea_coverage")), launch_sea)
+	var sunset_exposure: float = SkyVariation.exposure_at(skybox.theme, skybox.locked_phase(), SkyVariation.DEFAULT_SEED)
+	assert_almost_eq(float(restored.get_shader_parameter(&"exposure")), sunset_exposure, 0.00001, "reset: the default-seed exposure, no overcast")
 	# And a new match after the reset draws its own seed's sky, not the previous one's.
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.DAY

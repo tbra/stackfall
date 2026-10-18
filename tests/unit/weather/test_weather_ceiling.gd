@@ -22,6 +22,7 @@ func _fade(ceiling: CloudCeiling, seconds: float) -> void:
 
 ## The storm sky blend the ceiling has pushed to the Skybox, as the shared cloud lighting publishes it.
 func _sky_storm(skybox: Skybox) -> float:
+	skybox.flush_weather()
 	return (skybox.get_node("CloudSea") as CloudSea).lighting.storm
 
 
@@ -127,36 +128,43 @@ func test_storm_sky_blends_and_restores_the_match_theme() -> void:
 	skybox.apply_theme(skybox.theme)
 	var base_fog: Color = environment.fog_light_color
 	skybox.set_storm_sky(0.5, storm)
+	skybox.flush_weather()
 	var halfway: Color = environment.fog_light_color
-	assert_true(halfway.is_equal_approx(skybox.theme.fog_color.lerp(storm.fog_color, 0.5)))
+	assert_true(halfway.is_equal_approx(base_fog.lerp(storm.fog_color, 0.5)))
 	skybox.set_storm_sky(1.0, storm)
+	skybox.flush_weather()
 	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color))
 	skybox.set_storm_sky(0.0, storm)
-	assert_eq(environment.fog_light_color, base_fog, "match theme restored exactly")
+	skybox.flush_weather()
+	assert_eq(environment.fog_light_color, base_fog, "match sky restored exactly")
 	assert_eq(_sky_storm(skybox), 0.0)
 
 
-## Review finding 3: restore after a theme switch equals the chosen theme, with
-## no birds/puff rebuild and the fog volume included.
-func test_storm_end_restores_the_switched_theme_without_a_rebuild() -> void:
+## Review finding 3: the storm ending after a sky switch restores that sky's own values, with no
+## birds/puff rebuild and the fog volume included.
+func test_storm_end_restores_the_switched_sky_without_a_rebuild() -> void:
 	var wired: Dictionary = _wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var environment: Environment = wired["environment"] as Environment
 	var storm: SkyThemeDef = Skybox.load_theme("storm")
 	skybox.set_storm_sky(1.0, storm)
 	assert_true(skybox.set_theme_by_id("night"))
-	var chosen: SkyThemeDef = Skybox.load_theme("night")
-	var puffs: MultiMeshInstance3D = _puffs(skybox.get_node("CloudSea") as CloudSea, false)
 	skybox.set_storm_sky(0.0, storm)
+	skybox.flush_weather()
+	var chosen: SkyFrame = skybox.current_frame()
+	var puffs: MultiMeshInstance3D = _puffs(skybox.get_node("CloudSea") as CloudSea, false)
+	skybox.set_storm_sky(1.0, storm)
+	skybox.set_storm_sky(0.0, storm)
+	skybox.flush_weather()
 	assert_same(_puffs(skybox.get_node("CloudSea") as CloudSea, false), puffs, "no puff rebuild on restore")
-	assert_true(environment.fog_light_color.is_equal_approx(chosen.fog_color))
+	assert_true(environment.fog_light_color.is_equal_approx(chosen.fog_light_color))
 	assert_almost_eq(environment.fog_density, chosen.fog_density, 0.0001)
 	assert_almost_eq(environment.fog_sky_affect, chosen.fog_sky_affect, 0.0001)
-	assert_almost_eq(environment.ambient_light_energy, chosen.ambient_energy, 0.0001)
+	assert_almost_eq(environment.ambient_light_energy, chosen.ambient_light_energy, 0.0001)
 	assert_almost_eq(environment.volumetric_fog_density, chosen.volumetric_fog_density, 0.0001)
 	var fog_material: FogMaterial = skybox._fog_volume.material as FogMaterial
 	assert_almost_eq(fog_material.density, chosen.fog_density, 0.0001, "fog volume restored")
-	var expected: Color = (chosen.cloud_puff_material as ShaderMaterial).get_shader_parameter(&"shadow_color") as Color
+	var expected: Color = chosen.puff_shadow_color
 	assert_true(((skybox.get_node("CloudSea") as CloudSea).puff_material().get_shader_parameter(&"shadow_color") as Color).is_equal_approx(expected))
 
 
@@ -176,10 +184,12 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 		_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 		var expected: float = ceiling.tuning.overcast_for(weather_id, 1.0)
 		assert_gt(expected, 0.0, "%s sets overcast" % weather_id)
+		skybox.flush_weather()
 		assert_almost_eq(lighting.overcast, expected, 0.001, "%s reaches the shared lighting" % weather_id)
 		seen[weather_id] = lighting.dim
 		Events.weather_stopped.emit(weather_id)
 		_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
+		skybox.flush_weather()
 		assert_eq(lighting.overcast, 0.0, "clear again")
 	assert_lt(float(seen[&"snow"]), 0.0, "snow lifts the clouds (negative dim)")
 

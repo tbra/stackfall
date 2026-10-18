@@ -281,14 +281,15 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 		out["sky.present"] = false
 		return
 	out["sky.present"] = true
-	out["sky.theme"] = skybox.theme.resource_path if skybox.theme != null else ""
+	skybox.flush_weather()
 	out["sky.config_theme_name"] = skybox.config.theme_name
 	out["sky.cycle_active"] = skybox.is_cycle_active()
 	out["sky.locked_phase"] = _r(skybox.locked_phase())
-	out["sky.storm"] = _fp(skybox, &"_storm_amount")
-	out["sky.overcast"] = _fp(skybox, &"_overcast_amount")
+	var weather: SkyWeatherState = skybox.weather_state()
+	out["sky.storm"] = _r(weather.storm_amount)
+	out["sky.overcast"] = _r(weather.overcast_amount)
 	out["sky.cloud_overcast"] = _r(skybox.cloud_overcast_amount())
-	out["sky.weather_fog"] = _fp(skybox, &"_wfog_amount")
+	out["sky.weather_fog"] = _r(weather.wfog_amount)
 	var environment: Environment = skybox.environment
 	if environment != null:
 		if environment.sky != null:
@@ -310,7 +311,7 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 		# the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
 		# frame count and the drifting clouds, so it is transient by design; the fingerprint reads
 		# the undimmed energy.
-		out["sky.light_energy"] = _r(light.light_energy / maxf(_fp(skybox, &"_sun_cloud_scale"), 0.001))
+		out["sky.light_energy"] = _r(light.light_energy / maxf(weather.sun_cloud_scale, 0.001))
 	var sea: CloudSea = skybox.get_node_or_null("CloudSea") as CloudSea
 	var lighting: CloudLighting = sea.lighting if sea != null else null
 	if lighting != null:

@@ -15,20 +15,15 @@ func _make_skybox(cycle: bool) -> Skybox:
 	return skybox
 
 
-func test_static_sky_ticks_at_cadence_not_every_frame() -> void:
+func test_locked_sky_is_never_written_after_its_first_frame() -> void:
 	var skybox: Skybox = _make_skybox(false)
-	skybox.environment.sky.sky_material = ShaderMaterial.new()
-	skybox.environment.sky.process_mode = Sky.PROCESS_MODE_REALTIME
+	assert_true(skybox.is_cycle_active(), "a locked sky is the cycle locked at the launch id")
 	var interval: float = 1.0 / skybox.radiance_config.radiance_hz
-	var writes: int = 0
-	var frame: float = interval / 5.0
+	skybox._process(interval)
+	var writes: int = skybox.sky_material_writes
 	for i: int in 50:
-		var before: Variant = (skybox.environment.sky.sky_material as ShaderMaterial).get_shader_parameter(&"radiance_tick")
-		skybox._process(frame)
-		var after: Variant = (skybox.environment.sky.sky_material as ShaderMaterial).get_shader_parameter(&"radiance_tick")
-		if after != before:
-			writes += 1
-	assert_between(writes, 9, 11, "50 frames of 1/5 interval = ~10 ticks")
+		skybox._process(interval / 5.0)
+	assert_eq(skybox.sky_material_writes, writes, "no radiance re-render while locked and clear")
 
 
 func test_quality_sky_is_never_ticked() -> void:
@@ -61,16 +56,20 @@ func test_cycle_discs_move_every_frame_while_material_steps() -> void:
 	var frame: float = interval / 4.0
 	var frames: int = 40
 	var material: ShaderMaterial = skybox.environment.sky.sky_material as ShaderMaterial
+	var context: FakeMatchContext = FakeMatchContext.new()
+	var previous_context: MatchContext = MatchContext.installed()
+	MatchContext.install(context)
 	var published_before: int = skybox.disc_publish_count
 	var disc_seen: Dictionary = {}
 	var material_seen: Dictionary = {}
 	for i: int in frames:
-		# The headless MatchContext clock is fixed at 0; moving the offset moves the phase.
-		skybox._cycle_phase_offset = 0.1 + float(i) * 0.002
+		# Moving the shared clock moves the phase (0.002 of a cycle per frame).
+		context.shared_clock_seconds_value = 0.1 + float(i) * 0.002 * skybox.cycle_length_seconds()
 		skybox._process(frame)
 		disc_seen[skybox.last_disc_sun_direction] = true
 		material_seen[(skybox.environment.sky.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction")] = true
 	assert_eq(skybox.disc_publish_count - published_before, frames, "discs written every frame")
 	assert_gt(disc_seen.size(), material_seen.size(), "discs move more often than the throttled material")
 	assert_lte(material_seen.size(), 12, "material/light writes stay at radiance_hz")
+	MatchContext.install(previous_context)
 	assert_eq(material.get_shader_parameter(&"use_global_dirs"), 1.0)
