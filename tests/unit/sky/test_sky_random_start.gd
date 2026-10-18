@@ -7,7 +7,12 @@ const SEED_BASE: int = 7000
 const SEED_STEP: int = 13
 const PHASE_EPSILON: float = 0.0001
 
-var _def: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+const SKY_CYCLE: SkyCycleDef = preload("res://config/sky/sky_cycle.tres")
+## Recorded from the pre-SKY-13 code (range read from the sunset theme) for these seeds.
+const PARITY_SEEDS: Array[int] = [7000, 7013, 123456]
+const PARITY_PHASES: Array[float] = [0.17945428192616, 0.58211743831635, 0.46101626753807]
+
+var _def: SkyCycleDef = SKY_CYCLE
 
 
 func _config(match_seed: int, mode: MatchConfig.SkyThemeMode = MatchConfig.SkyThemeMode.CYCLE) -> MatchConfig:
@@ -39,6 +44,11 @@ func test_same_seed_same_phase_and_different_seeds_differ_within_range() -> void
 		assert_between(phase, _def.cycle_random_start_min, _def.cycle_random_start_max)
 		seen[snappedf(phase, 0.001)] = true
 	assert_gt(seen.size(), SEED_COUNT / 2, "different seeds start at different phases")
+
+
+func test_phases_match_the_values_recorded_before_the_cycle_def_switch() -> void:
+	for i: int in PARITY_SEEDS.size():
+		assert_almost_eq(_config(PARITY_SEEDS[i]).sky_start_phase, PARITY_PHASES[i], PHASE_EPSILON)
 
 
 func test_client_agrees_with_host_through_the_wire_dict() -> void:
