@@ -1,7 +1,7 @@
 extends GutTest
 ## /mp0.29: the upper puff layer (the cloud sea's own puffs) stays on; the weather fades
 ## with rain/snow/storm intensity, the Low preset is cheaper, rain/snow start at the ceiling and the storm sky
-## blends in and restores the match theme.
+## blends in and restores the match sky.
 
 var _presenter: WeatherPresenter = null
 
@@ -66,7 +66,7 @@ func _puffs(sea: CloudSea, upper: bool, far: bool = false) -> MultiMeshInstance3
 func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Settings.set_graphics_preset(&"high")
 	var skybox: Skybox = _wired_skybox()["skybox"] as Skybox
-	skybox.apply_theme(skybox.theme)
+	skybox.refresh_sky_def()
 	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
 	var upper: MultiMeshInstance3D = _puffs(sea, true)
 	assert_not_null(upper)
@@ -89,7 +89,7 @@ func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 	assert_true(upper.visible)
-	sea.configure(skybox.theme, 1.0, skybox.theme.sky_material)
+	sea.configure_cycle(skybox.sky_def, skybox.current_frame(), 1.0)
 	assert_true(_puffs(sea, true).visible, "a rebuild keeps the layer")
 
 
@@ -115,17 +115,16 @@ func _wired_skybox() -> Dictionary:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	return {"skybox": skybox, "environment": environment}
 
 
-func test_storm_sky_blends_and_restores_the_match_theme() -> void:
+func test_storm_sky_blends_and_restores_the_match_sky() -> void:
 	var wired: Dictionary = _wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var environment: Environment = wired["environment"] as Environment
 	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
-	skybox.apply_theme(skybox.theme)
+	skybox.refresh_sky_def()
 	var base_fog: Color = environment.fog_light_color
 	skybox.set_storm_sky(0.5, storm)
 	skybox.flush_weather()
@@ -146,7 +145,7 @@ func test_storm_haze_keeps_distances_and_blends_the_tint() -> void:
 	var wired: Dictionary = _wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
-	skybox.apply_theme(skybox.theme)
+	skybox.refresh_sky_def()
 	skybox.flush_weather()
 	var strength: float = WeatherFogShader.ambient_strength
 	var begin: float = WeatherFogShader.ambient_begin_m
@@ -176,7 +175,7 @@ func test_storm_end_restores_the_switched_sky_without_a_rebuild() -> void:
 	var environment: Environment = wired["environment"] as Environment
 	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	skybox.set_storm_sky(1.0, storm)
-	assert_true(skybox.set_theme_by_id("night"))
+	skybox.set_locked_phase(SkyTestKit.locked_phase("night"))
 	skybox.set_storm_sky(0.0, storm)
 	skybox.flush_weather()
 	var chosen: SkyFrame = skybox.current_frame()
@@ -202,7 +201,6 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 	skybox.environment = Environment.new()
 	skybox.environment.sky = Sky.new()
 	skybox.environment.sky.sky_material = ProceduralSkyMaterial.new()
-	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	var ceiling: CloudCeiling = _presenter.get_node("CloudCeiling") as CloudCeiling
 	var lighting: CloudLighting = (skybox.get_node("CloudSea") as CloudSea).lighting

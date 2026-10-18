@@ -22,7 +22,7 @@ static var strength: float = DEFAULT_STRENGTH
 static var begin_m: float = DEFAULT_BEGIN_M
 static var end_m: float = DEFAULT_END_M
 static var color: Color = DEFAULT_COLOR
-## the theme's own ambient haze for the same shaders (far cloud
+## the sky's own ambient haze for the same shaders (far cloud
 ## layers melt into the fog colour even with no Fog weather). The weather values
 ## above blend in over it by the weather's ramped amount, so a fade-out settles
 ## on the ambient haze, not on nothing.
@@ -46,7 +46,7 @@ static func set_state(amount: float, max_strength: float, begin: float, end: flo
 	_blend(tree)
 
 
-## the theme's ambient haze (Skybox.apply_theme).
+## the cycle's ambient haze (SkyEnvironmentWriter.apply).
 static func set_ambient(haze_strength: float, begin: float, end: float, haze_color: Color, tree: SceneTree) -> void:
 	ambient_strength = clampf(haze_strength, 0.0, 1.0)
 	ambient_begin_m = begin

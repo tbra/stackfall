@@ -76,7 +76,7 @@ func _inradius(mesh: ArrayMesh) -> float:
 
 
 func _cycle() -> SkyCycleDef:
-	return SkyThemeMigration.cycle_from_themes(Skybox.load_theme("sunset"), Skybox.load_theme("dawn"), Skybox.load_theme("night"))
+	return SkyTestKit.cycle()
 
 
 ## The disc clearance, exclusion cylinder and ceiling read the cycle def.

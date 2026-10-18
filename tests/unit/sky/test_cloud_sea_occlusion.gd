@@ -4,15 +4,19 @@ extends GutTest
 ## records bounds for every clump and puff when it builds and answers
 ## sun_ray_cloud_occlusion(from, dir) -> 0..1 (soft) from them, no physics. These tests build
 ## a CloudSea holding exactly one puff (so every expectation is exact), then check the
-## real sunset theme's recorded totals and the per-query cost.
+## shipped cycle's recorded totals and the per-query cost.
 
 const SEPARATION_RADII: float = 2.0
 const FAR_M: float = 500.0
+const FIXTURE_PATH: String = "res://tests/unit/sky/fixtures/cloud_sea_frame_expected.json"
+const RELATIVE_EPSILON: float = 0.000001
+const QUERY_EPSILON: float = 0.00001
+
 func after_each() -> void:
 	Settings.set_graphics_preset(&"high")
 
 
-## A sea with a single sea-layer puff (no banks, no far ring, no upper layer) and the theme's
+## A sea with a single sea-layer puff (no banks, no far ring, no upper layer) and the cycle's
 ## drift replaced by `drift_mps`, so the puff's rest position is the one it was built at.
 func _single_puff_sea(drift_mps: float = 0.0) -> CloudSea:
 	var def: SkyCycleDef = _sunset_cycle()
@@ -29,8 +33,7 @@ func _single_puff_sea(drift_mps: float = 0.0) -> CloudSea:
 
 
 func _sunset_cycle() -> SkyCycleDef:
-	var sunset: SkyThemeDef = Skybox.load_theme("sunset")
-	return SkyThemeMigration.cycle_from_themes(sunset, Skybox.load_theme("dawn"), Skybox.load_theme("night"))
+	return SkyTestKit.cycle()
 
 
 func _centre(sea: CloudSea) -> Vector3:
@@ -109,26 +112,50 @@ func test_clump_drift_follows_the_shared_wind_offset() -> void:
 
 
 
-## The old configure(theme, ...) entry converts through the migration adapter and records the same
-## bounds as configure_cycle() on the converted cycle, and the shipped sea answers a query the
-## same either way (the occlusion move is behaviour-identical).
-func test_theme_configure_and_cycle_configure_record_the_same_bounds() -> void:
-	var theme: SkyThemeDef = Skybox.load_theme("sunset")
-	var by_theme: CloudSea = CloudSea.new()
-	add_child_autofree(by_theme)
-	by_theme.configure(theme, 1.0, null, 1)
-	var by_cycle: CloudSea = CloudSea.new()
-	add_child_autofree(by_cycle)
-	by_cycle.configure_cycle(_sunset_cycle(), null, 1.0, 1)
-	assert_gt(by_theme.occlusion().speed.size(), 1, "fixture: the shipped sea has many clumps")
-	assert_eq(by_cycle.occlusion().puffs, by_theme.occlusion().puffs, "same puff rows")
-	assert_eq(by_cycle.occlusion().centre, by_theme.occlusion().centre, "same clump centres")
-	assert_eq(by_cycle.occlusion().speed, by_theme.occlusion().speed, "same clump speeds")
-	for from: Vector3 in [Vector3(0.0, -60.0, 0.0), Vector3(40.0, -30.0, -90.0), Vector3(-200.0, 5.0, 150.0)]:
-		for dir: Vector3 in [Vector3(0.3, -0.2, 0.4), Vector3(-1.0, 0.1, 0.2), Vector3(0.0, 1.0, 0.1)]:
-			assert_eq(by_cycle.sun_ray_cloud_occlusion(from, dir, null, Vector2(37.0, -12.0)),
-					by_theme.sun_ray_cloud_occlusion(from, dir, null, Vector2(37.0, -12.0)),
-					"same query result from %s along %s" % [from, dir])
+## The shipped sea's recorded bounds equal the literals captured from the old configure(sunset
+## theme, ...) entry (fixtures/cloud_sea_frame_expected.json, "occlusion"): clump and puff counts,
+## sums over every recorded row, the first puff row and clump, and nine sun-ray queries. The
+## fixture keeps about 15 digits, so the real-valued checks use a relative 1e-6.
+func test_shipped_cycle_records_the_captured_bounds() -> void:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(FIXTURE_PATH))
+	assert_true(parsed is Dictionary, "fixture parses")
+	var expected: Dictionary = (parsed as Dictionary)["occlusion"] as Dictionary
+	var sea: CloudSea = CloudSea.new()
+	add_child_autofree(sea)
+	sea.configure_cycle(_sunset_cycle(), null, 1.0, 1)
+	var bounds: CloudOcclusionBounds = sea.occlusion()
+	assert_gt(bounds.speed.size(), 1, "fixture: the shipped sea has many clumps")
+	assert_eq(bounds.speed.size(), int(expected["clumps"]), "clump count")
+	assert_eq(bounds.puff_rows(), int(expected["puff_rows"]), "puff rows")
+	assert_eq(bounds.puffs.size(), int(expected["puff_floats"]), "puff floats")
+	var puff_sum: float = 0.0
+	for value: float in bounds.puffs:
+		puff_sum += value
+	var centre_sum: Vector3 = Vector3.ZERO
+	for centre: Vector3 in bounds.centre:
+		centre_sum += centre
+	var speed_sum: float = 0.0
+	for value: float in bounds.speed:
+		speed_sum += value
+	assert_almost_eq(puff_sum, float(expected["puffs_sum"]), absf(puff_sum) * RELATIVE_EPSILON, "same puff rows")
+	var expected_centre: Array = expected["centre_sum"] as Array
+	for axis: int in range(3):
+		assert_almost_eq(centre_sum[axis], float(expected_centre[axis]), absf(centre_sum[axis]) * RELATIVE_EPSILON, "same clump centres (axis %d)" % axis)
+	assert_almost_eq(speed_sum, float(expected["speed_sum"]), absf(speed_sum) * RELATIVE_EPSILON, "same clump speeds")
+	var first_row: Array = expected["first_puff_row"] as Array
+	for column: int in range(first_row.size()):
+		assert_almost_eq(bounds.puffs[column], float(first_row[column]), absf(bounds.puffs[column]) * RELATIVE_EPSILON + RELATIVE_EPSILON, "first puff row column %d" % column)
+	var first_centre: Array = expected["first_clump_centre"] as Array
+	for axis: int in range(3):
+		assert_almost_eq(bounds.centre[0][axis], float(first_centre[axis]), absf(bounds.centre[0][axis]) * RELATIVE_EPSILON + RELATIVE_EPSILON, "first clump centre axis %d" % axis)
+	assert_almost_eq(bounds.speed[0], float(expected["first_clump_speed"]), absf(bounds.speed[0]) * RELATIVE_EPSILON, "first clump speed")
+	for query: Dictionary in (expected["queries"] as Array):
+		var from_parts: Array = query["from"] as Array
+		var dir_parts: Array = query["dir"] as Array
+		var from: Vector3 = Vector3(float(from_parts[0]), float(from_parts[1]), float(from_parts[2]))
+		var dir: Vector3 = Vector3(float(dir_parts[0]), float(dir_parts[1]), float(dir_parts[2]))
+		assert_almost_eq(sea.sun_ray_cloud_occlusion(from, dir, null, Vector2(37.0, -12.0)), float(query["cover"]), QUERY_EPSILON,
+				"same query result from %s along %s" % [from, dir])
 
 
 func test_bounds_query_matches_the_sea_delegate() -> void:

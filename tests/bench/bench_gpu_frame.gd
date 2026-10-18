@@ -22,7 +22,7 @@ extends Node
 ## lock the cycle at 0.25/0.0/0.75; --phase=<p> alone locks at p; --sky=cycle runs it (from --phase
 ## when given). Sky toggles (see --list): sky_radiance_frozen (Skybox.set_cycle_writes_frozen; keeps
 ## REALTIME radiance, unlike sky_radiance), puff_sea/puff_banks/puff_far (zero that layer's clump
-## count on the live cycle theme, then re-apply it), puff_upper, puff_billboard (preset billboard
+## count on the live sky definition, then re-apply it), puff_upper, puff_billboard (preset billboard
 ## distance 0), puff_detail, puff_fade_sky, sea_noise, decals_only, disc_term, sun_flare_rect,
 ## sun_flare_cpu, probe_interval4, probe_interval05, storm_fade_writes (starts a storm fade-in on the
 ## CloudCeiling; compare locked vs running sky) and the CPU toggles cpu_sun_flare, cpu_cloud_shadows,
@@ -195,22 +195,22 @@ func _skybox() -> Skybox:
 	return _main.get("_skybox") as Skybox
 
 
-## The live cycle theme (the one apply_theme re-applies), or null outside CYCLE mode.
-func _cycle_theme() -> SkyThemeDef:
+## The live sky description (the one refresh_sky_def re-applies), or null without a Skybox.
+func _sky_def() -> SkyCycleDef:
 	var skybox: Skybox = _skybox()
-	return skybox.get("_cycle_theme") as SkyThemeDef if skybox != null else null
+	return skybox.sky_def if skybox != null else null
 
 
-## Overrides one SkyThemeDef/GraphicsPreset property (off) or restores it (on), then rebuilds the
-## puffs by re-applying the cycle theme; the layers share one MultiMesh, so a node toggle cannot isolate them.
+## Overrides one SkyCycleDef/GraphicsPreset property (off) or restores it (on), then rebuilds the
+## puffs by refreshing the sky definition; the layers share one MultiMesh, so a node toggle cannot isolate them.
 func _toggle_rebuild(feature: String, target: Object, property: String, off_value: Variant, on: bool) -> void:
 	if target == null:
 		print("GPU_BENCH warning feature=%s no_target" % feature)
 		return
 	_toggle(feature, target, property, off_value, on)
 	var skybox: Skybox = _skybox()
-	if skybox != null and _cycle_theme() != null:
-		skybox.apply_theme(_cycle_theme())
+	if skybox != null and _sky_def() != null:
+		skybox.refresh_sky_def()
 
 
 ## Sets a shader parameter on `material` (off) or restores it (on).
@@ -512,11 +512,11 @@ func _set_feature(feature: String, on: bool) -> void:
 			if _skybox() != null:
 				_skybox().set_cycle_writes_frozen(not on)
 		"puff_sea":
-			_toggle_rebuild(feature, _cycle_theme(), "cloud_clump_count", 0, on)
+			_toggle_rebuild(feature, _sky_def(), "cloud_clump_count", 0, on)
 		"puff_banks":
-			_toggle_rebuild(feature, _cycle_theme(), "cloud_bank_count", 0, on)
+			_toggle_rebuild(feature, _sky_def(), "cloud_bank_count", 0, on)
 		"puff_far":
-			_toggle_rebuild(feature, _cycle_theme(), "proc_far_count", 0, on)
+			_toggle_rebuild(feature, _sky_def(), "proc_far_count", 0, on)
 		"puff_upper":
 			_toggle_puff_nodes(feature, PackedStringArray(["UpperPuffs", "UpperPuffsFar"]), on)
 		"puff_billboard":

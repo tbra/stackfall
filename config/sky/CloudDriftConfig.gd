@@ -12,7 +12,7 @@ extends Resource
 @export_range(0.0, 180.0, 1.0) var calm_heading_jitter_deg: float = 60.0
 
 @export_group("Parallax")
-## Multipliers on each clump's own drift speed (SkyThemeDef.cloud_drift_speed_*) by layer
+## Multipliers on each clump's own drift speed (SkyCycleDef.cloud_drift_speed_*) by layer
 ## depth: the nearer the layer, the faster it slides, so the motion reads as depth.
 @export_range(0.0, 4.0, 0.05) var upper_rate: float = 1.6
 @export_range(0.0, 4.0, 0.05) var sea_rate: float = 1.0

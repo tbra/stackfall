@@ -17,7 +17,7 @@ extends Resource
 @export_range(10.0, 300.0, 1.0) var feature_size_m: float = 40.0
 ## Direction the shadows travel on the ground, degrees from +X toward +Z (the cloud wind).
 @export_range(0.0, 360.0, 1.0) var wind_heading_deg: float = 35.0
-## Multiplier on the mean cloud drift speed (SkyThemeDef.cloud_drift_speed_*) to get the
+## Multiplier on the mean cloud drift speed (SkyCycleDef.cloud_drift_speed_*) to get the
 ## shadow ground speed, so the sweep reads at the arena's scale.
 @export_range(0.5, 30.0, 0.5) var speed_scale: float = 5.0
 ## Seconds one of the two cross-fading shadow layers takes to sweep its travel distance.
