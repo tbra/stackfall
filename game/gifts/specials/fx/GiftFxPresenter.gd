@@ -42,6 +42,42 @@ func _ready() -> void:
 static func on_gift_block_spawned(block: Block) -> void:
 	GiftBlink.start_for_gift(block)
 	BeanHopFx.start_for_gift(block)
+	spawn_paintball_sling(block)
+
+
+## Paintball: the thrown body keeps only the loaded glob and a slingshot copy (PaintballSling)
+## stays at the launch pose to release, hold and fade. Client-derived like the other spawn
+## visuals; false when `block` is not a Paintball body or its model has no separable glob.
+static func spawn_paintball_sling(block: Block) -> bool:
+	if block == null or not is_instance_valid(block) or not block.is_inside_tree() or block.gift_id != PAINTBALL_ID:
+		return false
+	var def: SpecialDef = SpecialDef.find_by_id(block.gift_id)
+	# Duck-typed (PaintballEffect) so the layer lint keeps the effect out of this closure.
+	var effect: Resource = def.effect if def != null else null
+	var body_visual: Node3D = block.get_node_or_null(NodePath(String(BlockFactory.GIFT_VISUAL_NODE))) as Node3D
+	var parent: Node3D = block.get_parent() as Node3D
+	if effect == null or effect.get(&"glob_node_name") == null or body_visual == null or parent == null:
+		return false
+	var glob_name: StringName = effect.get(&"glob_node_name") as StringName
+	var sling_visual: Node3D = GiftModelTable.shared().build_gift_visual(block.gift_id)
+	if sling_visual == null:
+		return false
+	if not PaintballSling.strip_to_glob(body_visual, glob_name):
+		sling_visual.free()
+		return false
+	var sling: PaintballSling = PaintballSling.new()
+	sling.name = &"PaintballSling"
+	parent.add_child(sling)
+	parent.move_child(sling, block.get_index())  # the body stays the parent's newest child
+	sling.global_transform = block.global_transform
+	sling_visual.transform = body_visual.transform
+	sling.add_child(sling_visual)
+	PaintballSling.hide_glob(sling_visual, glob_name)
+	var entry: GiftModelEntry = GiftModelTable.shared().entry_for(block.gift_id)
+	var speed: float = entry.animation_speed if entry != null else 1.0
+	sling.begin(sling_visual, effect.get(&"release_animation") as StringName, speed,
+		effect.get(&"sling_hold_s") as float, effect.get(&"sling_fade_s") as float)
+	return true
 
 
 ## Idempotent: a second call never adds a second subscription.

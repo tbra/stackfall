@@ -428,6 +428,7 @@
   "game/gifts/specials/fx/HoneyBlobMeshes.gd",
   "game/gifts/specials/fx/HoneyCoat.gd",
   "game/gifts/specials/fx/LandedProbe.gd",
+  "game/gifts/specials/fx/PaintballSling.gd",
   "game/gifts/specials/fx/RadialPull.gd",
   "game/world/BlockBody.gd",
   "game/world/FieldBody.gd",

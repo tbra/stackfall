@@ -22,6 +22,8 @@ const AIMS: Array[Vector3] = [Vector3(0.3, 0.2, -0.9), Vector3(0.3, -0.2, -0.9)]
 const CLIENT_LIFETIME_S: float = 120.0
 
 var _expected: Vector3 = Vector3.ZERO
+var _expected_gift: StringName = &""
+var _look_reports: Dictionary = {}
 var _reports: Dictionary = {}
 
 
@@ -81,6 +83,7 @@ func _newest_block() -> Block:
 @rpc("authority", "call_remote", "reliable")
 func net_expect(gift: StringName, held_pivot: Vector3) -> void:
 	_expected = held_pivot
+	_expected_gift = gift
 	print("%s client expecting %s pivot=%s" % [TAG, gift, held_pivot])
 
 
@@ -92,11 +95,28 @@ func _on_client_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	var pivot: Vector3 = _pivot_of(body)
 	var distance: float = pivot.distance_to(_expected)
 	print("%s client spawn pivot=%s expected=%s dist=%.3f" % [TAG, pivot, _expected, distance])
-	rpc_id(Net.HOST_PEER_ID, &"net_report", distance)
+	rpc_id(Net.HOST_PEER_ID, &"net_report", distance, _glob_only_look_ok(body))
+
+
+## Paintball: the client body shows only the glob and a slingshot copy was left beside it; any
+## other gift has no such requirement.
+func _glob_only_look_ok(body: Block) -> bool:
+	if _expected_gift != &"paintball":
+		return true
+	var visual: Node = body.get_node_or_null(NodePath(String(BlockFactory.GIFT_VISUAL_NODE)))
+	if visual == null:
+		return false
+	for mesh: Node in visual.find_children("*", "MeshInstance3D", true, false):
+		if (mesh as MeshInstance3D).visible and not mesh.name.begins_with("Blob"):
+			return false
+	var sling: Node = body.get_parent().get_node_or_null(^"PaintballSling")
+	print("%s client glob_only sling=%s" % [TAG, sling != null])
+	return sling != null
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func net_report(distance: float) -> void:
+func net_report(distance: float, look_ok: bool) -> void:
+	_look_reports[_look_reports.size()] = look_ok
 	_reports[_reports.size()] = distance
 
 
@@ -141,7 +161,7 @@ func _run_host() -> void:
 		var host_dist: float = _pivot_of(block).distance_to(held_pivot) if block != null else UNSET_M
 		var got: bool = await _until(func() -> bool: return _reports.size() > index, REPORT_TIMEOUT)
 		var client_dist: float = float(_reports.get(index, UNSET_M))
-		var ok: bool = reason == PlacementRules.REASON_OK and got and host_dist < TOLERANCE_M and client_dist < TOLERANCE_M
+		var ok: bool = reason == PlacementRules.REASON_OK and got and host_dist < TOLERANCE_M and client_dist < TOLERANCE_M and bool(_look_reports.get(index, false))
 		print("%s host gift=%s reason=%s host_dist_m=%.3f client_dist_m=%.3f tolerance_m=%.2f ok=%s" % [
 			TAG, gift, reason, host_dist, client_dist, TOLERANCE_M, ok])
 		pass_all = pass_all and ok
