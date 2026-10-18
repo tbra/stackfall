@@ -33,7 +33,6 @@ var _decals: Array[Decal] = []
 ## Unit ground wind of the last step (the Skybox's shared cloud drift heading).
 var _wind: Vector2 = Vector2.RIGHT
 var _skybox: Skybox = null
-var _cloud_sea: CloudSea = null
 var _enabled: bool = true
 var _field_radius: float = MapDef.RADIUS_MEDIUM
 var _time_s: float = 0.0
@@ -42,8 +41,7 @@ var _time_seeded: bool = false
 const SEED_PHASE_RANGE_S: int = 600
 ## Cached disc overlay (refreshed when freed).
 var _overlay: TerritoryOverlay = null
-var _query_age_s: float = 0.0
-var _occlusion: float = 0.0
+var _cover: SunCloudCover = SunCloudCover.new(_find_cloud_sea, false)
 var _dim_follow: float = 1.0
 var _sun_dim_applied: bool = false
 ## True once the disc shader term was last pushed empty (skips redundant material writes).
@@ -99,8 +97,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 
 
 func _on_match_scope_reset() -> void:
-	_occlusion = 0.0
-	_query_age_s = 0.0
+	_cover.reset()
 	_time_seeded = false
 	_release_sun()
 
@@ -167,26 +164,24 @@ func _update_decals(sun_dir: Vector3, strength: float, drift_mps: float) -> void
 
 
 func _update_sun_dim(delta: float, sun_dir: Vector3, daylight: float) -> void:
-	_query_age_s += delta
+	_cover.advance(delta)
 	var target: float = 0.0
 	if daylight > 0.0 and sun_dir.y > 0.0:
-		if _query_age_s >= config.occlusion_refresh_s:
-			_query_age_s = 0.0
-			if (_cloud_sea == null or not is_instance_valid(_cloud_sea)) and is_inside_tree():
-				_cloud_sea = get_tree().get_first_node_in_group(CloudSea.GROUP) as CloudSea
-			if _cloud_sea != null:
-				_occlusion = _cloud_sea.sun_ray_cloud_occlusion(
-						Vector3(0.0, config.sun_ray_origin_height_m, 0.0), sun_dir.normalized())
-			else:
-				_occlusion = 0.0
-		target = _occlusion
+		target = _cover.query(Vector3(0.0, config.sun_ray_origin_height_m, 0.0), sun_dir.normalized(),
+				null, config.occlusion_refresh_s)
 	else:
-		_occlusion = 0.0
+		_cover.clear()
 	var wanted: float = CloudShadowMath.sun_scale(target, config)
 	_dim_follow = CloudShadowMath.follow(_dim_follow, wanted, config.sun_dim_rate, delta)
 	if _skybox != null and is_instance_valid(_skybox):
 		_skybox.set_sun_cloud_scale(_dim_follow)
 		_sun_dim_applied = true
+
+
+func _find_cloud_sea() -> CloudSea:
+	if not is_inside_tree():
+		return null
+	return get_tree().get_first_node_in_group(CloudSea.GROUP) as CloudSea
 
 
 func _release_sun() -> void:
