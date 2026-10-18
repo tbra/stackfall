@@ -38,11 +38,12 @@ func after_each() -> void:
 func _assert_sky_configured(mode: String) -> void:
 	var sky: Skybox = _main.get_node("Skybox") as Skybox
 	assert_true(sky.is_cycle_active(), "%s: the Skybox must run the configured sky cycle" % mode)
-	assert_ne(sky.theme, null, "%s: a theme is applied" % mode)
+	assert_ne(sky.sky_def, null, "%s: a sky cycle is applied" % mode)
 	# the panorama is absent: the live
 	# sky is the cycle's own procedural material.
-	assert_true(sky.theme.sky_look_procedural, "%s: procedural sky look" % mode)
-	assert_eq(sky.environment.sky.sky_material, sky.theme.sky_material, "%s: the cycle's material is the live sky" % mode)
+	assert_ne(sky.sky_material(), null, "%s: the dome material is bound" % mode)
+	assert_eq(sky.environment.sky.sky_material, sky.sky_material(), "%s: the cycle's material is the live sky" % mode)
+	assert_eq(float(sky.sky_material().get_shader_parameter(&"procedural_sea_mix")), SkyDomeWriter.PROCEDURAL_SEA_MIX, "%s: procedural sky look" % mode)
 
 
 func test_hot_seat_configures_sky() -> void:

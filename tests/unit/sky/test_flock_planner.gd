@@ -3,7 +3,6 @@ extends GutTest
 ## flocks; game/ambient/DistantBirds.gd schedules them (quiet gaps, one flight at a time
 ## per slot, birds parked between flights).
 
-const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
 ## Upper bound on a flight's length in 1 s steps; a flock that never lands trips it.
 const MAX_FLIGHT_STEPS: int = 600
 ## Tolerance for the pinned values (printed with about 6 significant digits).
@@ -11,8 +10,7 @@ const PIN_TOLERANCE: float = 0.01
 
 
 func _theme() -> SkyCycleDef:
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	return SkyThemeMigration.cycle_from_themes(sunset, sunset, sunset)
+	return SkyTestKit.cycle()
 
 
 func test_flock_sizes_are_one_or_within_the_configured_range() -> void:
@@ -85,7 +83,8 @@ func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	assert_true(_flocks_fly_during(birds, 60.0), "another flock arrives after the gap")
 
 
-## Literals captured from the pre-cycle planner (SkyThemeDef-based) on the sunset theme.
+## Literals captured from the planner on the shipped cycle (identical to the pre-cycle planner's
+## sunset-theme values: a probe printed both and they matched).
 func test_plans_reproduce_the_pre_cycle_planner_for_pinned_seeds() -> void:
 	var def: SkyCycleDef = _theme()
 	var pinned: Array[Dictionary] = [
@@ -105,11 +104,10 @@ func test_plans_reproduce_the_pre_cycle_planner_for_pinned_seeds() -> void:
 		assert_almost_eq(flight.size_m, entry["size"] as float, PIN_TOLERANCE)
 
 
-func test_legacy_configure_matches_configure_cycle() -> void:
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	var old_birds: DistantBirds = DistantBirds.new()
-	add_child_autofree(old_birds)
-	old_birds.configure(sunset, true)
-	assert_true(old_birds.visible, "the legacy entry point still shows the sunset birds")
-	old_birds.configure(null, true)
-	assert_false(old_birds.visible)
+func test_configure_cycle_shows_the_shipped_birds_and_hides_without_a_def() -> void:
+	var birds: DistantBirds = DistantBirds.new()
+	add_child_autofree(birds)
+	birds.configure_cycle(_theme(), true)
+	assert_true(birds.visible, "the shipped cycle shows its birds")
+	birds.configure_cycle(null, true)
+	assert_false(birds.visible)

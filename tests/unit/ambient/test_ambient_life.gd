@@ -2,8 +2,6 @@ extends GutTest
 ## game/ambient/AmbientLife.gd: it subscribes to the sky's Events and swaps the day/night set with
 ## hysteresis thresholds read from the SkyCycleDef.
 
-const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
-const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
 const DISC_RADIUS_M: float = 30.0
 const MIX_FULL_NIGHT: float = 1.0
 const SWEEP_STEPS: int = 400
@@ -13,9 +11,7 @@ const SWEEP_START_PHASE: float = 0.25
 
 
 func _def() -> SkyCycleDef:
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
-	return SkyThemeMigration.cycle_from_themes(sunset, sunset, night)
+	return SkyTestKit.cycle()
 
 
 func _built() -> AmbientLife:
