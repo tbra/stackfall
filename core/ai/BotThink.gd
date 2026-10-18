@@ -686,9 +686,14 @@ func _take_first_valid() -> bool:
 	for position: int in _pick_order:
 		var index: int = _ranked[position]
 		var candidate: BotCandidate = _candidates[index]
+		# The host judges the footprint centre, not the pivot (PlacementPoint.legality_point).
+		var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
+		var legality: Vector2 = candidate.origin
+		if info != null:
+			legality += info.center_shift * _view.cube_size
 		if (
 			_view.raster != null
-			and PlacementRules.validate_point(candidate.origin, _view.raster, _view.team_id) != PlacementRules.Result.VALID
+			and PlacementRules.validate_point(legality, _view.raster, _view.team_id) != PlacementRules.Result.VALID
 		):
 			continue
 		_best = candidate

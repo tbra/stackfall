@@ -166,7 +166,8 @@ func test_finish_and_siege_stack_on_the_top_nearest_the_target_others_on_the_tal
 
 func _assert_all_placeable(view: BotWorldView, sites: Array[BotCandidate]) -> void:
 	for c: BotCandidate in sites:
-		var cell: Vector2i = view.grid.world_to_cell(c.origin)
+		var shift: Vector3 = PlacementPoint.centre_offset(view.held, BlockOrientations.get_basis(c.orientation_index), view.cube_size)
+		var cell: Vector2i = view.grid.world_to_cell(c.origin + Vector2(shift.x, shift.z))
 		assert_false(view.raster.is_contested(cell.x, cell.y), "not contested")
 		assert_false(view.raster.is_hole(cell.x, cell.y), "not a hole")
 		assert_false(view.raster.is_goal_zone(cell.x, cell.y), "not in the goal zone")
@@ -202,3 +203,23 @@ func test_no_site_outside_own_territory() -> void:
 	for c: BotCandidate in _sites(view, _intent(BotIntent.Kind.RACE)):
 		assert_true(c.origin.x < HOME_B.x - _territory_tuning.home_radius, "stays on own side of the enemy home")
 	_assert_all_placeable(view, _sites(view, _intent(BotIntent.Kind.RACE)))
+
+
+## Bot and host judge the same point: every generated site's footprint centre (the host's
+## PlacementPoint.legality_point for the site's real basis) is VALID, including tilted/rolled
+## orientations whose pivot and centre disagree.
+func test_every_site_is_valid_at_the_hosts_legality_point() -> void:
+	var view: BotWorldView = _view(_pillar, false, true)
+	var offset_seen: int = 0
+	for kind: BotIntent.Kind in [BotIntent.Kind.RACE, BotIntent.Kind.SIEGE]:
+		for c: BotCandidate in _sites(view, _intent(kind), CANDIDATE_COUNT * 4):
+			var basis: Basis = BlockOrientations.get_basis(c.orientation_index)
+			var pivot: Vector3 = Vector3(c.origin.x, 0.0, c.origin.y)
+			var point: Vector3 = PlacementPoint.legality_point(pivot, _pillar, basis, view.cube_size)
+			if not is_equal_approx(point.x, pivot.x) or not is_equal_approx(point.z, pivot.z):
+				offset_seen += 1
+			assert_eq(
+				PlacementRules.validate_point(Vector2(point.x, point.z), view.raster, view.team_id),
+				PlacementRules.Result.VALID, "site legal at the host's point"
+			)
+	assert_gt(offset_seen, 0, "fixture produced a tilted site where pivot and centre differ")

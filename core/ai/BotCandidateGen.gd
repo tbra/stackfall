@@ -445,7 +445,8 @@ class _Gen:
 		# `point` is where the piece's footprint centre should land; the origin is
 		# the pivot the host tests (centre_shift is 0 for yaw-only orientations).
 		var origin: Vector2 = point - orientation.center_shift * view.cube_size
-		if not _placeable(origin):
+		# The host judges the footprint centre (PlacementPoint.legality_point), i.e. `point`.
+		if not _placeable(point):
 			return false
 		if flat_supports_only and not _rests_flat(origin, orientation):
 			return false
