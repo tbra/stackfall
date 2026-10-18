@@ -57,7 +57,7 @@ const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
 ## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
 ## purely visual sky roots go dormant.
 const MENU_DORMANT_WORLD_NODES: PackedStringArray = [
-	"Skybox", "CloudShadows", "HorizonIslands",
+	"Skybox", "CloudShadows",
 ]
 const MENU_PREWARM_CONFIG_PATH: String = "res://config/match/menu_prewarm.tres"
 const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/main/MainHeadlessBotsFlow.gd"
@@ -89,8 +89,6 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
 @onready var _registry: BlockRegistry = $BlockRegistry
 @onready var _camera_rig: CameraRig = $CameraRig
 @onready var _skybox: Skybox = $Skybox
-## cosmetic horizon island ring, rebuilt wherever the sky set loads.
-@onready var _horizon_islands: HorizonIslands = $HorizonIslands
 ## The one WorldEnvironment in game/main/Main.tscn: _apply_graphics_preset()
 ## forwards ssr_enabled/volumetric_fog_enabled to its Environment. Null-checked
 ## so a stripped-down test fixture without this node stays a no-op.
