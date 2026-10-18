@@ -55,6 +55,9 @@ const CYCLE_DAWN_THEME_ID: String = "dawn"
 var _cloud_sea: CloudSea = null
 ## The running cloud wind (calm per-match heading, storm wind, parallax integral).
 var _cloud_drift: CloudDriftState = CloudDriftState.new()
+var _cycle_writes_frozen: bool = false
+var _pinned_sky_time_s: float = -1.0
+var _pinned_cloud_drift_s: float = -1.0
 ## The one lighting/weather/cycle state all cloud layers read.
 var _cloud_lighting: CloudLighting = CloudLighting.new()
 var _birds: DistantBirds = null
@@ -298,10 +301,32 @@ func _prune_overcast_sky_bases() -> void:
 			_overcast_sky_bases.erase(key)
 
 
+## Bench hook: while true the running cycle's 10 Hz material writes (update_cycle_clock in
+## _process) are skipped, so the sky stays REALTIME-radiance but is never dirtied by the cycle.
+func set_cycle_writes_frozen(frozen: bool) -> void:
+	_cycle_writes_frozen = frozen
+
+
+## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global at `sky_time_s` and
+## the cloud drift offset at the drift reached after `cloud_drift_s` of calm wind, so two shots
+## of one state are identical. A negative value leaves that clock running (the default).
+func set_capture_pin(sky_time_s: float, cloud_drift_s: float) -> void:
+	_pinned_sky_time_s = sky_time_s
+	_pinned_cloud_drift_s = cloud_drift_s
+	if sky_time_s >= 0.0 or cloud_drift_s >= 0.0:
+		# The host rolls a random variation seed per match (exposure, coverage, wind heading): a
+		# pinned capture uses the fixed default so two shots of one state agree.
+		_variation_seed = SkyVariation.DEFAULT_SEED
+		_cloud_drift.reset(_variation_seed)
+
+
 func _process(delta: float) -> void:
 	_step_probe_interval(delta)
 	_step_cloud_drift(delta)
-	_sky_clock_s += delta
+	if _pinned_sky_time_s >= 0.0:
+		_sky_clock_s = _pinned_sky_time_s
+	else:
+		_sky_clock_s += delta
 	_publish_sky_time()
 	if _cycle_theme != null:
 		_publish_disc_directions(cycle_phase_at(MatchContext.current().shared_clock_seconds()))
@@ -318,7 +343,7 @@ func _process(delta: float) -> void:
 	if _radiance_accum_s < interval:
 		return
 	_radiance_accum_s = minf(_radiance_accum_s - interval, interval)
-	if _cycle_theme != null and _cycle_locked_phase < 0.0:
+	if _cycle_theme != null and _cycle_locked_phase < 0.0 and not _cycle_writes_frozen:
 		update_cycle_clock(MatchContext.current().shared_clock_seconds())
 	elif _cycle_theme == null:
 		_tick_radiance()
@@ -1668,7 +1693,10 @@ func set_cloud_storm_wind(direction: Vector2) -> void:
 
 ## Advances the shared cloud wind by `delta` and hands its integral to the puffs (also the test seam).
 func _step_cloud_drift(delta: float) -> void:
-	_cloud_drift.step(delta, _storm_amount)
+	if _pinned_cloud_drift_s >= 0.0:
+		_cloud_drift.offset = _cloud_drift.heading * _cloud_drift.speed_mult * _pinned_cloud_drift_s
+	else:
+		_cloud_drift.step(delta, _storm_amount)
 	if _cloud_sea != null:
 		_cloud_sea.set_drift_offset(_cloud_drift.offset)
 

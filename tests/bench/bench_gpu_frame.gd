@@ -18,6 +18,16 @@ extends Node
 ## nvidia-smi between the markers: that is the whole-GPU number, which unlike the viewport
 ## timer also covers reflection-probe and sky-radiance passes (engine source: render_probes()
 ## runs in RenderingServerDefault::_draw outside the vp_begin/vp_end timestamps).
+## Sky state (before the blocks spawn): --sky=day|dawn|night|cycle and --phase=<0..1>. day/dawn/night
+## lock the cycle at 0.25/0.0/0.75; --phase=<p> alone locks at p; --sky=cycle runs it (from --phase
+## when given). Sky toggles (see --list): sky_radiance_frozen (Skybox.set_cycle_writes_frozen; keeps
+## REALTIME radiance, unlike sky_radiance), puff_sea/puff_banks/puff_far (zero that layer's clump
+## count on the live cycle theme, then re-apply it), puff_upper, puff_billboard (preset billboard
+## distance 0), puff_detail, puff_fade_sky, sea_noise, decals_only, disc_term, sun_flare_rect,
+## sun_flare_cpu, probe_interval4, probe_interval05, storm_fade_writes (starts a storm fade-in on the
+## CloudCeiling; compare locked vs running sky) and the CPU toggles cpu_sun_flare, cpu_cloud_shadows,
+## cpu_cloud_ceiling (process_mode disabled). Every GPU_BENCH line carries process_ms, the mean
+## Performance.TIME_PROCESS: run --frames=600 for the CPU comparison.
 ## Output: one machine-readable line per run starting with "GPU_BENCH ". Only run it
 ## when no other app is using the GPU: the timestamps include contention.
 
@@ -43,12 +53,23 @@ const USEC_PER_SEC: float = 1000000.0
 const SSR_STEPS_HALF: int = 32
 const SSR_STEPS_QUARTER: int = 16
 const SSR_FADE_OUT_SHORT: float = 1.0
+const SKY_PHASES: Dictionary = {"day": 0.25, "dawn": 0.0, "night": 0.75}
+const SKY_CYCLE: String = "cycle"
+const PROBE_INTERVAL_SLOW_S: float = 4.0
+const PROBE_INTERVAL_FAST_S: float = 0.5
+const STORM_FADE_INTENSITY: float = 1.0
+const MS_PER_SEC: float = 1000.0
+const NO_PHASE: float = -1.0
 const FEATURES: PackedStringArray = [
 	"volumetric_fog", "ssr", "glow", "msaa", "shadows", "sky_radiance", "probe",
 	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog", "islands",
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
 	"probe_once", "ssao", "ssil", "sdfgi", "lights", "ssao_on",
 	"ssr_steps32", "ssr_steps16", "ssr_fade1",
+	"sky_radiance_frozen", "puff_sea", "puff_banks", "puff_far", "puff_upper", "puff_billboard",
+	"puff_detail", "puff_fade_sky", "sea_noise", "decals_only", "disc_term", "sun_flare_rect",
+	"sun_flare_cpu", "storm_fade_writes", "probe_interval4", "probe_interval05",
+	"cpu_sun_flare", "cpu_cloud_shadows", "cpu_cloud_ceiling",
 ]
 
 var _main: Node = null
@@ -65,6 +86,11 @@ func _ready() -> void:
 		print("GPU_BENCH features=%s" % ",".join(FEATURES))
 		get_tree().quit()
 		return
+	if args.has("--help") or args.has("-h"):
+		print("GPU_BENCH usage: --preset= --blocks= --frames= --warmup= --gpu-off=a,b --sweep=all|a,b --steady "
+			+ "--max-fps= --warmup-seconds= --steady-seconds= --sky=day|dawn|night|cycle --phase=<0..1> --shot=<png> --list")
+		get_tree().quit()
+		return
 	var preset_id: StringName = DEFAULT_PRESET
 	var blocks: int = DEFAULT_BLOCKS
 	var frames: int = DEFAULT_FRAMES
@@ -75,6 +101,8 @@ func _ready() -> void:
 	var max_fps: int = DEFAULT_MAX_FPS
 	var warmup_seconds: float = DEFAULT_WARMUP_SECONDS
 	var steady_seconds: float = DEFAULT_STEADY_SECONDS
+	var sky_mode: String = ""
+	var sky_phase: float = NO_PHASE
 	for arg: String in args:
 		if arg.begins_with("--preset="):
 			preset_id = StringName(arg.trim_prefix("--preset="))
@@ -94,9 +122,17 @@ func _ready() -> void:
 			warmup_seconds = float(arg.trim_prefix("--warmup-seconds="))
 		elif arg.begins_with("--steady-seconds="):
 			steady_seconds = float(arg.trim_prefix("--steady-seconds="))
+		elif arg.begins_with("--sky="):
+			sky_mode = arg.trim_prefix("--sky=")
+		elif arg.begins_with("--phase="):
+			sky_phase = float(arg.trim_prefix("--phase="))
 		elif arg.begins_with("--sweep="):
 			var value: String = arg.trim_prefix("--sweep=")
 			sweep = FEATURES if value == "all" else value.split(",", false)
+	if not sky_mode.is_empty() and sky_mode != SKY_CYCLE and not SKY_PHASES.has(sky_mode):
+		print("GPU_BENCH error bad --sky=%s (want day|dawn|night|cycle)" % sky_mode)
+		get_tree().quit(1)
+		return
 	Settings.set_graphics_preset(preset_id)
 	_main = (load("res://game/main/Main.tscn") as PackedScene).instantiate()
 	_render_vp = AgentProbe.make_render_viewport(self, DEFAULT_RENDER_SIZE)
@@ -111,6 +147,7 @@ func _ready() -> void:
 	_field = _main.get_node("Field") as Field
 	_env = (_main.get("_world_environment") as WorldEnvironment).environment
 	RenderingServer.viewport_set_measure_render_time(_render_vp.get_viewport_rid(), true)
+	_apply_sky_state(sky_mode, sky_phase)
 	_spawn_blocks(blocks)
 	await get_tree().create_timer(SETTLE_SECONDS).timeout
 	(_main.get("_sandbox") as Sandbox)._set_block_physics_frozen(true)
@@ -136,6 +173,113 @@ func _ready() -> void:
 			_set_feature(feature, true)
 		await _measure(preset_id, PackedStringArray(), blocks, frames, warmup)
 	get_tree().quit()
+
+
+## Pins the cycle before measuring (the bench otherwise measures whatever phase the match opened at).
+func _apply_sky_state(sky_mode: String, phase: float) -> void:
+	if sky_mode.is_empty() and phase < 0.0:
+		return
+	var skybox: Skybox = _skybox()
+	if skybox == null:
+		print("GPU_BENCH warning sky_state_no_skybox")
+		return
+	if sky_mode == SKY_CYCLE:
+		skybox.start_cycle(NO_PHASE, phase)
+	else:
+		var lock: float = float(SKY_PHASES[sky_mode]) if SKY_PHASES.has(sky_mode) else phase
+		skybox.start_cycle(lock, NO_PHASE)
+	print("GPU_BENCH sky=%s phase=%.3f" % [sky_mode if not sky_mode.is_empty() else "locked", skybox.cycle_phase_at(MatchContext.current().shared_clock_seconds())])
+
+
+func _skybox() -> Skybox:
+	return _main.get("_skybox") as Skybox
+
+
+## The live cycle theme (the one apply_theme re-applies), or null outside CYCLE mode.
+func _cycle_theme() -> SkyThemeDef:
+	var skybox: Skybox = _skybox()
+	return skybox.get("_cycle_theme") as SkyThemeDef if skybox != null else null
+
+
+## Overrides one SkyThemeDef/GraphicsPreset property (off) or restores it (on), then rebuilds the
+## puffs by re-applying the cycle theme; the layers share one MultiMesh, so a node toggle cannot isolate them.
+func _toggle_rebuild(feature: String, target: Object, property: String, off_value: Variant, on: bool) -> void:
+	if target == null:
+		print("GPU_BENCH warning feature=%s no_target" % feature)
+		return
+	_toggle(feature, target, property, off_value, on)
+	var skybox: Skybox = _skybox()
+	if skybox != null and _cycle_theme() != null:
+		skybox.apply_theme(_cycle_theme())
+
+
+## Sets a shader parameter on `material` (off) or restores it (on).
+func _toggle_param(feature: String, material: ShaderMaterial, parameter: StringName, off_value: Variant, on: bool) -> void:
+	if material == null:
+		print("GPU_BENCH warning feature=%s no_material" % feature)
+		return
+	if on:
+		if _saved.has(feature):
+			material.set_shader_parameter(parameter, _saved[feature])
+		return
+	if not _saved.has(feature):
+		_saved[feature] = material.get_shader_parameter(parameter)
+	material.set_shader_parameter(parameter, off_value)
+
+
+func _puff_material() -> ShaderMaterial:
+	var skybox: Skybox = _skybox()
+	var sea: Object = skybox.get("_cloud_sea") as Object if skybox != null else null
+	return sea.get("_material") as ShaderMaterial if sea != null else null
+
+
+## Puff MultiMeshInstance3Ds under every CloudSea by node name (Puffs, PuffsFar, UpperPuffs, UpperPuffsFar).
+func _toggle_puff_nodes(feature: String, names: PackedStringArray, on: bool) -> void:
+	var hits: int = 0
+	for sea: Node in _main.find_children("*", "CloudSea", true, false):
+		for child: Node in sea.get_children():
+			if names.has(str(child.name)):
+				hits += 1
+				var key: String = "%s#%d" % [feature, child.get_instance_id()]
+				if on:
+					if _saved.has(key):
+						child.set("visible", _saved[key])
+				else:
+					if not _saved.has(key):
+						_saved[key] = child.get("visible")
+					child.set("visible", false)
+	if hits == 0 and not on:
+		print("GPU_BENCH warning feature=%s matched_no_nodes" % feature)
+
+
+## CloudShadows split: decals_only hides the Decal projectors but leaves the disc term as last pushed;
+## disc_term clears the disc term but leaves the decals. Either stops CloudShadows._process (CPU too).
+func _toggle_cloud_shadow_part(disc: bool, on: bool) -> void:
+	for node: Node in _main.find_children("*", "CloudShadows", true, false):
+		node.set("_enabled", on)
+		if on:
+			continue
+		if disc:
+			node.call("_push_disc", [] as Array[Texture2D], [] as Array[Transform3D], [] as Array[float])
+		else:
+			for decal: Decal in node.get("_decals") as Array[Decal]:
+				decal.visible = false
+
+
+## Listing storm_fade_writes starts a storm fade-in; restoring snaps the weather clear.
+func _toggle_storm_fade(on: bool) -> void:
+	for node: Node in _main.find_children("*", "CloudCeiling", true, false):
+		var ceiling: CloudCeiling = node as CloudCeiling
+		if on:
+			ceiling.snap_clear()
+		else:
+			ceiling.set_weather_intensity(WeatherIds.STORM, STORM_FADE_INTENSITY)
+
+
+func _toggle_probe_interval(feature: String, interval_s: float, on: bool) -> void:
+	_toggle(feature, Settings.current_graphics_preset(), "reflection_probe_interval_s", interval_s, on)
+	if _skybox() != null:
+		_skybox().configure_reflection_probe()
 
 
 func _steady(preset_id: StringName, off: PackedStringArray, max_fps: int, warmup_seconds: float, steady_seconds: float) -> void:
@@ -265,18 +409,21 @@ func _measure(preset_id: StringName, off: PackedStringArray, blocks: int, frames
 	var rid: RID = _render_vp.get_viewport_rid()
 	var gpu: Array[float] = []
 	var cpu_sum: float = 0.0
+	var process_sum: float = 0.0
 	for i: int in range(frames):
 		await get_tree().process_frame
 		gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(rid))
 		cpu_sum += RenderingServer.viewport_get_measured_render_time_cpu(rid)
+		process_sum += Performance.get_monitor(Performance.TIME_PROCESS)
 	gpu.sort()
 	var total: float = 0.0
 	for value: float in gpu:
 		total += value
 	var count: float = maxf(float(gpu.size()), 1.0)
-	print("GPU_BENCH preset=%s off=%s blocks=%d res=%dx%d frames=%d gpu_ms_median=%.3f gpu_ms_p90=%.3f gpu_ms_mean=%.3f render_cpu_ms=%.3f draws=%d objects=%d prims=%d" % [
+	print("GPU_BENCH preset=%s off=%s blocks=%d res=%dx%d frames=%d gpu_ms_median=%.3f gpu_ms_p90=%.3f gpu_ms_mean=%.3f render_cpu_ms=%.3f process_ms=%.3f draws=%d objects=%d prims=%d" % [
 		preset_id, ",".join(off) if not off.is_empty() else "none", blocks, _render_vp.size.x, _render_vp.size.y,
 		gpu.size(), gpu[gpu.size() / 2], gpu[mini(int(count * P90), gpu.size() - 1)], total / count, cpu_sum / count,
+		process_sum / count * MS_PER_SEC,
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
 		RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
@@ -362,6 +509,48 @@ func _set_feature(feature: String, on: bool) -> void:
 				if not on:
 					_saved[feature] = sky_material.get_shader_parameter(&"aurora_visibility")
 				sky_material.set_shader_parameter(&"aurora_visibility", 0.0 if not on else _saved.get(feature, 0.0))
+		"sky_radiance_frozen":
+			# The cycle's 10 Hz material writes stop; radiance stays REALTIME (no GGX refilter).
+			if _skybox() != null:
+				_skybox().set_cycle_writes_frozen(not on)
+		"puff_sea":
+			_toggle_rebuild(feature, _cycle_theme(), "cloud_clump_count", 0, on)
+		"puff_banks":
+			_toggle_rebuild(feature, _cycle_theme(), "cloud_bank_count", 0, on)
+		"puff_far":
+			_toggle_rebuild(feature, _cycle_theme(), "proc_far_count", 0, on)
+		"puff_upper":
+			_toggle_puff_nodes(feature, PackedStringArray(["UpperPuffs", "UpperPuffsFar"]), on)
+		"puff_billboard":
+			_toggle_rebuild(feature, Settings.current_graphics_preset(), "cloud_billboard_distance_m", 0.0, on)
+		"puff_detail":
+			_toggle_param(feature, _puff_material(), &"lump_detail_weight", 0.0, on)
+		"puff_fade_sky":
+			_toggle_param(feature, _puff_material(), &"far_fade_cap", 0.0, on)
+		"sea_noise":
+			_toggle_param(feature, _env.sky.sky_material as ShaderMaterial, &"procedural_sea_mix", 0.0, on)
+		"decals_only":
+			_toggle_cloud_shadow_part(false, on)
+		"disc_term":
+			_toggle_cloud_shadow_part(true, on)
+		"sun_flare_rect":
+			# The GPU pass only: hides the flare CanvasLayer while SunFlare._process keeps running.
+			_toggle_all(feature, SunFlare, "visible", false, on)
+		"sun_flare_cpu":
+			# The CPU rays only: the rect keeps drawing its last state.
+			_toggle_all(feature, SunFlare, "process_mode", Node.PROCESS_MODE_DISABLED, on)
+		"storm_fade_writes":
+			_toggle_storm_fade(on)
+		"probe_interval4":
+			_toggle_probe_interval(feature, PROBE_INTERVAL_SLOW_S, on)
+		"probe_interval05":
+			_toggle_probe_interval(feature, PROBE_INTERVAL_FAST_S, on)
+		"cpu_sun_flare":
+			_toggle_all(feature, SunFlare, "process_mode", Node.PROCESS_MODE_DISABLED, on)
+		"cpu_cloud_shadows":
+			_toggle_all(feature, CloudShadows, "process_mode", Node.PROCESS_MODE_DISABLED, on)
+		"cpu_cloud_ceiling":
+			_toggle_all(feature, CloudCeiling, "process_mode", Node.PROCESS_MODE_DISABLED, on)
 		_:
 			print("GPU_BENCH warning unknown_feature=%s" % feature)
 

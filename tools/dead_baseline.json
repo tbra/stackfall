@@ -66,6 +66,8 @@
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/player/RemoteCursors.gd:set_providers",
+   "game/sky/Skybox.gd:set_capture_pin",
+   "game/sky/Skybox.gd:set_cycle_writes_frozen",
    "net/BreezeNet.gd:set_providers",
    "net/MatchNet.gd:set_providers",
    "net/SnowNet.gd:set_providers",
