@@ -73,6 +73,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	skybox.set_cycle_phase(0.3)
 	skybox.set_overcast(0.6, 0.5, 0.6, 0.7, Color(0.6, 0.65, 0.7), 0.4)
 	skybox.set_storm_sky(0.7, Skybox.load_theme("storm"))
+	skybox.flush_weather()
 	var l: CloudLighting = _lighting(skybox)
 	assert_almost_eq(l.storm, 0.7, EPS)
 	assert_almost_eq(l.overcast, 0.6, EPS)
@@ -83,6 +84,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	_assert_layers_match(skybox, "storm then phase")
 	skybox.set_storm_sky(0.0, Skybox.load_theme("storm"))
 	skybox.set_overcast(0.0, 1.0, 1.0, 1.0, Color.WHITE, 0.0)
+	skybox.flush_weather()
 	assert_eq(_lighting(skybox).storm, 0.0)
 	assert_eq(_lighting(skybox).dim, 0.0)
 	_assert_layers_match(skybox, "cleared")
@@ -104,16 +106,16 @@ func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Diction
 
 
 ## The effective sun terms on the live sky material and flare at storm 0.3 / 0.6 / 1 with
-## overcast 1, in the running cycle, a locked phase and a static theme: none of the halo,
+## overcast 1, in the running cycle and in two locked phases (dawn, sunset): none of the halo,
 ## rays or flare may exceed the disc glow, and all are 0 once the disc is gone.
 func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 	var storm_theme: SkyThemeDef = Skybox.load_theme("storm")
-	for mode: String in ["cycle", "locked_dawn", "static"]:
+	for mode: String in ["cycle", "locked_dawn", "locked_sunset"]:
 		var skybox: Skybox = _wired_skybox()
 		var flare: SunFlare = SunFlare.new()
 		add_child_autofree(flare)
-		if mode == "static":
-			skybox.apply_theme(skybox.theme)
+		if mode == "locked_sunset":
+			skybox.set_theme_by_id("sunset")
 		else:
 			var config: MatchConfig = MatchConfig.new()
 			config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE if mode == "cycle" else MatchConfig.SkyThemeMode.DAWN
@@ -127,8 +129,10 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 		assert_gt(clear_ray, 0.0, "%s: fixture has god rays to fade" % mode)
 		var baseline: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 		skybox.set_weather_cloud_overcast(1.0)
+		skybox.flush_weather()
 		for storm: float in [0.3, 0.6, 1.0]:
 			skybox.set_storm_sky(storm, storm_theme)
+			skybox.flush_weather()
 			var shares: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 			var label: String = "%s storm %s" % [mode, storm]
 			for term: StringName in [&"halo", &"core", &"rays", &"flare"]:
@@ -139,6 +143,7 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 				assert_eq(float(shares[&"flare"]), 0.0, "%s: no flare" % label)
 		skybox.set_storm_sky(0.0, storm_theme)
 		skybox.set_weather_cloud_overcast(0.0)
+		skybox.flush_weather()
 		var cleared: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 		for term: StringName in [&"glow", &"rays", &"flare"]:
 			assert_almost_eq(float(cleared[term]), float(baseline[term]), EPS, "%s: clearing the weather restores the %s unchanged" % [mode, term])

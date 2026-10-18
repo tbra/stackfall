@@ -155,10 +155,10 @@ func test_birds_are_sunset_only_and_fireflies_night_only() -> void:
 	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
 	assert_not_null(sunset.ambient_life)
 	assert_not_null(night.ambient_life)
-	skybox.apply_theme(sunset)
+	skybox.set_theme_by_id("sunset")
 	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
-	skybox.apply_theme(night)
+	skybox.set_theme_by_id("night")
 	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_not_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
 	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night.ambient_life.fireflies_count)

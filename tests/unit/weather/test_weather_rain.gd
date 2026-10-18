@@ -173,7 +173,7 @@ func _overcast_skybox() -> Array:
 	skybox.theme = load(SUNSET_PATH) as SkyThemeDef
 	add_child_autofree(skybox)
 	skybox.light_path = skybox.get_path_to(light)
-	skybox.apply_theme(skybox.theme)
+	skybox.set_theme_by_id("sunset")
 	return [skybox, environment, light]
 
 
@@ -182,28 +182,49 @@ func _overcast(skybox: Skybox, amount: float) -> void:
 		_rain.overcast_sky_exposure_scale, _rain.overcast_fog_color, _rain.overcast_fog_strength)
 
 
+## The clear-weather values of the cycle locked at `sky_id`: what the static theme resources used
+## to supply, now read from a fresh facade with no weather request.
+func _clear_reference(sky_id: String) -> Dictionary:
+	var parts: Array = _overcast_skybox()
+	var skybox: Skybox = parts[0]
+	skybox.set_theme_by_id(sky_id)
+	skybox.flush_weather()
+	var environment: Environment = parts[1]
+	var light: DirectionalLight3D = parts[2]
+	return {
+		&"light": light.light_energy,
+		&"ambient": environment.ambient_light_energy,
+		&"exposure": float((skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"exposure")),
+		&"fog_color": environment.fog_light_color,
+	}
+
+
 func test_overcast_dims_and_restores_and_survives_theme_switch() -> void:
 	var parts: Array = _overcast_skybox()
 	var skybox: Skybox = parts[0]
 	var environment: Environment = parts[1]
 	var light: DirectionalLight3D = parts[2]
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
+	var sunset: Dictionary = _clear_reference("sunset")
+	var night: Dictionary = _clear_reference("night")
 	var base_bg: float = environment.background_energy_multiplier
-	var sunset_sky: ShaderMaterial = sunset.sky_material as ShaderMaterial
-	var sunset_exposure: float = float(sunset_sky.get_shader_parameter(&"exposure"))
+	var sunset_exposure: float = float(sunset[&"exposure"])
 	_overcast(skybox, 1.0)
-	assert_almost_eq(float(sunset_sky.get_shader_parameter(&"exposure")), sunset_exposure * _rain.overcast_sky_exposure_scale, 0.0001, "sky shader exposure dims")
-	assert_almost_eq(light.light_energy, sunset.light_energy * _rain.overcast_light_scale, 0.0001)
+	skybox.flush_weather()
+	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	assert_almost_eq(float(sky.get_shader_parameter(&"exposure")), sunset_exposure * _rain.overcast_sky_exposure_scale, 0.0001, "sky shader exposure dims")
+	assert_almost_eq(light.light_energy, float(sunset[&"light"]) * _rain.overcast_light_scale, 0.0001)
 	assert_almost_eq(environment.background_energy_multiplier, base_bg * _rain.overcast_sky_exposure_scale, 0.0001)
-	skybox.apply_theme(night)
-	assert_almost_eq(light.light_energy, night.light_energy * _rain.overcast_light_scale, 0.0001, "theme switch re-bases")
+	skybox.set_theme_by_id("night")
+	skybox.flush_weather()
+	assert_almost_eq(light.light_energy, float(night[&"light"]) * _rain.overcast_light_scale, 0.0001, "theme switch re-bases")
 	_overcast(skybox, 0.0)
-	assert_almost_eq(float(sunset_sky.get_shader_parameter(&"exposure")), sunset_exposure, 0.0001, "sky exposure restored")
-	assert_almost_eq(light.light_energy, night.light_energy, 0.0001)
-	assert_almost_eq(environment.ambient_light_energy, night.ambient_energy, 0.0001)
+	skybox.flush_weather()
+	sky = skybox.theme.sky_material as ShaderMaterial
+	assert_almost_eq(float(sky.get_shader_parameter(&"exposure")), float(night[&"exposure"]), 0.0001, "sky exposure restored")
+	assert_almost_eq(light.light_energy, float(night[&"light"]), 0.0001)
+	assert_almost_eq(environment.ambient_light_energy, float(night[&"ambient"]), 0.0001)
 	assert_almost_eq(environment.background_energy_multiplier, base_bg, 0.0001)
-	assert_eq(environment.fog_light_color, night.fog_color)
+	assert_true(environment.fog_light_color.is_equal_approx(night[&"fog_color"] as Color))
 
 
 const SLIDE_FRAMES: int = 150

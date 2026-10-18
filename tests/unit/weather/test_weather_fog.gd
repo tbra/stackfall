@@ -27,7 +27,8 @@ func _rig() -> Array:
 	skybox.environment = environment
 	skybox.theme = load(SUNSET_PATH) as SkyThemeDef
 	add_child_autofree(skybox)
-	skybox.apply_theme(skybox.theme)
+	# The boot sky is the cycle; the sunset the fog is measured against is the cycle locked there.
+	skybox.set_theme_by_id("sunset")
 	return [skybox, environment]
 
 
@@ -53,6 +54,8 @@ func test_fog_uses_depth_mode_from_a_begin_distance_and_restores_the_theme_exact
 	var base_mode: Environment.FogMode = environment.fog_mode
 	var base_begin: float = environment.fog_depth_begin
 	var base_end: float = environment.fog_depth_end
+	# The locked-sunset evaluation (Q4), not the static theme colour, is what the weather must restore.
+	var base_color: Color = environment.fog_light_color
 	var presentation: FogPresentation = _presentation()
 	presentation.set_intensity(0.5)
 	var half: float = environment.fog_density
@@ -69,7 +72,7 @@ func test_fog_uses_depth_mode_from_a_begin_distance_and_restores_the_theme_exact
 	assert_eq(environment.fog_depth_begin, base_begin)
 	assert_eq(environment.fog_depth_end, base_end)
 	assert_almost_eq(environment.fog_density, sunset.fog_density, 0.00001)
-	assert_eq(environment.fog_light_color, sunset.fog_color)
+	assert_eq(environment.fog_light_color, base_color)
 	assert_almost_eq(environment.fog_sky_affect, sunset.fog_sky_affect, 0.00001)
 
 
@@ -103,13 +106,13 @@ func test_theme_switch_during_fog_rebases_and_restores_on_the_new_theme() -> voi
 	var base_mode: Environment.FogMode = environment.fog_mode
 	var presentation: FogPresentation = _presentation()
 	presentation.set_intensity(1.0)
-	skybox.apply_theme(night)
+	skybox.set_theme_by_id("night")
 	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH, "fog persists over the switch")
 	assert_almost_eq(environment.fog_density, _fog.max_opacity, 0.00001)
 	presentation.set_intensity(0.0)
 	assert_eq(environment.fog_mode, base_mode)
 	assert_almost_eq(environment.fog_density, night.fog_density, 0.00001)
-	assert_eq(environment.fog_light_color, night.fog_color)
+	assert_true(environment.fog_light_color.is_equal_approx(night.fog_color), "night fog colour (cycle evaluation differs from the theme by float noise)")
 
 
 func test_the_disc_applies_the_same_distance_fog_and_restores() -> void:
