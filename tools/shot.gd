@@ -13,6 +13,12 @@ extends Node
 ##   --target=sandbox --overlays=f4 --f4-tab=physics --sky=cycle --time=0.5 --cam=30,-35,40
 ##   --target=match --watch --bots=4 --mode=ctf --follow=1 --frames=600 --speed=4 --hud=0
 ##   --shots=shots.json --sheet   (a JSON array of objects with the same keys)
+## Deterministic parity captures (the sky rebuild's recipe). The ENGINE flag --fixed-fps 60 goes before
+## --path, so TIME advances a fixed step per frame; --pin-sky-time=<s>[,<drift_s>] pins the sky and cloud
+## clocks, --weather=<id>:<intensity> snaps the weather ceiling, --rng-seed=<n> fixes the match seed:
+##   godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy --fixed-fps 60 ##     --path <checkout> res://tools/shot.tscn -- --agent-probe --out=<dir> --render-size=1280x720 ##     --target=match --bots=0 --seats=1 --hud=0 --sky=cycle --pin-sky-time=100,50 --rng-seed=1 ##     [--weather=storm:0.5]
+## Compare two captures: godot --headless -s tools/image_diff.gd -- a.png b.png ##   [--max-mean=<n> --max-over8=<n> --max-over1=<n> --diff-out=<png>]
+## --sky takes cycle (the running cycle), sunset, dawn or night (the cycle locked at that sky's phase).
 ## Exit code 0 when every shot saved, 1 when any shot or the arguments failed. Never resizes the OS window.
 
 const FAIL_EXIT_CODE: int = 1

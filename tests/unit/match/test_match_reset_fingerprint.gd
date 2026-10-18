@@ -233,8 +233,8 @@ func _play_dirty_a(main: Node) -> void:
 	assert_not_null(puddles, "fixture: rain put puddles on the Field")
 	puddles.advance(load("res://config/weather/rain.tres").puddle_fill_time_s)
 	assert_gt(_wetness(puddles), 0.0, "fixture: the arena is wet")
-	# A hand-picked sky (F4 dropdown), a gust, a gift crate with a queued special and glue.
-	skybox.set_theme_by_id("sunset")
+	# A hand-picked locked sky (F4 time of day), a gust, a gift crate with a queued special and glue.
+	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(MatchConfig.SKY_ID_SUNSET))
 	var wire: Dictionary = {"id": GUST_ID, "x": 0.0, "y": 1.0, "z": 0.0, "a": 0.5, "r": GUST_RADIUS_M, "d": GUST_DURATION_S, "s": 1.0}
 	var gust: Dictionary = wire.duplicate()
 	gust["age"] = 0.0

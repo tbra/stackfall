@@ -14,11 +14,13 @@ extends RefCounted
 ##            difficulty=easy|normal|hard|mixed
 ##   scene    path=res://...tscn   any scene, instanced alone.
 ## Setup keys valid for every target: overlays=[f1,f2,f3,f4], f4_tab=<index|title>, hud=0|1,
-## sky=<theme id>, time=<cycle phase 0..1>, cam=yaw,pitch,dist[,x,y,z], frames=<physics frames to wait>,
+## sky=cycle|sunset|dawn|night (cycle runs the day/night cycle, the others lock it at that sky's
+## phase; anything else is rejected), time=<cycle phase 0..1>, cam=yaw,pitch,dist[,x,y,z], frames=<physics frames to wait>,
 ## speed=<Engine.time_scale while waiting>, name=<file stem>,
 ## weather=<id>:<intensity> (snaps the CloudCeiling fade, e.g. storm:0.5),
 ## pin_sky_time=<sky_time_s>[,<cloud_drift_s>] (Skybox.set_capture_pin, parity captures; the drift
-## defaults to 0). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
+## defaults to 0), rng_seed=<n >= 0> (match target: a fixed MatchConfig.rng_seed so block bags and
+## weather rolls repeat run to run). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
 ## advances by a fixed step per frame.
 
 const TARGET_MAIN_MENU: String = "main_menu"
@@ -81,7 +83,7 @@ const SHEET_MAX_H: int = 3000
 const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
-	"scroll", "gifts_off", "weather", "pin_sky_time",
+	"scroll", "gifts_off", "weather", "pin_sky_time", "rng_seed",
 ]
 
 
@@ -175,7 +177,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		"watch": false, "follow": NO_VALUE, "difficulty": "", "path": "", "overlays": PackedStringArray(),
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
-		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(),
+		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(), "rng_seed": NO_VALUE,
 	}
 	for key: Variant in raw:
 		if not SHOT_KEYS.has(str(key)):
@@ -187,12 +189,17 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 	for key: String in ["name", "page", "tab", "preset", "mode", "difficulty", "path", "sky", "f4_tab"]:
 		if raw.has(key):
 			shot[key] = str(raw[key]).strip_edges()
-	for key: String in ["seats", "bots", "follow", "frames"]:
+	for key: String in ["seats", "bots", "follow", "frames", "rng_seed"]:
 		if raw.has(key):
 			var number: Variant = _as_int(raw[key])
 			if number == null:
 				return _failed(shot, "%s must be an integer" % key)
 			shot[key] = int(number)
+	if raw.has("rng_seed") and int(shot["rng_seed"]) < 0:
+		return _failed(shot, "rng_seed must be >= 0")
+	var sky_id: String = str(shot["sky"])
+	if not sky_id.is_empty() and sky_id != AgentProbe.SKY_CYCLE_ID and not MatchConfig.SKY_THEME_IDS.has(sky_id):
+		return _failed(shot, "unknown sky '%s' (cycle, %s)" % [sky_id, ", ".join(MatchConfig.SKY_THEME_IDS)])
 	if int(shot["frames"]) < 0 or int(shot["frames"]) > MAX_FRAMES:
 		return _failed(shot, "frames must be 0..%d" % MAX_FRAMES)
 	for key: String in ["advanced", "watch", "scroll", "gifts_off"]:
@@ -527,6 +534,8 @@ static func _host_lobby(host: Node, main: Node, shot: Dictionary) -> String:
 	var config: MatchConfig = (main.get("match_config") as MatchConfig).duplicate(true) as MatchConfig
 	config.player_count = int(shot["seats"])
 	config.ai_count = clampi(maxi(int(shot["bots"]), 0), 0, config.player_count - 1)
+	if int(shot["rng_seed"]) != NO_VALUE:
+		config.rng_seed = int(shot["rng_seed"])
 	if not str(shot["mode"]).is_empty():
 		config.game_mode = MatchConfig.resolve_game_mode(WatchBotsOptions.mode_from_text(str(shot["mode"]).to_lower()))
 	if str(shot["kind"]) == LOBBY_BOTS:
@@ -595,6 +604,8 @@ static func _match(host: Node, main: Node, shot: Dictionary) -> String:
 	if loading != null:
 		await wait_for(host, func() -> bool: return not loading.visible)
 	await settle(host, LONG_SETTLE_FRAMES)
+	if int(shot["rng_seed"]) != NO_VALUE and Match.config.rng_seed != int(shot["rng_seed"]):
+		return "rng_seed %d did not reach the match (it runs with %d)" % [int(shot["rng_seed"]), Match.config.rng_seed]
 	return ""
 
 

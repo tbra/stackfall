@@ -111,7 +111,18 @@ func test_finish_setup_reports_unusable_setup_keys() -> void:
 	host.add_child(main)
 	var follow: Dictionary = ShotTargets.normalize_shot({"target": "match", "watch": true, "follow": 0, "frames": 0})
 	assert_string_contains(await ShotTargets.finish_setup(host, vp, main, follow), "spectator")
-	var sky: Dictionary = ShotTargets.normalize_shot({"target": "sandbox", "sky": "nope", "frames": 0})
-	assert_string_contains(await ShotTargets.finish_setup(host, vp, main, sky), "unknown sky")
+	var sky: Dictionary = ShotTargets.normalize_shot({"target": "sandbox", "sky": "night", "frames": 0})
+	assert_string_contains(await ShotTargets.finish_setup(host, vp, main, sky), "no skybox")
 	var plain: Dictionary = ShotTargets.normalize_shot({"target": "sandbox", "frames": 2})
 	assert_eq(await ShotTargets.finish_setup(host, vp, main, plain), "")
+
+
+func test_sky_ids_are_cycle_or_a_locked_id_and_rng_seed_is_a_non_negative_int() -> void:
+	for sky_id: String in ["cycle", "sunset", "dawn", "night"]:
+		assert_eq(ShotTargets.normalize_shot({"target": "match", "sky": sky_id})["error"], "", sky_id)
+	assert_string_contains(str(ShotTargets.normalize_shot({"target": "match", "sky": "nope"})["error"]), "unknown sky")
+	var seeded: Dictionary = ShotTargets.normalize_shot({"target": "match", "rng_seed": "42"})
+	assert_eq(seeded["error"], "")
+	assert_eq(seeded["rng_seed"], 42)
+	assert_ne(str(ShotTargets.normalize_shot({"target": "match", "rng_seed": "-3"})["error"]), "")
+	assert_eq(ShotTargets.normalize_shot({"target": "match"})["rng_seed"], ShotTargets.NO_VALUE)
