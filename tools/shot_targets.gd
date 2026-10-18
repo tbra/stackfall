@@ -15,7 +15,11 @@ extends RefCounted
 ##   scene    path=res://...tscn   any scene, instanced alone.
 ## Setup keys valid for every target: overlays=[f1,f2,f3,f4], f4_tab=<index|title>, hud=0|1,
 ## sky=<theme id>, time=<cycle phase 0..1>, cam=yaw,pitch,dist[,x,y,z], frames=<physics frames to wait>,
-## speed=<Engine.time_scale while waiting>, name=<file stem>.
+## speed=<Engine.time_scale while waiting>, name=<file stem>,
+## weather=<id>:<intensity> (snaps the CloudCeiling fade, e.g. storm:0.5),
+## pin_sky_time=<sky_time_s>[,<cloud_drift_s>] (Skybox.set_capture_pin, parity captures; the drift
+## defaults to 0). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
+## advances by a fixed step per frame.
 
 const TARGET_MAIN_MENU: String = "main_menu"
 const TARGET_MENU: String = "menu"
@@ -52,6 +56,9 @@ const DEFAULT_WATCH_BOTS: int = 4
 const DEFAULT_SPEED: float = 1.0
 const MAX_FRAMES: int = 36000
 const MAX_SPEED: float = 8.0
+const WEATHER_PARTS: int = 2
+## One step this long drives every CloudCeiling fade to its target (snap, not fade).
+const WEATHER_SNAP_STEP_S: float = 100000.0
 const CAM_MIN_PARTS: int = 3
 const CAM_TARGET_PARTS: int = 6
 const NO_VALUE: int = -1
@@ -74,7 +81,7 @@ const SHEET_MAX_H: int = 3000
 const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
-	"scroll", "gifts_off",
+	"scroll", "gifts_off", "weather", "pin_sky_time",
 ]
 
 
@@ -168,6 +175,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		"watch": false, "follow": NO_VALUE, "difficulty": "", "path": "", "overlays": PackedStringArray(),
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
+		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(),
 	}
 	for key: Variant in raw:
 		if not SHOT_KEYS.has(str(key)):
@@ -197,6 +205,17 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		if not phase.is_valid_float():
 			return _failed(shot, "time must be a cycle phase 0..1")
 		shot["time"] = float(phase)
+	if raw.has("weather"):
+		var weather: PackedStringArray = str(raw["weather"]).split(":")
+		if weather.size() != WEATHER_PARTS or weather[0].strip_edges().is_empty() or not weather[1].is_valid_float():
+			return _failed(shot, "weather must be <id>:<intensity>")
+		shot["weather"] = weather[0].strip_edges()
+		shot["weather_intensity"] = clampf(float(weather[1]), 0.0, 1.0)
+	if raw.has("pin_sky_time"):
+		var pin: PackedStringArray = str(raw["pin_sky_time"]).split(",")
+		if pin.size() > WEATHER_PARTS or not pin[0].is_valid_float() or (pin.size() == WEATHER_PARTS and not pin[1].is_valid_float()):
+			return _failed(shot, "pin_sky_time must be <sky_time_s>[,<cloud_drift_s>]")
+		shot["pin"] = PackedFloat32Array([float(pin[0]), float(pin[1]) if pin.size() == WEATHER_PARTS else 0.0])
 	if raw.has("speed"):
 		var speed: String = str(raw["speed"])
 		if not speed.is_valid_float() or float(speed) <= 0.0 or float(speed) > MAX_SPEED:
@@ -350,6 +369,13 @@ static func finish_setup(host: Node, vp: SubViewport, main: Node, shot: Dictiona
 			return error
 	if not str(shot["sky"]).is_empty() and not AgentProbe.apply_sky(main, str(shot["sky"]), -1.0):
 		return "unknown sky '%s' (or no skybox in this scene)" % shot["sky"]
+	var pin: PackedFloat32Array = shot["pin"]
+	if not pin.is_empty():
+		apply_capture_pin(host.get_tree(), pin[0], pin[1])
+	if not str(shot["weather"]).is_empty():
+		var weather_error: String = snap_weather(main, StringName(str(shot["weather"])), float(shot["weather_intensity"]))
+		if not weather_error.is_empty():
+			return weather_error
 	var cam: PackedFloat32Array = shot["cam"]
 	var phase: float = float(shot["time"])
 	var follow: int = int(shot["follow"])
@@ -370,7 +396,43 @@ static func finish_setup(host: Node, vp: SubViewport, main: Node, shot: Dictiona
 	return ""
 
 
+## Pins (or, with negative values, unpins) every Skybox's capture clocks.
+static func apply_capture_pin(tree: SceneTree, sky_time_s: float, cloud_drift_s: float) -> void:
+	var pinned: bool = sky_time_s >= 0.0 or cloud_drift_s >= 0.0
+	for node: Node in tree.get_nodes_in_group(Skybox.TUNING_GROUP):
+		(node as Skybox).set_capture_pin(sky_time_s, cloud_drift_s)
+	# CloudShadows keeps its own frame-accumulated clock; while pinned it is stopped at a fixed time
+	# and stepped by hand (step_pinned_shadows) so the disc's cloud-shadow term repeats exactly.
+	for shadows: Node in tree.root.find_children("*", "CloudShadows", true, false):
+		shadows.set("_time_seeded", pinned)
+		shadows.set("_time_s", 0.0)
+		shadows.process_mode = Node.PROCESS_MODE_DISABLED if pinned else Node.PROCESS_MODE_INHERIT
+
+
+## Places the pinned CloudShadows for the current sky (zero delta); no-op for an unpinned scene.
+static func step_pinned_shadows(tree: SceneTree) -> void:
+	for shadows: Node in tree.root.find_children("*", "CloudShadows", true, false):
+		if shadows.process_mode != Node.PROCESS_MODE_DISABLED:
+			continue
+		var sky: Skybox = tree.get_first_node_in_group(Skybox.OVERCAST_GROUP) as Skybox
+		if sky != null:
+			(shadows as CloudShadows).step(0.0, sky.sun_direction(), sky.daylight(), sky.cloud_drift_speed_mps(), sky.cloud_wind_dir())
+
+
+## Sets weather `weather_id` to `intensity` and fast-forwards every CloudCeiling fade to it. "" on success.
+static func snap_weather(main: Node, weather_id: StringName, intensity: float) -> String:
+	var ceilings: Array[Node] = main.get_tree().root.find_children("*", "CloudCeiling", true, false)
+	if ceilings.is_empty():
+		return "weather: no CloudCeiling in this scene"
+	for node: Node in ceilings:
+		var ceiling: CloudCeiling = node as CloudCeiling
+		ceiling.set_weather_intensity(weather_id, intensity)
+		ceiling.step(WEATHER_SNAP_STEP_S)
+	return ""
+
+
 static func _reapply(main: Node, cam: PackedFloat32Array, phase: float) -> void:
+	step_pinned_shadows(main.get_tree())
 	if not cam.is_empty():
 		AgentProbe.apply_camera_pose(main, cam)
 	if phase >= 0.0:
@@ -540,6 +602,7 @@ static func _match(host: Node, main: Node, shot: Dictionary) -> String:
 ## sandbox, leaves any hosted session and aborts the match (the same path a player takes).
 static func return_to_menu(host: Node, main: Node) -> void:
 	Engine.time_scale = DEFAULT_SPEED
+	apply_capture_pin(host.get_tree(), -1.0, -1.0)
 	var tutorial: Object = main.get("_tutorial") as Object
 	if tutorial != null:
 		tutorial.call("_end_tutorial")
