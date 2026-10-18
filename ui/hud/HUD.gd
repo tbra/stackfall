@@ -94,6 +94,8 @@ var _round_played_s: float = 0.0
 @onready var _capture_icon: TextureRect = %CaptureIcon
 @onready var _reject_icon: TextureRect = %RejectIcon
 @export var feedback_icons: HudFeedbackIconTable = preload("res://config/ui/hud_feedback_icon_table.tres")
+## Refusal reason id -> the sentence show_reject() displays.
+@export var reject_messages: RejectMessageTable = preload("res://config/ui/reject_message_table.tres")
 @onready var _winner_label: Label = %WinnerLabel
 ## The next-shape card's own backing panel. The top-left readouts have no boxy
 ## backing panel of their own: just outlined text and slim bars, on one arcade plate.
@@ -633,7 +635,8 @@ func set_capture(team_id: int, progress: float, color: Color) -> void:
 
 func show_reject(reason: StringName) -> void:
 	_toasts.push(
-		("Rejected: %s" % String(reason).replace("_", " ")).to_upper(),
+		# DECISION: sentence case, not the old uppercase, so a full sentence stays readable.
+		reject_messages.message_for(reason),
 		_arcade.alert_color, HudCallout.Glyph.CROSS,
 		ghost_tuning.hud_reject_message_duration, ghost_tuning.hud_reject_fade_duration
 	)

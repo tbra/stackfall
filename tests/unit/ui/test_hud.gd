@@ -114,12 +114,14 @@ func _toast(hud: HUD, needle: String) -> Label:
 func test_toasts_stack_in_arrival_order_and_extra_ones_queue() -> void:
 	var hud: HUD = _make_hud()
 	hud._toasts.max_visible = 2
-	hud.show_reject(&"a")
-	hud.show_reject(&"b")
-	hud.show_reject(&"c")
-	assert_eq(_toast_texts(hud), PackedStringArray(["REJECTED: A", "REJECTED: B"]))
+	hud.show_reject(&"hole")
+	hud.show_reject(&"off_disk")
+	hud.show_reject(&"goal_zone")
+	assert_eq(_toast_texts(hud), PackedStringArray([
+		hud.reject_messages.message_for(&"hole"), hud.reject_messages.message_for(&"off_disk")
+	]))
 	assert_eq(hud._toasts._queue.size(), 1)
-	hud.show_reject(&"a")
+	hud.show_reject(&"hole")
 	assert_eq(_toast_texts(hud).size(), 2, "the same text restarts the showing toast, no duplicate")
 	assert_eq(hud._toasts._queue.size(), 1)
 
@@ -143,7 +145,7 @@ func test_toasts_expire_in_order_and_promote_the_queue() -> void:
 func test_show_reject_sets_the_message() -> void:
 	var hud: HUD = _make_hud()
 	hud.show_reject(&"outside_territory")
-	var label: Label = _toast(hud, "outside territory")
+	var label: Label = _toast(hud, "inside your territory")
 	assert_not_null(label)
 	assert_almost_eq(label.modulate.a, 1.0, 0.001)
 
