@@ -107,7 +107,6 @@ var _cycle_life_is_night: bool = false
 var _sky_clock_s: float = float(Time.get_ticks_msec()) * SECONDS_PER_MSEC
 var _pinned_sky_time_s: float = -1.0
 var _pinned_cloud_drift_s: float = -1.0
-var _overlay_cache: Dictionary[SkyThemeDef, SkyOverlayDef] = {}
 
 var _launch_captured: bool = false
 var _launch_lock_phase: float = -1.0
@@ -575,11 +574,9 @@ func _step_cloud_drift(delta: float) -> void:
 
 # --- weather requests (state + dirty bit only) --------------------------------------------------
 
-## Storm blend `amount` 0..1 toward `storm_theme`'s look (converted to an overlay, cached per
-## theme instance until the next bridge refresh). Transitional signature until the overlay API.
-func set_storm_sky(amount: float, storm_theme: SkyThemeDef) -> void:
+## Storm blend `amount` 0..1 toward `overlay`'s look. A null overlay is no storm (amount 0).
+func set_storm_sky(amount: float, overlay: SkyOverlayDef) -> void:
 	var clamped: float = clampf(amount, 0.0, 1.0)
-	var overlay: SkyOverlayDef = _overlay_for(storm_theme)
 	var target: float = clamped if overlay != null else 0.0
 	if is_equal_approx(target, _weather.storm_amount) and overlay == _weather.storm_overlay:
 		return
@@ -587,14 +584,6 @@ func set_storm_sky(amount: float, storm_theme: SkyThemeDef) -> void:
 	_weather.storm_overlay = overlay
 	_storm_exposure_scale = _overcast_exposure_now()
 	_dirty_b = true
-
-
-func _overlay_for(storm_theme: SkyThemeDef) -> SkyOverlayDef:
-	if storm_theme == null:
-		return null
-	if not _overlay_cache.has(storm_theme):
-		_overlay_cache[storm_theme] = SkyThemeMigration.overlay_from_theme(storm_theme)
-	return _overlay_cache[storm_theme]
 
 
 ## Weather overcast: `amount` 0..1 scales light and ambient energy and the sky exposure and tints
@@ -747,7 +736,6 @@ func _disc_radius_for_ambient_life() -> float:
 ## A live edit of `sky_def`: re-evaluates the current phase now and rebuilds the clouds and ambient
 ## life from it. A lock or a running clock is untouched.
 func refresh_sky_def() -> void:
-	_overlay_cache.clear()
 	_env_writer.sync_deck(sky_def)
 	# The puffs' far-fade snapshot restarts from the evening key, as the old rebuild did.
 	_rebuild_ambient(true)

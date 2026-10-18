@@ -8,7 +8,6 @@ extends GutTest
 ## replacement facade changes only those.
 
 const GOLDEN_PATH: String = "res://tests/unit/sky/fixtures/sky_cycle_golden.json"
-const STORM_THEME_ID: String = "storm"
 const PRESET_LOW: StringName = &"low"
 const PRESET_MEDIUM: StringName = &"medium"
 const PRESET_HIGH: StringName = &"high"
@@ -116,7 +115,7 @@ static func _free_rig(rig: Rig) -> void:
 # --- facade seams (the only place a replacement facade changes) ---------------------------------
 
 static func _apply_storm(rig: Rig, amount: float) -> void:
-	rig.skybox.set_storm_sky(amount, Skybox.load_theme(STORM_THEME_ID))
+	rig.skybox.set_storm_sky(amount, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 
 
 static func _apply_overcast(rig: Rig, amount: float) -> void:
