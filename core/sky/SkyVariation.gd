@@ -93,19 +93,25 @@ static func in_range(low: float, high: float, weight_value: float) -> float:
 	return clampf(lerpf(lower, upper, clampf(weight_value, 0.0, 1.0)), lower, upper)
 
 
+## `weight()` of `channel` mapped into [low, high] (a swapped pair is read as min/max): the
+## theme-free form of the *_at helpers below, for SkyCycleDef and any other range source.
+static func value_at(low: float, high: float, knots: int, phase: float, seed_value: int, channel: int) -> float:
+	return in_range(low, high, weight(phase, knots, seed_value, channel))
+
+
 ## The sky shader `exposure` baseline at `phase` (weather overcast scales it afterwards).
 static func exposure_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return in_range(theme.variation_exposure_min, theme.variation_exposure_max,
-		weight(phase, theme.variation_knots_per_cycle, seed_value, CHANNEL_EXPOSURE))
+	return value_at(theme.variation_exposure_min, theme.variation_exposure_max,
+		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_EXPOSURE)
 
 
 ## The sky shader `cloud_coverage` at `phase`.
 static func cloud_coverage_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return in_range(theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max,
-		weight(phase, theme.variation_knots_per_cycle, seed_value, CHANNEL_CLOUD_COVERAGE))
+	return value_at(theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max,
+		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_CLOUD_COVERAGE)
 
 
 ## The sky and puff shaders' `proc_sea_coverage` at `phase`.
 static func sea_coverage_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return in_range(theme.variation_sea_coverage_min, theme.variation_sea_coverage_max,
-		weight(phase, theme.variation_knots_per_cycle, seed_value, CHANNEL_SEA_COVERAGE))
+	return value_at(theme.variation_sea_coverage_min, theme.variation_sea_coverage_max,
+		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_SEA_COVERAGE)
