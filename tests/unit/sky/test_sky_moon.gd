@@ -9,7 +9,7 @@ func _cycle_skybox() -> Skybox:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	add_child_autofree(skybox)
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
@@ -70,7 +70,7 @@ func test_locked_night_shows_the_moon() -> void:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	add_child_autofree(skybox)
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT

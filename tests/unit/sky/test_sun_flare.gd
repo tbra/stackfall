@@ -121,16 +121,16 @@ func test_open_sky_beside_the_disc_is_not_occluded() -> void:
 
 ## A CloudSea holding one puff, built where tests can aim a camera at it; no drift, so the clock is irrelevant.
 func _single_puff_sea() -> CloudSea:
-	var theme: SkyThemeDef = Skybox.load_theme("sunset").duplicate() as SkyThemeDef
-	theme.cloud_clump_count = 1
-	theme.cloud_bank_count = 0
-	theme.proc_far_count = 0
-	theme.cloud_puffs_per_clump = 1
-	theme.cloud_drift_speed_min_mps = 0.0
-	theme.cloud_drift_speed_max_mps = 0.0
+	var def: SkyCycleDef = SkyTestKit.cycle()
+	def.cloud_clump_count = 1
+	def.cloud_bank_count = 0
+	def.proc_far_count = 0
+	def.cloud_puffs_per_clump = 1
+	def.cloud_drift_speed_min_mps = 0.0
+	def.cloud_drift_speed_max_mps = 0.0
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
-	sea.configure(theme, 1.0, null, 1)
+	sea.configure_cycle(def, null, 1.0, 1)
 	return sea
 
 
