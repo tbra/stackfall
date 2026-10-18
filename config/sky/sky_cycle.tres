@@ -1,0 +1,154 @@
+[gd_resource type="Resource" script_class="SkyCycleDef" format=3]
+
+[ext_resource type="Resource" path="res://config/sky/ambient_life_sunset.tres" id="1_xmkd7"]
+[ext_resource type="Shader" path="res://shaders/ambient/distant_birds.gdshader" id="2_rgdbd"]
+[ext_resource type="Material" path="res://config/sky/cloud_puffs.tres" id="3_jnat3"]
+[ext_resource type="Script" path="res://config/sky/SkyKeyframe.gd" id="4_3ln41"]
+[ext_resource type="Resource" path="res://config/sky/ambient_life_night.tres" id="5_jgawm"]
+[ext_resource type="Script" path="res://config/sky/SkyNightKeyframe.gd" id="6_cdpnm"]
+[ext_resource type="Script" path="res://config/sky/SkyCycleDef.gd" id="7_q8nha"]
+[ext_resource type="Material" path="res://config/sky/sky_dome.tres" id="8_kbcjp"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8lb7e"]
+render_priority = 0
+shader = ExtResource("2_rgdbd")
+shader_parameter/wfog_strength = null
+shader_parameter/wfog_begin = null
+shader_parameter/wfog_end = null
+shader_parameter/wfog_color = null
+shader_parameter/flight_clock = null
+shader_parameter/bird_color = Color(0.16, 0.1, 0.2, 1)
+shader_parameter/haze_color = Color(0.85, 0.5, 0.42, 1)
+shader_parameter/haze_start_m = 400.0
+shader_parameter/haze_end_m = 1200.0
+shader_parameter/flap_speed = null
+shader_parameter/flap_amount = null
+shader_parameter/glide_dihedral = null
+shader_parameter/glide_flutter = null
+shader_parameter/burst_rate = null
+shader_parameter/burst_share = null
+shader_parameter/burst_stagger = null
+shader_parameter/burst_height_m = null
+shader_parameter/sway_rate = null
+shader_parameter/bank_amount = null
+shader_parameter/bank_wobble = null
+shader_parameter/breathe_m = null
+shader_parameter/breathe_rate = null
+shader_parameter/fade_s = null
+
+[sub_resource type="Resource" id="Resource_t0ghh"]
+script = ExtResource("4_3ln41")
+fog_color = Color(1, 0.84, 0.7, 1)
+volumetric_fog_albedo = Color(1, 0.84, 0.7, 1)
+light_color = Color(1, 0.88, 0.72, 1)
+proc_zenith_color = Color(0.5, 0.65, 0.86, 1)
+proc_mid_color = Color(0.84, 0.8, 0.88, 1)
+proc_horizon_color = Color(1, 0.82, 0.62, 1)
+proc_horizon_glow_color = Color(1, 0.78, 0.5, 1)
+proc_sea_color_near = Color(0.98, 0.82, 0.74, 1)
+proc_sea_color_far = Color(0.7, 0.74, 0.88, 1)
+fog_density = 0.0025
+volumetric_fog_density = 0.00015
+light_energy = 0.8
+ambient_energy = 0.6
+proc_horizon_glow_width = 0.34
+proc_sun_glow_strength = 0.8
+sun_core_color = Color(1, 0.94, 0.82, 1)
+sun_halo_color = Color(1, 0.8, 0.55, 1)
+sun_ray_color = Color(1, 0.85, 0.6, 1)
+cloud_shadow_color = Color(0.6, 0.62, 0.78, 1)
+cloud_mid_color = Color(0.96, 0.8, 0.8, 1)
+cloud_lit_color = Color(1, 0.93, 0.8, 1)
+cloud_rim_color = Color(1, 0.96, 0.84, 1)
+puff_shadow_color = Color(0.6, 0.62, 0.78, 1)
+puff_mid_color = Color(0.92, 0.78, 0.8, 1)
+puff_lit_color = Color(1, 0.92, 0.8, 1)
+puff_rim_color = Color(1, 0.96, 0.85, 1)
+
+[sub_resource type="Resource" id="Resource_72c2v"]
+script = ExtResource("4_3ln41")
+phase_window = Vector4(0.3, 0.46, 0.9, 0.98)
+fog_color = Color(0.93, 0.58, 0.4, 1)
+volumetric_fog_albedo = Color(0.93, 0.58, 0.4, 1)
+light_color = Color(1, 0.94, 0.85, 1)
+proc_zenith_color = Color(0.3, 0.33, 0.52, 1)
+proc_mid_color = Color(0.72, 0.44, 0.42, 1)
+proc_horizon_color = Color(0.9, 0.66, 0.46, 1)
+proc_horizon_glow_color = Color(1, 0.68, 0.4, 1)
+proc_sea_color_near = Color(0.85, 0.5, 0.42, 1)
+proc_sea_color_far = Color(0.34, 0.27, 0.47, 1)
+fog_density = 0.0025
+volumetric_fog_density = 0.00015
+proc_horizon_glow_width = 0.3
+sun_core_color = Color(1, 0.94, 0.82, 1)
+sun_halo_color = Color(1, 0.62, 0.28, 1)
+sun_ray_color = Color(1, 0.72, 0.38, 1)
+cloud_shadow_color = Color(0.34, 0.27, 0.47, 1)
+cloud_mid_color = Color(0.82, 0.57, 0.56, 1)
+cloud_lit_color = Color(1, 0.85, 0.64, 1)
+cloud_rim_color = Color(1, 0.9, 0.66, 1)
+puff_shadow_color = Color(0.27, 0.32, 0.48, 1)
+puff_mid_color = Color(0.57, 0.41, 0.49, 1)
+puff_lit_color = Color(1, 0.7, 0.47, 1)
+puff_rim_color = Color(1, 0.78, 0.42, 1)
+
+[sub_resource type="Resource" id="Resource_xbhrq"]
+script = ExtResource("6_cdpnm")
+zenith_color = Color(0.008, 0.018, 0.06, 1)
+horizon_color = Color(0.07, 0.11, 0.24, 1)
+below_color = Color(0.02, 0.035, 0.09, 1)
+fog_color = Color(0.06, 0.1, 0.22, 1)
+fog_density = 0.002
+volumetric_fog_density = 0.00015
+volumetric_fog_albedo = Color(0.06, 0.1, 0.22, 1)
+ambient_energy = 1.0
+light_energy = 1.3
+light_color = Color(0.62, 0.74, 1, 1)
+light_rotation_deg = Vector3(-18, -30, 0)
+puff_shadow_color = Color(0.04, 0.06, 0.14, 1)
+puff_mid_color = Color(0.14, 0.2, 0.37, 1)
+puff_lit_color = Color(0.4, 0.5, 0.7, 1)
+puff_rim_color = Color(0.75, 0.84, 1, 1)
+cloud_shadow_color = Color(0.015, 0.025, 0.07, 1)
+cloud_mid_color = Color(0.05, 0.08, 0.2, 1)
+cloud_lit_color = Color(0.35, 0.47, 0.72, 1)
+cloud_rim_color = Color(0.68, 0.8, 1, 1)
+proc_sea_color_near = Color(0.06, 0.1, 0.22, 1)
+proc_sea_color_far = Color(0.03, 0.05, 0.12, 1)
+ambient_life = ExtResource("5_jgawm")
+
+[resource]
+script = ExtResource("7_q8nha")
+fog_sky_affect = 0.65
+fog_aerial_perspective = 0.6
+fog_height_m = -5.0
+fog_height_density = 0.03
+haze_strength = 0.8
+haze_end_m = 480.0
+proc_gradient_mid_height = 0.55
+proc_gradient_power = 1.2
+day_keyframes = Array[ExtResource("4_3ln41")]([SubResource("Resource_t0ghh"), SubResource("Resource_72c2v")])
+night = SubResource("Resource_xbhrq")
+sky_material = ExtResource("8_kbcjp")
+cloud_puff_material = ExtResource("3_jnat3")
+bird_material = SubResource("ShaderMaterial_8lb7e")
+ambient_life = ExtResource("1_xmkd7")
+cloud_clump_count = 260
+cloud_ring_outer_m = 640.0
+cloud_base_min_m = -120.0
+cloud_base_max_m = -35.0
+cloud_puff_raise_m = 14.0
+cloud_bank_count = 50
+cloud_bank_ring_inner_m = 300.0
+cloud_bank_ring_outer_m = 760.0
+cloud_bank_base_min_m = -85.0
+cloud_bank_top_max_m = 60.0
+cloud_bank_radius_min_m = 32.0
+cloud_bank_radius_max_m = 62.0
+proc_far_count = 450
+proc_far_ring_inner_m = 150.0
+proc_far_radial_bias = 1.5
+proc_far_radius_min_m = 40.0
+bird_flock_count = 2
+bird_size_min_m = 3.5
+bird_size_max_m = 5.0
