@@ -5,7 +5,6 @@
 [ext_resource type="PackedScene" path="res://game/player/CameraRig.tscn" id="3_camera"]
 [ext_resource type="Script" path="res://game/blocks/BlockRegistry.gd" id="4_registry"]
 [ext_resource type="PackedScene" path="res://game/sky/Skybox.tscn" id="5_skybox"]
-[ext_resource type="PackedScene" path="res://game/sky/HorizonIslands.tscn" id="90_islands"]
 [ext_resource type="Script" path="res://game/sky/SunFlare.gd" id="7_sunflare"]
 [ext_resource type="Script" path="res://game/sky/CloudShadows.gd" id="8_cloudshadows"]
 
@@ -66,5 +65,3 @@ field_path = NodePath("../Field")
 script = ExtResource("7_sunflare")
 camera_path = NodePath("../CameraRig/Camera3D")
 
-[node name="HorizonIslands" parent="." instance=ExtResource("90_islands")]
-sun_path = NodePath("../DirectionalLight3D")

@@ -30,7 +30,6 @@ func start_hot_seat_match() -> void:
 	main_node._field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
-	main_node._horizon_islands.rebuild_for_map(config.map_def(), main_node._world_environment.environment if main_node._world_environment != null else null)
 
 
 ## The lobby settings a real lobby screen collects, for the one path that
@@ -80,7 +79,6 @@ func start_sandbox_match_with_args(args: PackedStringArray) -> void:
 	main_node._field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
-	main_node._horizon_islands.rebuild_for_map(config.map_def(), main_node._world_environment.environment if main_node._world_environment != null else null)
 	# The Skybox cycle reads the one shared match clock (SnapshotSync.sky_cycle_seconds()),
 	# which only runs between begin_match()
 	# and end_match(). DECISION: begin the real SnapshotSync like a normal match (one clock, no second
@@ -250,7 +248,6 @@ func start_tutorial_from_menu() -> void:
 	main_node._field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
-	main_node._horizon_islands.rebuild_for_map(config.map_def(), main_node._world_environment.environment if main_node._world_environment != null else null)
 
 
 ## Same lobby-settings-minus-a-few-overrides shape as _build_sandbox_config()

@@ -62,7 +62,7 @@ const MS_PER_SEC: float = 1000.0
 const NO_PHASE: float = -1.0
 const FEATURES: PackedStringArray = [
 	"volumetric_fog", "ssr", "glow", "msaa", "shadows", "sky_radiance", "probe",
-	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog", "islands",
+	"overlay", "clouds", "outline", "birds", "sky_bg", "depth_fog",
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
 	"probe_once", "ssao", "ssil", "sdfgi", "lights", "ssao_on",
 	"ssr_steps32", "ssr_steps16", "ssr_fade1",
@@ -489,8 +489,6 @@ func _set_feature(feature: String, on: bool) -> void:
 			_toggle_all(feature, DistantBirds, "visible", false, on)
 			_toggle_all(feature + "_perching", PerchingBirds, "visible", false, on)
 			_toggle_all(feature + "_fireflies", Fireflies, "visible", false, on)
-		"islands":
-			_toggle_all(feature, HorizonIslands, "visible", false, on)
 		"cloud_shadows":
 			_toggle_all(feature, CloudShadows, "visible", false, on)
 		"sun_flare":

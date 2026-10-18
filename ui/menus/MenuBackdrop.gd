@@ -29,7 +29,7 @@ static var _match_cap: int = -1
 static var _menu_cap: int = 0
 
 ## The menu is a picture. Root disable_3d is already true there (no 3D pass), but world scripts
-## (Skybox, birds, Field, BlockRegistry, CameraRig, CloudShadows, HorizonIslands, ...) would keep
+## (Skybox, birds, Field, BlockRegistry, CameraRig, CloudShadows, ...) would keep
 ## running _process behind it. DECISION: while a menu holds the budget the world nodes Main registers go
 ## PROCESS_MODE_DISABLED (gated by the same menu_disable_world_3d switch) and get their previous
 ## mode back on the last release. Restoration happens when the menu leaves the tree, i.e. at the

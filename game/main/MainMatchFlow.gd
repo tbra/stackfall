@@ -27,9 +27,6 @@ var _registry: BlockRegistry:
 var _camera_rig: CameraRig:
 	get:
 		return main_node._camera_rig
-var _horizon_islands: HorizonIslands:
-	get:
-		return main_node._horizon_islands
 var _world_environment: WorldEnvironment:
 	get:
 		return main_node._world_environment
@@ -243,7 +240,6 @@ func build_match_world() -> void:
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
-	_horizon_islands.rebuild_for_map(config.map_def(), _world_environment.environment if _world_environment != null else null)
 	# the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
 
