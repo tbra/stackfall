@@ -7,6 +7,8 @@ extends RefCounted
 
 ## The shared (F4-editable) QoL experiment toggles.
 const QOL_EXPERIMENTS: QolExperiments = preload("res://config/match/qol_experiments.tres")
+## Source of the random cycle-start phase range.
+const SKY_CYCLE: SkyCycleDef = preload("res://config/sky/sky_cycle.tres")
 ## Min display time and ready-wait cap of the loading-screen gate.
 const LOADING_TUNING: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 
@@ -199,9 +201,7 @@ func start_match(match_config: MatchConfig) -> void:
 		# ones) draws its own curve; it rides in to_dict().
 		_match.config.resolve_sky_variation_seed(randi())
 		# and the random phase a Cycle sky opens at (seed-derived).
-		var sky_source: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
-		if sky_source != null:
-			_match.config.resolve_sky_start_phase(randi(), sky_source.cycle_random_start_min, sky_source.cycle_random_start_max)
+		_match.config.resolve_sky_start_phase(randi(), SKY_CYCLE.cycle_random_start_min, SKY_CYCLE.cycle_random_start_max)
 
 	# register_world() runs before start_match() on every path (see
 	# game/main/Main.gd's "Wiring order matters" doc), before Match.config

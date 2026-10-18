@@ -100,7 +100,7 @@ func test_the_low_preset_gates_the_aurora_live() -> void:
 func test_storm_hides_the_aurora() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
-	skybox.set_storm_sky(1.0, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(1.0, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	skybox.flush_weather()
 	assert_almost_eq(_visibility(skybox), 0.0, 0.0001, "a full storm covers the aurora like the moon")
 	skybox.set_storm_sky(0.0, null)

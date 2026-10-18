@@ -105,7 +105,7 @@ func test_boot_and_reset_are_the_cycle_locked_at_the_launch_sky_id() -> void:
 	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "default launch = sunset")
 	assert_eq((wired["environment"] as Environment).sky.process_mode, Sky.PROCESS_MODE_QUALITY, "a locked sky is built once")
 	skybox.set_locked_phase(0.75)
-	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(0.5, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	skybox.flush_weather()
 	skybox.reset_to_launch()
 	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "reset returns to the launch lock")
@@ -191,7 +191,7 @@ func test_weather_requests_in_one_frame_flush_once() -> void:
 	var ticks: int = skybox.tick_runs
 	var storms: int = skybox.storm_runs
 	var weathers: int = skybox.weather_runs
-	skybox.set_storm_sky(0.3, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(0.3, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	skybox.set_overcast(0.4, 0.6, 0.7, 0.8, Color(0.6, 0.6, 0.7), 0.5)
 	skybox.set_weather_fog(0.5, 0.8, 30.0, 400.0, Color(0.7, 0.7, 0.75), 0.5, 0.2)
 	skybox.set_snow_brighten(0.4)
@@ -308,7 +308,7 @@ func test_storm_request_between_ticks_recaptures_an_update_once_probe() -> void:
 	probe.visible = true
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	var before: float = probe.position.y
-	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(0.5, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	skybox.flush_weather()
 	assert_ne(probe.position.y, before, "the probe was nudged to re-capture the stormed sky")
 
@@ -340,7 +340,7 @@ func test_storm_fade_retriggers_the_probe_at_most_once_per_radiance_interval() -
 	var made: Array = _make_probe_skybox()
 	var skybox: Skybox = made[0] as Skybox
 	var probe: ReflectionProbe = made[1] as ReflectionProbe
-	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	var frames: int = 60
 	var delta: float = 1.0 / 60.0
 	var retriggers: int = 0

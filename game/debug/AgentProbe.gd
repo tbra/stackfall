@@ -23,6 +23,8 @@ const MENU_TIMEOUT_EXIT_CODE: int = 1
 const LOADING_TUNING_PATH: String = "res://config/ui/loading_screen_tuning.tres"
 const MAIN_MENU_SCRIPT_FILE: String = "MainMenu.gd"
 const PORT_ARG_PREFIX: String = "--port="
+## Sky id that runs the day/night cycle (any other valid id locks it); also SkyboxConfig.theme_name's "cycle".
+const SKY_CYCLE_ID: String = "cycle"
 ## DECISION: random free UDP port range for agent-run hosts, kept clear of the
 ## default game port so benches never block tools/run_m3a_local.ps1.
 const FREE_PORT_MIN: int = 48000
@@ -214,16 +216,32 @@ static func apply_camera_pose(main: Node, pose: PackedFloat32Array) -> bool:
 	return true
 
 
-## Main's skybox: an optional theme id ("" keeps the current one) and an optional cycle phase in
-## [0, 1) (negative keeps the running clock). False when the sky is missing or the theme unknown.
-static func apply_sky(main: Node, theme_id: String, phase: float) -> bool:
+## Main's skybox: an optional sky id ("" keeps the current one; SKY_CYCLE_ID runs the cycle, a locked
+## id locks it at the cycle definition's phase for that id) and an optional cycle phase in [0, 1)
+## (negative keeps the running clock). False when the sky is missing or the id unknown.
+static func apply_sky(main: Node, sky_id: String, phase: float) -> bool:
 	var skybox: Object = main.get("_skybox") as Object
 	if skybox == null:
 		return false
-	if not theme_id.is_empty() and not bool(skybox.call(&"set_theme_by_id", theme_id)):
+	if not sky_id.is_empty() and not _apply_sky_id(skybox, sky_id):
 		return false
 	if phase >= 0.0:
 		skybox.call(&"set_cycle_phase", phase)
+	return true
+
+
+static func _apply_sky_id(skybox: Object, sky_id: String) -> bool:
+	if sky_id == SKY_CYCLE_ID:
+		skybox.call(&"start_cycle")
+		return true
+	var sky_def: Object = skybox.get("sky_def") as Object
+	var locked: float = float(sky_def.call(&"locked_phase_for", sky_id)) if sky_def != null else -1.0
+	if locked < 0.0:
+		return false
+	if bool(skybox.call(&"is_cycle_active")):
+		skybox.call(&"set_locked_phase", locked)
+	else:
+		skybox.call(&"start_cycle", locked)
 	return true
 
 

@@ -21,7 +21,6 @@ var _overcast: float = 0.0
 var _pushed_overcast: float = -1.0
 var _brighten: float = 0.0
 var _pushed_brighten: float = -1.0
-var _storm_theme: SkyThemeDef = null
 ## Cached Skybox lookups (refreshed whenever the storm value changes).
 var _skyboxes: Array[Skybox] = []
 var _pushed_storm: float = -1.0
@@ -129,8 +128,6 @@ func _push_storm(value: float) -> void:
 	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
 	if tree == null:
 		return
-	if value > 0.0 and _storm_theme == null:
-		_storm_theme = Skybox.load_theme(tuning.storm_theme_id)
 	if _skyboxes.is_empty() or not is_equal_approx(value, _pushed_storm):
 		_skyboxes.clear()
 		for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
@@ -142,7 +139,7 @@ func _push_storm(value: float) -> void:
 	_pushed_brighten = _brighten
 	for skybox: Skybox in _skyboxes:
 		if is_instance_valid(skybox):
-			skybox.set_storm_sky(value, _storm_theme)
+			skybox.set_storm_sky(value, tuning.storm_overlay)
 			if cloud_changed:
 				skybox.set_weather_cloud_overcast(_overcast)
 			if bright_changed:

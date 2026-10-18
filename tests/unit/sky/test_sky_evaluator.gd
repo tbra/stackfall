@@ -268,7 +268,7 @@ func _set_snow_and_sun(skybox: Skybox, weather: SkyWeatherState) -> void:
 func _set_storm(skybox: Skybox, weather: SkyWeatherState) -> void:
 	weather.storm_amount = STORM_AMOUNT
 	weather.storm_overlay = _overlay
-	skybox.set_storm_sky(STORM_AMOUNT, _storm)
+	skybox.set_storm_sky(STORM_AMOUNT, _overlay)
 
 
 # --- parity with the live cycle -------------------------------------------------------------
@@ -301,7 +301,7 @@ func test_evaluator_matches_live_daytime_storms() -> void:
 		var weather: SkyWeatherState = _weather()
 		weather.storm_amount = amount
 		weather.storm_overlay = _overlay
-		skybox.set_storm_sky(amount, _storm)
+		skybox.set_storm_sky(amount, _overlay)
 		var frame: SkyFrame = SkyEvaluator.evaluate(_def, phase, SkyVariation.seed_for(SEED), 0, weather, true)
 		assert_eq(frame.storm_amount, amount)
 		_assert_parity(frame, skybox, "storm %s at %s" % [amount, phase])

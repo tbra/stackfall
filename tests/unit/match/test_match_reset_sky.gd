@@ -136,7 +136,7 @@ func _dirty_with_locked_night_storm(rig: Dictionary) -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	skybox.configure_match_sky(config)
 	skybox.set_locked_phase(skybox.theme.cycle_locked_phase_night)
-	skybox.set_storm_sky(STORM_AMOUNT, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(STORM_AMOUNT, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	_overcast(skybox, 1.0)
 	_weather_fog(skybox, 1.0)
 
@@ -168,7 +168,7 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	static_config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	static_skybox.configure_match_sky(static_config)
 	assert_true(static_skybox.set_theme_by_id("night"))
-	static_skybox.set_storm_sky(STORM_AMOUNT, Skybox.load_theme("storm"))
+	static_skybox.set_storm_sky(STORM_AMOUNT, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	_overcast(static_skybox, 1.0)
 	assert_eq(static_skybox.config.theme_name, "night", "fixture: set_theme_by_id wrote the shared config")
 	static_skybox.reset_to_launch()

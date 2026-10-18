@@ -99,8 +99,9 @@ extends Resource
 
 @export_group("Storm sky")
 @export var storm_id: StringName = WeatherIds.STORM
-@export var storm_theme_id: String = "storm"
-## Blend toward the storm SkyThemeDef at full storm intensity.
+## The storm look the sky blends toward (data, not a theme).
+@export var storm_overlay: SkyOverlayDef = preload("res://config/sky/storm_overlay.tres")
+## Blend toward the storm overlay at full storm intensity.
 @export_range(0.0, 1.0, 0.01) var storm_sky_blend: float = 1.0
 ## rain uses the same storm sky at this lighter strength (storm 1.0 is darker).
 @export_range(0.0, 1.0, 0.01) var rain_sky_blend: float = 0.85
