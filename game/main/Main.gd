@@ -570,11 +570,9 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 		sun.directional_shadow_mode = preset.sun_shadow_mode as DirectionalLight3D.ShadowMode
 		sun.directional_shadow_max_distance = preset.sun_shadow_max_distance
 
-	if _world_environment != null and _world_environment.environment != null:
-		var environment: Environment = _world_environment.environment
-		environment.ssr_enabled = preset.ssr_enabled
-		environment.glow_enabled = preset.glow_enabled
-		environment.volumetric_fog_enabled = preset.volumetric_fog_enabled
+	# The Skybox owns SSR/SSAO, glow, volumetric fog, the cloud deck and the probe.
+	if _skybox != null:
+		_skybox.apply_graphics_preset(preset)
 
 
 # --- Hot-seat / sandbox / tutorial: forwarders -------

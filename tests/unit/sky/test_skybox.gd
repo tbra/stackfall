@@ -85,14 +85,31 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME)
 	assert_not_null(skybox.get_node("CloudSea") as CloudSea, "the layers the cycle drives exist")
 
-	var static_skybox: Skybox = Skybox.new()
-	static_skybox.config = SkyboxConfig.new()
-	static_skybox.config.theme_name = "night"
-	static_skybox.environment = Environment.new()
-	static_skybox.environment.sky = Sky.new()
-	add_child_autofree(static_skybox)
-	assert_false(static_skybox.is_cycle_active(), "a named theme stays a static theme")
-	assert_eq(static_skybox.theme.resource_path, "res://config/sky/themes/night.tres")
+	# Any other launch id is the same cycle locked at that id's phase (no static theme any more).
+	var locked_skybox: Skybox = Skybox.new()
+	locked_skybox.config = SkyboxConfig.new()
+	locked_skybox.config.theme_name = "night"
+	locked_skybox.environment = Environment.new()
+	locked_skybox.environment.sky = Sky.new()
+	add_child_autofree(locked_skybox)
+	assert_true(locked_skybox.is_cycle_active(), "boot is always the cycle")
+	assert_almost_eq(locked_skybox.locked_phase(), locked_skybox.sky_def.cycle_locked_phase_night, 0.0001, "locked at the night phase")
+
+
+## The one intended visual delta (Q4): the bare launch sky is the cycle locked at
+## SkyboxConfig.theme_name (sunset by default), not the static sunset theme.
+func test_boot_and_reset_are_the_cycle_locked_at_the_launch_sky_id() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	assert_true(skybox.is_cycle_active())
+	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "default launch = sunset")
+	assert_eq((wired["environment"] as Environment).sky.process_mode, Sky.PROCESS_MODE_QUALITY, "a locked sky is built once")
+	skybox.set_locked_phase(0.75)
+	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
+	skybox.flush_weather()
+	skybox.reset_to_launch()
+	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "reset returns to the launch lock")
+	assert_eq(skybox.weather_state().storm_amount, 0.0, "reset clears the storm")
 
 
 ## C1b follow-up: a running cycle sky configured from `config`, with
@@ -140,50 +157,75 @@ func test_skyboxes_with_the_same_resolved_sky_variation_seed_match_and_different
 	assert_eq(_cycle_look(host_config, 0.0)[0], SkyVariation.exposure_at(theme, host.cycle_phase_at(0.0), 5551), "it is SkyVariation's function of that seed")
 
 
-func test_apply_theme_writes_sky_ground_and_fog_fields() -> void:
-	var wired: Dictionary = _make_wired_skybox()
-	var skybox: Skybox = wired["skybox"] as Skybox
-	var environment: Environment = wired["environment"] as Environment
-	var procedural: ProceduralSkyMaterial = wired["procedural"] as ProceduralSkyMaterial
-	var theme: SkyThemeDef = SkyThemeDef.new()
-	theme.sky_top_color = Color(0.11, 0.22, 0.33)
-	theme.sky_horizon_color = Color(0.44, 0.55, 0.66)
-	theme.ground_bottom_color = Color(0.71, 0.82, 0.93)
-	theme.ground_horizon_color = Color(0.15, 0.25, 0.35)
-	theme.sun_angle_min_max = Vector2(6.0, 14.0)
-	theme.fog_color = Color(0.91, 0.52, 0.23)
-	theme.fog_density = 0.021
-	theme.fog_sky_affect = 0.3
-	theme.volumetric_fog_density = 0.0012
-	theme.volumetric_fog_albedo = Color(0.81, 0.42, 0.19)
+## F4 bridge: an edit of the live sunset theme reaches the next evaluation after
+## refresh_cycle_sources(), in a locked and in a running cycle.
+func _bridge_case(running: bool) -> void:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	var sunset: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	var original: float = sunset.fog_density
+	if running:
+		skybox.start_cycle(-1.0, 0.47)
+	else:
+		skybox.set_locked_phase(0.47)
+	var before: float = skybox.current_frame().fog_density
+	sunset.fog_density = original * 3.0
+	skybox.refresh_cycle_sources()
+	var after: float = skybox.current_frame().fog_density
+	sunset.fog_density = original
+	assert_ne(after, before, "the edited fog density shows (running=%s)" % running)
+	assert_almost_eq(skybox.sky_def.day_keyframes[1].fog_density, original * 3.0, 0.00001, "the keyframe carries the edit")
 
-	skybox.apply_theme(theme)
 
-	assert_eq(procedural.sky_top_color, theme.sky_top_color, "sky_top_color")
-	assert_eq(procedural.sky_horizon_color, theme.sky_horizon_color, "sky_horizon_color")
-	assert_eq(procedural.ground_bottom_color, theme.ground_bottom_color, "ground_bottom_color")
-	assert_eq(procedural.ground_horizon_color, theme.ground_horizon_color, "ground_horizon_color")
-	assert_almost_eq(
-		procedural.sun_angle_max, theme.sun_angle_min_max.y, 0.001,
-		"sun_angle_max must take sun_angle_min_max's wider/softer glow edge (.y), not .x"
-	)
-	assert_true(environment.fog_enabled, "apply_theme() must turn on the Environment's basic depth fog")
-	assert_eq(environment.fog_light_color, theme.fog_color, "fog_light_color")
-	assert_almost_eq(environment.fog_density, theme.fog_density, 0.0001, "fog_density")
-	assert_almost_eq(
-		environment.fog_sky_affect, theme.fog_sky_affect, 0.0001,
-		"fog_sky_affect must come from the theme, not sit at the Environment engine default (1.0), or the "
-		+ "depth fog fully replaces the rendered sky gradient with flat fog_light_color"
-	)
-	assert_almost_eq(
-		environment.volumetric_fog_density, theme.volumetric_fog_density, 0.0001,
-		"volumetric_fog_density must come from the theme, not sit at the Environment engine default (0.05), "
-		+ "or the whole frustum shows a uniform grey haze regardless of the FogVolume cloud deck's placement"
-	)
-	assert_eq(
-		environment.volumetric_fog_albedo, theme.volumetric_fog_albedo,
-		"volumetric_fog_albedo"
-	)
+func test_f4_bridge_edit_reaches_a_locked_cycle() -> void:
+	_bridge_case(false)
+
+
+func test_f4_bridge_edit_reaches_a_running_cycle() -> void:
+	_bridge_case(true)
+
+
+## Weather setters only mark stages dirty: N requests in one frame run stage A zero times and
+## stages B and C once.
+func test_weather_requests_in_one_frame_flush_once() -> void:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox.flush_weather()
+	var ticks: int = skybox.tick_runs
+	var storms: int = skybox.storm_runs
+	var weathers: int = skybox.weather_runs
+	skybox.set_storm_sky(0.3, Skybox.load_theme("storm"))
+	skybox.set_overcast(0.4, 0.6, 0.7, 0.8, Color(0.6, 0.6, 0.7), 0.5)
+	skybox.set_weather_fog(0.5, 0.8, 30.0, 400.0, Color(0.7, 0.7, 0.75), 0.5, 0.2)
+	skybox.set_snow_brighten(0.4)
+	skybox.set_sun_cloud_scale(0.7)
+	skybox.set_weather_cloud_overcast(0.3)
+	assert_eq(skybox.tick_runs, ticks, "setters never run stage A")
+	assert_eq(skybox.weather_runs, weathers, "setters do not evaluate")
+	skybox.flush_weather()
+	assert_eq(skybox.tick_runs, ticks, "weather never reruns stage A")
+	assert_eq(skybox.storm_runs, storms + 1, "stage B once")
+	assert_eq(skybox.weather_runs, weathers + 1, "stage C once")
+	skybox.flush_weather()
+	assert_eq(skybox.weather_runs, weathers + 1, "a clean flush does nothing")
+
+
+## A locked sky with no weather writes nothing to the sky material after its first frame (the
+## radiance is never re-rendered).
+func test_locked_sky_without_weather_writes_nothing_per_frame() -> void:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox._process(0.016)
+	var writes: int = skybox.sky_material_writes
+	for i: int in 30:
+		skybox._process(0.016)
+	assert_eq(skybox.sky_material_writes, writes, "no sky-material writes while locked and clear")
+
+
+func test_sun_cloud_scale_changes_only_the_light() -> void:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox.flush_weather()
+	var writes: int = skybox.sky_material_writes
+	skybox.set_sun_cloud_scale(0.6)
+	skybox.flush_weather()
+	assert_eq(skybox.sky_material_writes, writes, "a sun dim leaves the sky material alone")
 
 
 func test_fog_volume_is_created_but_hidden_on_low_preset() -> void:
@@ -245,3 +287,42 @@ func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void
 	skybox._on_graphics_preset_changed(Settings.current_graphics_preset())
 	_assert_locked_night_dressing(skybox, "after the handler")
 
+
+func test_cycle_dome_carries_the_day_themes_overhead_and_cards_look() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	var day: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	var material: ShaderMaterial = (wired["environment"] as Environment).sky.sky_material as ShaderMaterial
+	assert_eq(material.get_shader_parameter(&"proc_overhead_mix"), 1.0 if day.proc_overhead_clouds_enabled else 0.0, "overhead layer mix")
+	assert_eq(material.get_shader_parameter(&"proc_cards_mix"), 1.0 if day.proc_cards_enabled else 0.0, "cards layer mix")
+	assert_eq(material.get_shader_parameter(&"sky_yaw_offset_deg"), day.sky_yaw_offset_deg, "view yaw")
+	assert_eq(material.get_shader_parameter(&"proc_strata_scale"), day.proc_strata_scale, "strata scale")
+
+
+func test_storm_request_between_ticks_recaptures_an_update_once_probe() -> void:
+	var environment: Environment = Environment.new()
+	environment.sky = Sky.new()
+	environment.sky.sky_material = ProceduralSkyMaterial.new()
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.environment = environment
+	skybox.theme = SkyThemeDef.new()
+	var probe: ReflectionProbe = ReflectionProbe.new()
+	probe.name = "Probe"
+	skybox.add_child(probe)
+	skybox.reflection_probe_path = NodePath("Probe")
+	add_child_autofree(skybox)
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	skybox.set_locked_phase(0.25)
+	skybox.flush_weather()
+	probe.visible = true
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	var before: float = probe.position.y
+	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
+	skybox.flush_weather()
+	assert_ne(probe.position.y, before, "the probe was nudged to re-capture the stormed sky")

@@ -33,8 +33,8 @@ func after_each() -> void:
 
 
 ## A Skybox wired like Main's: own Environment/Sky/light/config (no shared state
-## between rigs apart from the shipped theme resources), launching on static sunset
-## unless `launch_theme_name` is "cycle".
+## between rigs apart from the shipped theme resources), launching on the cycle locked at
+## sunset unless `launch_theme_name` is "cycle".
 func _rig(launch_theme_name: String = "") -> Dictionary:
 	var environment: Environment = Environment.new()
 	environment.sky = Sky.new()
@@ -62,6 +62,7 @@ func _weather_fog(skybox: Skybox, amount: float) -> void:
 
 ## The shared cloud lighting the Skybox publishes, read from the CloudSea layer that draws with it.
 func _lighting(skybox: Skybox) -> CloudLighting:
+	skybox.flush_weather()
 	return (skybox.get_node("CloudSea") as CloudSea).lighting
 
 
@@ -160,7 +161,7 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(used), expected, "after reset")
 
-	# Merged variant: a static night theme (set_theme_by_id) with storm + overcast.
+	# Merged variant: a night lock (set_theme_by_id) with storm + overcast.
 	var static_used: Dictionary = _rig()
 	var static_skybox: Skybox = static_used["skybox"] as Skybox
 	var static_config: MatchConfig = MatchConfig.new()
@@ -173,7 +174,7 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	static_skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(static_used), expected, "static night: after reset")
 	assert_eq(static_skybox.config.theme_name, "", "config.theme_name is the launch value again")
-	assert_false(static_skybox.is_cycle_active())
+	assert_almost_eq(static_skybox.locked_phase(), static_skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "back on the launch lock")
 
 
 # --- CloudCeiling.snap_clear() / WeatherPresenter.clear_now() ------------------------

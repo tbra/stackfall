@@ -124,6 +124,8 @@ var _upper_far: MultiMeshInstance3D = null
 ## GraphicsPreset.cloud_billboard_distance_m of the last configure() (0 = hulls only).
 var _billboard_distance_m: float = 0.0
 var _material: ShaderMaterial = null
+## The cycle's authored sky material (static uniforms the puffs' far fade copies).
+var _static_sky: ShaderMaterial = null
 ## the cycle-mixed cloud colours last written by
 ## set_cycle_appearance(), keyed by shader parameter. apply_storm_tint() lerps
 ## from these (the colours in effect) instead of the DAY theme. Empty outside
@@ -292,6 +294,10 @@ func apply_frame(frame: SkyFrame) -> void:
 		# frame's tones (already storm-lerped) go back on top, as apply_storm_tint() did.
 		_copy_shared(frame.puff_shared)
 		_write_tones(frame)
+	# The far fade targets the sky's per-tick exposure and sea coverage; under a storm the frame
+	# carries the exposure the storm copy had (written last, after the shared copy).
+	_material.set_shader_parameter(&"exposure", frame.puff_exposure)
+	_material.set_shader_parameter(&"proc_sea_coverage", frame.puff_sea_coverage)
 
 
 ## The puff cel tones and the sky cloud tones of `frame`.
@@ -307,10 +313,24 @@ func _write_tones(frame: SkyFrame) -> void:
 
 
 ## Copies the snapshot of sky values the puff far fade shares onto the puff material.
+## Keys the snapshot lacks (the evaluator carries only evaluated channels) come from the cycle's
+## static sky material, as the old copy of the sky material's set uniforms did.
 func _copy_shared(shared: Dictionary[StringName, Variant]) -> void:
 	for parameter: StringName in SHARED_SKY_PARAMETERS:
 		if shared.has(parameter):
 			_material.set_shader_parameter(parameter, shared[parameter])
+		else:
+			var value: Variant = _static_sky_value(parameter)
+			if value != null:
+				_material.set_shader_parameter(parameter, value)
+
+
+func _static_sky_value(parameter: StringName) -> Variant:
+	if parameter == &"procedural_sea_mix":
+		return SkyDomeWriter.PROCEDURAL_SEA_MIX
+	if _static_sky == null:
+		return null
+	return _static_sky.get_shader_parameter(parameter)
 
 
 ## Rebuilds the puffs from `def`. `snapshot.puff_shared` is the sky-uniform snapshot the puffs'
@@ -320,6 +340,7 @@ func _copy_shared(shared: Dictionary[StringName, Variant]) -> void:
 func configure_cycle(def: SkyCycleDef, snapshot: SkyFrame, density: float, subdivisions: int = PUFF_SUBDIVISIONS,
 		billboard_distance_m: float = 0.0) -> void:
 	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
+	_static_sky = def.sky_material if def != null else null
 	for node: MultiMeshInstance3D in [_instance, _far, _upper, _upper_far]:
 		if node != null:
 			node.queue_free()
