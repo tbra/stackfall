@@ -48,6 +48,16 @@ signal match_state_changed(from_state: int, to_state: int)
 ## match) fire it a second time with nothing left to reset.
 signal match_scope_reset
 
+## The sky's cycle definition, graphics preset or disc radius was (re)configured (game/sky/Skybox.gd);
+## game/ambient/AmbientLife.gd rebuilds its birds and fireflies from them. `def` is a SkyCycleDef
+## and `preset` a GraphicsPreset, typed as Resource so the autoload does not pull the sky config
+## into its script closure; subscribers cast.
+signal sky_ambient_configured(def: Resource, preset: Resource, disc_radius_m: float)
+
+## The sky evaluated a tick: cycle phase (0..1) and night mix (0 day .. 1 night). Published by
+## game/sky/Skybox.gd; AmbientLife subscribes for its day/night swap.
+signal sky_time_of_day_changed(phase: float, night_mix: float)
+
 ## The host pressed Start. Emitted on a client by
 ## net/MatchNet.gd's net_match_loading, one message ahead of net_match_start, so
 ## game/main/Main.gd can raise the loading overlay before the match world builds.

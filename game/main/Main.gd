@@ -57,7 +57,7 @@ const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
 ## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
 ## purely visual sky roots go dormant.
 const MENU_DORMANT_WORLD_NODES: PackedStringArray = [
-	"Skybox", "CloudShadows",
+	"Skybox", "AmbientLife", "CloudShadows",
 ]
 const MENU_PREWARM_CONFIG_PATH: String = "res://config/match/menu_prewarm.tres"
 const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/main/MainHeadlessBotsFlow.gd"
@@ -382,6 +382,11 @@ func _ready() -> void:
 	# Load any saved tuning-panel overrides onto the shared tuning singletons before
 	# anything else in the tree reads them.
 	TuningOverrides.apply_saved()
+
+	# The ambient life subscribes to the sky's Events, so it exists before the preset below is
+	# applied; the sky booted before this node, so it re-publishes what it already knows.
+	add_child(AmbientLife.build(_field, _registry))
+	_skybox.republish_ambient()
 
 	# synchronous runs (headless, CLI flags, probes) build the autoloads' late
 	# state now; the interactive path does it behind the menu (_activate_late_if_loaded).
