@@ -249,6 +249,7 @@
   "config/sky/sky_dome.tres",
   "config/sky/sky_radiance_config.tres",
   "config/sky/skybox_config.tres",
+  "config/sky/storm_overlay.tres",
   "config/sky/sun_flare.tres",
   "config/sky/themes/cloud_noise.tres",
   "config/sky/themes/puff_noise.tres",
