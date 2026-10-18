@@ -173,8 +173,13 @@ func request_place(
 
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
 	var local_origin: Vector3 = _match._field.to_local(origin)
-	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
 	var team_id: int = acting_slot.team_id
+	# Legality is judged under the rotated footprint's centre, not under the pivot `origin`
+	# (spec 2.5): `centre_shift` is the disk-local pivot-to-centre vector, and every disk point
+	# below up to the final pivot conversion is a centre point.
+	var centre_shift: Vector2 = _centre_shift_disk(slot_id, shape, origin, basis)
+	var probe_origin: Vector3 = origin + _centre_shift_world(slot_id, shape, basis)
+	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z) + centre_shift
 
 	# DECISION: every MatchConfig.HoleMode uses one raycast straight down from `origin` plus
 	# PlacementRules.validate_point() (spec 2.5 "Placement legality": one ray from the ghost's
@@ -183,7 +188,7 @@ func request_place(
 	# footprint_cells()/validate() stay only for the bots' footprint scoring.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
-	var hit: Variant = _match._field.raycast_down_disk_local(origin)
+	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
 		# Only possible off the rim with nothing beneath (Field.gd's own
 		# contract for raycast_down_disk_local); disk_origin keeps the flat
@@ -222,18 +227,20 @@ func request_place(
 		final_disk_origin = _clamp_disk_origin_for_burn(final_disk_origin)
 
 	# `origin` is the shape's bottom-centre pivot (GhostPreview/BlockFactory both pivot there,
-	# rotated-shape corrected; see GhostPreview's DECISION) and the point test above works on that
-	# same x/z, so final_disk_origin already is the frame the spawned body's origin needs -- no
-	# cell-(0, 0, 0) offset and no height correction to add back.
+	# rotated-shape corrected; see GhostPreview's DECISION) but final_disk_origin is the
+	# legality point (the rotated footprint's centre), so the pivot the body spawns at is that
+	# point minus the pivot-to-centre shift -- applied exactly once, here.
+	var final_disk_centre: Vector2 = final_disk_origin
+	var final_pivot_disk: Vector2 = final_disk_centre - centre_shift
 	var final_world_origin: Vector3 = _match._field.to_global(Vector3(
-		final_disk_origin.x, local_origin.y, final_disk_origin.y
+		final_pivot_disk.x, local_origin.y, final_pivot_disk.y
 	))
 	if reason == PlacementRules.REASON_OK:
 		# an in-place gift activates here, with no carrier body.
 		# An ordinary piece (held id &"") never queries the special roster.
 		var held_id: StringName = _match.held_special(slot_id)
 		var in_place_def: SpecialDef = _resolve_deliverable_special(held_id) if held_id != &"" else null
-		if in_place_def != null and in_place_def.activates_in_place and _activation.try_activate(slot_id, in_place_def, final_disk_origin):
+		if in_place_def != null and in_place_def.activates_in_place and _activation.try_activate(slot_id, in_place_def, final_disk_centre):
 			_match._feed._consume_and_refeed(slot_id, auto_drop)
 			if _match.config.hot_seat:
 				_match.advance_turn()
@@ -271,7 +278,7 @@ func request_place(
 			"MatchPlacement: auto-drop burn for slot %d -- no valid point anywhere on the disk (%s)"
 			% [slot_id, reason]
 		)
-		_burn_block(spawned, final_disk_origin)
+		_burn_block(spawned, final_pivot_disk)
 		if _match._feed.is_held_gift(slot_id):
 			_match._gifts.defer_held_special_after_burn(slot_id)
 		Events.placement_rejected.emit(slot_id, reason)
@@ -371,14 +378,17 @@ func request_throw(
 	var basis: Basis = _spawn_basis(gift_id, Basis(free_quat) * BlockOrientations.get_basis(orientation_index))
 	var local_origin: Vector3 = _match._field.to_local(origin)
 	var team_id: int = acting_slot.team_id
+	# Same legality point as request_place(): the rotated footprint's centre, not the pivot.
+	var centre_shift: Vector2 = _centre_shift_disk(slot_id, shape, origin, basis)
+	var probe_origin: Vector3 = origin + _centre_shift_world(slot_id, shape, basis)
 
 	# Exactly request_place()'s own raycast-then-point-test;
 	# ThrowRules.validate_release_point() delegates to the identical
 	# PlacementRules.validate_point() so a throw and a placement can never
 	# disagree about what "your own territory" means at a point.
 	var result: PlacementRules.Result
-	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z)
-	var hit: Variant = _match._field.raycast_down_disk_local(origin)
+	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z) + centre_shift
+	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
 		result = _hole_column_result(slot_id, disk_origin)
 	else:
@@ -401,7 +411,9 @@ func request_throw(
 	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
 		speed_cap *= GiftAim.speed_factor(_throw_range_scale())
 	var clamped_velocity: Vector3 = launch_velocity.limit_length(speed_cap)
-	var world_origin: Vector3 = _match._field.to_global(Vector3(disk_origin.x, local_origin.y, disk_origin.y))
+	# disk_origin is the legality point (the footprint's centre); the body spawns at its pivot.
+	var pivot_disk: Vector2 = disk_origin - centre_shift
+	var world_origin: Vector3 = _match._field.to_global(Vector3(pivot_disk.x, local_origin.y, pivot_disk.y))
 	# The throw spawns at the client-sent pose too, so it gets the same host overlap validation (a
 	# manual intent: refused, the special stays in hand, when no lift clears it). The projectile
 	# spawns on the camera line (cursor point moved back along the aim, never below
@@ -478,7 +490,9 @@ func _try_expiry_throw(slot_id: int, origin: Vector3, orientation_index: int, fr
 	if not is_pose_well_formed(origin, orientation_index, free_quat):
 		return false
 	# An off-disk cursor would make the throw emit a refusal the forced drop then repeats.
-	if _match._field.raycast_down_disk_local(origin) == null:
+	var expiry_shape: BlockShape = _match.held_shape(slot_id)
+	var expiry_basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
+	if _match._field.raycast_down_disk_local(origin + _centre_shift_world(slot_id, expiry_shape, expiry_basis)) == null:
 		return false
 	return request_throw(slot_id, origin, orientation_index, free_quat, aim, feed_seq) == PlacementRules.REASON_OK
 
@@ -709,13 +723,35 @@ func preview_placement(
 	# whichever machine calls it (host or a client's own frozen-body world;
 	# see Field.raycast_down_disk_local's DECISION), so the ghost's tint
 	# always matches what the host would decide.
-	var hit: Variant = _match._field.raycast_down_disk_local(origin)
+	var preview_basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation_index)
+	var preview_shape: BlockShape = _match.held_shape(slot_id)
+	var probe_origin: Vector3 = origin + _centre_shift_world(slot_id, preview_shape, preview_basis)
+	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
-		var local_origin: Vector3 = _match._field.to_local(origin)
-		return _hole_column_result(slot_id, Vector2(local_origin.x, local_origin.z))
+		var local_probe: Vector3 = _match._field.to_local(probe_origin)
+		return _hole_column_result(slot_id, Vector2(local_probe.x, local_probe.z))
 	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
 	# mirrors request_place(): a held gift ignores territory.
 	return _apply_territory_waiver(slot_id, preview_result)
+
+
+## World-space pivot-to-legality-point vector for `slot_id`'s held piece in pose `basis` (spec 2.5
+## "Placement legality": the rotated footprint's centre). A gift is spawned upright whatever pose
+## the intent carried (_spawn_basis()), so it is judged upright too. The full 3D offset is returned;
+## callers use only its horizontal part to pick the column (raycast_down_disk_local() casts down).
+func _centre_shift_world(slot_id: int, shape: BlockShape, basis: Basis) -> Vector3:
+	if shape == null or _match._physics_tuning == null:
+		return Vector3.ZERO
+	var judged_basis: Basis = _spawn_basis(_held_deliverable_gift(slot_id), basis)
+	return PlacementPoint.legality_point(Vector3.ZERO, shape, judged_basis, _match._physics_tuning.cube_size)
+
+
+## The same shift as a disk-local (x, z) vector, correct while the field tilts (to_local is affine,
+## so the difference of two converted points is the converted vector).
+func _centre_shift_disk(slot_id: int, shape: BlockShape, origin: Vector3, basis: Basis) -> Vector2:
+	var shifted: Vector3 = _match._field.to_local(origin + _centre_shift_world(slot_id, shape, basis))
+	var base: Vector3 = _match._field.to_local(origin)
+	return Vector2(shifted.x - base.x, shifted.z - base.z)
 
 
 ## the one territory waiver shared by request_place(),
