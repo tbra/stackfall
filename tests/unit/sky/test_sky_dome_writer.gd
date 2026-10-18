@@ -149,3 +149,29 @@ func test_aurora_look_is_staged_only_while_visible() -> void:
 	writer.stage(frame)
 	writer.flush()
 	assert_eq(bound.get_shader_parameter(&"aurora_intensity"), 1.7, "visible aurora: look written")
+
+
+## The static look (view offsets, strata, overhead/cards mix, cloud coverage) left the shader: a
+## bound, staged and flushed dome never writes a retired uniform, and every staged name exists.
+const RETIRED_UNIFORMS: Array[StringName] = [
+	&"proc_overhead_mix", &"proc_cards_mix", &"proc_cards_opacity", &"proc_cards_layout",
+	&"sky_yaw_offset_deg", &"sky_pitch_offset_deg", &"proc_strata_scale", &"proc_strata_strength",
+	&"cloud_coverage",
+]
+
+
+func test_flush_writes_no_retired_uniform_and_only_shader_uniforms() -> void:
+	var writer: SkyDomeWriter = SkyDomeWriter.new()
+	var bound: ShaderMaterial = writer.bind(null, _template())
+	var frame: SkyFrame = _frame()
+	frame.aurora_visibility = 1.0
+	writer.stage(frame)
+	writer.flush()
+	var known: Dictionary = {}
+	for info: Dictionary in bound.shader.get_shader_uniform_list():
+		known[StringName(info["name"] as String)] = true
+	for key: StringName in RETIRED_UNIFORMS:
+		assert_false(known.has(key), "%s is retired from the shader" % key)
+		assert_null(bound.get_shader_parameter(key), "%s is never written" % key)
+	for key: Variant in writer._written:
+		assert_true(known.has(key), "written %s exists in the shader" % key)
