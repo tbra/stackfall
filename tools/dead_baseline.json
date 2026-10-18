@@ -1,6 +1,15 @@
 {
  "checks": {
-  "dead-file": [],
+  "dead-file": [
+   "config/sky/SkyCycleDef.gd",
+   "config/sky/SkyKeyframe.gd",
+   "config/sky/SkyNightKeyframe.gd",
+   "config/sky/SkyOverlayDef.gd",
+   "core/sky/SkyEvaluator.gd",
+   "core/sky/SkyFrame.gd",
+   "core/sky/SkyThemeMigration.gd",
+   "core/sky/SkyWeatherState.gd"
+  ],
   "test-only-func": [
    "autoload/Net.gd:accepting_joins",
    "autoload/Settings.gd:set_config_path_for_test",
