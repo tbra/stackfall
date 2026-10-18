@@ -540,8 +540,10 @@ def check_probes(ctx, repo, base, branches):
     allow = probe_lint.read_allowlist(repo)
     bad = []
     for b in branches:
-        code, text, _ = git(ctx, "probes_" + b.replace("/", "_"), repo, "diff", "--diff-filter=A",
-                            "--name-only", base + "..." + b)
+        # --no-renames: a moved script and its moved .uid both count as added; with rename
+        # detection the .uid shows as a rename and the script looks like it lost its .uid.
+        code, text, _ = git(ctx, "probes_" + b.replace("/", "_"), repo, "diff", "--no-renames",
+                            "--diff-filter=A", "--name-only", base + "..." + b)
         if code != 0:
             raise StepFailed("probes", "git diff failed for " + b)
         bad += ["%s: %s" % (b, f) for f in probe_lint.filter_probes(text.splitlines(), allow)]
