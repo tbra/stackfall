@@ -68,8 +68,8 @@ var _enabled: bool = true
 ## the cloud puffs' share of hiding the sun (0..1) from the last CloudSea
 ## query, the seconds since that query, and the CloudSea it came from (found by group).
 var _cover: SunCloudCover = SunCloudCover.new(_find_cloud_sea, true)
-## the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
-## pushes it through set_theme_enabled(); night turns the sunset-aimed flare off).
+## the current frame's flare_enabled (Skybox pushes it through set_theme_enabled();
+## night turns the sunset-aimed flare off).
 var _theme_enabled: bool = true
 
 const GROUP: StringName = &"sun_flare"
@@ -118,7 +118,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	_enabled = preset == null or preset.volumetric_fog_enabled
 
 
-## theme gate (see _theme_enabled). Fades out via the hidden rect
+## sky gate (see _theme_enabled). Fades out via the hidden rect
 ## immediately; the smoothed visibility restarts from 0 on re-enable.
 func set_theme_enabled(value: bool) -> void:
 	if _cycle_config_local:

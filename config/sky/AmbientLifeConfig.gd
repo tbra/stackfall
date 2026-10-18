@@ -2,16 +2,17 @@ class_name AmbientLifeConfig
 extends Resource
 ## Tunables for the purely cosmetic, local-only ambient life
 ## (perching birds, game/ambient/PerchingBirds.gd; fireflies, game/ambient/Fireflies.gd). One
-## instance is referenced from each config/sky/SkyThemeDef.gd (`ambient_life`), so
-## the effects are theme-gated: sunset ships birds (fireflies_count 0), night
-## ships fireflies (perch_bird_count 0). Nothing here is networked and nothing
+## instance is referenced from config/sky/SkyCycleDef.gd (`ambient_life`, the day set) and one
+## from config/sky/SkyNightKeyframe.gd (`ambient_life`, the night set), so the effects are
+## time-of-day gated: the day set ships birds (fireflies_count 0), the night set ships
+## fireflies (perch_bird_count 0). Nothing here is networked and nothing
 ## touches physics or gameplay; the perching birds only *read* cursors, blocks,
 ## flags and the camera and stay away from them.
 
 # --- Perching birds ----------------------------------------------------------
 
 ## Total cap on birds alive at once, across every flock; 0 disables the effect
-## for this theme.
+## for this sky.
 @export var perch_bird_count: int = 8
 ## Bird body length (m), picked per bird, then multiplied by perch_bird_scale
 ## (drawn ~1.5x so the birds read on the disc, proportions unchanged). The default
@@ -146,7 +147,7 @@ extends Resource
 
 # --- Fireflies ---------------------------------------------------------------
 
-## Motes alive at once; 0 disables the effect for this theme.
+## Motes alive at once; 0 disables the effect for this sky.
 @export var fireflies_count: int = 0
 ## Fraction (0..1) of motes hovering sparsely above the disc's outer band; the
 ## rest drift around the rim and over the cloud sea just below it.

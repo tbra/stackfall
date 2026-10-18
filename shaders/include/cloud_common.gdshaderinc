@@ -155,7 +155,7 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 }
 
 // Soft aurora curtains for the night sky, shared by sunset_clouds (the
-// day/night cycle's night) and night_sky (the static night theme). Drawn in
+// day/night cycle's night) and night_sky (the static night sky). Drawn in
 // view-direction space, azimuth around the horizon x elevation (dir.y), so the bands
 // wrap the whole sky and any camera orbit sees some of them. Every texture tap is a
 // textureLod on the shared seamless noise at a whole number of repeats around the
@@ -163,7 +163,7 @@ vec3 procedural_sea_color(sampler2D noise_tex, vec3 dir, vec3 sun_dir, float tim
 // seam nor a mip-selection line. Background pass only (callers skip the radiance pass);
 // two curtain layers of three taps each, nothing at all below the horizon or when the
 // caller's visibility is 0. Look constants below; the player-facing tunables (intensity,
-// colours, speed, base height, curtain height) are SkyThemeDef.aurora_*.
+// colours, speed, base height, curtain height) are SkyCycleDef.aurora_*.
 const float AURORA_TIME_RATE = 0.04;        // seconds -> animation time at speed 1
 const float AURORA_PATCH_TILES = 3.0;       // noise repeats around the horizon: slow arcs and the gaps between
 const float AURORA_RAY_TILES = 52.0;        // noise repeats around the horizon: the fine vertical rays
