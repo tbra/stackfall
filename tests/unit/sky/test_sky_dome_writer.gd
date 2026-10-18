@@ -2,15 +2,13 @@ extends GutTest
 ## SkyDomeWriter: one material duplicate per lifetime, the shipped template is never written,
 ## and an unchanged frame writes nothing (every sky uniform write dirties the radiance).
 
-const TEMPLATE_PATH: String = "res://config/sky/themes/sunset.tres"
 const CHANGED_EXPOSURE: float = 0.5
 const CHANGED_ZENITH: Color = Color(0.9, 0.1, 0.2, 1.0)
 const NUDGE: float = 1e-4
 
 
 func _template() -> ShaderMaterial:
-	var theme: SkyThemeDef = load(TEMPLATE_PATH) as SkyThemeDef
-	return theme.sky_material as ShaderMaterial
+	return SkyTestKit.cycle().sky_material as ShaderMaterial
 
 
 func _frame() -> SkyFrame:
