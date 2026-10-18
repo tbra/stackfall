@@ -124,7 +124,7 @@ func test_storm_sky_blends_and_restores_the_match_theme() -> void:
 	var wired: Dictionary = _wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var environment: Environment = wired["environment"] as Environment
-	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	skybox.apply_theme(skybox.theme)
 	var base_fog: Color = environment.fog_light_color
 	skybox.set_storm_sky(0.5, storm)
@@ -140,13 +140,41 @@ func test_storm_sky_blends_and_restores_the_match_theme() -> void:
 	assert_eq(_sky_storm(skybox), 0.0)
 
 
+## Scenery haze under a storm: the overlay carries no haze distances, so strength/begin/end stay the
+## cycle's and only the haze tint follows the storm fog colour blend.
+func test_storm_haze_keeps_distances_and_blends_the_tint() -> void:
+	var wired: Dictionary = _wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
+	skybox.apply_theme(skybox.theme)
+	skybox.flush_weather()
+	var strength: float = WeatherFogShader.ambient_strength
+	var begin: float = WeatherFogShader.ambient_begin_m
+	var finish: float = WeatherFogShader.ambient_end_m
+	var base_tint: Color = WeatherFogShader.ambient_color
+	skybox.set_storm_sky(0.5, storm)
+	skybox.flush_weather()
+	assert_almost_eq(WeatherFogShader.ambient_strength, strength, 0.0001, "storm 0.5 strength")
+	assert_almost_eq(WeatherFogShader.ambient_begin_m, begin, 0.0001, "storm 0.5 begin")
+	assert_almost_eq(WeatherFogShader.ambient_end_m, finish, 0.0001, "storm 0.5 end")
+	assert_true(WeatherFogShader.ambient_color.is_equal_approx(base_tint.lerp(storm.fog_color, 0.5)), "storm 0.5 tint")
+	skybox.set_storm_sky(1.0, storm)
+	skybox.flush_weather()
+	assert_almost_eq(WeatherFogShader.ambient_strength, strength, 0.0001, "storm 1.0 strength")
+	assert_almost_eq(WeatherFogShader.ambient_end_m, finish, 0.0001, "storm 1.0 end")
+	assert_true(WeatherFogShader.ambient_color.is_equal_approx(storm.fog_color), "storm 1.0 tint")
+	skybox.set_storm_sky(0.0, storm)
+	skybox.flush_weather()
+	assert_true(WeatherFogShader.ambient_color.is_equal_approx(base_tint), "storm over: tint restored")
+
+
 ## Review finding 3: the storm ending after a sky switch restores that sky's own values, with no
 ## birds/puff rebuild and the fog volume included.
 func test_storm_end_restores_the_switched_sky_without_a_rebuild() -> void:
 	var wired: Dictionary = _wired_skybox()
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var environment: Environment = wired["environment"] as Environment
-	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	skybox.set_storm_sky(1.0, storm)
 	assert_true(skybox.set_theme_by_id("night"))
 	skybox.set_storm_sky(0.0, storm)

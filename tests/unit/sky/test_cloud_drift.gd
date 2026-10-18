@@ -52,7 +52,7 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	var wind: Vector2 = Vector2.from_angle(deg_to_rad(200.0))
 	skybox.set_cloud_storm_wind(wind)
 	var config: CloudDriftConfig = _config()
-	skybox.set_storm_sky(1.0, Skybox.load_theme("storm"))
+	skybox.set_storm_sky(1.0, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	for i: int in range(SETTLE_STEPS):
 		skybox._step_cloud_drift(STEP_S)
 	assert_gt(skybox.cloud_wind_dir().dot(wind), 0.999, "storm: the skybox's cloud wind is the storm wind")
