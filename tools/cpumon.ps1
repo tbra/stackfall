@@ -23,7 +23,10 @@ while ((Get-Date) -lt $deadline) {
     $slotDir = if ($env:STACKFALL_GODOT_SLOTS_DIR) { $env:STACKFALL_GODOT_SLOTS_DIR } else { Join-Path $toolsRoot "locks/godot_slots" }
     $slots = @(Get-ChildItem -Path $slotDir -Filter "slot_*.json" -ErrorAction SilentlyContinue).Count
     $line = '{0:HH:mm:ss} cpu={1}% free={2:N1}GB godot={3} slots={4}' -f (Get-Date), $load, $freeGB, $n, $slots
-    Add-Content -Path $Log -Value $line
+    # Another session's cpumon may hold the log for a moment; retry briefly, then skip this sample's line.
+    for ($try = 0; $try -lt 5; $try++) {
+        try { Add-Content -Path $Log -Value $line -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 200 }
+    }
     if ($load -ge $CpuHighPct) { $high++ } else { $high = 0 }
     if ($n -gt $MaxGodot) { Write-Output "ALERT godot=$n > $MaxGodot | $line"; exit 2 }
     if ($high -ge $CpuHighSamples) { Write-Output "ALERT cpu>=$CpuHighPct% for $high samples | $line"; exit 3 }

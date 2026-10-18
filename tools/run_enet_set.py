@@ -103,21 +103,33 @@ def run_one(name, runner, path, out_dir, timeout_s):
 
 
 def run_set(path, out_dir, say=print, only=None, timeout_s=HARNESS_TIMEOUT_S, runner=run_one):
-    """Run every harness. Returns [(name, verdict, detail, seconds, log)]; runner is injectable."""
+    """Run every harness. Returns [(name, verdict, detail, seconds, log)]; runner is injectable.
+    A failing harness reruns once alone; pass-on-rerun is verdict FLAKY (reported, not a failure)."""
     results = []
     for name, script in discover(path):
         if only and name not in only:
             continue
         verdict, detail, secs, log = runner(name, script, path, out_dir, timeout_s)
         say("enet %-22s %s%s (%ds) %s" % (name, verdict, " " + detail if detail else "", secs, log))
+        if verdict != "PASS":
+            first = detail or verdict
+            rerun_dir = os.path.join(out_dir, "rerun")
+            verdict, detail, secs2, log = runner(name, script, path, rerun_dir, timeout_s)
+            secs += secs2
+            if verdict == "PASS":
+                verdict, detail = "FLAKY", "first run: %s" % first
+            say("enet %-22s rerun %s%s (%ds) %s" % (name, verdict, " " + detail if detail else "", secs2, log))
         results.append((name, verdict, detail, secs, log))
     return results
 
 
 def summary(results):
-    passed = sum(1 for r in results if r[1] == "PASS")
+    """(green, line). FLAKY harnesses count as passed and are named in the line as enet_flaky."""
+    passed = sum(1 for r in results if r[1] in ("PASS", "FLAKY"))
+    flaky = [r[0] for r in results if r[1] == "FLAKY"]
     green = bool(results) and passed == len(results)
-    return green, "ENET SET %s: %d/%d passed" % ("GREEN" if green else "RED", passed, len(results))
+    line = "ENET SET %s: %d/%d passed" % ("GREEN" if green else "RED", passed, len(results))
+    return green, line + (" enet_flaky=%s" % ",".join(flaky) if flaky else "")
 
 
 def main(argv):

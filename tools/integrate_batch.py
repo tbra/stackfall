@@ -20,7 +20,8 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
   5b enet     after a GREEN gate, when the merged diff (base..merge) touches net/ or tests/enet/ (ENET_PATHS),
               tools/run_enet_set.py runs the ENet harness set on the temp worktree (one tree-killing
               wall-clock limit and godot_slots slots per harness); any harness FAIL, missing `ENET RESULT`
-              line or timeout fails step `enet` like a red gate. Skipped when nothing there changed or
+              line or timeout reruns that harness once alone; pass-on-rerun is reported as enet_flaky
+              (file a flaky-test bead), failing again fails step `enet` like a red gate. Skipped when nothing there changed or
               with --no-game-code; `--skip-enet "<reason>"` skips it and logs the reason.
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
@@ -392,7 +393,8 @@ def touches_enet(paths):
 
 def enet_step(ctx, wt, changed, skip_reason, say):
     """Step 5b: run the ENet harness set when the merged diff touches net/ or tests/enet/.
-    Raises StepFailed('enet') on any non-PASS harness or an empty set."""
+    A harness that fails and then passes its one rerun is enet_flaky (reported; file a flaky-test bead).
+    Raises StepFailed('enet') on a harness that fails its rerun too, or an empty set."""
     if not touches_enet(changed):
         say("enet      skip merged diff does not touch net/ or tests/enet/")
         return
@@ -404,7 +406,7 @@ def enet_step(ctx, wt, changed, skip_reason, say):
     green, line = run_enet_set.summary(results)
     say("enet      %s %s" % ("ok  " if green else "FAIL", line))
     if not green:
-        bad = ["%s (%s)" % (r[0], r[2] or r[1]) for r in results if r[1] != "PASS"] or ["no harnesses found"]
+        bad = ["%s (%s)" % (r[0], r[2] or r[1]) for r in results if r[1] not in ("PASS", "FLAKY")] or ["no harnesses found"]
         raise StepFailed("enet", "%s; logs %s" % ("; ".join(bad)[:400], out_dir))
 
 

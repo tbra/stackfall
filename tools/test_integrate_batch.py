@@ -315,6 +315,29 @@ class Tests(unittest.TestCase):
         self.assertEqual(cm.exception.step, "gate")
         rs.assert_not_called()
 
+    def test_enet_flaky_harness_passes_step(self):
+        err, out, _ = self._enet("net/a.gd\n", [("qol", "PASS", "", 1.0, "/l"), ("beacon", "FLAKY", "first run: x", 2.0, "/l")])
+        self.assertIsNone(err)
+        self.assertTrue([l for l in out if "enet_flaky=beacon" in l])
+
+    def test_enet_run_set_reruns_failure_once(self):
+        calls = []
+        def runner(name, script, path, out_dir, timeout_s):
+            calls.append(name)
+            if name == "flaky":
+                return ("FAIL", "boom", 1.0, "/l") if calls.count(name) == 1 else ("PASS", "", 1.0, "/l")
+            if name == "bad":
+                return "FAIL", "boom", 1.0, "/l"
+            return "PASS", "", 1.0, "/l"
+        with mock.patch.object(ib.run_enet_set, "discover", return_value=[("ok", "a"), ("flaky", "b"), ("bad", "c")]):
+            res = ib.run_enet_set.run_set("/p", "/o", say=lambda l: None, runner=runner)
+        self.assertEqual(calls, ["ok", "flaky", "flaky", "bad", "bad"])
+        self.assertEqual([r[1] for r in res], ["PASS", "FLAKY", "FAIL"])
+        green, line = ib.run_enet_set.summary(res)
+        self.assertFalse(green)
+        self.assertIn("2/3", line)
+        self.assertIn("enet_flaky=flaky", line)
+
     def test_enet_result_parsing(self):
         p = ib.run_enet_set.parse_result
         self.assertEqual(p("x\nENET RESULT PASS\n"), ("PASS", ""))
