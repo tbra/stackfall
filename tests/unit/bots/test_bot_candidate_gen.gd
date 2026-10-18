@@ -11,6 +11,8 @@ const SNAKE_XS: Array[float] = [-10.0, -8.0, -6.0, -4.0, -2.0]
 const TOWER_POS: Vector2 = Vector2(-6.0, 3.0)
 const TOWER_TOP_M: float = 4.0
 const CANDIDATE_COUNT: int = 110
+## Between the tall tower (x -6) and the snake tip nearest the target (x -2).
+const STACK_SPLIT_X: float = -5.0
 const SEED: int = 99
 const TIP_EDGE_TOLERANCE_M: float = 0.5
 const ENEMY_POS: Vector2 = Vector2(5.0, 0.0)
@@ -131,6 +133,35 @@ func test_stack_tops_get_the_flattest_orientation() -> void:
 			assert_almost_eq(c.shape_height, 1.0, 0.001, "flat on a stack")
 			assert_true(c.support_height >= _tuning.stack_min_height_m)
 	assert_true(stack_sites > 0)
+
+
+func _stack_site_xs(kind: BotIntent.Kind, mode: int = MatchConfig.GameMode.ELIMINATION) -> PackedFloat32Array:
+	var one_top: BotGenTuning = _tuning.duplicate() as BotGenTuning
+	one_top.stack_site_count = 1
+	var profile: BotDifficultyProfile = BotDifficultyProfile.new()
+	profile.candidate_count = CANDIDATE_COUNT
+	var view: BotWorldView = _view(_pillar, true)
+	view.mode = mode
+	var sites: Array[BotCandidate] = BotSiteList.build(view, _intent(kind), profile, _rng(), one_top)
+	var xs: PackedFloat32Array = PackedFloat32Array()
+	for c: BotCandidate in sites:
+		if c.site_kind == BotCandidateGen.SITE_STACK:
+			xs.append(c.origin.x)
+	return xs
+
+
+func test_finish_and_siege_stack_on_the_top_nearest_the_target_others_on_the_tallest() -> void:
+	var tall: PackedFloat32Array = _stack_site_xs(BotIntent.Kind.ANCHOR)
+	for x: float in _stack_site_xs(BotIntent.Kind.FINISH, MatchConfig.GameMode.CLASSIC):
+		assert_lt(x, STACK_SPLIT_X, "Classic FINISH keeps the tallest top")
+	assert_gt(tall.size(), 0)
+	for x: float in tall:
+		assert_lt(x, STACK_SPLIT_X, "ANCHOR keeps the tallest top")
+	for kind: BotIntent.Kind in [BotIntent.Kind.FINISH, BotIntent.Kind.SIEGE]:
+		var near: PackedFloat32Array = _stack_site_xs(kind)
+		assert_gt(near.size(), 0)
+		for x: float in near:
+			assert_gt(x, STACK_SPLIT_X, "nearest the target")
 
 
 func _assert_all_placeable(view: BotWorldView, sites: Array[BotCandidate]) -> void:

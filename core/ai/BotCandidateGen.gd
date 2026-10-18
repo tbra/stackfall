@@ -74,7 +74,13 @@ static func begin(
 		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
 	else:
 		gen.add_tip_sites(_target_for(view, intent, threat_kind), tip_kind, tip_quota)
-		gen.add_stack_sites(_target_for(view, intent, threat_kind), stack_quota)
+		# DECISION: in Elimination, FINISH and SIEGE build on the stacks nearest the target (a tall stack far
+		# from the target adds nothing to the siege); every other intent and mode keeps tallest-first.
+		gen.add_stack_sites(
+			_target_for(view, intent, threat_kind), stack_quota,
+			view.mode == MatchConfig.GameMode.ELIMINATION
+			and (intent.kind == BotIntent.Kind.FINISH or intent.kind == BotIntent.Kind.SIEGE)
+		)
 	job.start_fill(gen, rng, total, profile.fill_share <= 0.0)
 	return job
 
@@ -330,8 +336,8 @@ class _Gen:
 			return false
 		return PlacementRules.validate_point(point, view.raster, view.team_id) == PlacementRules.Result.VALID
 
-	## Tallest own circles first, each with the centre and jittered neighbours.
-	func add_stack_sites(target: Vector2, quota: int) -> void:
+	## Tallest own circles first (nearest the target first when `nearest_first`), each with the centre and jittered neighbours.
+	func add_stack_sites(target: Vector2, quota: int, nearest_first: bool = false) -> void:
 		var start: int = out.size()
 		var tops: Array[Dictionary] = []
 		for i: int in view.indices_of_team(view.team_id):
@@ -340,6 +346,8 @@ class _Gen:
 				var center: Vector2 = Vector2(view.cx[i], view.cz[i])
 				tops.append({"center": center, "top": top, "gap": center.distance_to(target)})
 		tops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			if nearest_first and not is_equal_approx(a["gap"] as float, b["gap"] as float):
+				return (a["gap"] as float) < (b["gap"] as float)
 			if not is_equal_approx(a["top"] as float, b["top"] as float):
 				return (a["top"] as float) > (b["top"] as float)
 			return (a["gap"] as float) < (b["gap"] as float)
