@@ -29,6 +29,13 @@ extends Resource
 ## RACE and ANCHOR hold for at least this many own placements before the other may replace
 ## them (HOLD, DEFEND, STRIKE, FINISH pre-empt immediately).
 @export var intent_min_hold_pieces: int = 3
+## Elimination only (every other mode keeps the values above): DEFEND-contest ANCHOR is off at this
+## tip height (0 = never; in the PERMANENT-hole contested band the anchor pieces dissolve and the fronts stall),
+## FINISH starts this far from the target home (a tower of the tier's usual height can still close it),
+## and FINISH weighs TIP less so a near-target tower can be tried instead of a safe stack far away.
+@export var elim_anchor_min_height_m: float = 0.0
+@export var elim_finish_gap_m: float = 14.0
+@export var elim_weights_finish: PackedFloat32Array = PackedFloat32Array([1.5, 0.05, 0.3, 0.2, 1.4, 0.0, 10.0])
 ## Elimination: target homes whose distances differ by less than this tie; the tie breaks
 ## to the clockwise neighbour so a ring of bots does not pile on one home.
 @export var elim_tie_epsilon_m: float = 0.5
@@ -70,8 +77,20 @@ extends Resource
 @export var weights_area: PackedFloat32Array = PackedFloat32Array([0.3, 1.0, 0.5, 0.4, 2.0, 0.8, 10.0])
 
 
-## The weight vector of `kind`.
-func weights_for(kind: int) -> PackedFloat32Array:
+## ANCHOR contest height limit for `mode` (BotModeGoal / MatchConfig.GameMode).
+func anchor_min_height_for(mode: int) -> float:
+	return elim_anchor_min_height_m if mode == MatchConfig.GameMode.ELIMINATION else anchor_min_height_m
+
+
+## FINISH start gap for `mode`.
+func finish_gap_for(mode: int) -> float:
+	return elim_finish_gap_m if mode == MatchConfig.GameMode.ELIMINATION else finish_gap_m
+
+
+## The weight vector of `kind`; FINISH under Elimination uses elim_weights_finish.
+func weights_for(kind: int, mode: int = MatchConfig.GameMode.CLASSIC) -> PackedFloat32Array:
+	if kind == BotIntent.Kind.FINISH and mode == MatchConfig.GameMode.ELIMINATION:
+		return elim_weights_finish
 	match kind:
 		BotIntent.Kind.ANCHOR:
 			return weights_anchor

@@ -241,3 +241,17 @@ func test_defend_preempts_a_held_anchor() -> void:
 
 func _choose_with(view: BotWorldView, memory: Dictionary) -> BotIntent:
 	return BotStrategy.choose(view, BotChains.build(view), _profile(), _tuning, memory)
+
+
+func test_elimination_overrides_leave_every_other_mode_on_the_classic_values() -> void:
+	var t: BotStrategyTuning = preload("res://config/bots/bot_strategy_tuning.tres")
+	var classic_finish: PackedFloat32Array = PackedFloat32Array([1.5, 0.05, 0.3, 0.2, 3.0, 0.0, 10.0])
+	for mode: int in MatchConfig.GameMode.values():
+		if mode == MatchConfig.GameMode.ELIMINATION:
+			continue
+		assert_almost_eq(t.finish_gap_for(mode), 6.0, 0.0001, "finish gap mode %d" % mode)
+		assert_almost_eq(t.anchor_min_height_for(mode), 4.0, 0.0001, "anchor height mode %d" % mode)
+		assert_eq(t.weights_for(BotIntent.Kind.FINISH, mode), classic_finish, "finish weights mode %d" % mode)
+	assert_eq(t.weights_for(BotIntent.Kind.FINISH), classic_finish, "default mode argument is classic")
+	assert_almost_eq(t.finish_gap_for(MatchConfig.GameMode.ELIMINATION), t.elim_finish_gap_m, 0.0001)
+	assert_almost_eq(t.anchor_min_height_for(MatchConfig.GameMode.ELIMINATION), 0.0, 0.0001)

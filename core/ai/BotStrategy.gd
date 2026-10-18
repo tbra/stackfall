@@ -58,9 +58,9 @@ static func choose(
 		BotIntent.is_enabled(mask, BotIntent.Kind.FINISH)
 		and plan["finishable"] as bool
 		and has_target
-		and chains.gap_to(view.team_id, target) <= t.finish_gap_m
+		and chains.gap_to(view.team_id, target) <= t.finish_gap_for(view.mode)
 	):
-		return _make(t, BotIntent.Kind.FINISH, target)
+		return _make(t, BotIntent.Kind.FINISH, target, view.mode)
 	var default_kind: BotIntent.Kind = plan["default"] as BotIntent.Kind
 	if not BotIntent.is_enabled(mask, default_kind):
 		default_kind = BotIntent.Kind.RACE
@@ -108,11 +108,13 @@ static func _sticky(
 	return result
 
 
-static func _make(t: BotStrategyTuning, kind: BotIntent.Kind, target: Vector2) -> BotIntent:
+static func _make(
+	t: BotStrategyTuning, kind: BotIntent.Kind, target: Vector2, mode: int = MatchConfig.GameMode.CLASSIC
+) -> BotIntent:
 	var intent: BotIntent = BotIntent.new()
 	intent.kind = kind
 	intent.target = target
-	intent.weights = t.weights_for(kind).duplicate()
+	intent.weights = t.weights_for(kind, mode).duplicate()
 	intent.weights.resize(BotIntent.Term.size())
 	return intent
 
@@ -494,7 +496,7 @@ static func _anchor_circle(
 	var own_count: int = view.indices_of_team(view.team_id).size()
 	if t.anchor_rhythm > 0 and own_count % t.anchor_rhythm == 0:
 		return tip
-	if not BotIntent.is_enabled(mask, BotIntent.Kind.DEFEND) or view.top_height(tip) >= t.anchor_min_height_m:
+	if not BotIntent.is_enabled(mask, BotIntent.Kind.DEFEND) or view.top_height(tip) >= t.anchor_min_height_for(view.mode):
 		return NONE
 	var tip_centre: Vector2 = Vector2(view.cx[tip], view.cz[tip])
 	for j: int in range(view.circle_count()):
