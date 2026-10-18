@@ -71,7 +71,6 @@
    "net/SnowNet.gd:set_providers",
    "net/WeatherNet.gd:set_providers",
    "ui/components/UiChipToggle.gd:set_available",
-   "ui/components/UiText.gd:set_face",
    "ui/components/UiTitleRow.gd:add_trailing",
    "ui/theme/UiScale.gd:base_size",
    "ui/theme/UiScale.gd:factor",

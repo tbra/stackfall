@@ -2,12 +2,12 @@ class_name LobbySeatVariants
 extends RefCounted
 ## The lobby players row's switchable looks. One shared LobbySeatRow
 ## builds every look for BOTH the vs-bots and the hosted lobby; the panel arranges the rows
-## (flat list, team groups, a two-column card grid). Only CLASSIC ships: the others are chosen
+## (flat list, a zebra table with a header, a tile grid, team lanes side by side). Only CLASSIC ships: the others are chosen
 ## from the debug-only "Row style" dropdown at the top of the Players panel (DebugMode on).
 
-enum Style { CLASSIC, SLOT, GROUPED, CARDS }
+enum Style { CLASSIC, TILES, TABLE, BOARD }
 
-const NAMES: Array[String] = ["Classic row", "Slot (state right)", "Team groups", "Seat cards"]
+const NAMES: Array[String] = ["Classic row", "Roster tiles", "Table", "Versus board"]
 
 ## The look chosen this session (the dropdown writes it; a panel rebuilt on re-entering the lobby keeps it).
 # DECISION: a static session value, not a saved setting: the switch is a

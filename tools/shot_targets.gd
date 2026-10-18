@@ -7,7 +7,7 @@ extends RefCounted
 ##   main_menu              the main menu home page.
 ##   menu     page=<name>   a main-menu page by PAGE_* name (home, join, debug ...) or `host_dialog`.
 ##   options  tab=<name>    the Options menu from the main menu; tab = a *TabButton name (audio, video ...).
-##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|slot|groups|cards, advanced=1
+##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|tiles|table|board, advanced=1
 ##   sandbox  preset=default|gift_demo|tower_topple|tutorial
 ##   match    mode=<name>, bots=B, seats=N, watch=1 (all-bot spectator match), follow=<bot index>,
 ##            difficulty=easy|normal|hard|mixed
@@ -29,7 +29,7 @@ const TARGETS: PackedStringArray = [
 const LOBBY_BOTS: String = "bots"
 const LOBBY_HOSTED: String = "hosted"
 const PRESETS: PackedStringArray = ["default", "gift_demo", "tower_topple", "tutorial"]
-const STYLES: PackedStringArray = ["classic", "slot", "groups", "cards"]
+const STYLES: PackedStringArray = ["classic", "tiles", "table", "board"]
 ## Overlay key -> Input Map action that toggles it.
 const OVERLAY_ACTIONS: Dictionary = {
 	"f1": &"perf_overlay_toggle",

@@ -1,22 +1,22 @@
 {
  "R1": {
-  "ui/lobby/Lobby.gd": 8,
-  "ui/lobby/Lobby.tscn": 6
+  "ui/lobby/Lobby.gd": 6,
+  "ui/lobby/Lobby.tscn": 4
  },
  "R2": {
-  "ui/menus/GraphicsSettingsTab.gd": 1,
   "ui/hud/HUD.gd": 32,
-  "ui/menus/KeyRebindRow.gd": 8,
-  "ui/menus/LoadingScreen.gd": 11,
-  "ui/lobby/Lobby.gd": 6,
   "ui/hud/Minimap.gd": 1,
-  "ui/menus/OptionsMenu.gd": 7,
-  "ui/menus/ScoreTable.gd": 10,
   "ui/hud/ScoreboardOverlay.gd": 7,
-  "ui/menus/Tutorial.gd": 6,
+  "ui/lobby/Lobby.gd": 6,
   "ui/lobby/LobbyOpenSeatRow.gd": 4,
   "ui/lobby/LobbyPlayersPanel.gd": 3,
-  "ui/lobby/LobbySeatRow.gd": 5
+  "ui/lobby/LobbySeatRow.gd": 4,
+  "ui/menus/GraphicsSettingsTab.gd": 1,
+  "ui/menus/KeyRebindRow.gd": 8,
+  "ui/menus/LoadingScreen.gd": 11,
+  "ui/menus/OptionsMenu.gd": 7,
+  "ui/menus/ScoreTable.gd": 10,
+  "ui/menus/Tutorial.gd": 6
  },
  "R3": {
   "ui/lobby/Lobby.gd": 1
