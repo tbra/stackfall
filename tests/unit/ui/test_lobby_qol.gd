@@ -141,8 +141,7 @@ func test_start_requested_config_carries_the_toggles() -> void:
 func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var section: UiSection = lobby.get_node("%ExperimentsSection") as UiSection
-	section.advanced_button.button_pressed = true
-	assert_true(section.advanced.visible, "the chip of the Experiments section opens its checks")
+	assert_null(section.advanced_button, "the Experiments checks sit directly in the section")
 	for unique_name: String in CHECK_NAMES:
 		var check: UiChipToggle = _check(lobby, unique_name)
 		assert_true(check.is_visible_in_tree(), "%s is visible once the section is open" % unique_name)
@@ -150,7 +149,7 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 		assert_ne(check.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
 		assert_ne(check.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
 	# Forward order: the chip -> the four experiments (in order) -> the next stop.
-	var current: Control = section.advanced_button
+	var current: Control = lobby.get_node("%ExperimentsCheck") as Control
 	for unique_name: String in CHECK_NAMES:
 		current = current.get_node(current.focus_neighbor_bottom) as Control
 		assert_eq(current, _check(lobby, unique_name), "next stop after the previous one is %s" % unique_name)
@@ -158,5 +157,5 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 	assert_false(CHECK_NAMES.has("%" + String(after.name)), "the loop leaves the experiments after the last one")
 	# Backward order mirrors it.
 	var first: UiChipToggle = _check(lobby, CHECK_NAMES[0])
-	assert_eq(first.get_node(first.focus_neighbor_top), section.advanced_button)
+	assert_eq(first.get_node(first.focus_neighbor_top), lobby.get_node("%ExperimentsCheck"))
 	assert_eq(after.get_node(after.focus_neighbor_top), _check(lobby, CHECK_NAMES[3]))

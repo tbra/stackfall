@@ -69,7 +69,7 @@ func _walk_with_pad(lobby: Lobby) -> Array[Control]:
 	return seen
 
 
-func test_gifts_off_hides_frequency_and_advanced_and_focus_skips_them() -> void:
+func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(2)
 	var freq: Control = lobby.get_node("%SpecialFreqMeter")
@@ -83,8 +83,11 @@ func test_gifts_off_hides_frequency_and_advanced_and_focus_skips_them() -> void:
 
 	(lobby.get_node("%GiftsCheck") as UiToggle).button_pressed = false
 	await wait_frames(2)
-	assert_false(freq.is_visible_in_tree(), "gifts off: Frequency hidden")
-	assert_false(section.advanced_button.visible, "gifts off: Advanced bar hidden")
+	assert_true(freq.is_visible_in_tree(), "gifts off: Frequency stays visible")
+	assert_false((freq as UiSegmentMeter).editable, "gifts off: Frequency is read-only")
+	assert_eq(freq.focus_mode, Control.FOCUS_NONE)
+	assert_true(section.advanced_button.visible, "gifts off: Advanced bar stays visible")
+	assert_true(section.advanced_button.disabled, "gifts off: Advanced bar disabled")
 	assert_false(section.advanced.visible, "gifts off: Advanced block closed")
 	var stops: Array[Control] = _stops(lobby)
 	assert_false(stops.has(freq) or stops.has(section.advanced_button) or stops.has(chips[0]), "no hidden stop in the chain")
@@ -94,8 +97,8 @@ func test_gifts_off_hides_frequency_and_advanced_and_focus_skips_them() -> void:
 
 	(lobby.get_node("%GiftsCheck") as UiToggle).button_pressed = true
 	await wait_frames(2)
-	assert_true(freq.is_visible_in_tree(), "gifts on again: Frequency restored")
-	assert_true(section.advanced_button.visible, "Advanced bar restored")
+	assert_true((freq as UiSegmentMeter).editable, "gifts on again: Frequency editable")
+	assert_false(section.advanced_button.disabled, "Advanced bar enabled again")
 	assert_true(_stops(lobby).has(freq) and _stops(lobby).has(section.advanced_button))
 
 
@@ -105,9 +108,8 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	var check: UiToggle = lobby.get_node("%ExperimentsCheck")
 	var section: UiSection = lobby.get_node("%ExperimentsSection")
 	assert_true(check.button_pressed, "default ON: current behaviour unchanged")
-	assert_true(section.advanced_button.visible)
+	assert_null(section.advanced_button, "experiments have no Advanced sub-section")
 	assert_true(lobby._config_from_controls().experiments_enabled)
-	section.set_advanced_open(true)
 	await wait_frames(1)
 	var chip: UiChipToggle = lobby._qol_checks[0]
 	assert_true(_stops(lobby).has(chip))
@@ -117,11 +119,10 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	_action_press(&"ui_accept")
 	await wait_frames(2)
 	assert_false(check.button_pressed, "ui_accept switched it off")
-	assert_false(section.advanced_button.visible)
-	assert_false(section.advanced.visible)
-	assert_false(_stops(lobby).has(chip) or _stops(lobby).has(section.advanced_button))
+	assert_false(chip.is_visible_in_tree(), "experiments off: options hidden")
+	assert_false(_stops(lobby).has(chip))
 	var walked: Array[Control] = await _walk_with_pad(lobby)
-	assert_false(walked.has(chip) or walked.has(section.advanced_button), "pad focus skips the hidden Advanced")
+	assert_false(walked.has(chip), "pad focus skips the hidden options")
 	assert_true(walked.has(check), "the master switch stays a stop")
 	assert_false(lobby._config_from_controls().experiments_enabled)
 
@@ -129,8 +130,8 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	_pad_press(JOY_BUTTON_A)
 	await wait_frames(2)
 	assert_true(check.button_pressed, "pad A switched it back on")
-	assert_true(section.advanced_button.visible)
-	assert_true(_stops(lobby).has(section.advanced_button))
+	assert_true(chip.is_visible_in_tree())
+	assert_true(_stops(lobby).has(chip))
 
 
 func _any_toggle_on(qol: QolExperiments) -> bool:
@@ -200,7 +201,7 @@ func test_over_enet_the_experiments_switch_replicates_and_a_client_cannot_change
 	var mirrored: UiToggle = client_lobby.get_node("%ExperimentsCheck") as UiToggle
 	assert_true(await _wait_for(func() -> bool: return not mirrored.button_pressed), "the client lobby mirrors it")
 	assert_true(mirrored.disabled, "a client cannot change it")
-	assert_false((client_lobby.get_node("%ExperimentsSection") as UiSection).advanced_button.visible, "and its Advanced is hidden too")
+	assert_false((client_lobby.get_node("%QolBacklogCheck") as Control).is_visible_in_tree(), "and its options are hidden too")
 
 	# A client edit never publishes and the host keeps its value.
 	mirrored.button_pressed = true
