@@ -42,6 +42,14 @@ static func special(special_id: StringName) -> String:
 	return SpecialDef.name_from_id(special_id)
 
 
+## BlockShape.display_name for a known shape id; an unknown id is its capitalised id.
+static func shape(shape_id: StringName) -> String:
+	for candidate: BlockShape in BlockShape.load_all_shapes():
+		if candidate.id == shape_id:
+			return candidate.get_display_name()
+	return String(shape_id).capitalize()
+
+
 static func _pick(table: PackedStringArray, index: int) -> String:
 	if index >= 0 and index < table.size():
 		return table[index]

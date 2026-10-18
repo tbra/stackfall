@@ -7,6 +7,9 @@ extends Resource
 ## Unique identifier, e.g. &"cube", &"bar3".
 @export var id: StringName = &""
 
+## Player-facing name, e.g. "Long bar". Read it through DisplayNames.shape().
+@export var display_name: String = ""
+
 ## Integer cube offsets from the shape's local origin. No two cells may repeat.
 @export var cells: Array[Vector3i] = []
 
@@ -28,6 +31,13 @@ extends Resource
 ## Optional custom mesh; when null the factory generates one from `cells` and
 ## `sloped_cells`.
 @export var mesh: Mesh = null
+
+## The name shown to players: `display_name`, else the id with spaces and capitals.
+func get_display_name() -> String:
+	if display_name != "":
+		return display_name
+	return String(id).capitalize()
+
 
 ## Directory scanned by load_all_shapes() for every BlockShape .tres resource.
 const SHAPES_DIR: String = "res://config/blocks/"

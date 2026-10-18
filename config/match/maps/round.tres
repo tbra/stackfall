@@ -5,6 +5,8 @@
 [resource]
 script = ExtResource("1_map")
 id = &"round_medium"
+display_name = "Round field"
+blurb = "A flat round disc with the flags near the edge."
 field_radius = 45.0
 disk_height = 0.2
 cell_size = 1.0

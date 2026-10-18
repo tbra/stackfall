@@ -14,6 +14,9 @@ const TERRITORY_RES_MEDIUM: int = 384
 const BASE_PATH: String = "res://config/match/maps/round.tres"
 
 @export var id: StringName = &"round_medium"
+## Player-facing map name and a one-line description. Read them through DisplayNames.
+@export var display_name: String = ""
+@export var blurb: String = ""
 @export var field_radius: float = RADIUS_MEDIUM
 
 ## Thickness of the disk. Field builds its collision and mesh from this.
