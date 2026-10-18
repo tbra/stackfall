@@ -225,7 +225,7 @@ func reset_height_record() -> void:
 func _populate_block_picker() -> void:
 	_block_picker.clear()
 	for shape: BlockShape in BlockShape.load_bag_shapes():
-		_block_picker.add_item(String(shape.id))
+		_block_picker.add_item(DisplayNames.shape(shape.id))
 		_block_picker.set_item_metadata(_block_picker.item_count - 1, shape.id)
 
 

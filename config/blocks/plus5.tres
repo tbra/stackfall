@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_shape")
 id = &"plus5"
+display_name = "Plus"
 cells = Array[Vector3i]([Vector3i(1, 0, 0), Vector3i(0, 0, 1), Vector3i(1, 0, 1), Vector3i(2, 0, 1), Vector3i(1, 0, 2)])
 weight = 0.6
 sloped_cells = Array[Vector3i]([])

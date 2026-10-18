@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_shape")
 id = &"cube"
+display_name = "Cube"
 cells = Array[Vector3i]([Vector3i(0, 0, 0)])
 weight = 1.0
 sloped_cells = Array[Vector3i]([])
