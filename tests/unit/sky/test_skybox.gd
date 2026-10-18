@@ -311,3 +311,69 @@ func test_storm_request_between_ticks_recaptures_an_update_once_probe() -> void:
 	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
 	skybox.flush_weather()
 	assert_ne(probe.position.y, before, "the probe was nudged to re-capture the stormed sky")
+
+
+func _make_probe_skybox() -> Array:
+	var environment: Environment = Environment.new()
+	environment.sky = Sky.new()
+	environment.sky.sky_material = ProceduralSkyMaterial.new()
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.environment = environment
+	skybox.theme = SkyThemeDef.new()
+	var probe: ReflectionProbe = ReflectionProbe.new()
+	probe.name = "Probe"
+	skybox.add_child(probe)
+	skybox.reflection_probe_path = NodePath("Probe")
+	add_child_autofree(skybox)
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	skybox.set_locked_phase(0.25)
+	skybox.flush_weather()
+	probe.visible = true
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	return [skybox, probe]
+
+
+func test_storm_fade_retriggers_the_probe_at_most_once_per_radiance_interval() -> void:
+	var made: Array = _make_probe_skybox()
+	var skybox: Skybox = made[0] as Skybox
+	var probe: ReflectionProbe = made[1] as ReflectionProbe
+	var storm: SkyThemeDef = Skybox.load_theme("storm")
+	var frames: int = 60
+	var delta: float = 1.0 / 60.0
+	var retriggers: int = 0
+	var last_y: float = probe.position.y
+	for frame: int in frames:
+		skybox.set_storm_sky(float(frame + 1) / float(frames), storm)
+		skybox._process(delta)
+		if not is_equal_approx(probe.position.y, last_y):
+			retriggers += 1
+			last_y = probe.position.y
+	var fade_s: float = float(frames) * delta
+	var limit: int = ceili(fade_s * skybox.radiance_config.radiance_hz) + 1
+	assert_gt(retriggers, 0, "the fade re-captured the probe")
+	assert_lte(retriggers, limit, "bounded by the radiance cadence")
+	# Settled: one trailing capture within an interval, then none.
+	var settled: int = 0
+	for frame: int in frames:
+		skybox._process(delta)
+		if not is_equal_approx(probe.position.y, last_y):
+			settled += 1
+			last_y = probe.position.y
+	assert_lte(settled, 1, "at most one settle capture")
+	var stable: float = probe.position.y
+	skybox._process(delta)
+	assert_eq(probe.position.y, stable, "no further retriggers once settled")
+
+
+func test_set_storm_sky_without_overlay_is_a_no_op() -> void:
+	var skybox: Skybox = _make_probe_skybox()[0] as Skybox
+	skybox.set_storm_sky(0.0, null)
+	skybox.flush_weather()
+	var runs: int = skybox.storm_runs
+	skybox.set_storm_sky(0.7, null)
+	skybox.set_storm_sky(0.7, null)
+	skybox.flush_weather()
+	assert_eq(skybox.storm_runs, runs, "a stormless request with no overlay marks nothing dirty")

@@ -87,6 +87,10 @@ var _preset: GraphicsPreset = null
 var _flare_stormed: bool = false
 var _env_bound: bool = false
 var _storm_exposure_scale: float = 1.0
+## The probe holds a capture older than the last storm move; `_probe_wait_s` is the time since its
+## last storm retrigger (starts due, so the first storm move re-captures at once).
+var _probe_stale: bool = false
+var _probe_wait_s: float = INF
 
 var _dome: SkyDomeWriter = SkyDomeWriter.new()
 ## The day theme whose static look (view offsets, overhead/cards layers) the dome material carries.
@@ -177,6 +181,20 @@ func _process(delta: float) -> void:
 	if radiance_due and _clock.is_active() and _clock.locked_phase() < 0.0:
 		_advance_cycle(_shared_clock_s())
 	flush_weather()
+	_probe_wait_s += delta
+	_service_storm_probe()
+
+
+## Re-captures the probe for a storm move at most once per radiance interval; the pending
+## capture lands within one interval after the storm settles.
+func _service_storm_probe() -> void:
+	if not _probe_stale:
+		return
+	if _probe_wait_s < 1.0 / maxf(radiance_config.radiance_hz, SkyReflections.MIN_RADIANCE_HZ):
+		return
+	_probe_stale = false
+	_probe_wait_s = 0.0
+	_reflections.retrigger_probe()
 
 
 ## The one place the shared match clock is read. DECISION: kept as the facade's existing
@@ -433,7 +451,8 @@ func _write_frame(tick_ran: bool, storm_ran: bool) -> void:
 	if storm_ran and not tick_ran:
 		# A storm request moved the sky between ticks: an UPDATE_ONCE probe would keep the sky it
 		# captured earlier (the disc reflects it), so re-capture it now.
-		_reflections.retrigger_probe()
+		_probe_stale = true
+		_service_storm_probe()
 	_push_flares(tick_ran, storm_ran)
 	if tick_ran:
 		_life.update_night(sky_def, _out_frame.night, _preset, _disc_radius_for_ambient_life())
@@ -561,9 +580,10 @@ func _step_cloud_drift(delta: float) -> void:
 func set_storm_sky(amount: float, storm_theme: SkyThemeDef) -> void:
 	var clamped: float = clampf(amount, 0.0, 1.0)
 	var overlay: SkyOverlayDef = _overlay_for(storm_theme)
-	if is_equal_approx(clamped, _weather.storm_amount) and overlay == _weather.storm_overlay:
+	var target: float = clamped if overlay != null else 0.0
+	if is_equal_approx(target, _weather.storm_amount) and overlay == _weather.storm_overlay:
 		return
-	_weather.storm_amount = clamped if overlay != null else 0.0
+	_weather.storm_amount = target
 	_weather.storm_overlay = overlay
 	_storm_exposure_scale = _overcast_exposure_now()
 	_dirty_b = true
