@@ -18,10 +18,6 @@ uniform float radiance_tick = 0.0;
 
 
 uniform float exposure = 0.8;
-// sky_yaw/pitch_offset_deg are kept only because game/sky/Skybox.gd, CloudSea
-// and the theme resources still write them; this shader does not sample with them.
-uniform float sky_yaw_offset_deg = 0.0;
-uniform float sky_pitch_offset_deg = 0.0;
 
 // A warm sun glow/halo and crepuscular god-ray beams, drawn as part of the sky
 // pass itself: this runs behind every opaque object (the disc, blocks, beacons)
@@ -89,11 +85,8 @@ uniform vec4 sun_ray_color : source_color = vec4(1.0, 0.72, 0.38, 1.0);
 uniform float sun_core_angular_radius_deg = 1.6;
 uniform float sun_halo_angular_radius_deg = 9.0;
 uniform float sun_halo_softness_deg = 10.0;
-// DECISION: the procedural sun core and halo default to off so the sky shows a single sun
-// (SunFlare adds only a screen-space sparkle at sun_direction); a theme opts in by overriding
-// these two. The ray_* god-ray beams below are separate and stay on.
-uniform float sun_core_intensity = 0.0;
-uniform float sun_halo_intensity = 0.0;
+// The sky shows a single sun (SunFlare adds only a screen-space sparkle at sun_direction), so
+// there is no additive procedural core/halo term; the ray_* god-ray beams below stay on.
 // Long, soft god-ray beams fanning out from the sun. Two overlaid ray
 // layers (many thin + a few wide) rather than one uniform comb.
 uniform float ray_count = 14.0;
@@ -108,7 +101,7 @@ uniform float ray_shimmer_speed = 0.15;
 uniform float ray_shimmer_amount = 0.08;
 // share of the sun glow and god rays that survives weather and
 // night (game/sky/Skybox.gd via CloudLighting.sun_effect_scale); 1 = clear daylight.
-// EVERY additive sun term below (core, halo, god rays) multiplies it, and
+// EVERY additive sun term below (god rays) multiplies it, and
 // it is exactly 0 at full storm where the procedural sun glow is also 0, so the rays can
 // never outlive a hidden sun. A new sun term must multiply it too.
 uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
@@ -119,22 +112,7 @@ uniform float sun_effect_scale : hint_range(0.0, 1.0) = 1.0;
 // in the radiance (reflection) pass.
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 
-uniform float cloud_layer_opacity = 0.8;
-uniform float cloud_layer_scale = 1.1;
-uniform float cloud_horizon_lift = 0.5;
-uniform float cloud_fade_start = 0.25;
-uniform float cloud_fade_height = 0.6;
-uniform vec2 cloud_wind = vec2(1.0, 0.35);
-uniform float cloud_wind_speed = 0.004;
-uniform float cloud_coverage = 0.68;
-uniform float cloud_edge_softness = 0.03;
-uniform float cloud_warp_amount = 0.12;
-uniform float cloud_bands = 4.0;
 uniform float cloud_cel_edge = 0.08;
-uniform float cloud_light_probe = 0.05;
-uniform float cloud_light_contrast = 6.0;
-uniform float cloud_rim_width = 0.15;
-uniform float cloud_sun_clear_deg = 12.0;
 uniform vec3 cloud_shadow_color : source_color = vec3(0.34, 0.27, 0.47);
 uniform vec3 cloud_mid_color : source_color = vec3(0.86, 0.55, 0.52);
 uniform vec3 cloud_lit_color : source_color = vec3(1.0, 0.82, 0.52);
@@ -152,7 +130,6 @@ uniform float proc_sun_glow_strength = 1.0;
 uniform vec4 proc_sea_color_near : source_color = vec4(0.85, 0.5, 0.42, 1.0);
 uniform vec4 proc_sea_color_far : source_color = vec4(0.34, 0.27, 0.47, 1.0);
 uniform float proc_sea_horizon_fade = 0.12;
-uniform float proc_strata_scale = 1.0;
 // Shader-only look tuning (set per theme on the material).
 uniform float proc_gradient_bands = 8.0;
 uniform float proc_gradient_band_edge = 0.12;
@@ -161,8 +138,7 @@ uniform float proc_sun_halo_bands = 4.0;
 uniform float proc_sun_halo_strength = 0.6;
 uniform float proc_horizon_glow_strength = 0.45;
 uniform float proc_horizon_glow_sun_bias = 3.0;
-// Shader-only look tuning: far cloud sea (below horizon) and the second
-// upper-strata layer. sea_params: x far-stratum scale, y near-stratum scale,
+// Shader-only look tuning: far cloud sea (below horizon). sea_params: x far-stratum scale, y near-stratum scale,
 // z drift speed, w cel bands. sea_heights: x far, y near stratum plane height.
 uniform vec4 proc_sea_params = vec4(0.5, 0.9, 0.004, 4.0);
 uniform vec2 proc_sea_heights = vec2(1.0, 0.6);
@@ -170,39 +146,6 @@ uniform vec2 proc_sea_wind = vec2(1.0, 0.35);
 uniform float proc_sea_coverage = 0.5;
 uniform float proc_sea_softness = 0.06;
 uniform float proc_sea_band_edge = 0.08;
-uniform float proc_strata_opacity = 0.8;
-uniform float proc_strata2_opacity = 0.55;
-uniform float proc_strata2_scale = 0.7;
-uniform vec2 proc_strata2_stretch = vec2(2.2, 1.0);
-uniform vec2 proc_strata2_wind = vec2(-0.6, 0.2);
-uniform float proc_strata2_lift = 0.9;
-uniform float proc_strata2_coverage = 0.6;
-uniform float proc_strata2_bands = 3.0;
-uniform float proc_strata2_fade_start = 0.08;
-uniform float proc_strata2_fade_height = 0.4;
-// Upper-cloud shape: x warp, y bank-mask weight, z sun probe, w light contrast.
-uniform vec4 proc_upper_shape = vec4(0.15, 0.3, 0.04, 6.0);
-uniform float proc_upper_rot2 = 0.6;
-// authored cloud-card layers replace the noise overhead layers
-// when proc_cards_mix > 0. proc_cards_layout*: x plane scale, y horizon lift,
-// z density, w card half-size in cells. proc_cards_light: x openness floor,
-// y skylight up-bias, z rim power, w rim strength. proc_cards_wind: layer 1 xy, layer 2 zw.
-uniform sampler2D cloud_cards : filter_linear_mipmap, repeat_disable;
-// master switch for both procedural overhead layers (cards and noise strata).
-uniform float proc_overhead_mix = 1.0;
-uniform float proc_cards_mix = 0.0;
-uniform float proc_cards_opacity = 0.95;
-uniform vec4 proc_cards_layout = vec4(1.5, 0.35, 0.85, 0.9);
-uniform vec4 proc_cards_layout2 = vec4(2.6, 0.6, 0.7, 0.8);
-uniform vec4 proc_cards_light = vec4(0.3, 0.35, 2.0, 2.5);
-uniform vec4 proc_cards_wind = vec4(0.004, 0.0015, -0.003, 0.001);
-uniform float proc_cards_bands = 4.0;
-uniform float proc_cards_contrast = 1.8;
-uniform float proc_cards_fade_start = 0.03;
-uniform float proc_cards_fade_height = 0.25;
-// Plane-coordinate multipliers for the two upper layers (higher = smaller cumulus).
-uniform float proc_upper_coverage_shift = 0.1;
-uniform vec2 proc_upper_scale = vec2(3.6, 2.6);
 
 void sky() {
 	vec3 eyedir = normalize(EYEDIR);
@@ -243,36 +186,6 @@ void sky() {
 		COLOR = mix(COLOR, pcol * exposure, clamp(procedural_sea_mix, 0.0, 1.0));
 	}
 
-	// Procedural upper clouds: two isotropic broken-cumulus
-	// layers on rotated high planes (see cloud_common procedural_upper_clouds),
-	// background pass only.
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix > 0.0 && proc_overhead_mix > 0.0) {
-		float cmix = clamp(procedural_sea_mix, 0.0, 1.0) * clamp(proc_cards_mix, 0.0, 1.0);
-		float csun = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg * 0.5, angle_deg);
-		float cfade = smoothstep(proc_cards_fade_start, proc_cards_fade_height, eyedir.y) * csun * proc_cards_opacity * cmix;
-		vec4 k2 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, sky_time, proc_cards_layout2, 17.0, proc_cards_wind.zw,
-			proc_cards_bands, cloud_cel_edge, proc_cards_light, proc_cards_contrast, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
-		COLOR = mix(COLOR, k2.rgb * exposure, k2.a * cfade);
-		vec4 k1 = sky_cloud_cards(cloud_cards, eyedir, sun_dir, sky_time, proc_cards_layout, 0.0, proc_cards_wind.xy,
-			proc_cards_bands, cloud_cel_edge, proc_cards_light, proc_cards_contrast, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
-		COLOR = mix(COLOR, k1.rgb * exposure, k1.a * cfade);
-	}
-	if (!AT_CUBEMAP_PASS && eyedir.y > 0.0 && procedural_sea_mix > 0.0 && proc_cards_mix <= 0.0 && proc_overhead_mix > 0.0) {
-		vec2 to_sun_xz = normalize(sun_dir.xz + vec2(0.0001));
-		float sun_clear = smoothstep(sun_core_angular_radius_deg, cloud_sun_clear_deg, angle_deg);
-		float mixv = clamp(procedural_sea_mix, 0.0, 1.0);
-		vec4 u1 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, sky_time, cloud_layer_scale * proc_strata_scale * proc_upper_scale.x,
-			cloud_horizon_lift, 0.0, cloud_wind, cloud_wind_speed, cloud_coverage - proc_upper_coverage_shift, cloud_edge_softness, cloud_bands,
-			cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color, cloud_rim_color);
-		COLOR = mix(COLOR, u1.rgb * exposure, u1.a * proc_strata_opacity * mixv
-			* smoothstep(cloud_fade_start, cloud_fade_height, eyedir.y) * sun_clear);
-		vec4 u2 = procedural_upper_clouds(noise_tex, eyedir, to_sun_xz, sky_time, proc_strata2_scale * proc_upper_scale.y, proc_strata2_lift,
-			proc_upper_rot2, proc_strata2_wind, cloud_wind_speed * 1.8, proc_strata2_coverage - proc_upper_coverage_shift * 0.5, cloud_edge_softness,
-			proc_strata2_bands, cloud_cel_edge, proc_upper_shape, cloud_shadow_color, cloud_mid_color, cloud_lit_color,
-			cloud_rim_color);
-		COLOR = mix(COLOR, u2.rgb * exposure, u2.a * proc_strata2_opacity * mixv
-			* smoothstep(proc_strata2_fade_start, proc_strata2_fade_height, eyedir.y) * sun_clear);
-	}
 	if (cycle_night_mix > 0.0) {
 		vec3 night = mix(cycle_night_horizon, cycle_night_zenith, pow(max(eyedir.y, 0.0), 0.55));
 		night = mix(night, cycle_night_below, smoothstep(0.0, 0.35, -eyedir.y));
@@ -306,12 +219,6 @@ void sky() {
 		}
 	}
 
-	// Bright core + soft halo, both angular falloffs around the sun direction.
-	float core = 1.0 - smoothstep(0.0, sun_core_angular_radius_deg, angle_deg);
-	float halo = 1.0 - smoothstep(sun_halo_angular_radius_deg - sun_halo_softness_deg, sun_halo_angular_radius_deg, angle_deg);
-	halo = clamp(halo, 0.0, 1.0);
-	COLOR += sun_core_color.rgb * core * sun_core_intensity * sun_effect_scale;
-	COLOR += sun_halo_color.rgb * halo * sun_halo_intensity * sun_effect_scale;
 
 	// God rays: an angular position around the sun axis (tangent/bitangent
 	// basis), two overlaid ray-comb frequencies, faded out by angular

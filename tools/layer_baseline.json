@@ -437,6 +437,7 @@
   "game/sky/CloudShadows.gd",
   "game/sky/Skybox.gd",
   "game/sky/Skybox.tscn",
+  "game/sky/SunCloudCover.gd",
   "game/sky/SunFlare.gd",
   "game/weather/CloudCeiling.gd",
   "game/weather/RainPresentation.gd",

@@ -157,7 +157,7 @@ func test_golden_fixture_is_well_formed() -> void:
 	for entry: Dictionary in dome.shader.get_shader_uniform_list():
 		declared.append(str(entry["name"]))
 	for uniform_name: String in retired:
-		assert_true(uniform_name in declared, "%s is a real sky uniform today" % uniform_name)
+		assert_false(uniform_name in declared, "%s is retired from the sky shader" % uniform_name)
 	for key: String in ["sky", "puff", "env", "light", "fog_volume", "lighting", "flare", "life_is_night", "globals", "facade"]:
 		assert_true((states["L_0.25"] as Dictionary).has(key), "state group %s" % key)
 	var aurora: Dictionary = (states["W_match_night_aurora_seed"] as Dictionary)["sky"] as Dictionary
