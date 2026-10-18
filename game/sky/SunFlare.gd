@@ -67,10 +67,7 @@ var _current_visibility: float = 0.0
 var _enabled: bool = true
 ## the cloud puffs' share of hiding the sun (0..1) from the last CloudSea
 ## query, the seconds since that query, and the CloudSea it came from (found by group).
-var _cloud_block: float = 0.0
-var _cloud_age_s: float = 0.0
-var _cloud_queried: bool = false
-var _cloud_sea: CloudSea = null
+var _cover: SunCloudCover = SunCloudCover.new(_find_cloud_sea, true)
 ## the active SkyThemeDef's sun_flare_enabled (Skybox.apply_theme()
 ## pushes it through set_theme_enabled(); night turns the sunset-aimed flare off).
 var _theme_enabled: bool = true
@@ -172,7 +169,7 @@ func _process(delta: float) -> void:
 		_rect.visible = false
 		return
 	_rect.visible = true
-	_cloud_age_s += delta
+	_cover.advance(delta)
 
 	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
 	var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
@@ -312,16 +309,9 @@ func _occlusion_factor(direction: Vector3) -> float:
 func _cloud_block_factor(direction: Vector3) -> float:
 	if config.cloud_occlusion_strength <= 0.0:
 		return 0.0
-	if not _cloud_queried or _cloud_age_s >= config.cloud_occlusion_refresh_s:
-		_cloud_age_s = 0.0
-		_cloud_queried = true
-		_cloud_block = _query_cloud_block(direction)
-	return _cloud_block * config.cloud_occlusion_strength
+	var block: float = _cover.query(_camera.global_position, direction, config, config.cloud_occlusion_refresh_s)
+	return block * config.cloud_occlusion_strength
 
 
-func _query_cloud_block(direction: Vector3) -> float:
-	if _cloud_sea == null or not is_instance_valid(_cloud_sea):
-		_cloud_sea = get_tree().get_first_node_in_group(CloudSea.GROUP) as CloudSea
-	if _cloud_sea == null:
-		return 0.0
-	return _cloud_sea.sun_ray_cloud_occlusion(_camera.global_position, direction, config)
+func _find_cloud_sea() -> CloudSea:
+	return get_tree().get_first_node_in_group(CloudSea.GROUP) as CloudSea
