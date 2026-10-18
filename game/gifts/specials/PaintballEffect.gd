@@ -32,6 +32,18 @@ extends SpecialEffect
 ## aim, the same way the Rocket does with its nose.
 @export var model_nose_axis: Vector3 = Vector3(0.0, 0.0, 1.0)
 
+## Name of the glob node in the gift model (paintball.glb 'Blob pivot'): the only part that flies.
+@export var glob_node_name: StringName = &"Blob pivot"
+
+## Model clip played on the slingshot copy left at the launch point (band snaps forward).
+@export var release_animation: StringName = &"fire_500ms"
+
+## Seconds the slingshot copy stays after its release clip before it fades.
+@export_range(0.0, 5.0, 0.05) var sling_hold_s: float = 0.15
+
+## Seconds the slingshot copy takes to shrink and fade out.
+@export_range(0.0, 5.0, 0.05) var sling_fade_s: float = 0.35
+
 ## Smallest direction length treated as a direction at all.
 const MIN_DIRECTION_LENGTH: float = 0.001
 
