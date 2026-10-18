@@ -41,40 +41,40 @@ class Flight:
 
 ## Number of birds in a flock: 1 with `bird_single_chance`, else uniformly
 ## bird_flock_size_min..max.
-static func pick_flock_size(theme: SkyThemeDef, rng: RandomNumberGenerator) -> int:
-	if rng.randf() < theme.bird_single_chance:
+static func pick_flock_size(def: SkyCycleDef, rng: RandomNumberGenerator) -> int:
+	if rng.randf() < def.bird_single_chance:
 		return 1
-	var low: int = maxi(theme.bird_flock_size_min, 1)
-	return rng.randi_range(low, maxi(theme.bird_flock_size_max, low))
+	var low: int = maxi(def.bird_flock_size_min, 1)
+	return rng.randi_range(low, maxi(def.bird_flock_size_max, low))
 
 
 ## Plans one flight of `count` birds.
-static func plan(theme: SkyThemeDef, rng: RandomNumberGenerator, count: int) -> Flight:
+static func plan(def: SkyCycleDef, rng: RandomNumberGenerator, count: int) -> Flight:
 	var flight: Flight = Flight.new()
 	var azimuth: float = rng.randf() * TAU
-	var closest: float = rng.randf_range(theme.bird_distance_min_m, maxf(theme.bird_distance_max_m, theme.bird_distance_min_m))
+	var closest: float = rng.randf_range(def.bird_distance_min_m, maxf(def.bird_distance_max_m, def.bird_distance_min_m))
 	var radial: Vector3 = Vector3(cos(azimuth), 0.0, sin(azimuth))
 	var tangent: Vector3 = Vector3(-radial.z, 0.0, radial.x) * (1.0 if rng.randf() < 0.5 else -1.0)
 	var skew: float = deg_to_rad(rng.randf_range(-PATH_SKEW_MAX_DEG, PATH_SKEW_MAX_DEG))
 	var heading: Vector3 = tangent.rotated(Vector3.UP, skew)
-	var path_radius: float = maxf(theme.bird_path_radius_m, closest + 1.0)
+	var path_radius: float = maxf(def.bird_path_radius_m, closest + 1.0)
 	# The closest-approach point stays at `closest` from the axis; the path
 	# extends both ways until it leaves the path ring.
 	var centre: Vector3 = radial * closest
 	var half_length: float = sqrt(maxf(path_radius * path_radius - closest * closest, 1.0))
-	var speed: float = rng.randf_range(theme.bird_speed_min_mps, maxf(theme.bird_speed_max_mps, theme.bird_speed_min_mps))
-	var climb: float = rng.randf_range(-theme.bird_climb_max_mps, theme.bird_climb_max_mps)
-	var altitude: float = rng.randf_range(theme.bird_altitude_min_m, maxf(theme.bird_altitude_max_m, theme.bird_altitude_min_m))
+	var speed: float = rng.randf_range(def.bird_speed_min_mps, maxf(def.bird_speed_max_mps, def.bird_speed_min_mps))
+	var climb: float = rng.randf_range(-def.bird_climb_max_mps, def.bird_climb_max_mps)
+	var altitude: float = rng.randf_range(def.bird_altitude_min_m, maxf(def.bird_altitude_max_m, def.bird_altitude_min_m))
 	flight.duration_s = 2.0 * half_length / speed
 	flight.velocity = heading * speed + Vector3.UP * climb
 	flight.start = centre - heading * half_length
 	flight.start.y = altitude - climb * flight.duration_s * 0.5
-	flight.size_m = rng.randf_range(theme.bird_size_min_m, maxf(theme.bird_size_max_m, theme.bird_size_min_m))
+	flight.size_m = rng.randf_range(def.bird_size_min_m, maxf(def.bird_size_max_m, def.bird_size_min_m))
 	flight.sway_m = rng.randf_range(SWAY_MIN_M, SWAY_MAX_M)
 	flight.phase = rng.randf() * TAU
 	flight.closest_distance_m = closest
-	flight.is_v = count >= 3 and rng.randf() < theme.bird_v_chance
-	flight.offsets = formation(count, theme.bird_spacing_m, flight.is_v, rng)
+	flight.is_v = count >= 3 and rng.randf() < def.bird_v_chance
+	flight.offsets = formation(count, def.bird_spacing_m, flight.is_v, rng)
 	return flight
 
 

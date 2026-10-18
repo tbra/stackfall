@@ -6,14 +6,17 @@ extends GutTest
 const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
 ## Upper bound on a flight's length in 1 s steps; a flock that never lands trips it.
 const MAX_FLIGHT_STEPS: int = 600
+## Tolerance for the pinned values (printed with about 6 significant digits).
+const PIN_TOLERANCE: float = 0.01
 
 
-func _theme() -> SkyThemeDef:
-	return load(SUNSET_PATH) as SkyThemeDef
+func _theme() -> SkyCycleDef:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	return SkyThemeMigration.cycle_from_themes(sunset, sunset, sunset)
 
 
 func test_flock_sizes_are_one_or_within_the_configured_range() -> void:
-	var theme: SkyThemeDef = _theme()
+	var theme: SkyCycleDef = _theme()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 3
 	var singles: int = 0
@@ -27,7 +30,7 @@ func test_flock_sizes_are_one_or_within_the_configured_range() -> void:
 
 
 func test_flight_crosses_the_sky_past_the_disc() -> void:
-	var theme: SkyThemeDef = _theme()
+	var theme: SkyCycleDef = _theme()
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 11
 	for _i: int in range(50):
@@ -63,7 +66,7 @@ func _flocks_fly_during(birds: DistantBirds, seconds: float) -> bool:
 
 
 func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
-	var theme: SkyThemeDef = _theme().duplicate() as SkyThemeDef
+	var theme: SkyCycleDef = _theme()
 	theme.bird_seed = 5
 	theme.bird_first_delay_min_s = 5.0
 	theme.bird_first_delay_max_s = 5.0
@@ -71,7 +74,7 @@ func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	theme.bird_gap_max_s = 100.0
 	var birds: DistantBirds = DistantBirds.new()
 	add_child_autofree(birds)
-	birds.configure(theme, true)
+	birds.configure_cycle(theme, true)
 	assert_false(_flocks_fly_during(birds, 4.0), "quiet before the first delay")
 	assert_true(_flocks_fly_during(birds, 1.5), "flocks launch once the first delay is up")
 	var steps: int = 0
@@ -80,3 +83,33 @@ func test_scheduler_launches_flies_and_goes_quiet_again() -> void:
 	assert_lt(steps, MAX_FLIGHT_STEPS, "every flock lands and the sky goes quiet")
 	assert_false(_flocks_fly_during(birds, 60.0), "still quiet inside the long gap")
 	assert_true(_flocks_fly_during(birds, 60.0), "another flock arrives after the gap")
+
+
+## Literals captured from the pre-cycle planner (SkyThemeDef-based) on the sunset theme.
+func test_plans_reproduce_the_pre_cycle_planner_for_pinned_seeds() -> void:
+	var def: SkyCycleDef = _theme()
+	var pinned: Array[Dictionary] = [
+		{"seed": 3, "count": 5, "start": Vector3(600.456, 43.757484, 139.9849),
+			"velocity": Vector3(-12.688333, -0.036892295, 4.146373), "size": 4.48822832107544},
+		{"seed": 42, "count": 1, "start": Vector3(-594.062, -32.131645, 201.27956),
+			"velocity": Vector3(9.297143, 1.049588, -7.524942), "size": 3.76828408241272},
+	]
+	for entry: Dictionary in pinned:
+		var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+		rng.seed = entry["seed"] as int
+		var count: int = FlockPlanner.pick_flock_size(def, rng)
+		assert_eq(count, entry["count"] as int)
+		var flight: FlockPlanner.Flight = FlockPlanner.plan(def, rng, count)
+		assert_lt(flight.start.distance_to(entry["start"] as Vector3), PIN_TOLERANCE)
+		assert_lt(flight.velocity.distance_to(entry["velocity"] as Vector3), PIN_TOLERANCE)
+		assert_almost_eq(flight.size_m, entry["size"] as float, PIN_TOLERANCE)
+
+
+func test_legacy_configure_matches_configure_cycle() -> void:
+	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
+	var old_birds: DistantBirds = DistantBirds.new()
+	add_child_autofree(old_birds)
+	old_birds.configure(sunset, true)
+	assert_true(old_birds.visible, "the legacy entry point still shows the sunset birds")
+	old_birds.configure(null, true)
+	assert_false(old_birds.visible)
