@@ -1,0 +1,91 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Material" path="res://assets/models/gifts/gift_outline.tres" id="outline"]
+
+[sub_resource type="StandardMaterial3D" id="latex"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.92, 0.36, 0.33, 1.0)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="base"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.055, 0.065, 0.095, 1.0)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="cord"]
+diffuse_mode = 2
+specular_mode = 2
+albedo_color = Color(0.96, 0.92, 0.84, 1.0)
+roughness = 0.78
+next_pass = ExtResource("outline")
+
+[sub_resource type="StandardMaterial3D" id="shine"]
+shading_mode = 0
+albedo_color = Color(1, 1, 1, 1)
+
+[sub_resource type="SphereMesh" id="body"]
+radius = 0.36
+height = 0.72
+radial_segments = 24
+rings = 12
+
+[sub_resource type="SphereMesh" id="knot"]
+radius = 0.05
+height = 0.1
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="spec"]
+radius = 0.06
+height = 0.12
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="cord_mesh"]
+top_radius = 0.012
+bottom_radius = 0.012
+height = 0.38
+radial_segments = 6
+rings = 1
+
+[sub_resource type="CylinderMesh" id="base_mesh"]
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.1
+radial_segments = 12
+rings = 1
+
+[node name="Balloon" type="Node3D"]
+
+[node name="Base" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.42, 0)
+mesh = SubResource("base_mesh")
+surface_material_override/0 = SubResource("base")
+cast_shadow = 0
+
+[node name="String" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.19, 0)
+mesh = SubResource("cord_mesh")
+surface_material_override/0 = SubResource("cord")
+cast_shadow = 0
+
+[node name="Knot" type="MeshInstance3D" parent="."]
+mesh = SubResource("knot")
+surface_material_override/0 = SubResource("latex")
+cast_shadow = 0
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1.18, 0, 0, 0, 1, 0, 0.43, 0)
+mesh = SubResource("body")
+surface_material_override/0 = SubResource("latex")
+cast_shadow = 0
+
+[node name="Highlight" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1.6, 0, 0, 0, 0.5, -0.14, 0.62, 0.28)
+mesh = SubResource("spec")
+surface_material_override/0 = SubResource("shine")
+cast_shadow = 0

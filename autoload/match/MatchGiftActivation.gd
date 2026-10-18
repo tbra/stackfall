@@ -13,7 +13,7 @@ const IN_PLACE_META: StringName = SpecialIds.IN_PLACE_META
 const SEQ_META: StringName = SpecialIds.ACTIVATION_SEQ_META
 ## DECISION: the wire drops net_id < 0, so an anchor-driven special_triggered carries this sentinel instead of -1.
 ## It never exists in BlockRegistry, so GiftFxPresenter resolves a null block (it tolerates one).
-const IN_PLACE_NET_ID: int = 2147483647
+const IN_PLACE_NET_ID: int = SpecialIds.IN_PLACE_NET_ID
 const ANCHOR_FREEZE_REASON: StringName = &"gift_anchor"
 const ANCHOR_NODE_NAME: String = "GiftAnchor"
 
@@ -87,7 +87,7 @@ func clear() -> void:
 
 
 func _on_triggered(def_id: StringName, position: Vector3, chain_depth: int, anchor: Block) -> void:
-	Events.special_triggered.emit(IN_PLACE_NET_ID, def_id, position, chain_depth)
+	Events.special_triggered.emit(SpecialIds.in_place_net_id(anchor.owner_slot), def_id, position, chain_depth)
 	# The action is over when trigger() returns (SpecialBehavior DECISION): free now.
 	_on_completed(anchor)
 

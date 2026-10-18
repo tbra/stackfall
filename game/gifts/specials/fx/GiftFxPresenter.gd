@@ -22,6 +22,10 @@ const EXPLOSION_TUNING: GiftExplosionFxTuning = preload("res://config/gifts/spec
 const FREEZE_TUNING: FreezeFxTuning = preload("res://config/gifts/specials/fx/freeze_fx_tuning.tres")
 
 var _handlers: Dictionary = {}
+## Owner slot of the trigger being dispatched (-1 unknown): the carrier's owner, or for an
+## in-place activation the slot MatchGiftActivation encodes in the net id. For handlers
+## that tint by team (the Propeller balloon).
+var _trigger_slot: int = -1
 
 
 func _ready() -> void:
@@ -101,7 +105,9 @@ func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, _c
 	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
 	if registry != null:
 		block = registry.block_for_net_id(net_id)
+	_trigger_slot = block.owner_slot if block != null else SpecialIds.in_place_slot(net_id)
 	handler.call(block, SpecialDef.find_by_id(def_id), position)
+	_trigger_slot = -1
 
 
 ## Paintball: expanding colour shell tinted by the thrower's slot.
@@ -158,14 +164,14 @@ func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
 	VolcanoStructure.build_client_visual(effect, position, block.owner_slot if block != null else -1)
 
 
-## Propeller: clients draw the stand rising out of the disc at the drop
-## point without a carrier body; the host already has the real stand (build_client_visual
-## returns null there).
+## Propeller: clients draw the party balloon clipped to the disc at the drop point
+## without a carrier body, in the owner's colour; the host already has the real stand
+## (build_client_visual returns null there).
 func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void:
 	var effect: PropellerEffect = def.effect as PropellerEffect if def != null else null
 	if effect == null:
 		return
-	PropellerStand.build_client_visual(effect, position)
+	PropellerStand.build_client_visual(effect, position, _trigger_slot)
 
 
 ## Freeze: an ice-shard burst with a frost ring grown to the freeze radius.

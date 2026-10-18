@@ -12,7 +12,7 @@
 [ext_resource type="PackedScene" path="res://assets/models/gifts/jumping_bean.glb" id="10_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gifts/magnet.glb" id="11_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gifts/paintball.glb" id="12_m"]
-[ext_resource type="PackedScene" path="res://assets/models/gifts/propeller.glb" id="13_m"]
+[ext_resource type="PackedScene" path="res://assets/models/gifts/balloon.tscn" id="13_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gifts/rocket.glb" id="14_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gifts/stackfall.glb" id="15_m"]
 [ext_resource type="PackedScene" path="res://assets/models/gifts/volcano.glb" id="16_m"]
@@ -103,9 +103,8 @@ held_keep_upright = true
 script = ExtResource("2_entry")
 id = &"propeller"
 scene = ExtResource("13_m")
-model_scale = 0.805
-offset = Vector3(-0.0000, -0.0159, -0.0000)
-loop_animation = &"spin_1s"
+model_scale = 1.0
+offset = Vector3(0.0, 0.0, 0.0)
 
 [sub_resource type="Resource" id="Entry_rocket"]
 script = ExtResource("2_entry")
