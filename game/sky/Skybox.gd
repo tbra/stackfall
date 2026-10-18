@@ -89,6 +89,8 @@ var _env_bound: bool = false
 var _storm_exposure_scale: float = 1.0
 
 var _dome: SkyDomeWriter = SkyDomeWriter.new()
+## The day theme whose static look (view offsets, overhead/cards layers) the dome material carries.
+var _look_theme: SkyThemeDef = null
 var _env_writer: SkyEnvironmentWriter = SkyEnvironmentWriter.new()
 var _reflections: SkyReflections = SkyReflections.new()
 var _life: SkyAmbientLife = SkyAmbientLife.new()
@@ -259,6 +261,7 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	# wrote (aurora look, stale uniforms) survives into the next one.
 	if sky_def.sky_material != null:
 		_dome.bind(environment.sky if environment != null else null, sky_def.sky_material)
+		_dome.apply_static_look(_look_theme if _look_theme != null else load_theme(DEFAULT_THEME_ID))
 	var opening: float = start_phase if start_phase >= 0.0 else sky_def.cycle_start_phase
 	_clock.start(clock_seconds, sky_def.cycle_length_seconds, lock_phase, opening)
 	_cycle_clock_s = clock_seconds
@@ -423,15 +426,29 @@ func _write_frame(tick_ran: bool, storm_ran: bool) -> void:
 	if tick_ran:
 		_publish_globals(false)
 	_dome.stage(_out_frame)
+	_stage_cloud_coverage()
 	sky_material_writes += _dome.flush()
 	_env_writer.apply(_out_frame, get_tree() if is_inside_tree() else null)
 	if _cloud_sea != null and (tick_ran or storm_ran or _out_frame.storm_amount > 0.0):
 		_cloud_sea.apply_frame(_out_frame)
 	_publish_cloud_lighting(_out_frame)
+	if storm_ran and not tick_ran:
+		# A storm request moved the sky between ticks: an UPDATE_ONCE probe would keep the sky it
+		# captured earlier (the disc reflects it), so re-capture it now.
+		_reflections.retrigger_probe()
 	_push_flares(tick_ran, storm_ran)
 	if tick_ran:
 		_life.update_night(sky_def, _out_frame.night, _preset, _disc_radius_for_ambient_life())
 		_cycle_life_is_night = _life.is_night()
+
+
+## The overhead layers' seeded cloud coverage at the current phase (the day theme's variation range),
+## as the old cycle wrote it; with variation off the material keeps its authored value.
+func _stage_cloud_coverage() -> void:
+	var day: SkyThemeDef = _look_theme if _look_theme != null else load_theme(DEFAULT_THEME_ID)
+	if day == null or not day.variation_enabled:
+		return
+	_dome.stage_value(&"cloud_coverage", SkyVariation.cloud_coverage_at(day, _cycle_phase_last, _variation_seed))
 
 
 ## Light wired after _ready (a fixture sets light_path late): rebind the writer and rewrite.
@@ -756,6 +773,7 @@ func _derive_def_from_themes(applied: SkyThemeDef) -> void:
 	if sunset == null:
 		return
 	sky_def = SkyThemeMigration.cycle_from_themes(sunset, dawn, night)
+	_look_theme = sunset
 
 
 func _publish_theme_shim() -> void:

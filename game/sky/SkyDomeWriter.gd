@@ -41,6 +41,24 @@ func bind(sky: Sky, template: ShaderMaterial) -> ShaderMaterial:
 	return _material
 
 
+## Writes the day theme's static look (view offsets, strata scale, overhead/cards mix, card layout) onto
+## the bound duplicate, once. The ambient light and reflections are lit from the whole dome, so a
+## missing overhead or card layer changes how bright the disc and blocks render, not just the sky.
+func apply_static_look(day: SkyThemeDef) -> void:
+	if _material == null or day == null:
+		return
+	_material.set_shader_parameter(&"sky_yaw_offset_deg", day.sky_yaw_offset_deg)
+	_material.set_shader_parameter(&"sky_pitch_offset_deg", day.sky_pitch_offset_deg)
+	_material.set_shader_parameter(&"proc_strata_scale", day.proc_strata_scale)
+	_material.set_shader_parameter(&"proc_overhead_mix", 1.0 if day.proc_overhead_clouds_enabled else 0.0)
+	_material.set_shader_parameter(&"proc_cards_mix", 1.0 if day.proc_cards_enabled else 0.0)
+	_material.set_shader_parameter(&"proc_cards_opacity", day.proc_cards_opacity)
+	var layout: Variant = _material.get_shader_parameter(&"proc_cards_layout")
+	if layout is Vector4:
+		var cards: Vector4 = layout as Vector4
+		_material.set_shader_parameter(&"proc_cards_layout", Vector4(day.proc_cards_scale, cards.y, day.proc_cards_density, cards.w))
+
+
 ## The bound duplicate (null before bind).
 func material() -> ShaderMaterial:
 	return _material
@@ -96,6 +114,12 @@ func stage(frame: SkyFrame) -> void:
 		_wanted[&"aurora_base_height"] = frame.aurora_base_height
 		_wanted[&"aurora_curtain_height"] = frame.aurora_curtain_height
 	_wanted[&"sun_effect_scale"] = frame.sun_effect_scale
+
+
+## Stages one uniform the frame does not carry (the day theme's seeded cloud coverage); it joins
+## the same change-only flush.
+func stage_value(key: StringName, value: Variant) -> void:
+	_wanted[key] = value
 
 
 ## Writes the staged uniforms that differ from the last write; returns the count written

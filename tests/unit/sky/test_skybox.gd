@@ -287,3 +287,42 @@ func test_graphics_preset_change_keeps_a_locked_night_dressed_as_night() -> void
 	skybox._on_graphics_preset_changed(Settings.current_graphics_preset())
 	_assert_locked_night_dressing(skybox, "after the handler")
 
+
+func test_cycle_dome_carries_the_day_themes_overhead_and_cards_look() -> void:
+	var wired: Dictionary = _make_wired_skybox()
+	var skybox: Skybox = wired["skybox"] as Skybox
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	var day: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	var material: ShaderMaterial = (wired["environment"] as Environment).sky.sky_material as ShaderMaterial
+	assert_eq(material.get_shader_parameter(&"proc_overhead_mix"), 1.0 if day.proc_overhead_clouds_enabled else 0.0, "overhead layer mix")
+	assert_eq(material.get_shader_parameter(&"proc_cards_mix"), 1.0 if day.proc_cards_enabled else 0.0, "cards layer mix")
+	assert_eq(material.get_shader_parameter(&"sky_yaw_offset_deg"), day.sky_yaw_offset_deg, "view yaw")
+	assert_eq(material.get_shader_parameter(&"proc_strata_scale"), day.proc_strata_scale, "strata scale")
+
+
+func test_storm_request_between_ticks_recaptures_an_update_once_probe() -> void:
+	var environment: Environment = Environment.new()
+	environment.sky = Sky.new()
+	environment.sky.sky_material = ProceduralSkyMaterial.new()
+	var skybox: Skybox = Skybox.new()
+	skybox.config = SkyboxConfig.new()
+	skybox.environment = environment
+	skybox.theme = SkyThemeDef.new()
+	var probe: ReflectionProbe = ReflectionProbe.new()
+	probe.name = "Probe"
+	skybox.add_child(probe)
+	skybox.reflection_probe_path = NodePath("Probe")
+	add_child_autofree(skybox)
+	var config: MatchConfig = MatchConfig.new()
+	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
+	skybox.configure_match_sky(config)
+	skybox.set_locked_phase(0.25)
+	skybox.flush_weather()
+	probe.visible = true
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	var before: float = probe.position.y
+	skybox.set_storm_sky(0.5, Skybox.load_theme("storm"))
+	skybox.flush_weather()
+	assert_ne(probe.position.y, before, "the probe was nudged to re-capture the stormed sky")
