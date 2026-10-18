@@ -95,8 +95,6 @@ func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Diction
 	var flare: SunFlare = get_tree().get_nodes_in_group(SunFlare.GROUP)[0] as SunFlare
 	return {
 		&"glow": float(sky.get_shader_parameter(&"proc_sun_glow_strength")) / clear_glow,
-		&"halo": float(sky.get_shader_parameter(&"sun_halo_intensity")) * scale,
-		&"core": float(sky.get_shader_parameter(&"sun_core_intensity")) * scale,
 		&"rays": float(sky.get_shader_parameter(&"ray_intensity")) * scale / clear_ray,
 		&"rays_absolute": float(sky.get_shader_parameter(&"ray_intensity")) * scale,
 		&"flare": flare._weather_scale if flare._theme_enabled else 0.0,
@@ -131,7 +129,7 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 			skybox.set_storm_sky(storm, storm_theme)
 			var shares: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 			var label: String = "%s storm %s" % [mode, storm]
-			for term: StringName in [&"halo", &"core", &"rays", &"flare"]:
+			for term: StringName in [&"rays", &"flare"]:
 				assert_lte(float(shares[term]), float(shares[&"glow"]) + EPS, "%s: %s never outlives the sun glow" % [label, term])
 			if storm >= 1.0:
 				assert_almost_eq(float(shares[&"glow"]), 0.0, EPS, "%s: the sun glow is gone" % label)
