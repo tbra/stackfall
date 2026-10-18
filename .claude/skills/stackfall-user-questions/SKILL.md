@@ -12,7 +12,7 @@ The user answers through Beads, never through interactive prompts. Only the orch
 1. File a `decision` issue under the epic of the work it gates, with `--label human --assignee <the user's Beads name, see CLAUDE.local.md>`. Keep it short and plain:
    - Title: the question, ending in `?` (<= 90 chars, no `Decision:` prefix, ids or paths).
    - Body: `Issue:` (1-2 sentences), `Options:` 2-6 lines `a) ...` (one line each), `Recommend:` a letter with one short reason, and at most one `Details:` line.
-   - Several sub-questions become one decision whose Issue lists the defaults, with options `a) accept all defaults` / `b) change some`.
+   - One decision asks one question. Questions on different topics, or that the user could answer independently, get separate decisions. Group sub-questions in one decision only when they are parts of one choice or one answer depends on another.
 2. Write the body to a file in the scratch folder (`python tools/scratch.py path <bead>`, not `/tmp`) and create the issue with `--body-file` in a direct `bd` command: the `bd.cmd` shim truncates `--description` at the first newline, and where the human-desk mod is installed it refuses a decision that breaks the format above (a script calling bd through Python bypasses that check).
 3. Block the dependent work with `bd gate create --type human --blocks <work-id> --reason "<one plain line, <= 160 chars>"` or a dependency. Where a tunable default can ship meanwhile, say so in the issue and continue.
 
