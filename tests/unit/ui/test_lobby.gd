@@ -358,7 +358,6 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 
 	# ... and so do the GIFTS Advanced (per-gift) and EXPERIMENTS blocks once opened.
 	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
-	(lobby.get_node("%ExperimentsSection") as UiSection).set_advanced_open(true)
 	var opened: Array[Control] = []
 	opened.append_array(lobby._special_checkboxes)
 	opened.append_array(lobby._qol_checks)

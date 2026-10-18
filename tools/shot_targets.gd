@@ -7,7 +7,8 @@ extends RefCounted
 ##   main_menu              the main menu home page.
 ##   menu     page=<name>   a main-menu page by PAGE_* name (home, join, debug ...) or `host_dialog`.
 ##   options  tab=<name>    the Options menu from the main menu; tab = a *TabButton name (audio, video ...).
-##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|tiles|table|board, advanced=1
+##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|tiles|table|board, advanced=1,
+##            scroll=1 (settings column to its end), gifts_off=1 (gifts switch off)
 ##   sandbox  preset=default|gift_demo|tower_topple|tutorial
 ##   match    mode=<name>, bots=B, seats=N, watch=1 (all-bot spectator match), follow=<bot index>,
 ##            difficulty=easy|normal|hard|mixed
@@ -73,6 +74,7 @@ const SHEET_MAX_H: int = 3000
 const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
+	"scroll", "gifts_off",
 ]
 
 
@@ -162,7 +164,7 @@ static func parse_shots_json(text: String) -> Dictionary:
 static func normalize_shot(raw: Dictionary) -> Dictionary:
 	var shot: Dictionary = {
 		"error": "", "name": "", "target": "", "page": "", "tab": "", "kind": LOBBY_BOTS,
-		"seats": NO_VALUE, "bots": NO_VALUE, "style": 0, "advanced": false, "preset": "default", "mode": "",
+		"seats": NO_VALUE, "bots": NO_VALUE, "style": 0, "advanced": false, "scroll": false, "gifts_off": false, "preset": "default", "mode": "",
 		"watch": false, "follow": NO_VALUE, "difficulty": "", "path": "", "overlays": PackedStringArray(),
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
@@ -185,7 +187,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 			shot[key] = int(number)
 	if int(shot["frames"]) < 0 or int(shot["frames"]) > MAX_FRAMES:
 		return _failed(shot, "frames must be 0..%d" % MAX_FRAMES)
-	for key: String in ["advanced", "watch"]:
+	for key: String in ["advanced", "watch", "scroll", "gifts_off"]:
 		if raw.has(key):
 			shot[key] = _as_bool(raw[key])
 	if raw.has("hud"):
@@ -446,7 +448,13 @@ static func _lobby(host: Node, main: Node, shot: Dictionary) -> String:
 	if bool(shot["advanced"]):
 		for section: UiSection in lobby.call("_sections"):
 			section.set_advanced_open(true)
+	if bool(shot["gifts_off"]):
+		(lobby.get_node("%GiftsCheck") as BaseButton).button_pressed = false
 	await settle(host, LONG_SETTLE_FRAMES)
+	if bool(shot["scroll"]):
+		var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
+		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
+		await settle(host, LONG_SETTLE_FRAMES)
 	return ""
 
 

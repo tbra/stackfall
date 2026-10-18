@@ -138,11 +138,6 @@ func test_collapsing_a_block_with_focus_inside_keeps_focus_on_a_visible_stop() -
 	assert_true((lobby.get_node("%TurnBasedCheck") as Control).has_focus(), "fixture: focus inside Advanced")
 	game.set_advanced_open(false)
 	assert_true(game.advanced_button.has_focus(), "focus moved to the chip")
-	var experiments: UiSection = _section(lobby, "%ExperimentsSection")
-	experiments.set_advanced_open(true)
-	(lobby.get_node("%QolGiftSlotCheck") as Control).grab_focus()
-	experiments.set_advanced_open(false)
-	assert_true(experiments.advanced_button.has_focus(), "focus moves to the chip")
 	# Focus elsewhere is never stolen by a toggle.
 	(lobby.get_node("%BackButton") as Control).grab_focus()
 	game.set_advanced_open(true)
@@ -258,3 +253,18 @@ func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 	assert_true(game.advanced.visible)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0, "opening a block publishes nothing")
 	_assert_loop_has_no_invisible_stops(lobby, "client")
+
+
+func test_header_icon_and_caption_share_a_centre_line_and_summary_clears_the_scrollbar() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	await wait_frames(3)
+	for section: UiSection in lobby._sections():
+		var row: HBoxContainer = section.get_node("HeaderRow") as HBoxContainer
+		var icon: Control = row.get_node("HeaderIcon") as Control
+		var caption: Label = row.get_child(1) as Label
+		assert_eq(caption.vertical_alignment, VERTICAL_ALIGNMENT_CENTER, "%s caption is vertically centred" % section.name)
+		var icon_mid: float = icon.get_global_rect().get_center().y
+		var caption_mid: float = caption.get_global_rect().get_center().y
+		assert_almost_eq(icon_mid, caption_mid, 1.0, "%s icon and caption share a centre line" % section.name)
+		var gap: Control = row.get_child(row.get_child_count() - 1) as Control
+		assert_gt(gap.custom_minimum_size.x, 0.0, "%s summary keeps a trailing gap" % section.name)

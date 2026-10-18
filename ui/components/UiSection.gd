@@ -48,6 +48,8 @@ var _advanced_open: bool = false
 var _summary: String = ""
 var _title_label: Label = null
 var _summary_label: Label = null
+## Trailing gap after the summary, so it clears the scroll bar of the column holding the section.
+var _summary_gap: Control = null
 ## The header's section icon (white source, tinted like the caption).
 var _icon_rect: TextureRect = null
 var _icon_texture: Texture2D = null
@@ -80,6 +82,7 @@ func _style_header() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
 	_title_label.add_theme_color_override("font_color", arcade.cream_color)
 	_summary_label.add_theme_color_override("font_color", arcade.dust_color)
+	_summary_gap.custom_minimum_size = Vector2(float(arcade.space_4_px), 0.0)
 	_icon_rect.modulate = arcade.flare_color
 	var rule: StyleBoxFlat = StyleBoxFlat.new()
 	rule.bg_color = arcade.disc_700_color
@@ -149,6 +152,19 @@ func set_advanced_open(open: bool) -> void:
 	advanced_changed.emit(_advanced_open)
 
 
+## Greys the Advanced bar out and closes the block (a no-op without one); enabling restores the
+## bar, closed. Unlike a read-only client, a disabled bar cannot be opened to read.
+func set_advanced_enabled(enabled: bool) -> void:
+	if advanced_button == null:
+		return
+	if not enabled:
+		set_advanced_open(false)
+	advanced_button.disabled = not enabled
+	advanced_button.modulate.a = 1.0 if enabled else MenuStyleFactory.arcade_tuning().disabled_alpha
+	advanced_button.focus_mode = Control.FOCUS_ALL if enabled else Control.FOCUS_NONE
+	_arrow.queue_redraw()
+
+
 func has_advanced() -> bool:
 	return advanced != null
 
@@ -199,6 +215,7 @@ func _build_header() -> void:
 	_title_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_label.theme_type_variation = &"CaptionLabel"
 	_title_label.text = title
+	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(_title_label)
 	var spacer: Control = Control.new()
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -208,8 +225,12 @@ func _build_header() -> void:
 	_summary_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_summary_label.theme_type_variation = &"CaptionLabel"
 	_summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_summary_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_summary_label.text = _summary
 	row.add_child(_summary_label)
+	_summary_gap = Control.new()
+	_summary_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_summary_gap)
 	add_child(row)
 	move_child(row, 0)
 	_rule = Panel.new()

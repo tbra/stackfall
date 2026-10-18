@@ -417,49 +417,47 @@ script = ExtResource("9_toggle")
 layout_mode = 2
 caption = "Experiments"
 
-[node name="Advanced" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection"]
-layout_mode = 2
-
-[node name="ExperimentsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced"]
+[node name="ExperimentsGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow"]
+unique_name_in_owner = true
 script = ExtResource("8_row")
 layout_mode = 2
 metadata/row_label = "Trials"
 
-[node name="ExperimentsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup"]
+[node name="ExperimentsChecklist" type="GridContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 columns = 2
 
-[node name="QolTimerPauseCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolTimerPauseCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2
 size_flags_horizontal = 3
 label = "Pause timer on events"
 
-[node name="QolBacklogCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolBacklogCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2
 size_flags_horizontal = 3
 label = "Queue expired blocks"
 
-[node name="QolGoalRadiusCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolGoalRadiusCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2
 size_flags_horizontal = 3
 label = "Bigger goal claim radius"
 
-[node name="QolGiftSlotCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolGiftSlotCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2
 size_flags_horizontal = 3
 label = "Gift slot"
 
-[node name="QolGiftAfterNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Advanced/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolGiftAfterNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2

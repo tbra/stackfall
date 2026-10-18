@@ -158,6 +158,8 @@ var _special_frequency_value: int = 0
 ## UiChipToggles built by _build_specials_checklist().
 @onready var _specials_checklist: GridContainer = %SpecialsChecklist
 @onready var _experiments_checklist: GridContainer = %ExperimentsChecklist
+## the Experiments trials row, shown only while the Experiments switch is on.
+@onready var _experiments_group: Control = %ExperimentsGroup
 ## the Experiments chips, in QolExperiments.with_toggles()
 ## argument order (timer pause, backlog, goal radius, gift slot). They are the
 ## EXPERIMENTS section's Advanced block. Host-editable,
@@ -669,9 +671,9 @@ func _wire_focus_chain() -> void:
 	var gifts_advanced: Array[Control] = []
 	gifts_advanced.append_array(_special_checkboxes)
 	chain.append_array(_section_chain(_gifts_section, gifts_main, gifts_advanced))
-	var experiments_advanced: Array[Control] = []
-	experiments_advanced.append_array(_qol_checks)
-	chain.append_array(_section_chain(_experiments_section, [_experiments_check], experiments_advanced))
+	var experiments_main: Array[Control] = [_experiments_check]
+	experiments_main.append_array(_qol_checks)
+	chain.append_array(_section_chain(_experiments_section, experiments_main, []))
 	# The players panel's own focusable controls sit between the
 	# settings and the footer, in visual order; the panel asks for a rewire through
 	# focus_entries_changed.
@@ -878,9 +880,15 @@ var _spatial_pending: bool = false
 func _visible_chain(chain: Array[Control]) -> Array[Control]:
 	var out: Array[Control] = []
 	for control: Control in chain:
-		if _is_shown(control):
+		if _is_shown(control) and not _is_gated_off(control):
 			out.append(control)
 	return out
+
+
+## True for a control a master switch has greyed out (gifts off: Frequency and the per-gift bar):
+## visible but not a focus stop, for every role.
+func _is_gated_off(control: Control) -> bool:
+	return not _gifts_check.button_pressed and (control == _special_freq_meter or control == _gifts_section.advanced_button)
 
 
 func _is_shown(control: Control) -> bool:
@@ -1329,23 +1337,17 @@ func _on_toggled(_pressed: bool) -> void:
 	_on_setting_changed()
 
 
-## A master switch that is off hides what it governs and focus skips it:
-## _visible_chain drops hidden stops: gifts off -> the Frequency row and the GIFTS Advanced bar;
-## experiments off -> the EXPERIMENTS Advanced bar. Turning it back on restores the bar closed; the
-## chip selections themselves are untouched. Runs on a local toggle and after a remote apply.
+## A master switch that is off governs its section: gifts off -> the Frequency row and the GIFTS
+## Advanced bar stay visible but greyed (dimmed, read-only, not focus stops: _visible_chain drops
+## them); experiments off -> the trials row is hidden. Turning it back on restores them (the Advanced
+## bar closed); the selections themselves are untouched. Runs on a local toggle and after a remote apply.
 func _refresh_master_toggles() -> void:
-	_special_freq_group.visible = _gifts_check.button_pressed
-	_set_advanced_available(_gifts_section, _gifts_check.button_pressed)
-	_set_advanced_available(_experiments_section, _experiments_check.button_pressed)
+	var gifts_on: bool = _gifts_check.button_pressed
+	_special_freq_group.modulate.a = 1.0 if gifts_on else MenuStyleFactory.arcade_tuning().disabled_alpha
+	_special_freq_meter.focus_mode = Control.FOCUS_ALL if gifts_on else Control.FOCUS_NONE
+	_gifts_section.set_advanced_enabled(gifts_on)
+	_experiments_group.visible = _experiments_check.button_pressed
 	_rewire_focus()
-
-
-func _set_advanced_available(section: UiSection, available: bool) -> void:
-	if section.advanced_button == null:
-		return
-	if not available:
-		section.set_advanced_open(false)
-	section.advanced_button.visible = available
 
 
 ## The one place a host's edit turns into a publish
@@ -1855,7 +1857,7 @@ func _build_join_code_row() -> void:
 func _update_host_only_state() -> void:
 	var is_host: bool = net_provider != null and bool(net_provider.is_host())
 	for control: Control in _settings_controls:
-		_set_control_editable(control, is_host)
+		_set_control_editable(control, is_host and (control != _special_freq_meter or _gifts_check.button_pressed))
 	_players_panel.set_editable(is_host)
 	# A start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when
