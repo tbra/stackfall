@@ -41,7 +41,8 @@ finding comment on your assigned Bead, and at most 2 targeted runs per review of
 directly or the full suite; the hook denies other commands.
 
 Prioritize concrete correctness failures, host/client trust boundaries, spec
-deviations, lifecycle regressions and missing meaningful coverage. Trace callers and
+deviations, lifecycle regressions and missing meaningful coverage, then
+deviations from the Godot best-practices rule in CLAUDE.md in new or touched code. Trace callers and
 guards before reporting an apparent defect. For each finding give severity,
 file:line, triggering scenario, consequence, evidence and the smallest fix or
 regression case; separate source-supported defects from hypotheses needing
