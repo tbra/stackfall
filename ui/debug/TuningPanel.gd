@@ -24,14 +24,13 @@ extends CanvasLayer
 ##   - CameraTuning: apply_camera_tuning_live() calls CameraRig.apply_follow_tuning() on every rig
 ##     in CameraRig.TUNING_GROUP, re-snapshotting follow_distance/follow_pitch_deg (clamped, as
 ##     _ready() does) without disturbing a manual orbit/zoom.
-##   - SkyThemeDef: apply_sky_theme_live() calls Skybox.apply_theme() on every rig in
-##     Skybox.TUNING_GROUP (a known partial-live gap around the FogVolume child, see that
-##     function). A rig running the day/night cycle gets refresh_cycle_sources() instead, so an
-##     edit never swaps the live cycle for the static theme material.
-##   - Cycle sky: the Sky tab's Theme dropdown leads with a "cycle" entry (Skybox.start_cycle(),
-##     persisted as skybox_config.theme_name = "cycle") and a Time-of-day row (Running / Sunset /
-##     Dawn / Night / Custom + a 0..1 phase slider) locks it through Skybox.set_locked_phase().
-##     Local dev tuning: nothing is replicated.
+##   - Sky tab: edits SkyCycleDef (sky_cycle), its two day SkyKeyframes, the SkyNightKeyframe and the
+##     storm SkyOverlayDef. Every edit copies the cycle's own fields onto each live Skybox's sky_def
+##     and calls Skybox.refresh_sky_def() on every rig in Skybox.TUNING_GROUP (the keyframes are
+##     shared sub-resources, so they need no copy); cycle_length_seconds keeps its own seam
+##     (apply_cycle_length_live). The Time-of-day row (Running / Sunset / Dawn / Night / Custom + a
+##     0..1 phase slider) locks the cycle through Skybox.set_locked_phase(). Local dev tuning:
+##     nothing is replicated.
 ##
 ## BlockVisualTuning, BlockEffectsConfig, BeaconVisualTuning, CameraShakeConfig and
 ## HUDVisualTuning need no such hook: CameraShakeConfig/BlockEffectsConfig are read live per
@@ -115,19 +114,18 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics/presets/original_feel.tres"},
 ]
 
-## The Theme dropdown's leading entry. It is not a file under config/sky/themes/; it is persisted
-## on skybox_config.theme_name and handled by game/sky/Skybox.gd (start_cycle()). The cycle's day
-## half is the sunset.tres duplicate (Skybox.configure_match_sky), so the Sky tab's sliders edit
-## that one.
-const CYCLE_THEME_ID: String = "cycle"
 ## Time-of-day row choices, index-parallel to TIME_OF_DAY_LABELS. The three
-## concrete ids are SkyThemeDef.locked_phase_for() keys (MatchConfig.SKY_THEME_IDS).
+## concrete ids are SkyCycleDef.locked_phase_for() keys (MatchConfig.SKY_THEME_IDS).
 const TIME_RUNNING: String = "running"
 const TIME_CUSTOM: String = "custom"
 const TIME_OF_DAY_CHOICES: PackedStringArray = ["running", "sunset", "dawn", "night", "custom"]
 const TIME_OF_DAY_LABELS: PackedStringArray = ["Running", "Sunset", "Dawn", "Night", "Custom"]
 ## A live locked phase within this of a preset's phase reads as that preset.
 const TIME_OF_DAY_PHASE_EPSILON: float = 0.001
+## Sky tab section heading prefixes: the day keyframes by position, the night keyframe, the overlay.
+const SKY_TAG_DAY_KEYS: PackedStringArray = ["Day key", "Evening key"]
+const SKY_TAG_NIGHT: String = "Night key"
+const SKY_TAG_STORM: String = "Storm"
 const TIME_OF_DAY_SLIDER_STEP: float = 0.005
 ## Custom slider seed when no live cycle can report its phase (0.25 = noon).
 const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
@@ -193,7 +191,10 @@ var qol_experiments: QolExperiments = preload("res://config/match/qol_experiment
 ## the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
 ## preload instance, so no copy step; Reset/tests restore the shipped file values).
 var audio_config: AudioConfig = preload("res://config/audio/audio_config.tres")
-var sky_theme: SkyThemeDef = preload("res://config/sky/themes/sunset.tres")
+## The Sky tab's resources: the one cycle definition (its day keyframes and night keyframe are
+## sub-resources of it) and the storm overlay. Preloaded, so a later Skybox copies the edited values.
+var sky_cycle: SkyCycleDef = preload("res://config/sky/sky_cycle.tres")
+var storm_overlay: SkyOverlayDef = preload("res://config/sky/storm_overlay.tres")
 
 ## DECISION (ui/debug/TuningPanel.gd): same `Variant` test seam as ui/debug/NetDebugOverlay.gd's
 ## net_provider; GUT cannot double the plain Net autoload.
@@ -234,6 +235,9 @@ var _rebuilding_tabs: bool = false
 ## The Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
 ## entry, and the phase the Custom slider holds). Session-local: only
 ## skybox_config.theme_name = "cycle" persists.
+## The shipped sky_cycle.tres loaded fresh once per rebuild: the baseline of the cycle's own fields
+## and of its keyframes (sub-resources have no file of their own to reload).
+var _fresh_sky_cycle: SkyCycleDef = null
 var _time_of_day_choice: String = TIME_RUNNING
 var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
 
@@ -244,10 +248,6 @@ func _ready() -> void:
 	# DECISION: the ~2900-node tab UI is built on first open by rebuild() (or an explicit call, which
 	# tests use) and freed on close by _free_ui(), so a hidden panel costs no nodes. Saved overrides
 	# apply via the static TuningOverrides.apply_saved() at boot and never needed this UI.
-	# the Sky tab's sliders edit whichever theme is active.
-	var boot_theme: SkyThemeDef = Skybox.load_theme(skybox_config.theme_name)
-	if boot_theme != null:
-		sky_theme = boot_theme
 	_selected_tab_index = _load_selected_tab_index()
 
 
@@ -462,7 +462,7 @@ func rebuild() -> void:
 		child.queue_free()
 	_rows.clear()
 	_group_titles.clear()
-	_bind_sky_theme_to_live_cycle()
+	_fresh_sky_cycle = null
 
 	var plan: Array[Dictionary] = _tab_plan()
 	for entry: Dictionary in plan:
@@ -500,7 +500,7 @@ func _base_tab_plan() -> Array[Dictionary]:
 		{"name": "Ghost & Blocks", "resources": [ghost_tuning, block_visual_tuning, block_effects_config]},
 		{"name": "Territory look", "resources": [territory_visuals, beacon_visual_tuning]},
 		{"name": "HUD", "resources": [hud_visual_tuning]},
-		{"name": "Sky", "resources": [sky_theme]},
+		{"name": "Sky", "resources": _sky_resources()},
 		{"name": TuningSfxTab.TAB_NAME, "resources": []},
 		{"name": "Physics", "resources": [physics_tuning]},
 		{"name": "Territory rules", "resources": [territory_tuning]},
@@ -538,7 +538,7 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		# Theme/Time/Weather/Breeze are one ordinary foldable section in the same grid as every
 		# reflected row.
 		var scene_rows: Array[Control] = [
-			_build_theme_row(), _build_time_of_day_row(),
+			_build_time_of_day_row(),
 			_build_weather_row(), _build_breeze_row(),
 		]
 		list.add_child(_build_section(HAND_BUILT_CLASS, SCENE_SECTION_TITLE, scene_rows, true))
@@ -630,7 +630,10 @@ func _build_resource_rows(resource: Resource, tab_name: String, first_on_tab: bo
 			continue
 		var default_open: bool = first_on_tab and not opened_one
 		opened_one = true
-		list.add_child(_build_section(class_label, title, built, default_open))
+		var tag: String = _sky_section_tag(resource)
+		var shown_title: String = title if tag.is_empty() else "%s: %s" % [tag, title]
+		var fold_class: String = class_label if tag.is_empty() else "%s/%s" % [class_label, tag]
+		list.add_child(_build_section(fold_class, shown_title, built, default_open))
 		_group_titles.append({"resource": resource, "title": title})
 	return list
 
@@ -695,6 +698,9 @@ func _section_header_text(title: String, count: int, is_open: bool) -> String:
 func _fresh_instance_for(resource: Resource) -> Resource:
 	if resource == null:
 		return null
+	var sky_shipped: Resource = _shipped_sky_counterpart(resource)
+	if sky_shipped != null:
+		return sky_shipped
 	if not resource.resource_path.is_empty():
 		var shipped: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
 		if shipped != null:
@@ -1057,16 +1063,16 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 		BlockFactory.refresh_visual_tuning()
 	elif resource == beacon_visual_tuning:
 		apply_beacon_tuning_live()
-	elif resource == sky_theme:
+	elif _is_sky_resource(resource):
 		# The day/night cycle length is a rate, not a look: it goes through its own seam so the time of
-		# day stays put and the theme is not re-applied over a running cycle.
-		if _prop_name == "cycle_length_seconds":
+		# day stays put.
+		if resource == sky_cycle and _prop_name == "cycle_length_seconds":
 			apply_cycle_length_live()
 		else:
-			apply_sky_theme_live()
+			apply_sky_def_live()
 			# Editing a preset's locked phase moves the sky now when that preset is the selected time of
 			# day.
-			if _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
+			if resource == sky_cycle and _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
 				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
 	# BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and BeaconVisualTuning
 	# (apply_beacon_tuning_live()) have live hooks. ghost_tuning / territory_tuning /
@@ -1125,40 +1131,6 @@ func apply_physics_preset(preset_id: String) -> void:
 		physics_tuning.set(prop_name, preset.get(prop_name))
 	apply_physics_live()
 	rebuild()
-
-
-## The Sky tab's "Theme" dropdown (sunset / night / any config/sky/themes/*.tres SkyThemeDef,
-## discovered by Skybox.list_available_themes()), led by the "cycle" entry (the default match sky:
-## Skybox.start_cycle(); the Time-of-day row below locks it). Persists on skybox_config.theme_name
-## (saved by Save override).
-func _build_theme_row() -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", ROW_SEPARATION)
-
-	var label: Label = Label.new()
-	label.text = "Theme"
-	label.custom_minimum_size = Vector2(NAME_COLUMN_WIDTH, 0.0)
-	row.add_child(label)
-
-	var option: OptionButton = OptionButton.new()
-	option.name = "ThemeOption"
-	option.tooltip_text = (
-		"Switches the whole sky theme live (sky, light, fog, clouds, birds, sun " +
-		"flare, reflections). The sliders below then edit the chosen theme. " +
-		"cycle = the running day/night cycle (the default match sky; lock a time " +
-		"with Time of day); every other entry is a static theme."
-	)
-	var ids: PackedStringArray = theme_ids()
-	for theme_id: String in ids:
-		option.add_item(theme_id)
-	var selected_index: int = ids.find(theme_choice())
-	option.selected = selected_index if selected_index >= 0 else 0
-	option.item_selected.connect(func(index: int) -> void:
-		apply_sky_theme_id(ids[index])
-		rebuild()
-	)
-	row.add_child(_in_control_column(option))
-	return row
 
 
 ## the Sky tab's "Weather" dropdown -- "Schedule" (follow the
@@ -1267,46 +1239,71 @@ func _weather_display_name(weather_id: StringName) -> String:
 	return DisplayNames.weather_id_label(weather_id)
 
 
-## selects theme `theme_id` -- writes skybox_config.theme_name,
-## rebinds sky_theme (the Sky tab's sliders' resource) and re-applies
-## everything theme-driven on every live Skybox. False for an unknown id.
-## The Sky tab rows are rebuilt by the caller (rebuild()).
-func apply_sky_theme_id(theme_id: String) -> bool:
-	if theme_id == CYCLE_THEME_ID:
-		return _apply_cycle_theme()
-	var chosen: SkyThemeDef = Skybox.load_theme(theme_id)
-	if chosen == null:
-		return false
-	skybox_config.theme_name = theme_id
-	sky_theme = chosen
-	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
-			skybox.set_theme_by_id(theme_id)
-	return true
+# --- Sky tab: resources and live apply -----------------------------------------
+
+## The Sky tab's resources in row order: the cycle, its day keyframes, the night keyframe, the storm
+## overlay.
+func _sky_resources() -> Array[Resource]:
+	var found: Array[Resource] = [sky_cycle]
+	for key: SkyKeyframe in sky_cycle.day_keyframes:
+		found.append(key)
+	if sky_cycle.night != null:
+		found.append(sky_cycle.night)
+	found.append(storm_overlay)
+	return found
 
 
-## The Theme dropdown's ids: the leading "cycle" entry, then every static theme file
-## (Skybox.list_available_themes()).
-func theme_ids() -> PackedStringArray:
-	var ids: PackedStringArray = PackedStringArray([CYCLE_THEME_ID])
-	ids.append_array(Skybox.list_available_themes())
-	return ids
+func _is_sky_resource(resource: Resource) -> bool:
+	return resource != null and _sky_resources().has(resource)
 
 
-## The theme the Theme dropdown shows: "cycle" while skybox_config.theme_name says
-## so or any live Skybox runs the day/night cycle (a match starts one by default,
-## whatever theme_name was persisted), else skybox_config.theme_name.
-func theme_choice() -> String:
-	if skybox_config.theme_name == CYCLE_THEME_ID or _any_cycle_active():
-		return CYCLE_THEME_ID
-	return skybox_config.theme_name
+func _day_key_index(resource: Resource) -> int:
+	if resource is SkyKeyframe:
+		return sky_cycle.day_keyframes.find(resource as SkyKeyframe)
+	return -1
 
 
-## The theme the day/night cycle copies (Skybox.configure_match_sky: the DAY
-## entry, sunset.tres). Its sliders and locked-phase exports drive the cycle.
-func _cycle_source_theme() -> SkyThemeDef:
-	return Skybox.load_theme(MatchConfig.SKY_THEME_IDS[MatchConfig.SkyThemeMode.DAY])
+## The heading prefix that tells the day keyframes, the night keyframe and the overlay apart ("" for
+## the cycle itself).
+func _sky_section_tag(resource: Resource) -> String:
+	if resource == null or resource == sky_cycle:
+		return ""
+	if resource == sky_cycle.night:
+		return SKY_TAG_NIGHT
+	if resource == storm_overlay:
+		return SKY_TAG_STORM
+	var index: int = _day_key_index(resource)
+	if index < 0:
+		return ""
+	return SKY_TAG_DAY_KEYS[index] if index < SKY_TAG_DAY_KEYS.size() else "Day key %d" % (index + 1)
+
+
+## The shipped value source for a Sky tab resource that has no file of its own (the cycle and its
+## keyframes: sub-resources of sky_cycle.tres). Null for every other resource.
+func _shipped_sky_counterpart(resource: Resource) -> Resource:
+	if resource == null or not _is_sky_cycle_part(resource):
+		return null
+	var shipped: SkyCycleDef = _shipped_sky_cycle()
+	if shipped == null:
+		return null
+	if resource == sky_cycle:
+		return shipped
+	if resource == sky_cycle.night:
+		return shipped.night
+	var index: int = _day_key_index(resource)
+	if index >= 0 and index < shipped.day_keyframes.size():
+		return shipped.day_keyframes[index]
+	return null
+
+
+func _is_sky_cycle_part(resource: Resource) -> bool:
+	return resource == sky_cycle or resource == sky_cycle.night or _day_key_index(resource) >= 0
+
+
+func _shipped_sky_cycle() -> SkyCycleDef:
+	if _fresh_sky_cycle == null:
+		_fresh_sky_cycle = ResourceLoader.load(sky_cycle.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyCycleDef
+	return _fresh_sky_cycle
 
 
 func _live_skyboxes() -> Array[Skybox]:
@@ -1327,38 +1324,14 @@ func _any_cycle_active() -> bool:
 	return false
 
 
-## While a cycle is the shown theme the Sky tab's sliders must edit the cycle's
-## source theme, not whichever static theme the panel was last bound to.
-func _bind_sky_theme_to_live_cycle() -> void:
-	if theme_choice() != CYCLE_THEME_ID:
-		return
-	var source: SkyThemeDef = _cycle_source_theme()
-	if source != null:
-		sky_theme = source
-
-
-## "cycle" theme pick: persists theme_name, rebinds the sliders to the cycle's
-## source theme and (re)starts the running cycle on every live Skybox.
-func _apply_cycle_theme() -> bool:
-	var source: SkyThemeDef = _cycle_source_theme()
-	if source == null:
-		return false
-	skybox_config.theme_name = CYCLE_THEME_ID
-	sky_theme = source
-	_time_of_day_choice = TIME_RUNNING
-	for skybox: Skybox in _live_skyboxes():
-		skybox.start_cycle()
-	return true
-
-
 ## The Sky tab's "Time of day" row. Running / Sunset /
 ## Night / Custom (a 0..1 phase slider, editable for Custom only) drive the
 ## cycle through Skybox.set_locked_phase(); the row is disabled while a static
-## theme is shown (nothing to lock). Local dev tuning like the cycle length:
-## nothing is replicated and nothing but theme_name = "cycle" persists.
+## sky is live (nothing to lock). Local dev tuning like the cycle length:
+## nothing is replicated or persisted.
 func _build_time_of_day_row() -> Control:
 	_sync_time_of_day_from_live()
-	var active: bool = theme_choice() == CYCLE_THEME_ID
+	var active: bool = _any_cycle_active()
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
@@ -1372,7 +1345,7 @@ func _build_time_of_day_row() -> Control:
 	option.tooltip_text = (
 		"Running keeps the day/night cycle moving. Sunset, Dawn and Night lock the " +
 		"cycle at that time (the lobby's fixed options); Custom locks it where the " +
-		"slider is. Only applies while the cycle theme is selected."
+		"slider is. Needs a running sky."
 	)
 	for choice_label: String in TIME_OF_DAY_LABELS:
 		option.add_item(choice_label)
@@ -1453,8 +1426,7 @@ func _phase_for_time_choice(choice: String) -> float:
 		return -1.0
 	if choice == TIME_CUSTOM:
 		return _time_of_day_custom_phase
-	var source: SkyThemeDef = _cycle_source_theme()
-	return source.locked_phase_for(choice) if source != null else -1.0
+	return sky_cycle.locked_phase_for(choice)
 
 
 ## The phase the Custom slider shows for the current choice.
@@ -1496,12 +1468,10 @@ func _sync_time_of_day_from_live() -> void:
 
 
 func _time_choice_for_phase(phase: float) -> String:
-	var source: SkyThemeDef = _cycle_source_theme()
-	if source != null:
-		for choice: String in TIME_OF_DAY_CHOICES:
-			var preset: float = source.locked_phase_for(choice)
-			if preset >= 0.0 and absf(preset - phase) <= TIME_OF_DAY_PHASE_EPSILON:
-				return choice
+	for choice: String in TIME_OF_DAY_CHOICES:
+		var preset: float = sky_cycle.locked_phase_for(choice)
+		if preset >= 0.0 and absf(preset - phase) <= TIME_OF_DAY_PHASE_EPSILON:
+			return choice
 	return TIME_CUSTOM
 
 
@@ -1571,29 +1541,33 @@ func apply_arena_style_live() -> void:
 		overlay.rebuild_disk_mesh()
 
 
-## Pushes sky_theme onto every live Skybox's apply_theme(). Iterates Skybox.TUNING_GROUP, so it
-## reaches a Skybox even in a bare-panel test. Known gap: Skybox._spawn_fog_volume() reads
-## cloud_deck_size_m/cloud_deck_height_m/fog_density/fog_color only once, at _ready(), and
-## apply_theme() doesn't resync them, so an edit to those four fields only affects a Skybox that
-## hasn't spawned its FogVolume yet.
-func apply_sky_theme_live() -> void:
+## Copies the cycle's plain fields onto every live Skybox's own sky_def copy (the keyframes, night
+## and materials are shared sub-resources) and asks each Skybox to re-evaluate through
+## refresh_sky_def(), so a palette edit shows on the next tick. Iterates Skybox.TUNING_GROUP, so it
+## reaches a Skybox even in a bare-panel test.
+func apply_sky_def_live() -> void:
 	for skybox: Skybox in _live_skyboxes():
-		# A running cycle owns a live duplicate of the source themes; apply_theme(sky_theme) would
-		# swap it for the static material, so the edit is re-copied into the duplicate instead.
-		if skybox.is_cycle_active():
-			skybox.refresh_cycle_sources()
-		else:
-			skybox.apply_theme(sky_theme)
+		if skybox.sky_def != null and skybox.sky_def != sky_cycle:
+			_copy_plain_fields(sky_cycle, skybox.sky_def)
+		skybox.refresh_sky_def()
+
+
+func _copy_plain_fields(from: Resource, to: Resource) -> void:
+	for prop: Dictionary in from.get_property_list():
+		if not _is_exported_field(prop):
+			continue
+		var type: int = int(prop.get("type", TYPE_NIL))
+		if type == TYPE_BOOL or type == TYPE_INT or type == TYPE_FLOAT or type == TYPE_COLOR:
+			var prop_name: String = str(prop.get("name", ""))
+			to.set(prop_name, from.get(prop_name))
 
 
 ## Pushes the Sky tab's cycle_length_seconds onto every live Skybox running a CYCLE match. Skybox
 ## re-bases its phase so the time of day does not jump. Local dev tuning only: nothing is
 ## replicated.
 func apply_cycle_length_live() -> void:
-	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
-			skybox.set_cycle_length_seconds(sky_theme.cycle_length_seconds)
+	for skybox: Skybox in _live_skyboxes():
+		skybox.set_cycle_length_seconds(sky_cycle.cycle_length_seconds)
 
 
 # --- Reset / Save / Copy -----------------------------------------------------
@@ -1608,9 +1582,6 @@ func _on_reset_pressed() -> void:
 ## already holds -- see ResourceLoader.CACHE_MODE_IGNORE's use in
 ## _reset_resource()). Public so a test can call it without a real Button.
 func reset_all() -> void:
-	# The shipped theme_name is the static "sunset"; applying it would turn a running cycle (the
-	# default sky) into the static theme.
-	var cycle_was_active: bool = _any_cycle_active()
 	_reset_resource(camera_tuning)
 	_reset_resource(ghost_tuning)
 	_reset_resource(physics_tuning)
@@ -1620,18 +1591,31 @@ func reset_all() -> void:
 	_reset_resource(block_feed_config)
 	_reset_resource(skybox_config)
 	TuningSfxTab.reset_fields(audio_config)
-	# sky_theme is reset too; Save/Copy/TuningOverrides.apply_saved still skip it.
-	_reset_resource(sky_theme)
-	for theme_id: String in Skybox.list_available_themes():
-		_reset_resource(Skybox.load_theme(theme_id))
+	# The sky resources are reset too; Save/Copy/TuningOverrides.apply_saved still skip them.
+	_fresh_sky_cycle = null
+	_reset_sky_resources()
 	apply_physics_live()
 	refresh_territory_visuals_live()
 	apply_arena_style_live()
-	if cycle_was_active:
-		apply_sky_theme_live()
-	elif not apply_sky_theme_id(skybox_config.theme_name):
-		apply_sky_theme_live()
+	apply_sky_def_live()
 	rebuild()
+
+
+## Reloads the shipped values of the cycle, its keyframes, the night keyframe and the storm
+## overlay. The keyframes are sub-resources, so they copy from a fresh load of sky_cycle.tres by
+## position.
+func _reset_sky_resources() -> void:
+	for resource: Resource in _sky_resources():
+		var shipped: Resource = _shipped_sky_counterpart(resource)
+		if shipped == null:
+			_reset_resource(resource)
+			continue
+		for prop: Dictionary in resource.get_property_list():
+			var type: int = int(prop.get("type", TYPE_NIL))
+			# Sub-resources and the keyframe array stay the live objects; only plain values reload.
+			if _is_exported_field(prop) and type != TYPE_OBJECT and type != TYPE_ARRAY:
+				var prop_name: String = str(prop.get("name", ""))
+				resource.set(prop_name, shipped.get(prop_name))
 
 
 func _reset_resource(resource: Resource) -> void:

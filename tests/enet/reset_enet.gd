@@ -7,7 +7,9 @@ extends Node
 ##   dirty the host first plays match A (Night sky, storm, rain, gift crate, black hole,
 ##          dirtied camera and sky on both peers, a tense music stem), replays it, then lets
 ##          the client leave and re-join the lobby, and only then starts the same B; each
-##          peer compares its B fingerprints with the ones the fresh run wrote.
+##          peer compares its B fingerprints with the ones the fresh run wrote. Last, the host
+##          starts a running-Cycle match and the client reports its cycle phase: the two peers
+##          must agree within CYCLE_PHASE_TOLERANCE under the simulated lag.
 ## The client's COUNTDOWN fingerprint includes the influence circles it decoded (audit G3).
 ## Fingerprints are tests/support/MatchFingerprint.gd minus its wall-clock keys.
 ## Prints "RESETENET <role> ..." lines; exit 0 = this peer matched (dirty) or wrote (fresh),
@@ -29,6 +31,11 @@ const DIRTY_ZOOM: float = 40.0
 const BLACK_HOLE_POSITION: Vector3 = Vector3(0.0, 1.0, 0.0)
 const CRATE_POINT: Vector2 = Vector2(2.0, 2.0)
 const FILE_NAME: String = "fp_%s.var"
+## DECISION: the two peers read the same shared clock; the only legitimate gap is the RPC latency
+## (about 0.0003 of a 300 s cycle at 100 ms), so a few hundredths of a cycle is far above noise and
+## far below a wrong opening phase or a stopped clock.
+const CYCLE_PHASE_TOLERANCE: float = 0.02
+const CYCLE_PLAYING_WAIT_S: float = 2.0
 ## DECISION: Client camera derives from interpolated replicated positions; tiny float diffs
 ## (1e-4 to 7e-4) are expected on camera keys. Host comparison uses exact tolerance (1e-4).
 const CLIENT_CAMERA_TOLERANCE: Dictionary = {
@@ -56,6 +63,9 @@ var _role_name: String = ""
 var _state_since_msec: int = 0
 var _captured: Dictionary = {}
 var _finish_requested: bool = false
+## Set while the Cycle scenario runs: the B fingerprints are kept, not replaced by the new match's.
+var _cycle_scenario: bool = false
+var _cycle_reply: Dictionary = {}
 
 
 func _ready() -> void:
@@ -90,7 +100,7 @@ func _process(_delta: float) -> void:
 		print("RESETENET %s result=FAIL reason=hard_deadline" % _role_name)
 		get_tree().quit(3)
 		return
-	if _main == null:
+	if _main == null or _cycle_scenario:
 		return
 	# Checkpoints are taken by each peer's own clock from its own state changes.
 	var held_s: float = float(Time.get_ticks_msec() - _state_since_msec) / 1000.0
@@ -106,6 +116,8 @@ func _process(_delta: float) -> void:
 ## LOADING that passes within one frame, which is how a stale match-A capture got through).
 func _on_state_changed(_from_state: int, to_state: int) -> void:
 	_state_since_msec = Time.get_ticks_msec()
+	if _cycle_scenario:
+		return
 	if to_state == Match.State.LOBBY or to_state == Match.State.LOADING:
 		_captured.clear()
 
@@ -146,7 +158,8 @@ func _dirty_camera_and_sky() -> void:
 	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
 	rig._peek_active = true
 	rig._focus_action = &"camera_snap_goal"
-	(_main.get("_skybox") as Skybox).set_theme_by_id("sunset")
+	var skybox: Skybox = _main.get("_skybox") as Skybox
+	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(MatchConfig.SKY_ID_SUNSET))
 	Sfx._tense_stem_is_active = true
 
 
@@ -162,6 +175,8 @@ func _run_host() -> void:
 		await _host_play_a()
 	await _host_play_b()
 	await _wait(SETTLE_S)
+	if _mode == "dirty":
+		await _host_cycle_scenario()
 	rpc(&"h_finish")
 	await _wait(SETTLE_S)
 	_finish()
@@ -206,6 +221,33 @@ func _host_play_b() -> void:
 		_fail("host never fingerprinted B (captured=%s)" % [_captured.keys()])
 
 
+## A running-Cycle match: after match start the client's cycle phase must match the host's.
+func _host_cycle_scenario() -> void:
+	rpc(&"h_begin_cycle")
+	_cycle_scenario = true
+	Match.abort_match()
+	await _wait(SETTLE_S)
+	_main._on_lobby_start_requested(_config(MatchConfig.WeatherMode.OFF, MatchConfig.SkyThemeMode.CYCLE))
+	if not await _until(func() -> bool: return Match.state() == Match.State.PLAYING, STATE_TIMEOUT_S + COUNTDOWN_S):
+		_fail("host never reached PLAYING in the Cycle match")
+		return
+	await _wait(CYCLE_PLAYING_WAIT_S)
+	_cycle_reply.clear()
+	rpc(&"h_report_phase")
+	if not await _until(func() -> bool: return not _cycle_reply.is_empty(), STATE_TIMEOUT_S):
+		_fail("client never reported its cycle phase")
+		return
+	var skybox: Skybox = _main.get("_skybox") as Skybox
+	var host_phase: float = skybox.current_cycle_phase()
+	var client_phase: float = float(_cycle_reply["phase"])
+	var gap: float = absf(host_phase - client_phase)
+	gap = minf(gap, 1.0 - gap)
+	var running: bool = skybox.is_cycle_active() and skybox.locked_phase() < 0.0 and bool(_cycle_reply["running"])
+	print("RESETENET host cycle host_phase=%.4f client_phase=%.4f gap=%.4f running=%s" % [host_phase, client_phase, gap, running])
+	if not running or gap > CYCLE_PHASE_TOLERANCE:
+		_fail("cycle phase differs (gap=%.4f, running=%s)" % [gap, running])
+
+
 func _fail(reason: String) -> void:
 	print("RESETENET %s result=FAIL reason=%s" % [_role_name, reason])
 	get_tree().quit(1)
@@ -216,6 +258,23 @@ func _fail(reason: String) -> void:
 @rpc("authority", "call_remote", "reliable")
 func h_dirty() -> void:
 	_dirty_camera_and_sky()
+
+
+@rpc("authority", "call_remote", "reliable")
+func h_begin_cycle() -> void:
+	_cycle_scenario = true
+
+
+@rpc("authority", "call_remote", "reliable")
+func h_report_phase() -> void:
+	var skybox: Skybox = _main.get("_skybox") as Skybox
+	var running: bool = skybox.is_cycle_active() and skybox.locked_phase() < 0.0
+	rpc_id(1, &"h_phase_reply", skybox.current_cycle_phase(), running)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func h_phase_reply(phase: float, running: bool) -> void:
+	_cycle_reply = {"phase": phase, "running": running}
 
 
 @rpc("authority", "call_remote", "reliable")

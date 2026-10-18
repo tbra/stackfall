@@ -33,7 +33,7 @@ var _saved_disk_metallic: float
 
 ## saved/restored the same way every other live singleton
 ## field above is (this file's own header explains why) -- mutated by the
-## new Sky-tab write-through test below.
+## new Sky-tab write-through test below (the first day keyframe's fog density).
 var _saved_sky_fog_density: float
 
 
@@ -44,14 +44,14 @@ var _saved_sky_fog_density: float
 ## open/close the panel, swap providers, wire a field/controller or alter a
 ## control's selection take their own throw-away panel via _own_panel().
 var _shared: TuningPanel = null
-var _shared_sky_theme: SkyThemeDef = null
+var _shared_sky_cycle: SkyCycleDef = null
 
 
 func before_all() -> void:
 	_shared = load("res://ui/debug/TuningPanel.tscn").instantiate()
 	add_child(_shared)
 	_shared.rebuild()
-	_shared_sky_theme = _shared.sky_theme
+	_shared_sky_cycle = _shared.sky_cycle
 
 
 func after_all() -> void:
@@ -102,12 +102,12 @@ func _label_text_for(panel: TuningPanel, resource: Resource, prop_name: String) 
 func _shared_is_dirty() -> bool:
 	if _shared._tab_container == null or _shared.visible:
 		return true
-	if _shared.sky_theme != _shared_sky_theme or _shared.net_provider != Net:
+	if _shared.sky_cycle != _shared_sky_cycle or _shared.net_provider != Net:
 		return true
 	var resources: Array[Resource] = [
 		_shared.camera_tuning, _shared.ghost_tuning, _shared.physics_tuning,
 		_shared.territory_tuning, _shared.territory_visuals, _shared.block_feed_config,
-		_shared.sky_theme,
+		_shared.sky_cycle, _shared.sky_cycle.day_keyframes[0], _shared.sky_cycle.night, _shared.storm_overlay,
 	]
 	for resource: Resource in resources:
 		for prop_name: String in _shown_fields_for(_shared, resource):
@@ -132,7 +132,7 @@ func before_each() -> void:
 	_saved_max_cell_toggles = _panel.territory_tuning.max_cell_toggles_per_frame
 	_saved_tint_color = _panel.ghost_tuning.tint_color
 	_saved_disk_metallic = _panel.territory_visuals.disk_metallic
-	_saved_sky_fog_density = _panel.sky_theme.fog_density
+	_saved_sky_fog_density = _panel.sky_cycle.day_keyframes[0].fog_density
 
 
 func after_each() -> void:
@@ -149,7 +149,7 @@ func after_each() -> void:
 	_shared.territory_tuning.max_cell_toggles_per_frame = _saved_max_cell_toggles
 	_shared.ghost_tuning.tint_color = _saved_tint_color
 	_shared.territory_visuals.disk_metallic = _saved_disk_metallic
-	_shared.sky_theme.fog_density = _saved_sky_fog_density
+	_shared.sky_cycle.day_keyframes[0].fog_density = _saved_sky_fog_density
 
 	Input.action_release(&"pause_menu")
 
@@ -159,7 +159,7 @@ func after_each() -> void:
 	if _shared_is_dirty():
 		_shared.visible = false
 		_shared.net_provider = Net
-		_shared.sky_theme = _shared_sky_theme
+		_shared.sky_cycle = _shared_sky_cycle
 		_shared.rebuild()
 
 
@@ -368,7 +368,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 	var resources: Array[Resource] = [
 		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
 		_panel.territory_tuning, _panel.territory_visuals, _panel.block_feed_config,
-		_panel.skybox_config, _panel.sky_theme,
+		_panel.skybox_config, _panel.sky_cycle,
 	]
 	var differing: int = 0
 	# every differing field is edited first, then one reset_all()
@@ -405,7 +405,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 
 ## Test that every exported numeric/bool/Color property in the M7 config resources
 ## (BeaconVisualTuning, CameraShakeConfig, BlockEffectsConfig, HUDVisualTuning,
-## SkyThemeDef) has both a range hint (for numeric fields) and a description hint
+## SkyCycleDef, SkyKeyframe, SkyNightKeyframe, SkyOverlayDef) has both a range hint (for numeric fields) and a description hint
 ## in tuning_panel_hints.tres. These resources are not exposed in the TuningPanel
 ## UI yet, but hints are provided for future panel extension.
 func test_m7_config_resources_have_complete_hints() -> void:
@@ -414,7 +414,10 @@ func test_m7_config_resources_have_complete_hints() -> void:
 		CameraShakeConfig.new(),
 		BlockEffectsConfig.new(),
 		HUDVisualTuning.new(),
-		SkyThemeDef.new(),
+		SkyCycleDef.new(),
+		SkyKeyframe.new(),
+		SkyNightKeyframe.new(),
+		SkyOverlayDef.new(),
 		# the disc-top procedural surface.
 		DiscSurfaceDef.new(),
 		AmbientLifeConfig.new(),
@@ -454,7 +457,7 @@ func test_m7_config_resources_have_complete_hints() -> void:
 	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
 
 
-# --- Sky tab Theme dropdown ----------------------------------------
+# --- Sky tab ----------------------------------------
 
 func _find_option_named(node: Node, option_name: String) -> OptionButton:
 	if node is OptionButton and node.name == option_name:
@@ -476,8 +479,6 @@ class SpySkybox extends Skybox:
 	var start_calls: Array[Vector2] = []
 	var lock_calls: Array[float] = []
 	var refresh_calls: int = 0
-	var applied_themes: Array[SkyThemeDef] = []
-	var theme_id_calls: Array[String] = []
 
 	func _ready() -> void:
 		add_to_group(Skybox.TUNING_GROUP)
@@ -500,16 +501,8 @@ class SpySkybox extends Skybox:
 	func current_cycle_phase() -> float:
 		return phase_now if cycle_active else -1.0
 
-	func refresh_cycle_sources() -> void:
+	func refresh_sky_def() -> void:
 		refresh_calls += 1
-
-	func apply_theme(applied_theme: SkyThemeDef) -> void:
-		applied_themes.append(applied_theme)
-
-	func set_theme_by_id(theme_id: String) -> bool:
-		theme_id_calls.append(theme_id)
-		cycle_active = false
-		return true
 
 	# Reset also re-applies the six-face set and the reflection probe; the spy has
 	# built no faces or probe, so those two are inert.
@@ -555,12 +548,12 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	assert_false(option.disabled)
 	assert_false(slider.editable, "the slider is for Custom only")
 
-	var source: SkyThemeDef = Skybox.load_theme("sunset")
+	var source: SkyCycleDef = _panel.sky_cycle
 	var expected: Array[float] = [
 		-1.0, source.locked_phase_for("sunset"), source.locked_phase_for("dawn"), source.locked_phase_for("night"),
 	]
 	for index: int in range(1, 4):
-		assert_gt(expected[index], -0.5, "fixture: SkyThemeDef locks a phase for %s" % labels[index])
+		assert_gt(expected[index], -0.5, "fixture: SkyCycleDef locks a phase for %s" % labels[index])
 	for index: int in [1, 2, 3, 0]:
 		option.select(index)
 		option.item_selected.emit(index)
@@ -607,11 +600,11 @@ const READ_VIA_ACCESSOR: Dictionary = {
 	"QolExperiments.goal_radius_multiplier": "effective_goal_radius",
 	"QolExperiments.gift_slot_min_window_s": "effective_gift_min_window_s",
 	"QolExperiments.gift_queue_after_next": "gift_after_next_in_force",
-	"SkyThemeDef.aurora_start_night_mix": "aurora_night_strength",
-	"SkyThemeDef.aurora_full_night_mix": "aurora_night_strength",
-	"SkyThemeDef.cycle_locked_phase_sunset": "locked_phase_for",
-	"SkyThemeDef.cycle_locked_phase_dawn": "locked_phase_for",
-	"SkyThemeDef.cycle_locked_phase_night": "locked_phase_for",
+	"SkyCycleDef.aurora_start_night_mix": "aurora_night_strength",
+	"SkyCycleDef.aurora_full_night_mix": "aurora_night_strength",
+	"SkyCycleDef.cycle_locked_phase_sunset": "locked_phase_for",
+	"SkyCycleDef.cycle_locked_phase_dawn": "locked_phase_for",
+	"SkyCycleDef.cycle_locked_phase_night": "locked_phase_for",
 }
 const LIVE_CODE_DIRS: PackedStringArray = ["game", "autoload", "core", "net", "ui", "shaders"]
 
@@ -632,3 +625,62 @@ func _collect_code(dir_path: String, out: PackedStringArray) -> void:
 				kept.append(line)
 		out.append("
 ".join(kept))
+
+
+# --- Sky tab edits the cycle definition ----------------------------------------
+
+func test_sky_tab_lists_the_cycle_both_day_keys_night_and_the_storm_overlay() -> void:
+	var expected: Array[Resource] = [
+		_panel.sky_cycle, _panel.sky_cycle.day_keyframes[0], _panel.sky_cycle.day_keyframes[1],
+		_panel.sky_cycle.night, _panel.storm_overlay,
+	]
+	assert_eq(_panel._sky_resources(), expected)
+	for resource: Resource in expected:
+		assert_gt(_shown_fields_for(_panel, resource).size(), 0, "the Sky tab shows rows for %s" % resource)
+	assert_null(_find_option_named(_panel, "ThemeOption"), "the Theme dropdown is gone")
+
+
+func test_sky_edit_copies_the_cycle_fields_onto_each_live_skybox_and_refreshes_it() -> void:
+	_own_panel(true)
+	var spy: SpySkybox = _make_spy_skybox(true)
+	spy.sky_def = _panel.sky_cycle.duplicate() as SkyCycleDef
+	var original: float = _panel.sky_cycle.haze_strength
+	var edited: float = original + 0.25
+	_panel.sky_cycle.haze_strength = edited
+	_panel._on_field_changed(_panel.sky_cycle, "haze_strength")
+	assert_eq(spy.refresh_calls, 1, "an edit calls refresh_sky_def()")
+	assert_almost_eq(spy.sky_def.haze_strength, edited, 0.00001, "the Skybox's own copy carries the edit")
+	_panel.sky_cycle.haze_strength = original
+	_panel._on_field_changed(_panel.sky_cycle, "haze_strength")
+	assert_eq(spy.refresh_calls, 2)
+
+	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[0]
+	var fog_before: float = key.fog_density
+	_panel._on_field_changed(key, "fog_density")
+	_panel._on_field_changed(_panel.sky_cycle.night, "fog_density")
+	_panel._on_field_changed(_panel.storm_overlay, "fog_density")
+	assert_eq(spy.refresh_calls, 5, "keyframe, night and overlay edits refresh too")
+	assert_eq(key.fog_density, fog_before)
+
+
+func test_cycle_length_edit_keeps_its_own_seam() -> void:
+	_own_panel(true)
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel._on_field_changed(_panel.sky_cycle, "cycle_length_seconds")
+	assert_eq(spy.refresh_calls, 0, "the length goes through set_cycle_length_seconds, not a definition refresh")
+
+
+func test_reset_restores_the_keyframes_night_and_cycle_from_the_shipped_file() -> void:
+	_own_panel(true)
+	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[1]
+	var night: SkyNightKeyframe = _panel.sky_cycle.night
+	var shipped: SkyCycleDef = ResourceLoader.load(_panel.sky_cycle.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyCycleDef
+	var key_fog: float = key.fog_density
+	var night_fog: float = night.fog_density
+	key.fog_density = key_fog + 0.1
+	night.fog_density = night_fog + 0.1
+	assert_eq(shipped.day_keyframes[1].fog_density, key_fog, "fixture: the fresh load is the shipped value")
+	_panel.reset_all()
+	assert_eq(_panel.sky_cycle.day_keyframes[1], key, "reset keeps the live keyframe objects")
+	assert_almost_eq(key.fog_density, key_fog, 0.00001)
+	assert_almost_eq(night.fog_density, night_fog, 0.00001)
