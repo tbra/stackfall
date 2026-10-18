@@ -65,6 +65,7 @@ CORE_PATH_PREFIXES = ("core/", "net/", "autoload/", "shaders/")
 # Sonnet: Haiku workers garbled or skipped reworded comments on every such package tried.
 FAST_PATH_KINDS = ("gate", "triage", "mechanical", "docs", "documentation", "prose")
 QUICK_TIER_KINDS = ("docs", "documentation", "prose")
+TRIAGE_HAIKU_MAX_FILES = 3
 # Deleting or thinning tests is when a second reader matters most: a diet can leave a rule with
 # no test, and only a coverage review catches it. Path rules alone miss this, so owned tests/
 # files plus test-removal wording (or kind "diet") force a review.
@@ -180,9 +181,15 @@ def _request(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
 def _fallback(files: List[str], kind: str, brief: str) -> Dict[str, Any]:
     touches_core = any(f.startswith(CORE_PATH_PREFIXES) for f in files)
     mechanical = kind in FAST_PATH_KINDS and kind != "prose"
+    # Triage that reads core code or spans several files needs judgment Haiku lacked
+    # (code-plus-measurement jobs and large inventories both needed Sonnet).
+    heavy_triage = kind == "triage" and (touches_core or len(files) > TRIAGE_HAIKU_MAX_FILES)
     hard_words = ("wire", "replicat", "byte-identical", "argmax", "invariant", "collision", "trimesh")
     hard = touches_core and any(w in brief.lower() for w in hard_words)
-    model = "haiku" if mechanical else ("opus" if hard and kind != "prose" else "sonnet")
+    if mechanical and not heavy_triage:
+        model = "haiku"
+    else:
+        model = "opus" if hard and kind not in FAST_PATH_KINDS else "sonnet"
     specialized = any(f.startswith(SPECIALIZED_PATH_PREFIXES) for f in files)
     tier = "quick" if mechanical or kind in QUICK_TIER_KINDS else ("specialized" if specialized else "targeted")
     visual = tier != "quick" and any(f.startswith(("ui/", "scenes/", "shaders/")) for f in files)

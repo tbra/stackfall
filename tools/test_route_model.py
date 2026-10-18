@@ -19,6 +19,14 @@ class RoutePolicyTests(unittest.TestCase):
         self.assertEqual((result["model"], result["verification_tier"]), ("haiku", "quick"))
         self.assertIsNone(result["max_windowed_probes"])
 
+    def test_heavy_triage_runs_on_sonnet_small_triage_on_haiku(self):
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request") as request:
+            core = router.route("Measure bot cost", "Time the invariant", ["core/ai/BotStrategy.gd"], "triage", 0)
+            wide = router.route("Inventory strings", "List texts", ["ui/a.gd", "ui/b.gd", "ui/c.gd", "ui/d.gd"], "triage", 0)
+            small = router.route("Triage log", "Group errors", ["ui/a.gd", "ui/b.gd", "ui/c.gd"], "triage", 0)
+        request.assert_not_called()
+        self.assertEqual((core["model"], wide["model"], small["model"]), ("sonnet", "sonnet", "haiku"))
+
     def test_prose_rewriting_skips_network_on_sonnet(self):
         with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request") as request:
             result = router.route("Reword comments", "Rewrite each listed comment", ["core/a.gd"], "prose", 0)
