@@ -518,6 +518,12 @@ func current_frame() -> SkyFrame:
 	return _out_frame
 
 
+## The live sky dome material (what the old `theme.sky_material` shim pointed at). Null until a
+## cycle start binds the dome; the dome writer is its only writer.
+func sky_material() -> ShaderMaterial:
+	return _dome.material()
+
+
 ## The weather requests currently held (tests / fingerprint).
 func weather_state() -> SkyWeatherState:
 	return _weather
