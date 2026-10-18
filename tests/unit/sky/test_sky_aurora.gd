@@ -2,7 +2,7 @@ extends GutTest
 ## "at night lets add an aurora borealis effect to the
 ## sky": the aurora borealis curtains of the night sky. game/sky/Skybox.gd writes the
 ## `aurora_visibility` uniform (night x weather keep x theme switch x graphics preset) and
-## the look uniforms from SkyThemeDef.aurora_*; the shaders only draw what that says, so the
+## the look uniforms from SkyCycleDef.aurora_*; the shaders only draw what that says, so the
 ## day / night / weather / preset behaviour is checked on the uniforms, like test_sky_moon.gd.
 
 const NIGHT_PHASE: float = 0.75
@@ -28,7 +28,7 @@ func _wired_skybox() -> Skybox:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	add_child_autofree(skybox)
 	# The facade owns a private copy of the sky definition, so the always-shown night is set on it.
 	skybox.sky_def.aurora_night_chance = 1.0
@@ -123,7 +123,7 @@ func test_overcast_dims_the_aurora() -> void:
 ## Review fix (2): a start edge above the full edge must not invert the fade (a reversed
 ## smoothstep would be bright at noon and dark at midnight).
 func test_swapped_fade_edges_still_fade_in_with_the_night() -> void:
-	var def: SkyThemeDef = SkyThemeDef.new()
+	var def: SkyCycleDef = SkyTestKit.cycle()
 	def.aurora_start_night_mix = 0.9
 	def.aurora_full_night_mix = 0.3
 	assert_almost_eq(def.aurora_night_strength(0.0), 0.0, 0.0001, "none by day")
@@ -131,7 +131,7 @@ func test_swapped_fade_edges_still_fade_in_with_the_night() -> void:
 	var middle: float = def.aurora_night_strength(0.6)
 	assert_true(middle > 0.0 and middle < 1.0, "partial between the edges (got %s)" % middle)
 	assert_almost_eq(def.aurora_night_strength(1.0), 1.0, 0.0001, "full at night")
-	var ordered: SkyThemeDef = SkyThemeDef.new()
+	var ordered: SkyCycleDef = SkyTestKit.cycle()
 	ordered.aurora_start_night_mix = 0.3
 	ordered.aurora_full_night_mix = 0.9
 	for night: float in [0.0, 0.25, 0.5, 0.75, 1.0]:

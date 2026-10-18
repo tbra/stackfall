@@ -1,5 +1,5 @@
 extends GutTest
-## game/sky/Skybox.gd (spec 1.10): theme, cycle, fog volume, reflection probe and SSR.
+## game/sky/Skybox.gd (spec 1.10): sky cycle, fog volume, reflection probe and SSR.
 
 var _skybox: Skybox = null
 var _ambient: AmbientLife = null
@@ -37,7 +37,7 @@ func _make_wired_skybox() -> Dictionary:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	add_child_autofree(skybox)
 
 	return {"skybox": skybox, "environment": environment, "procedural": procedural}
@@ -57,7 +57,7 @@ func test_cycle_key_light_and_flare_follow_the_sun() -> void:
 	skybox.configure_match_sky(config)
 	for phase: float in [0.0, 0.25, 0.5, 0.75]:
 		skybox.set_cycle_phase(phase)
-		var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var material: ShaderMaterial = skybox.sky_material()
 		var sun: Vector3 = material.get_shader_parameter(&"sun_direction") as Vector3
 		assert_true(light.light_energy >= 0.0)
 		assert_true(light.global_basis.z.y >= -0.001, "key light must never shine from below")
@@ -82,7 +82,7 @@ func test_ready_starts_the_cycle_for_theme_name_cycle() -> void:
 	add_child_autofree(skybox)
 	assert_true(skybox.is_cycle_active(), "the persisted cycle entry runs at boot")
 	assert_eq(skybox.locked_phase(), -1.0)
-	assert_almost_eq(skybox.current_cycle_phase(), (Skybox.load_theme("sunset") as SkyThemeDef).cycle_start_phase, 0.0001)
+	assert_almost_eq(skybox.current_cycle_phase(), SkyTestKit.cycle().cycle_start_phase, 0.0001)
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME)
 	assert_not_null(skybox.get_node("CloudSea") as CloudSea, "the layers the cycle drives exist")
 
@@ -120,7 +120,7 @@ func _cycle_look(config: MatchConfig, clock: float) -> Array[float]:
 	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
 	skybox.configure_match_sky(config)
 	skybox.update_cycle_clock(clock)
-	var material: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	var material: ShaderMaterial = skybox.sky_material()
 	return [
 		float(material.get_shader_parameter(&"exposure")),
 		float(material.get_shader_parameter(&"proc_sea_coverage")),
@@ -152,26 +152,26 @@ func test_skyboxes_with_the_same_resolved_sky_variation_seed_match_and_different
 		if not is_equal_approx(_cycle_look(other_config, clock)[0], host_look[0]):
 			differs = true
 	assert_true(differs, "a different resolved seed draws a different curve")
-	var theme: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
+	var def: SkyCycleDef = SkyTestKit.cycle()
 	assert_eq(host_config.effective_sky_variation_seed(), 5551)
-	assert_eq(_cycle_look(host_config, 0.0)[0], SkyVariation.exposure_at(theme, host.cycle_phase_at(0.0), 5551), "it is SkyVariation's function of that seed")
+	var expected_exposure: float = SkyVariation.value_at(def.variation_exposure_min, def.variation_exposure_max,
+		def.variation_knots_per_cycle, host.cycle_phase_at(0.0), 5551, SkyVariation.CHANNEL_EXPOSURE)
+	assert_eq(_cycle_look(host_config, 0.0)[0], expected_exposure, "it is SkyVariation's function of that seed")
 
 
-## F4 bridge: an edit of the live sunset theme reaches the next evaluation after
-## refresh_cycle_sources(), in a locked and in a running cycle.
+## F4 refresh: an edit of the live sky definition reaches the next evaluation after
+## refresh_sky_def(), in a locked and in a running cycle.
 func _bridge_case(running: bool) -> void:
 	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
-	var sunset: SkyThemeDef = Skybox.load_theme(Skybox.DEFAULT_THEME_ID)
-	var original: float = sunset.fog_density
+	var original: float = skybox.sky_def.day_keyframes[1].fog_density
 	if running:
 		skybox.start_cycle(-1.0, 0.47)
 	else:
 		skybox.set_locked_phase(0.47)
 	var before: float = skybox.current_frame().fog_density
-	sunset.fog_density = original * 3.0
-	skybox.refresh_cycle_sources()
+	skybox.sky_def.day_keyframes[1].fog_density = original * 3.0
+	skybox.refresh_sky_def()
 	var after: float = skybox.current_frame().fog_density
-	sunset.fog_density = original
 	assert_ne(after, before, "the edited fog density shows (running=%s)" % running)
 	assert_almost_eq(skybox.sky_def.day_keyframes[1].fog_density, original * 3.0, 0.00001, "the keyframe carries the edit")
 
@@ -258,8 +258,11 @@ func _make_locked_night_skybox() -> Skybox:
 
 ## Asserts the cloud puffs and ambient life of a sky locked at full night.
 func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
-	var night: SkyThemeDef = Skybox.load_theme(Skybox.CYCLE_NIGHT_THEME_ID)
-	var night_puffs: ShaderMaterial = night.cloud_puff_material as ShaderMaterial
+	var night_key: SkyNightKeyframe = skybox.sky_def.night
+	var night_tones: Dictionary = {
+		&"shadow_color": night_key.puff_shadow_color, &"mid_color": night_key.puff_mid_color,
+		&"lit_color": night_key.puff_lit_color, &"rim_color": night_key.puff_rim_color,
+	}
 	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
 	assert_not_null(puffs, "%s: the cloud sea has puffs" % label)
 	if puffs == null:
@@ -269,8 +272,8 @@ func _assert_locked_night_dressing(skybox: Skybox, label: String) -> void:
 	assert_true(grade is float and is_equal_approx(grade as float, 1.0), "%s: puff grade is the night value (got %s)" % [label, grade])
 	for parameter: StringName in [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]:
 		var colour: Color = puffs.get_shader_parameter(parameter) as Color
-		assert_true(colour.is_equal_approx(night_puffs.get_shader_parameter(parameter) as Color), "%s: puff %s is the night mix" % [label, parameter])
-	var sun: Vector3 = (skybox.theme.sky_material as ShaderMaterial).get_shader_parameter(&"sun_direction") as Vector3
+		assert_true(colour.is_equal_approx(night_tones[parameter] as Color), "%s: puff %s is the night mix" % [label, parameter])
+	var sun: Vector3 = (skybox.sky_material()).get_shader_parameter(&"sun_direction") as Vector3
 	assert_true((puffs.get_shader_parameter(&"light_direction") as Vector3).is_equal_approx(sun), "%s: puffs are lit from the cycle sun, not the authored one" % label)
 	assert_false((_ambient.get_node("DistantBirds") as DistantBirds).visible, "%s: no distant day birds at night" % label)
 	assert_false((_ambient.get_node("PerchingBirds") as PerchingBirds).visible, "%s: the night life config has no perching birds" % label)
@@ -297,7 +300,7 @@ func test_storm_request_between_ticks_recaptures_an_update_once_probe() -> void:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	var probe: ReflectionProbe = ReflectionProbe.new()
 	probe.name = "Probe"
 	skybox.add_child(probe)
@@ -323,7 +326,7 @@ func _make_probe_skybox() -> Array:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	var probe: ReflectionProbe = ReflectionProbe.new()
 	probe.name = "Probe"
 	skybox.add_child(probe)

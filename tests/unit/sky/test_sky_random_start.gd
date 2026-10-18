@@ -30,7 +30,7 @@ func _opening_phase(config: MatchConfig) -> float:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
+	skybox.sky_def = SkyTestKit.cycle()
 	add_child_autofree(skybox)
 	skybox.configure_match_sky(config)
 	return skybox.current_cycle_phase()
