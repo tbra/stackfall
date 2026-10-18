@@ -4,8 +4,6 @@ extends GutTest
 ## perspective and restores it, and exponential fog density at the arena's far
 ## rim stays under the readability threshold (pure function).
 
-const THEME_IDS: Array[String] = ["dawn", "sunset", "storm", "night"]
-
 var _fog: FogTuning = preload("res://config/weather/fog.tres")
 
 
@@ -15,9 +13,8 @@ func _rig(theme_id: String) -> Array:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = load("res://config/sky/themes/%s.tres" % theme_id) as SkyThemeDef
 	add_child_autofree(skybox)
-	skybox.apply_theme(skybox.theme)
+	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(theme_id))
 	return [skybox, environment]
 
 
@@ -37,10 +34,10 @@ func test_weather_fog_flattens_aerial_perspective_and_restores_it() -> void:
 
 
 func test_ambient_haze_starts_beyond_the_arena_and_blends_with_weather() -> void:
-	for theme_id: String in THEME_IDS:
-		var theme: SkyThemeDef = load("res://config/sky/themes/%s.tres" % theme_id) as SkyThemeDef
-		assert_gt(theme.haze_strength, 0.0, theme_id)
-		assert_gte(theme.haze_begin_m, _fog.arena_far_rim_m * 1.2, "%s haze leaves the arena crisp" % theme_id)
+	# The haze is a cycle-level structure value, shared by every locked phase.
+	var def: SkyCycleDef = (_rig("sunset")[0] as Skybox).sky_def
+	assert_gt(def.haze_strength, 0.0)
+	assert_gte(def.haze_begin_m, _fog.arena_far_rim_m * 1.2, "haze leaves the arena crisp")
 	WeatherFogShader.set_ambient(0.5, 90.0, 480.0, Color.RED, null)
 	WeatherFogShader.set_state(0.0, 0.7, 30.0, 110.0, Color.BLUE, null)
 	assert_almost_eq(WeatherFogShader.strength, 0.5, 0.0001)

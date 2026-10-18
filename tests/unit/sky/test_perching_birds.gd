@@ -3,8 +3,6 @@ extends GutTest
 ## triggers, tower perching, block-moved takeoff, theme gating and stable node
 ## counts over repeated theme switches.
 
-const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
-const NIGHT_PATH: String = "res://config/sky/themes/night.tres"
 const STEP_S: float = 0.1
 const MAX_STEPS: int = 600
 const FAR_CAMERA: Vector3 = Vector3(0.0, 60.0, 400.0)
@@ -144,24 +142,22 @@ func _make_skybox() -> Skybox:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = load(SUNSET_PATH) as SkyThemeDef
 	add_child_autofree(skybox)
 	return skybox
 
 
 func test_birds_are_sunset_only_and_fireflies_night_only() -> void:
 	var skybox: Skybox = _make_skybox()
-	var sunset: SkyThemeDef = load(SUNSET_PATH) as SkyThemeDef
-	var night: SkyThemeDef = load(NIGHT_PATH) as SkyThemeDef
-	assert_not_null(sunset.ambient_life)
-	assert_not_null(night.ambient_life)
-	skybox.set_theme_by_id("sunset")
+	var night_life: AmbientLifeConfig = skybox.sky_def.night.ambient_life
+	assert_not_null(skybox.sky_def.ambient_life)
+	assert_not_null(night_life)
+	skybox.set_locked_phase(skybox.sky_def.locked_phase_for("sunset"))
 	assert_true((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
-	skybox.set_theme_by_id("night")
+	skybox.set_locked_phase(skybox.sky_def.locked_phase_for("night"))
 	assert_false((skybox.get_node("PerchingBirds") as PerchingBirds).visible)
 	assert_not_null(skybox.get_node("Fireflies").get_node_or_null("Motes"))
-	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night.ambient_life.fireflies_count)
+	assert_eq((skybox.get_node("Fireflies").get_node_or_null("Motes") as MultiMeshInstance3D).multimesh.instance_count, night_life.fireflies_count)
 
 
 func test_freed_block_never_reaches_typed_calls_during_polls() -> void:

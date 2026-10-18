@@ -1,6 +1,6 @@
 extends GutTest
 ## the aurora showed every night: the aurora is a per-night
-## roll against SkyThemeDef.aurora_night_chance (default 10%), a pure function of the
+## roll against SkyCycleDef.aurora_night_chance (default 10%), a pure function of the
 ## replicated match seed, so the host and every client agree and each night re-rolls.
 
 const NIGHTS: int = 4000
@@ -14,7 +14,7 @@ const SAMPLED_NIGHTS: int = 40
 
 
 func test_rate_over_many_seeded_nights_is_about_ten_percent() -> void:
-	var chance: float = SkyThemeDef.new().aurora_night_chance
+	var chance: float = SkyCycleDef.new().aurora_night_chance
 	var expected: float = float(NIGHTS) * chance
 	var bound: float = SIGMA_BOUND * sqrt(float(NIGHTS) * chance * (1.0 - chance))
 	for seed_value: int in SEEDS:
@@ -38,7 +38,6 @@ func _cycle_skybox(seed_value: int) -> Skybox:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = SkyThemeDef.new()
 	add_child_autofree(skybox)
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
@@ -49,7 +48,7 @@ func _cycle_skybox(seed_value: int) -> Skybox:
 
 
 func _visibility_at_night(skybox: Skybox, night: int) -> float:
-	var length: float = Skybox.load_theme(Skybox.DEFAULT_THEME_ID).cycle_length_seconds
+	var length: float = skybox.cycle_length_seconds()
 	# set_cycle_phase() skips an unchanged phase, so alternate nights sit a hair apart.
 	var phase: float = NIGHT_PHASE + float(night % 2) * PHASE_NUDGE
 	skybox.update_cycle_clock((float(night) + phase - START_PHASE) * length)
@@ -59,8 +58,8 @@ func _visibility_at_night(skybox: Skybox, night: int) -> float:
 func test_host_and_client_agree_and_follow_the_seeded_roll() -> void:
 	var previous_preset: StringName = Settings.current_graphics_preset().id
 	Settings.set_graphics_preset(&"high")
-	var chance: float = Skybox.load_theme(Skybox.DEFAULT_THEME_ID).aurora_night_chance
 	var host: Skybox = _cycle_skybox(SEEDS[2])
+	var chance: float = host.sky_def.aurora_night_chance
 	var client: Skybox = _cycle_skybox(SEEDS[2])
 	var shown: int = 0
 	for night: int in SAMPLED_NIGHTS:
