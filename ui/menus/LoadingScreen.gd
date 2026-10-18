@@ -20,6 +20,7 @@ signal ready_prompt_opened
 
 @export var tuning: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
+@export var tip_table: LoadingTipTable = preload("res://config/ui/loading_tip_table.tres")
 ## test seam: anything answering name_for_slot(slot_id) -> String
 ## (Net does). Null means the real Net autoload.
 var name_provider: Variant = null
@@ -40,6 +41,7 @@ var name_provider: Variant = null
 @onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
 @onready var _map_label: Label = %MapLabel
+@onready var _tip_label: Label = %TipLabel
 ## the map pictogram above the name (UiArtTable); hidden without a config.
 @onready var _map_icon: TextureRect = %MapIcon
 ## Ready prompt and player ready list (presentation only).
@@ -86,6 +88,8 @@ var _ready_input_enabled: bool = false
 var _local_pressed: bool = false
 ## ready_prompt_opened fired for this match (it fires when the prompt first shows).
 var _prompt_announced: bool = false
+## Index of the tip last shown, so the next load never repeats it.
+var _last_tip_index: int = -1
 ## One entry per player-list row: {slot_id: int, is_bot: bool, mark: Control}.
 var _ready_rows: Array[Dictionary] = []
 ## backdrop state. _backdrop_path is the plate chosen for the current
@@ -133,6 +137,7 @@ func _ready() -> void:
 ## synchronous world build runs. `slots` is what Main collected from Match this frame, so every
 ## slot's display_name/is_bot is already final.
 func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
+	var keep_tip: bool = _is_pending and visible
 	_is_pending = false
 	_loading_elapsed_s = 0.0
 	_timed_out = false
@@ -149,6 +154,8 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's _authority()._lifecycle) rather than through a Match forward.
 	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
+	if not keep_tip:
+		_show_next_tip()
 	_refresh_map_icon(config)
 	_select_backdrop(config)
 	_rebuild_ready_rows(slots)
@@ -719,3 +726,16 @@ func _refresh_ready_ui() -> void:
 		ready_prompt_opened.emit()
 	_ready_box.visible = prompt_open
 	_ready_box.modulate.a = tuning.ready_prompt_disabled_alpha if pressed else 1.0
+
+
+## One tip per load: the pending overlay's tip carries over into the real load (see show_for_match).
+func _show_next_tip() -> void:
+	_tip_label.theme_type_variation = &"CaptionLabel"
+	_tip_label.custom_minimum_size.x = float(tip_table.tip_width_px)
+	var index: int = tip_table.pick_index(_last_tip_index, randi())
+	if index < 0:
+		_tip_label.visible = false
+		return
+	_last_tip_index = index
+	_tip_label.text = tip_table.tips[index]
+	_tip_label.visible = true

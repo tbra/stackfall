@@ -272,3 +272,52 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	main._world_built = false
 	Net.leave()
 	Match.set_process(true)
+
+
+# --- loading tips ------------------------------------------------------------
+
+func test_tip_table_is_valid() -> void:
+	var table: LoadingTipTable = load("res://config/ui/loading_tip_table.tres")
+	assert_gt(table.tips.size(), 14)
+	assert_lt(table.tips.size(), 26)
+	for tip: String in table.tips:
+		assert_lte(tip.length(), table.max_tip_length, tip)
+		assert_false(tip.contains("\u2014"), tip)
+		assert_false(tip.strip_edges().is_empty())
+
+
+func test_tip_picker_never_repeats() -> void:
+	var table: LoadingTipTable = load("res://config/ui/loading_tip_table.tres")
+	var previous: int = -1
+	for roll: int in range(500):
+		var index: int = table.pick_index(previous, roll * 7919)
+		assert_between(index, 0, table.tips.size() - 1)
+		assert_ne(index, previous)
+		previous = index
+	assert_eq(table.pick_index(-1, 3), 3 % table.tips.size())
+
+
+func test_tip_picker_edge_sizes() -> void:
+	var table: LoadingTipTable = LoadingTipTable.new()
+	assert_eq(table.pick_index(-1, 5), -1)
+	table.tips = PackedStringArray(["only"])
+	assert_eq(table.pick_index(0, 5), 0)
+
+
+func test_show_for_match_shows_a_new_tip_each_load() -> void:
+	_screen.show_for_match(_config(), _slots(2))
+	var tip_label: Label = _screen.get_node("%TipLabel")
+	assert_true(tip_label.visible)
+	var first: String = tip_label.text
+	assert_ne(first, "")
+	_screen.cancel()
+	_screen.show_for_match(_config(), _slots(2))
+	assert_ne(tip_label.text, first)
+
+
+func test_pending_then_load_keeps_the_same_tip() -> void:
+	_screen.show_pending(_config())
+	var tip_label: Label = _screen.get_node("%TipLabel")
+	var first: String = tip_label.text
+	_screen.show_for_match(_config(), _slots(2))
+	assert_eq(tip_label.text, first)
