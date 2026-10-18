@@ -4,7 +4,6 @@ extends GutTest
 ## Events.match_scope_reset fires, so a match never starts under the previous one's
 ## night / cycle / storm / overcast sky or its fading ceiling.
 
-const SUNSET_PATH: String = "res://config/sky/themes/sunset.tres"
 const STORM_ID: StringName = &"storm"
 const RAIN_ID: StringName = &"rain"
 const FOG_ID: StringName = &"fog"
@@ -33,7 +32,7 @@ func after_each() -> void:
 
 
 ## A Skybox wired like Main's: own Environment/Sky/light/config (no shared state
-## between rigs apart from the shipped theme resources), launching on the cycle locked at
+## between rigs apart from the shipped cycle resources), launching on the cycle locked at
 ## sunset unless `launch_theme_name` is "cycle".
 func _rig(launch_theme_name: String = "") -> Dictionary:
 	var environment: Environment = Environment.new()
@@ -45,7 +44,6 @@ func _rig(launch_theme_name: String = "") -> Dictionary:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = config
 	skybox.environment = environment
-	skybox.theme = load(SUNSET_PATH) as SkyThemeDef
 	skybox.light_path = light.get_path()
 	add_child_autofree(skybox)
 	return {"skybox": skybox, "environment": environment, "light": light}
@@ -75,14 +73,14 @@ func _snapshot(rig: Dictionary) -> Dictionary:
 	var lighting: CloudLighting = _lighting(skybox)
 	var fog_material: FogMaterial = (skybox.get_node_or_null("CloudDeck") as FogVolume).material as FogMaterial
 	return {
-		"theme": skybox.theme.resource_path,
+		"sky_def": skybox.sky_def.resource_path,
 		"theme_name": skybox.config.theme_name,
 		"cycle_active": skybox.is_cycle_active(),
 		"locked_phase": skybox.locked_phase(),
 		"cycle_phase": skybox.current_cycle_phase(),
 		"process_mode": environment.sky.process_mode,
 		"cloud_overcast": skybox.cloud_overcast_amount(),
-		"sky_is_theme_material": sky_material == skybox.theme.sky_material,
+		"sky_is_live_material": sky_material == skybox.sky_material(),
 		"sky_exposure": sky_material.get_shader_parameter(&"exposure"),
 		"sky_sea_mix": sky_material.get_shader_parameter(&"procedural_sea_mix"),
 		"fog_enabled": environment.fog_enabled,
@@ -135,7 +133,7 @@ func _dirty_with_locked_night_storm(rig: Dictionary) -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	skybox.configure_match_sky(config)
-	skybox.set_locked_phase(skybox.theme.cycle_locked_phase_night)
+	skybox.set_locked_phase(skybox.sky_def.cycle_locked_phase_night)
 	skybox.set_storm_sky(STORM_AMOUNT, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	_overcast(skybox, 1.0)
 	_weather_fog(skybox, 1.0)
@@ -152,7 +150,7 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	_dirty_with_locked_night_storm(used)
 	var stormy: Dictionary = _snapshot(used)
 	assert_true(skybox.is_cycle_active(), "fixture: the cycle is running")
-	assert_almost_eq(skybox.locked_phase(), skybox.theme.cycle_locked_phase_night, 0.0001, "fixture: locked at night")
+	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_night, 0.0001, "fixture: locked at night")
 	var environment: Environment = used["environment"] as Environment
 	assert_gt(_lighting(skybox).storm, 0.0, "fixture: storm on")
 	assert_gt(skybox.cloud_overcast_amount(), 0.0, "fixture: overcast on")
@@ -161,16 +159,17 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(used), expected, "after reset")
 
-	# Merged variant: a night lock (set_theme_by_id) with storm + overcast.
+	# Merged variant: a night lock (locked sky id) with storm + overcast.
 	var static_used: Dictionary = _rig()
 	var static_skybox: Skybox = static_used["skybox"] as Skybox
 	var static_config: MatchConfig = MatchConfig.new()
 	static_config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
 	static_skybox.configure_match_sky(static_config)
-	assert_true(static_skybox.set_theme_by_id("night"))
+	static_skybox.set_locked_phase(static_skybox.sky_def.locked_phase_for("night"))
+	static_skybox.config.theme_name = "night"
 	static_skybox.set_storm_sky(STORM_AMOUNT, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	_overcast(static_skybox, 1.0)
-	assert_eq(static_skybox.config.theme_name, "night", "fixture: set_theme_by_id wrote the shared config")
+	assert_eq(static_skybox.config.theme_name, "night", "fixture: the shared config names the night lock")
 	static_skybox.reset_to_launch()
 	_assert_same_snapshot(_snapshot(static_used), expected, "static night: after reset")
 	assert_eq(static_skybox.config.theme_name, "", "config.theme_name is the launch value again")
