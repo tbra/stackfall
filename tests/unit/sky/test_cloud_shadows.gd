@@ -79,7 +79,6 @@ func test_skybox_cloud_scale_dims_light_and_resets() -> void:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	skybox.light_path = skybox.get_path_to(light)
 	var match_config: MatchConfig = MatchConfig.new()
