@@ -156,11 +156,11 @@ Holes are a visual void, not an opening: disc collision stays solid. A block who
 
 | Mode | Gifts | Behavior |
 |---|---|---|
-| Throw | Bomb, Magnet, Jumping Bean | Ballistic arc at `gift_throw_speed_mps` 22 with `gift_throw_up_ratio` 0.35; an arc preview is shown while held |
+| Throw | Bomb, Magnet, Hopper | Ballistic arc at `gift_throw_speed_mps` 22 with `gift_throw_up_ratio` 0.35; an arc preview is shown while held |
 | Aimed | Rocket, Paintball | Straight, gravity-free flight along the camera forward |
 | Drop | All others | Released in place; a throw is refused |
 
-Black Hole, Earthquake, Propeller, Stackfall and Volcano activate in place at the cursor point with no falling carrier. Anvil spawns `sky_drop_height_m` 14 m above the release point.
+Balloon, Black Hole, Earthquake, Stackfall and Volcano activate in place at the cursor point with no falling carrier. Anvil spawns `sky_drop_height_m` 14 m above the release point.
 
 | Special | Behavior | Key tunables (`config/gifts/specials/*.tres`) |
 |---|---|---|
@@ -169,8 +169,8 @@ Black Hole, Earthquake, Propeller, Stackfall and Volcano activate in place at th
 | Volcano | A volcano rises at the activation point and erupts blocks at random | rise 2 s, erupts 22 s, cone 50°, block cap 600 |
 | Earthquake | Shakes the disc and levels existing tilt | `DiscForce` shake, 4 s |
 | Anvil | Heavy; lands and tilts the disc toward its side | mass 60 |
-| Propeller | A team-colour balloon tied to the disc inflates, rises and tilts the disc the opposite way to an Anvil, then pops into confetti | 3 s |
-| Jumping Bean | Hops randomly and punches a temporary hole at each take-off (no hole under `HoleMode.OFF`) | hop every 1.8 s, hole radius 2.5 m, lives 24 s |
+| Balloon (id `propeller`) | A team-colour balloon tied to the disc inflates, rises and tilts the disc the opposite way to an Anvil, then pops into confetti | 3 s |
+| Hopper (id `jumping_bean`) | Hops randomly and punches a temporary hole at each take-off (no hole under `HoleMode.OFF`) | hop every 1.8 s, hole radius 2.5 m, lives 24 s |
 | Magnet | Pulls other players' blocks within 8 m toward itself | pull 6 s |
 | Freeze | Makes the activator's own blocks within 6 m static | 20 s |
 | Glue | Grants five future placements that fuse on contact (below) | 5 charges |
@@ -196,7 +196,7 @@ Each special is a `SpecialDef` resource plus an effect script under `game/gifts/
 **Disc.** One map ships: a round disc (`config/match/maps/round.tres`, `MapDef`): `field_radius` 45 m, thickness `disk_height` 0.2 m, cell size 1 m. The lobby's disc-size slider scales the radius by one of six steps (`config/match/disc_size_tuning.tres`): Tiny 50%, Small 75%, Medium 100% (default), Large 125%, Huge 150%, Enormous 175%. Scaling changes lengths (radius, flag positions, influence cap, kill plane) but not block size, cell size or the influence formula.
 
 **Tilt** (`MatchConfig.tilt_mode`):
-- `SPECIALS_ONLY` (default): the disc is an animated body driven by a critically damped spring on its tilt; at most `max_tilt_deg` = 12°, return time constant 4 s (`TiltTuning`). Only specials (Anvil, Propeller, Earthquake) tilt or level it.
+- `SPECIALS_ONLY` (default): the disc is an animated body driven by a critically damped spring on its tilt; at most `max_tilt_deg` = 12°, return time constant 4 s (`TiltTuning`). Only specials (Anvil, Balloon, Earthquake) tilt or level it.
 - `PHYSICAL_BALANCE`: block weight tilts the disc: the torque of settled blocks about the center feeds the same tilt spring (`physical_balance_torque_gain`).
 
 **Out of bounds.** A body below `kill_plane_y` = −40 m is freed.
