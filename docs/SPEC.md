@@ -169,7 +169,7 @@ Black Hole, Earthquake, Propeller, Stackfall and Volcano activate in place at th
 | Volcano | A volcano rises at the activation point and erupts blocks at random | rise 2 s, erupts 22 s, cone 50°, block cap 600 |
 | Earthquake | Shakes the disc and levels existing tilt | `DiscForce` shake, 4 s |
 | Anvil | Heavy; lands and tilts the disc toward its side | mass 60 |
-| Propeller | A stand rises from the disc and tilts it the opposite way to an Anvil | 3 s |
+| Propeller | A team-colour balloon tied to the disc inflates, rises and tilts the disc the opposite way to an Anvil, then pops into confetti | 3 s |
 | Jumping Bean | Hops randomly and punches a temporary hole at each take-off (no hole under `HoleMode.OFF`) | hop every 1.8 s, hole radius 2.5 m, lives 24 s |
 | Magnet | Pulls other players' blocks within 8 m toward itself | pull 6 s |
 | Freeze | Makes the activator's own blocks within 6 m static | 20 s |
