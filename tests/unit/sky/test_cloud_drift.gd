@@ -47,7 +47,6 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	var wind: Vector2 = Vector2.from_angle(deg_to_rad(200.0))
 	skybox.set_cloud_storm_wind(wind)
@@ -56,7 +55,7 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	for i: int in range(SETTLE_STEPS):
 		skybox._step_cloud_drift(STEP_S)
 	assert_gt(skybox.cloud_wind_dir().dot(wind), 0.999, "storm: the skybox's cloud wind is the storm wind")
-	var calm_speed: float = absf(skybox.theme.cloud_drift_speed_min_mps + skybox.theme.cloud_drift_speed_max_mps) * 0.5
+	var calm_speed: float = absf(skybox.sky_def.cloud_drift_speed_min_mps + skybox.sky_def.cloud_drift_speed_max_mps) * 0.5
 	assert_almost_eq(skybox.cloud_drift_speed_mps(), calm_speed * config.storm_speed_mult, 0.01, "and its speed")
 
 	var shadows: CloudShadows = CloudShadows.new()

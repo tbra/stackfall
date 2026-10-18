@@ -14,7 +14,6 @@ func _wired_skybox() -> Skybox:
 	var skybox: Skybox = Skybox.new()
 	skybox.config = SkyboxConfig.new()
 	skybox.environment = environment
-	skybox.theme = Skybox.load_theme("sunset")
 	add_child_autofree(skybox)
 	return skybox
 
@@ -50,19 +49,18 @@ func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	assert_not_null(_puffs(sea, true), "%s upper layer exists" % label)
 	assert_same(_puffs(sea, true).material_override, puff, "%s upper layer shares the puff material" % label)
 	assert_same(_puffs(sea, false).material_override, puff, "%s sea uses it too" % label)
-	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	var sky: ShaderMaterial = skybox.sky_material()
 	if sky != null and sky.get_shader_parameter(&"sun_direction") is Vector3 and sky.get_shader_parameter(&"cycle_night_mix") is float:
 		assert_true((sky.get_shader_parameter(&"sun_direction") as Vector3).is_equal_approx(l.light_direction), "%s sea light" % label)
 		assert_almost_eq(float(sky.get_shader_parameter(&"cycle_night_mix")), l.night_mix, EPS, "%s sea night mix" % label)
 
 
-func test_theme_change_reaches_every_layer() -> void:
+func test_sky_change_reaches_every_layer() -> void:
 	var skybox: Skybox = _wired_skybox()
-	skybox.apply_theme(skybox.theme)
 	var lit_before: Color = _lighting(skybox).lit_color
-	skybox.set_theme_by_id("night")
-	assert_false(_lighting(skybox).lit_color.is_equal_approx(lit_before), "palette changed with the theme")
-	_assert_layers_match(skybox, "night theme")
+	skybox.set_locked_phase(SkyTestKit.locked_phase("night"))
+	assert_false(_lighting(skybox).lit_color.is_equal_approx(lit_before), "palette changed with the sky")
+	_assert_layers_match(skybox, "night sky")
 
 
 func test_storm_and_overcast_reach_every_layer() -> void:
@@ -92,7 +90,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 
 ## One sun term, as the player sees it: its share of the clear-weather strength.
 func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Dictionary:
-	var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+	var sky: ShaderMaterial = skybox.sky_material()
 	var scale: float = float(sky.get_shader_parameter(&"sun_effect_scale"))
 	var flare: SunFlare = get_tree().get_nodes_in_group(SunFlare.GROUP)[0] as SunFlare
 	return {
@@ -113,14 +111,14 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 		var flare: SunFlare = SunFlare.new()
 		add_child_autofree(flare)
 		if mode == "locked_sunset":
-			skybox.set_theme_by_id("sunset")
+			skybox.set_locked_phase(SkyTestKit.locked_phase("sunset"))
 		else:
 			var config: MatchConfig = MatchConfig.new()
 			config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE if mode == "cycle" else MatchConfig.SkyThemeMode.DAWN
 			skybox.configure_match_sky(config)
 			if mode == "cycle":
 				skybox.set_cycle_phase(0.2)
-		var sky: ShaderMaterial = skybox.theme.sky_material as ShaderMaterial
+		var sky: ShaderMaterial = skybox.sky_material()
 		var clear_glow: float = float(sky.get_shader_parameter(&"proc_sun_glow_strength"))
 		var clear_ray: float = float(sky.get_shader_parameter(&"ray_intensity"))
 		assert_gt(clear_glow, 0.0, "%s: fixture has a sun glow to fade" % mode)
