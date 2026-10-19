@@ -1,0 +1,12 @@
+{
+ "checks": {
+  "uniform-unread": [
+   "shaders/ambient/fireflies.gdshader:wfog_color",
+   "shaders/include/disc_plating.gdshaderinc:disc_proc_seam_reflection_occlusion",
+   "shaders/sky/cloud_puffs.gdshader:procedural_sea_mix",
+   "shaders/sky/sunset_clouds.gdshader:radiance_tick"
+  ],
+  "uniform-gated": []
+ },
+ "allow": []
+}
