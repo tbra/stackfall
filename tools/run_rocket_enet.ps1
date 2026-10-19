@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # PA1: host + 1 lagged client over loopback ENet, hard wall-clock deadline.
 param(
 	[string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,

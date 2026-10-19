@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # R3: match-reset fingerprint over real ENet. Runs tests/enet/reset_enet.gd
 # twice -- mode "fresh" (host + lagged client start match B on a fresh launch, fingerprints
 # written to -Out) then mode "dirty" (they play match A, Replay, a client leave/re-join, then

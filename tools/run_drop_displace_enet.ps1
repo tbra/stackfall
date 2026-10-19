@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # host + one lagged client on loopback, hard 180 s deadline.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47791, [int]$Lag = 150, [string]$BPose = "-26.6,0.99,-0.1", [string]$Out = $env:TEMP)
 $scene = "res://tests/enet/drop_displace_enet.tscn"

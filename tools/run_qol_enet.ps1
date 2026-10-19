@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # QoL Q4: host + one lagged client on loopback, the QoL toggle
 # matrix of tests/enet/qol_enet.gd, under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
