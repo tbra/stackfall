@@ -60,6 +60,24 @@ class HandbackTests(unittest.TestCase):
             })
             self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_done_with_required_check_not_run_is_denied(self):
+        base = {"bead": "Bontago-123", "verdict": "done", "candidate": "/work/wt/a@abc123",
+                "files": "core/rules.gd", "finding": "Fixed overlap scoring", "next": "integrate",
+                "record": "bd:Bontago-123"}
+
+        def decide(report):
+            result = run_hook("validate_worker_handback.py", {
+                "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                "tool_input": {"message": json.dumps(report)},
+            })
+            return result["hookSpecificOutput"]["permissionDecision"] if result else "allow"
+        for checks in ("test_rules: 12/12 pass; pixel parity: NOT RUN",
+                       ["test_rules: pass", "enet: not run (no time)"],
+                       {"test_rules": "pass", "parity": "NOT_RUN"}):
+            self.assertEqual(decide(dict(base, checks=checks)), "deny")
+        self.assertEqual(decide(dict(base, checks="test_rules: pass; bench: NOT RUN (optional per brief)")), "allow")
+        self.assertEqual(decide(dict(base, verdict="partial", checks="pixel parity: NOT RUN")), "allow")
+
     def test_prose_is_denied_before_handback(self):
         result = run_hook("validate_worker_handback.py", {
             "hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",

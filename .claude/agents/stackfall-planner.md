@@ -28,7 +28,9 @@ Write the assigned design contract under docs/: owned files, concrete typed
 interfaces, dependencies, integration order and package-specific tests. Size
 packages by "Packages and ownership" in stackfall-worker and propose a file split
 when two packages need the same file. Identify any interface-stub package an
-implementation worker must land before its consumers. Design module boundaries to
+implementation worker must land before its consumers. A rebuild or parity-checked
+program starts with package 0: a proven deterministic parity recipe (fixed seed, scene,
+time and frame pacing) whose reference-vs-reference diff floor is measured. Design module boundaries to
 the Godot best-practices rule in CLAUDE.md. Cite the real functions and lines you
 read.
 

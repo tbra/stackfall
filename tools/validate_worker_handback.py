@@ -38,6 +38,12 @@ _SEP = r"\s*(?:,|;|\+|&|/|and)?\s*"
 _BEADS = re.compile(r"(%s)(?:%s%s)*" % (_ID, _SEP, _ID))
 _RECORD_TAIL = re.compile(r"(?:%s(?:bd:)?%s)*(?:\s*\(.{0,120}\))?" % (_SEP, _ID))
 _FENCE = re.compile(r"^```[A-Za-z]*[ \t]*\r?\n(.*?)\r?\n```$", re.S)
+# DECISION (handback checks): workers handed back verdict=done with brief-required
+# checks reading NOT RUN, and each needed a resume. The hook cannot see the brief, so a
+# done handback may list a NOT RUN check only when that entry says the brief marks it
+# optional; otherwise the honest verdict is partial.
+_NOT_RUN = re.compile(r"not[ _-]run", re.I)
+_OPTIONAL = re.compile(r"optional", re.I)
 
 
 def _filled(value, structured, nested=False):
@@ -49,6 +55,19 @@ def _filled(value, structured, nested=False):
         items = value.values() if isinstance(value, dict) else value
         return bool(value) and all(_filled(item, True, True) for item in items)
     return False
+
+
+def _check_entries(checks):
+    if isinstance(checks, dict):
+        return ["%s: %s" % (key, value) for key, value in checks.items()]
+    if isinstance(checks, list):
+        return [str(item) for item in checks]
+    return re.split(r"[;\n]", str(checks))
+
+
+def _skipped_required(checks):
+    return [entry.strip() for entry in _check_entries(checks)
+            if _NOT_RUN.search(entry) and not _OPTIONAL.search(entry)]
 
 
 def _field(report, key):
@@ -79,6 +98,9 @@ def problem(message):
     verdict = report["verdict"].lower()
     if verdict not in VERDICTS:
         return "Verdict must be done, review, partial, blocked, or failed."
+    skipped = _skipped_required(_field(report, "checks")) if verdict == "done" else []
+    if skipped:
+        return "verdict=done but checks are NOT RUN: %s. Run them, use verdict=partial, or say 'optional' in the entry when the brief marks the check optional." % "; ".join(skipped)[:300]
     comment_failed = report["record"].startswith("comment-failed:") and len(report["record"]) > len("comment-failed:")
     record = report["record"].strip()
     record_ok = any(record.startswith("bd:" + one) and _RECORD_TAIL.fullmatch(record[len("bd:" + one):]) is not None for one in ids)
