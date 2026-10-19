@@ -1,9 +1,9 @@
 extends GutTest
 ## CloudSea.apply_frame() writes the puff channel of an evaluated SkyFrame. The expected uniforms are
 ## pinned as literals in fixtures/cloud_sea_frame_expected.json (captured from the theme-based writers
-## that apply_frame replaced), with quirks Q1 (the storm re-copies the shared sky set) and Q3 (the
-## far-fade gradient is only copied at configure_cycle() and on a storm). configure_cycle() duplicates
-## the def's puff material.
+## that apply_frame replaced). The far-fade gradient is not in the fixture: it is written from the
+## frame every call, a storm included (the retired sky-set copy at storm start and the stale gradient
+## are fixed). configure_cycle() duplicates the def's puff material.
 
 const FIXTURE_PATH: String = "res://tests/unit/sky/fixtures/cloud_sea_frame_expected.json"
 const TONES: Array[StringName] = [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]
@@ -17,6 +17,13 @@ const TICK_EXPOSURE: float = 0.64
 const TICK_SEA_COVERAGE: float = 0.33
 const TEXTURE_MARK: String = "@texture"
 const FIXTURE_EPSILON: float = 0.00001
+## Far-fade gradient uniform -> the frame field apply_frame() writes it from.
+const GRADIENT_FIELDS: Dictionary[StringName, StringName] = {
+	&"proc_zenith_color": &"proc_zenith_color", &"proc_mid_color": &"proc_mid_color",
+	&"proc_horizon_color": &"proc_horizon_color", &"proc_gradient_mid_height": &"proc_gradient_mid_height",
+	&"proc_gradient_power": &"proc_gradient_power", &"proc_horizon_glow_color": &"proc_horizon_glow_color",
+	&"proc_horizon_glow_width": &"proc_horizon_glow_width", &"proc_sea_horizon_fade": &"proc_sea_horizon_fade",
+}
 const FRAME_COLORS: Array[String] = [
 	"puff_shadow_color", "puff_mid_color", "puff_lit_color", "puff_rim_color",
 	"puff_cloud_shadow_color", "puff_cloud_mid_color", "puff_cloud_lit_color", "puff_cloud_rim_color",
@@ -49,22 +56,6 @@ func _decode(value: Variant) -> Variant:
 	return value
 
 
-func _decode_shared(key: String) -> Dictionary[StringName, Variant]:
-	var shared: Dictionary[StringName, Variant] = {}
-	var texture: Variant = SkyTestKit.cycle().sky_material.get_shader_parameter(&"noise_tex")
-	var source: Dictionary = _fixture[key] as Dictionary
-	for entry: String in source:
-		var raw: Variant = source[entry]
-		shared[StringName(entry)] = texture if raw is String and raw == TEXTURE_MARK else _decode(raw)
-	return shared
-
-
-func _snapshot() -> SkyFrame:
-	var snapshot: SkyFrame = SkyFrame.new()
-	snapshot.puff_shared = _decode_shared("snapshot_shared")
-	return snapshot
-
-
 ## A frame from the fixture ("tick_frame" or "storm_frame").
 func _frame(key: String) -> SkyFrame:
 	var data: Dictionary = _fixture[key] as Dictionary
@@ -74,6 +65,7 @@ func _frame(key: String) -> SkyFrame:
 	frame.night = float(data["night"])
 	frame.puff_grade_amount = float(data["puff_grade_amount"])
 	frame.puff_exposure = float(data["puff_exposure"])
+	_set_gradient(frame, 0.0)
 	frame.puff_sea_coverage = float(data["puff_sea_coverage"])
 	frame.puff_light_direction = _decode(data["puff_light_direction"]) as Vector3
 	frame.puff_sun_direction = _decode(data["puff_sun_direction"]) as Vector3
@@ -81,35 +73,34 @@ func _frame(key: String) -> SkyFrame:
 	return frame
 
 
-func _sea(snapshot: SkyFrame) -> CloudSea:
+func _sea(frame: SkyFrame) -> CloudSea:
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
 	var def: SkyCycleDef = SkyTestKit.cycle()
 	def.cloud_clump_count = SEA_COUNT
 	def.cloud_bank_count = 0
 	def.proc_far_count = 0
-	sea.configure_cycle(def, snapshot, 1.0, 1)
+	sea.configure_cycle(def, frame, 1.0, 1)
 	return sea
 
 
-## The cycle's sky material with the storm-blended overrides the old storm test used.
-func _blended_sky() -> ShaderMaterial:
-	var sky: ShaderMaterial = (SkyTestKit.cycle().sky_material as ShaderMaterial).duplicate() as ShaderMaterial
-	sky.set_shader_parameter(&"exposure", 0.37)
-	sky.set_shader_parameter(&"proc_sea_color_near", Color(0.2, 0.3, 0.4))
-	sky.set_shader_parameter(&"proc_sea_color_far", Color(0.5, 0.1, 0.2))
-	sky.set_shader_parameter(&"proc_zenith_color", Color(0.1, 0.1, 0.3))
-	sky.set_shader_parameter(&"sun_direction", Vector3(0.0, 0.0, 1.0))
-	return sky
+## Sets the far-fade gradient fields of `frame` to values that depend on `seed_value` (0..1), so two
+## frames differ in every gradient uniform.
+func _set_gradient(frame: SkyFrame, seed_value: float) -> void:
+	frame.proc_zenith_color = Color(0.1 + seed_value, 0.2, 0.3, 1.0)
+	frame.proc_mid_color = Color(0.4, 0.5 + seed_value * 0.4, 0.6, 1.0)
+	frame.proc_horizon_color = Color(0.7, 0.6, 0.5 + seed_value * 0.4, 1.0)
+	frame.proc_horizon_glow_color = Color(0.9 - seed_value * 0.5, 0.8, 0.2, 1.0)
+	frame.proc_gradient_mid_height = 0.3 + seed_value * 0.2
+	frame.proc_gradient_power = 1.2 + seed_value
+	frame.proc_horizon_glow_width = 0.1 + seed_value * 0.2
+	frame.proc_sea_horizon_fade = 0.05 + seed_value * 0.1
 
 
-func _snapshot_of(sky: ShaderMaterial) -> SkyFrame:
-	var snapshot: SkyFrame = SkyFrame.new()
-	for parameter: StringName in CloudSea.SHARED_SKY_PARAMETERS:
-		var value: Variant = sky.get_shader_parameter(parameter)
-		if value != null:
-			snapshot.puff_shared[parameter] = value
-	return snapshot
+func _assert_gradient_matches(sea: CloudSea, frame: SkyFrame, label: String) -> void:
+	for parameter: StringName in GRADIENT_FIELDS:
+		assert_eq(sea.puff_material().get_shader_parameter(parameter), frame.get(GRADIENT_FIELDS[parameter]),
+			"%s: %s follows the frame" % [label, parameter])
 
 
 func _compared_names() -> Array[StringName]:
@@ -119,9 +110,9 @@ func _compared_names() -> Array[StringName]:
 	names.append_array(GRADE)
 	names.append_array([&"grade_amount", &"light_direction"])
 	for parameter: StringName in CloudSea.SHARED_SKY_PARAMETERS:
-		# Exposure and sea coverage are the sky's per-tick variation: apply_frame writes them from
-		# the frame (checked on their own), the old appearance writer never did.
-		if parameter != &"exposure" and parameter != &"proc_sea_coverage":
+		# Exposure, sea coverage and the gradient are the sky's per-tick values: apply_frame writes
+		# them from the frame (checked on their own), the old appearance writer never did.
+		if parameter != &"exposure" and parameter != &"proc_sea_coverage" and not GRADIENT_FIELDS.has(parameter):
 			names.append(parameter)
 	return names
 
@@ -156,52 +147,60 @@ func _assert_matches_fixture(sea: CloudSea, key: String, label: String) -> void:
 
 
 func test_apply_frame_writes_what_the_cycle_appearance_wrote() -> void:
-	var sea: CloudSea = _sea(_snapshot())
-	sea.apply_frame(_frame("tick_frame"))
+	var sea: CloudSea = _sea(null)
+	var frame: SkyFrame = _frame("tick_frame")
+	sea.apply_frame(frame)
 	_assert_matches_fixture(sea, "expected_no_storm", "no storm")
 	assert_eq(sea.puff_material().get_shader_parameter(&"grade_amount"), NIGHT_WEIGHT)
 	assert_eq(sea.puff_material().get_shader_parameter(&"light_direction"), DIRECTION)
 	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), TICK_EXPOSURE, "the far fade of the puffs tracks the sky exposure")
 	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_coverage"), TICK_SEA_COVERAGE, "and its sea coverage")
+	_assert_gradient_matches(sea, frame, "no storm")
 
 
-func test_apply_frame_in_a_storm_matches_the_captured_storm_tint_including_the_shared_copy() -> void:
+func test_apply_frame_in_a_storm_writes_the_frames_tones_sea_colours_and_exposure() -> void:
 	var frame: SkyFrame = _frame("storm_frame")
-	# Step 7: the storm frame carries the lerped tones and the blended sky's shared set (Q1).
-	frame.puff_shared = _decode_shared("blended_shared")
 	assert_eq(frame.storm_amount, STORM_AMOUNT)
-	var sea: CloudSea = _sea(_snapshot())
+	var sea: CloudSea = _sea(null)
 	sea.apply_frame(frame)
 	_assert_matches_fixture(sea, "expected_storm", "storm")
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), 0.37, "Q1: the storm copies the overcast-scaled sky exposure")
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_color_near"), Color(0.2, 0.3, 0.4), "Q1: day-only sea colour wins at storm start")
+	# Q1 fixed: the storm no longer re-copies the sky's shared set; the sea colours and exposure are
+	# the frame's own (the evaluator keeps the tick's night-mixed values there).
+	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), frame.puff_exposure)
+	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_color_near"), frame.puff_sea_color_near)
+	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_color_far"), frame.puff_sea_color_far)
+	_assert_gradient_matches(sea, frame, "storm")
 
 
-func test_without_a_storm_the_shared_far_fade_set_is_not_rewritten() -> void:
-	# Q3: the far-fade gradient is copied at configure_cycle() only; a frame's puff_shared
-	# changes nothing until a storm runs.
-	var sea: CloudSea = _sea(_snapshot())
-	var before: Variant = sea.puff_material().get_shader_parameter(&"proc_zenith_color")
-	var frame: SkyFrame = _frame("tick_frame")
-	frame.puff_shared = _snapshot_of(_blended_sky()).puff_shared
-	sea.apply_frame(frame)
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_zenith_color"), before, "Q3: stale gradient kept")
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), TICK_EXPOSURE, "exposure follows the frame, not the snapshot")
-	frame.storm_amount = STORM_AMOUNT
-	sea.apply_frame(frame)
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_zenith_color"), Color(0.1, 0.1, 0.3), "a storm re-copies the set")
+func test_the_far_fade_gradient_follows_every_frame() -> void:
+	# Q3 fixed: the gradient is rewritten from each frame, not copied once at configure_cycle().
+	var sea: CloudSea = _sea(null)
+	var first: SkyFrame = _frame("tick_frame")
+	_set_gradient(first, 0.0)
+	sea.apply_frame(first)
+	_assert_gradient_matches(sea, first, "first frame")
+	var second: SkyFrame = _frame("tick_frame")
+	_set_gradient(second, 0.5)
+	sea.apply_frame(second)
+	_assert_gradient_matches(sea, second, "second frame")
+	var stormed: SkyFrame = _frame("storm_frame")
+	_set_gradient(stormed, 1.0)
+	sea.apply_frame(stormed)
+	_assert_gradient_matches(sea, stormed, "storm frame")
 
 
-func test_configure_cycle_takes_the_snapshot_and_duplicates_the_material() -> void:
+func test_configure_cycle_writes_the_live_frame_and_duplicates_the_material() -> void:
 	var def: SkyCycleDef = SkyTestKit.cycle()
 	var shared_material: ShaderMaterial = def.cloud_puff_material
-	var snapshot: SkyFrame = SkyFrame.new()
-	snapshot.puff_shared[&"exposure"] = 0.42
+	var live: SkyFrame = SkyFrame.new()
+	live.puff_exposure = 0.42
+	_set_gradient(live, 0.5)
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
-	sea.configure_cycle(def, snapshot, 1.0, 1)
+	sea.configure_cycle(def, live, 1.0, 1)
 	assert_ne(sea.puff_material(), shared_material, "the def's material is duplicated before it is written")
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), 0.42, "the snapshot is the far-fade copy")
+	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), 0.42, "the live frame is the far-fade start")
+	_assert_gradient_matches(sea, live, "configure")
 	sea.apply_frame(_frame("tick_frame"))
 	assert_ne(shared_material.get_shader_parameter(&"grade_amount"), NIGHT_WEIGHT, "the shipped material is untouched")
 	sea.configure_cycle(null, null, 1.0)
@@ -210,11 +209,11 @@ func test_configure_cycle_takes_the_snapshot_and_duplicates_the_material() -> vo
 	assert_null(sea.puff_material())
 
 
-func test_missing_snapshot_keys_fall_back_to_the_cycles_static_sky_material() -> void:
+func test_configure_cycle_copies_the_cycles_static_sky_material() -> void:
 	var def: SkyCycleDef = SkyTestKit.cycle()
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
-	sea.configure_cycle(def, SkyFrame.new(), 1.0, 1)
+	sea.configure_cycle(def, null, 1.0, 1)
 	var static_value: Variant = def.sky_material.get_shader_parameter(&"proc_sea_softness")
 	if static_value != null:
 		assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_softness"), static_value, "static sea key copied")

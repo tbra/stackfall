@@ -75,7 +75,6 @@ var _aurora_preset_on: bool = true
 var _preset: GraphicsPreset = null
 var _flare_stormed: bool = false
 var _env_bound: bool = false
-var _storm_exposure_scale: float = 1.0
 ## The probe holds a capture older than the last storm move; `_probe_wait_s` is the time since its
 ## last storm retrigger (starts due, so the first storm move re-captures at once).
 var _probe_stale: bool = false
@@ -368,10 +367,6 @@ func set_capture_pin(sky_time_s: float, cloud_drift_s: float) -> void:
 
 # --- evaluation -------------------------------------------------------------------------------
 
-func _overcast_exposure_now() -> float:
-	return lerpf(1.0, _weather.overcast_exposure_scale, _weather.overcast_amount)
-
-
 ## Stage A at `phase`. Unless `force`, an unchanged phase is a no-op. True when it ran.
 func _tick_to(phase: float, force: bool = false) -> bool:
 	phase = fposmod(phase, 1.0)
@@ -383,7 +378,6 @@ func _tick_to(phase: float, force: bool = false) -> bool:
 	_has_tick = true
 	_tick_fresh = true
 	_dirty_b = true
-	_storm_exposure_scale = _overcast_exposure_now()
 	_sun_direction = _tick_frame.sun_direction
 	_daylight = _tick_frame.daylight
 	return true
@@ -406,13 +400,6 @@ func flush_weather() -> void:
 	if not _dirty_c:
 		return
 	SkyEvaluator.apply_weather(_storm_frame, _weather, _out_frame)
-	if _out_frame.storm_amount > 0.0:
-		SkyEvaluator.puff_snapshot(sky_def, _out_frame, _out_frame)
-	if _out_frame.storm_amount > 0.0:
-		# DECISION (parity, quirk Q1 ordering): under a storm the puffs' exposure is the sky exposure
-		# when the storm blend last ran (a storm request or a tick), scaled by the overcast in force
-		# at THAT call, so a same-frame overcast change reaches the puffs one request later.
-		_out_frame.puff_exposure = _tick_frame.exposure * _storm_exposure_scale
 	_dirty_c = false
 	_tick_fresh = false
 	weather_runs += 1
@@ -425,7 +412,7 @@ func _write_frame(tick_ran: bool, storm_ran: bool) -> void:
 	_dome.stage(_out_frame)
 	sky_material_writes += _dome.flush()
 	_env_writer.apply(_out_frame, get_tree() if is_inside_tree() else null)
-	if _cloud_sea != null and (tick_ran or storm_ran or _out_frame.storm_amount > 0.0):
+	if _cloud_sea != null and (tick_ran or storm_ran):
 		_cloud_sea.apply_frame(_out_frame)
 	_publish_cloud_lighting(_out_frame)
 	if storm_ran and not tick_ran:
@@ -568,7 +555,6 @@ func set_storm_sky(amount: float, overlay: SkyOverlayDef) -> void:
 		return
 	_weather.storm_amount = target
 	_weather.storm_overlay = overlay
-	_storm_exposure_scale = _overcast_exposure_now()
 	_dirty_b = true
 
 
@@ -638,9 +624,8 @@ func set_sun_cloud_scale(scale: float) -> void:
 # --- ambient life and clouds ------------------------------------------------------------------
 
 ## Rebuilds the cloud sea from `sky_def` (never duplicating it) and publishes
-## `Events.sky_ambient_configured` for the ambient life. The puffs
-## copy their far-fade snapshot (quirk Q3) from the evening key at cycle start, else from the
-## live frame.
+## `Events.sky_ambient_configured` for the ambient life. The puffs take the live frame when there
+## is one; at cycle start the first tick writes them.
 func _rebuild_ambient(from_cycle_start: bool) -> void:
 	var preset: GraphicsPreset = _preset
 	if _cloud_sea != null:
@@ -649,10 +634,8 @@ func _rebuild_ambient(from_cycle_start: bool) -> void:
 		var billboard_m: float = preset.cloud_billboard_distance_m if preset != null else 0.0
 		_cloud_sea.upper_low = preset != null and not preset.ambient_life_enabled
 		_cloud_sea.disc_radius_m = _largest_disc_radius()
-		var source: SkyFrame = _out_frame if (_has_tick and not from_cycle_start) else SkyEvaluator.evening_frame(sky_def)
-		var snapshot: SkyFrame = SkyFrame.new()
-		SkyEvaluator.puff_snapshot(sky_def, source, snapshot)
-		_cloud_sea.configure_cycle(sky_def, snapshot, density, subdivisions, billboard_m)
+		var live: SkyFrame = _out_frame if _has_tick and not from_cycle_start else null
+		_cloud_sea.configure_cycle(sky_def, live, density, subdivisions, billboard_m)
 	Events.sky_ambient_configured.emit(sky_def, preset, _disc_radius_for_ambient_life())
 
 
@@ -733,7 +716,6 @@ func _disc_radius_for_ambient_life() -> float:
 ## life from it. A lock or a running clock is untouched.
 func refresh_sky_def() -> void:
 	_env_writer.sync_deck(sky_def)
-	# The puffs' far-fade snapshot restarts from the evening key, as the old rebuild did.
 	_rebuild_ambient(true)
 	if _has_tick:
 		_tick_to(_cycle_phase_last, true)

@@ -5,6 +5,7 @@ extends GutTest
 ## The golden was captured from the old facade, so this pins the evaluator before and after the
 ## facade switch. Weather-owned groups are covered by test_sky_parity_live.
 
+const Evaluator := preload("res://tests/unit/sky/test_sky_evaluator.gd")
 const LOCKED_PHASES: Array[float] = [0.03, 0.10, 0.25, 0.38, 0.47, 0.52, 0.62, 0.75, 0.95]
 ## Sky uniforms the frame carries under a different meaning (the sky channel holds the day palette
 ## and the writers add constants), so they are compared by the parity test instead.
@@ -52,7 +53,7 @@ func test_locked_phase_frames_match_the_golden() -> void:
 		var state: Dictionary = golden.get("L_%.2f" % phase, {}) as Dictionary
 		assert_false(state.is_empty(), "golden has L_%.2f" % phase)
 		var frame: SkyFrame = SkyEvaluator.evaluate(def, phase, SkyVariation.DEFAULT_SEED, 0, weather, true)
-		var values: Dictionary = frame.to_dict()
+		var values: Dictionary = Evaluator.frame_values(frame)
 		var sky: Dictionary = state.get("sky", {}) as Dictionary
 		for key: String in sky.keys():
 			if SKIPPED_SKY_KEYS.has(key) or not values.has(StringName(key)):

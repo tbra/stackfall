@@ -9,14 +9,6 @@ extends RefCounted
 ## weather request landing between two ticks uses last-tick palette values exactly as the old
 ## code did. No scene tree, no RNG state, no clock.
 
-## The puff far-fade snapshot copies these frame channels (the sky values the puffs share).
-const PUFF_SHARED_KEYS: Array[StringName] = [
-	&"exposure", &"sun_direction", &"proc_zenith_color", &"proc_mid_color", &"proc_horizon_color",
-	&"proc_gradient_mid_height", &"proc_gradient_power", &"proc_horizon_glow_color",
-	&"proc_horizon_glow_width", &"proc_sea_color_near", &"proc_sea_color_far",
-	&"proc_sea_horizon_fade", &"proc_sea_coverage", &"cloud_shadow_color", &"cloud_mid_color",
-	&"cloud_lit_color", &"cloud_rim_color",
-]
 ## Floor of the moon full-night mix (a zero would divide by zero in the smoothstep).
 const MIN_MOON_FULL_MIX: float = 0.0001
 ## Fallback tuning for a weather state (a lazily built, never mutated default shared by all
@@ -106,7 +98,9 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.volumetric_fog_density = lerpf(tick.volumetric_fog_density, overlay.volumetric_fog_density, t)
 	into.volumetric_fog_albedo = tick.volumetric_fog_albedo.lerp(overlay.volumetric_fog_albedo, t)
 	into.light_color = tick.light_color.lerp(overlay.light_color, t)
-	into.light_energy = lerpf(tick.light_energy, overlay.light_energy, t)
+	# DECISION: the storm scales the light energy of the hour by the overlay share (no fixed target),
+	# so a night storm stays as dark as the night.
+	into.light_energy = tick.light_energy * lerpf(1.0, overlay.light_energy_share, t)
 	into.ambient_light_energy = lerpf(tick.ambient_light_energy, overlay.ambient_energy, t)
 	into.glow_intensity = lerpf(tick.glow_intensity, overlay.glow_intensity, t)
 	into.flare_enabled = tick.flare_enabled and t < flare_off_amount
@@ -123,8 +117,10 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.deck_density = into.fog_density
 	into.deck_albedo = into.fog_light_color
 	into.lighting_light_color = into.light_color
-	# Puff channel (the retired CloudSea storm tint): cel and cloud tones lerp from the cycle values in
-	# effect; the far fade copies the sky's storm-blended day sea colours (quirk Q1).
+	# Puff channel: cel and cloud tones lerp from the cycle values in effect. The far fade sea
+	# colours lerp from the tick's night-mixed values toward the overlay sea, as the sky sea does (a
+	# day storm matches the sky sea, a night storm starts from the night colours without a jump); the
+	# exposure stays the tick's baseline (copy_from above).
 	into.puff_shadow_color = tick.puff_shadow_color.lerp(overlay.puff_shadow_color, t)
 	into.puff_mid_color = tick.puff_mid_color.lerp(overlay.puff_mid_color, t)
 	into.puff_lit_color = tick.puff_lit_color.lerp(overlay.puff_lit_color, t)
@@ -133,8 +129,8 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.puff_cloud_mid_color = tick.puff_cloud_mid_color.lerp(overlay.cloud_mid_color, t)
 	into.puff_cloud_lit_color = tick.puff_cloud_lit_color.lerp(overlay.cloud_lit_color, t)
 	into.puff_cloud_rim_color = tick.puff_cloud_rim_color.lerp(overlay.cloud_rim_color, t)
-	into.puff_sea_color_near = into.proc_sea_color_near
-	into.puff_sea_color_far = into.proc_sea_color_far
+	into.puff_sea_color_near = tick.puff_sea_color_near.lerp(overlay.proc_sea_color_near, t)
+	into.puff_sea_color_far = tick.puff_sea_color_far.lerp(overlay.proc_sea_color_far, t)
 
 
 ## Stage C (weather): overcast, snow, weather fog and sun dimming over the cached stage B frame.
@@ -166,9 +162,6 @@ static func apply_weather(source: SkyFrame, weather: SkyWeatherState, into: SkyF
 		# In depth mode the density is the maximum opacity reached at the end distance.
 		into.fog_density = clampf(weather.wfog_max_opacity * weather.wfog_amount, 0.0, 1.0)
 	into.light_energy = source.light_energy * lerpf(1.0, weather.overcast_light_scale, overcast) * weather.sun_cloud_scale
-	# Quirk Q1: under a storm the puff far fade takes the overcast-scaled sky exposure.
-	if source.storm_amount > 0.0:
-		into.puff_exposure = into.exposure
 	# Celestial and cloud lighting inputs.
 	var cloud_overcast: float = weather.cloud_overcast_amount()
 	var storm: float = source.storm_amount
@@ -362,38 +355,6 @@ static func apply_celestial(def: SkyCycleDef, weather: SkyWeatherState, night_in
 			tuning.sun_overcast_attenuation, weather.storm_amount, tuning.sun_storm_attenuation)
 		into.moon_visibility *= keep
 		into.aurora_visibility *= keep
-
-
-## The puff-material far-fade snapshot (puff_shared) taken from `from_frame`: the sky values the
-## puffs copy at cycle start and on a preset change (quirk Q3). No grade keys: the sky material
-## carries none.
-static func puff_snapshot(_def: SkyCycleDef, from_frame: SkyFrame, into: SkyFrame) -> void:
-	var source: Dictionary = from_frame.to_dict()
-	var snapshot: Dictionary[StringName, Variant] = {}
-	for key: StringName in PUFF_SHARED_KEYS:
-		snapshot[key] = source[key]
-	into.puff_shared = snapshot
-
-
-## The frame the cycle-start snapshot is taken from (quirk Q3): the evening key's raw palette and
-## the sky structure, the raw sky-material exposure and sun direction, before any phase write.
-static func evening_frame(def: SkyCycleDef, into: SkyFrame = null) -> SkyFrame:
-	var frame: SkyFrame = into if into != null else SkyFrame.new()
-	var key: SkyKeyframe = def.evening_keyframe()
-	if key == null:
-		key = SkyKeyframe.new()
-	_copy_key(key, frame)
-	frame.proc_gradient_mid_height = def.proc_gradient_mid_height
-	frame.proc_gradient_power = def.proc_gradient_power
-	frame.proc_sea_horizon_fade = def.proc_sea_horizon_fade
-	frame.sun_direction = def.sun_base_direction
-	var exposure: float = _fixed_uniform(def.sky_material, &"exposure")
-	if not is_nan(exposure):
-		frame.exposure = exposure
-	var coverage: float = _fixed_uniform(def.sky_material, &"proc_sea_coverage")
-	if not is_nan(coverage):
-		frame.proc_sea_coverage = coverage
-	return frame
 
 
 # --- private ------------------------------------------------------------------------------
