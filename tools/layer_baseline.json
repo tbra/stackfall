@@ -2,6 +2,10 @@
  "autoload_scc_pairs": [
   [
    "autoload/Match.gd"
+  ],
+  [
+   "autoload/Net.gd",
+   "net/SnapshotSync.gd"
   ]
  ],
  "closure": [
@@ -65,6 +69,7 @@
   "core/net/NetIds.gd",
   "core/net/NetSim.gd",
   "core/net/Quantize.gd",
+  "core/net/SnapshotWire.gd",
   "core/net/WireLimits.gd",
   "core/net/WireSchema.gd",
   "core/perf/QualityGovernor.gd",
@@ -87,6 +92,7 @@
   "game/debug/AgentProbe.gd",
   "game/debug/PerfProbe.gd",
   "game/main/QuitFlag.gd",
+  "game/net/DiskPoseSmoother.gd",
   "game/world/BlockBody.gd",
   "game/world/FieldBody.gd",
   "game/world/MatchContext.gd",
@@ -101,6 +107,7 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/ports/SessionPort.gd",
   "net/session/NetCommandLine.gd",
   "net/session/NetHostAdverts.gd",
   "ui/theme/UiScale.gd"
@@ -322,6 +329,7 @@
   "core/net/NetIds.gd",
   "core/net/NetSim.gd",
   "core/net/Quantize.gd",
+  "core/net/SnapshotWire.gd",
   "core/net/WireLimits.gd",
   "core/net/WireSchema.gd",
   "core/perf/FrameCapRule.gd",
@@ -443,6 +451,7 @@
   "game/main/MenuPrewarmQueue.gd",
   "game/main/QuitFlag.gd",
   "game/main/TuningOverrides.gd",
+  "game/net/DiskPoseSmoother.gd",
   "game/player/CameraRig.gd",
   "game/player/CameraRig.tscn",
   "game/player/GhostPreview.gd",
@@ -475,6 +484,7 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/ports/SessionPort.gd",
   "net/session/NetCommandLine.gd",
   "net/session/NetHostAdverts.gd",
   "shaders/ambient/distant_birds.gdshader",

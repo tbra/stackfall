@@ -1,12 +1,11 @@
 {
  "checks": {
   "dead-file": [
-   "net/ports/MatchHostPort.gd",
-   "net/ports/MatchReplicaPort.gd",
-   "net/ports/SessionPort.gd"
+   "net/ports/MatchReplicaPort.gd"
   ],
   "test-only-func": [
    "autoload/Net.gd:accepting_joins",
+   "autoload/Net.gd:report_stats",
    "autoload/Settings.gd:set_config_path_for_test",
    "autoload/Sfx.gd:set_root_dir_for_test",
    "autoload/match/BreezeEffect.gd:_active_weather_id",
@@ -90,10 +89,82 @@
    "game/sky/Skybox.gd:start_cycle",
    "game/sky/Skybox.gd:update_cycle_clock",
    "game/sky/Skybox.gd:weather_state",
+   "game/weather/SnowClientRenderer.gd:apply",
+   "game/weather/SnowClientRenderer.gd:clear",
+   "net/BreezeNet.gd:bind",
    "net/BreezeNet.gd:set_providers",
    "net/MatchNet.gd:set_providers",
+   "net/SnapshotSync.gd:encode_fragment",
+   "net/SnowNet.gd:bind",
    "net/SnowNet.gd:set_providers",
+   "net/WeatherNet.gd:bind",
    "net/WeatherNet.gd:set_providers",
+   "net/ports/MatchHostPort.gd:_collaborator",
+   "net/ports/MatchHostPort.gd:abort_match",
+   "net/ports/MatchHostPort.gd:active_cat",
+   "net/ports/MatchHostPort.gd:active_slot",
+   "net/ports/MatchHostPort.gd:after_next_special",
+   "net/ports/MatchHostPort.gd:blocks_parent",
+   "net/ports/MatchHostPort.gd:circle_render_arrays",
+   "net/ports/MatchHostPort.gd:circle_wire_radius_max",
+   "net/ports/MatchHostPort.gd:circle_wire_xz_bound",
+   "net/ports/MatchHostPort.gd:config",
+   "net/ports/MatchHostPort.gd:countdown_remaining",
+   "net/ports/MatchHostPort.gd:default_ghost_origin",
+   "net/ports/MatchHostPort.gd:disconnect_grace_left",
+   "net/ports/MatchHostPort.gd:eliminated_by",
+   "net/ports/MatchHostPort.gd:feed_claim_carrier_shape_id",
+   "net/ports/MatchHostPort.gd:feed_gift_after_next_active",
+   "net/ports/MatchHostPort.gd:feed_knows_shape",
+   "net/ports/MatchHostPort.gd:feed_note_special_triggered",
+   "net/ports/MatchHostPort.gd:feed_seq",
+   "net/ports/MatchHostPort.gd:feed_staged_gift_shape_id",
+   "net/ports/MatchHostPort.gd:feed_time_left",
+   "net/ports/MatchHostPort.gd:gift_slot_contents",
+   "net/ports/MatchHostPort.gd:gift_slot_enabled",
+   "net/ports/MatchHostPort.gd:gift_state",
+   "net/ports/MatchHostPort.gd:gift_states",
+   "net/ports/MatchHostPort.gd:glue_drops_left",
+   "net/ports/MatchHostPort.gd:glue_revision",
+   "net/ports/MatchHostPort.gd:held_shape",
+   "net/ports/MatchHostPort.gd:held_special",
+   "net/ports/MatchHostPort.gd:is_pose_well_formed",
+   "net/ports/MatchHostPort.gd:is_release_locked",
+   "net/ports/MatchHostPort.gd:is_starting_match",
+   "net/ports/MatchHostPort.gd:is_valid",
+   "net/ports/MatchHostPort.gd:loading_gate_replay_args",
+   "net/ports/MatchHostPort.gd:match_timer_left",
+   "net/ports/MatchHostPort.gd:mode_state_snapshot",
+   "net/ports/MatchHostPort.gd:next_shape",
+   "net/ports/MatchHostPort.gd:next_special",
+   "net/ports/MatchHostPort.gd:note_aim",
+   "net/ports/MatchHostPort.gd:on_peer_left",
+   "net/ports/MatchHostPort.gd:on_peer_rejoined",
+   "net/ports/MatchHostPort.gd:qol_backlog_count",
+   "net/ports/MatchHostPort.gd:qol_timer_paused",
+   "net/ports/MatchHostPort.gd:raster",
+   "net/ports/MatchHostPort.gd:registry",
+   "net/ports/MatchHostPort.gd:replicator",
+   "net/ports/MatchHostPort.gd:request_place",
+   "net/ports/MatchHostPort.gd:request_throw",
+   "net/ports/MatchHostPort.gd:request_use_gift_slot",
+   "net/ports/MatchHostPort.gd:set_cat_target",
+   "net/ports/MatchHostPort.gd:set_replicator",
+   "net/ports/MatchHostPort.gd:slot",
+   "net/ports/MatchHostPort.gd:slot_count",
+   "net/ports/MatchHostPort.gd:start_match",
+   "net/ports/MatchHostPort.gd:stats",
+   "net/ports/MatchHostPort.gd:territory_share",
+   "net/ports/SessionPort.gd:host_peer_id",
+   "net/ports/SessionPort.gd:is_local_slot",
+   "net/ports/SessionPort.gd:is_peer_disconnecting",
+   "net/ports/SessionPort.gd:kick_peer",
+   "net/ports/SessionPort.gd:local_slot",
+   "net/ports/SessionPort.gd:peer_ids",
+   "net/ports/SessionPort.gd:peer_info",
+   "net/ports/SessionPort.gd:peer_of_slot",
+   "net/ports/SessionPort.gd:slot_of_peer",
+   "net/ports/SessionPort.gd:timeout_leave_reason",
    "ui/components/UiChipToggle.gd:set_available",
    "ui/components/UiTitleRow.gd:add_trailing",
    "ui/theme/UiScale.gd:base_size",
@@ -138,6 +209,31 @@
   ]
  },
  "allow": [
+  {
+   "id": "dead-file",
+   "entry": "core/net/FloodLimits.gd",
+   "reason": "netcode interface stub; consumed from N4/M2"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/HandshakePolicy.gd",
+   "reason": "netcode interface stub; body and consumer land in N3"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/MatchWireEvents.gd",
+   "reason": "netcode interface stub; consumer lands in M4"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/PeerFloodGate.gd",
+   "reason": "netcode interface stub; consumed from N3/N4/M2"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/TokenBucket.gd",
+   "reason": "netcode interface stub; consumed from N3/N4"
+  },
   {
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
@@ -932,31 +1028,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/TokenBucket.gd",
-   "reason": "netcode interface stub; consumed from N3/N4"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/PeerFloodGate.gd",
-   "reason": "netcode interface stub; consumed from N3/N4/M2"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/HandshakePolicy.gd",
-   "reason": "netcode interface stub; body and consumer land in N3"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/MatchWireEvents.gd",
-   "reason": "netcode interface stub; consumer lands in M4"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/FloodLimits.gd",
-   "reason": "netcode interface stub; consumed from N4/M2"
   }
  ]
 }
