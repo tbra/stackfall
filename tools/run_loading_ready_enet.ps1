@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + client (-Late adds a third; the set runs without it); read by tools/run_enet_set.py)
 # loading-ready gate, host + one client on loopback under a hard wall-clock deadline.
 # Follows tools/run_m3a_local.ps1: Process.Kill($true) ends the whole process
 # tree (the godot shim spawns the real console exe), and a finally block does it

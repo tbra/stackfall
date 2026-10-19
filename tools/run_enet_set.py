@@ -7,8 +7,12 @@ The single home of the harness list: every tools/run_*_enet.ps1 in the checkout 
 when the merged diff touches net/ or tests/enet/) and the session-close step.
 
 Each harness runs as `powershell -File tools/run_<name>_enet.ps1 -Path <checkout> -Out <dir>` under
-a wall-clock limit that kills the whole process tree, holding one tools/godot_slots.py slot per peer
-(capped at the slot cap) so the harness peers count against the machine limit. A harness passes only
+a wall-clock limit that kills the whole process tree. Every runner declares how many Godot processes
+it has running at once (host + clients + a late joiner) on a header line `# ENET-PROCESSES: <n>`
+(ENET_PROCESSES_RE); that line is the single source of the count, and a runner without it fails the
+harness (test_run_enet_set fails for it too). The harness holds one tools/godot_slots.py slot per
+declared process; one that declares more processes than godot_slots.cap() runs under
+`godot_slots.godot_exclusive` instead, because no slot count could ever cover it. A harness passes only
 on its single `ENET RESULT PASS` line; `ENET RESULT FAIL: <reason>`, a missing result line or a
 timeout is a failure. Prints one line per harness and a final `ENET SET GREEN|RED: p/n passed`.
 Exit 0 = GREEN. Expected duration: several minutes per harness, roughly 30-45 min for the set.
@@ -27,10 +31,10 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 HARNESS_TIMEOUT_S = 1100  # longest runner deadline is 900 s; headroom for startup
-DEFAULT_PEERS = 2  # host + one client
-PEERS = {"gift_fx": 4}  # host + three clients
 RESULT_RE = re.compile(r"^ENET RESULT (PASS|FAIL\b.*)$", re.M)
 RUNNER_RE = re.compile(r"^run_(.+)_enet\.ps1$")
+ENET_PROCESSES_RE = re.compile(r"^#\s*ENET-PROCESSES:\s*(\d+)", re.M)
+EXCLUSIVE_WAIT_S = 3600.0  # how long a harness over the slot cap queues for the whole machine
 
 
 def kill_tree(pid):
@@ -53,6 +57,35 @@ def discover(path):
     return found
 
 
+def process_count(runner_path):
+    """Godot processes the runner has running at once, from its `# ENET-PROCESSES: <n>` header line;
+    None when the line is missing, unreadable or not a positive number."""
+    try:
+        with open(runner_path, encoding="utf-8", errors="replace") as fh:
+            m = ENET_PROCESSES_RE.search(fh.read())
+    except OSError:
+        return None
+    return int(m.group(1)) if m and int(m.group(1)) > 0 else None
+
+
+def hold_capacity(name, processes, slots=None):
+    """Context manager holding the machine capacity for `processes` Godot processes: one slot each,
+    or the whole machine (godot_exclusive) when that exceeds the slot cap."""
+    if slots is None:
+        import godot_slots as slots
+    stack = contextlib.ExitStack()
+    try:
+        if processes > slots.cap():
+            stack.enter_context(slots.godot_exclusive("enet:%s x%d" % (name, processes), wait_s=EXCLUSIVE_WAIT_S))
+        else:
+            for i in range(processes):
+                stack.enter_context(slots.godot_slot("enet:%s#%d" % (name, i)))
+    except BaseException:
+        stack.close()  # a timeout on a later slot must not leak the ones already held
+        raise
+    return stack
+
+
 def parse_result(text):
     """('PASS'|'FAIL', detail). A missing or ambiguous result line is a FAIL."""
     found = RESULT_RE.findall(text)
@@ -66,16 +99,15 @@ def parse_result(text):
 
 
 def run_one(name, runner, path, out_dir, timeout_s):
-    """Run one harness under the slot cap and a tree-killing wall-clock limit. Returns
-    (verdict, detail, seconds, log_path)."""
-    import godot_slots
+    """Run one harness under its declared process capacity and a tree-killing wall-clock limit.
+    Returns (verdict, detail, seconds, log_path)."""
     os.makedirs(out_dir, exist_ok=True)
     log = os.path.join(out_dir, "%s.log" % name)
-    peers = min(PEERS.get(name, DEFAULT_PEERS), godot_slots.cap())
+    processes = process_count(runner)
+    if processes is None:
+        return "FAIL", "runner declares no `# ENET-PROCESSES: <n>` line", 0.0, log
     start = time.time()
-    with contextlib.ExitStack() as stack:
-        for i in range(peers):
-            stack.enter_context(godot_slots.godot_slot("enet:%s#%d" % (name, i)))
+    with hold_capacity(name, processes):
         args = ["powershell", "-NoProfile", "-File", runner, "-Path", path, "-Out", out_dir]
         try:
             p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

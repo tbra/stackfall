@@ -17,9 +17,13 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               tools/run_gut.ps1, .gutconfig.json, addons/gut/) the candidate tree's own
               <wt>/tools/full_gate.py is ALSO run on the temp worktree ("gate2"); both must be GREEN
               and both verdict lines are reported.
-  5b enet     after a GREEN gate, when the merged diff (base..merge) touches net/ or tests/enet/ (ENET_PATHS),
-              tools/run_enet_set.py runs the ENet harness set on the temp worktree (one tree-killing
-              wall-clock limit and godot_slots slots per harness); any harness FAIL, missing `ENET RESULT`
+  5b enet     after a GREEN gate, when the merged diff (base..merge) touches net/ or tests/enet/ (ENET_PATHS)
+              or a harness runner, tools/run_enet_set.py runs the ENet harness set on the temp worktree
+              (its docstring owns the per-harness limit and slot/exclusive rules). Selection
+              (enet_selection): any net/ change, a tests/enet/ file outside one harness's
+              tests/enet/<name>_enet.*, or tools/enet_result.ps1 runs the whole set; a diff of only
+              tests/enet/<name>_enet.* and tools/run_<name>_enet.ps1 files runs just those harnesses.
+              Any harness FAIL, missing `ENET RESULT`
               line or timeout reruns that harness once alone; pass-on-rerun is reported as enet_flaky
               (file a flaky-test bead), failing again fails step `enet` like a red gate. Skipped when nothing there changed or
               with --no-game-code; `--skip-enet "<reason>"` skips it and logs the reason.
@@ -380,29 +384,52 @@ def touches_gate_runner(paths):
 
 
 ENET_PATHS = ("net/", "tests/enet/")
+ENET_SHARED_PATHS = ("tools/enet_result.ps1",)  # the verdict helper every runner dot-sources
+ENET_HARNESS_RES = (re.compile(r"^tests/enet/(.+)_enet\.[^/]+$"), re.compile(r"^tools/run_(.+)_enet\.ps1$"))
 
 
-def touches_enet(paths):
-    """True when any changed path is under net/ or tests/enet/."""
-    for p in paths:
-        p = p.strip().replace("\\", "/")
-        if p.startswith(ENET_PATHS):
-            return True
-    return False
+def _norm_paths(paths):
+    return [p.strip().replace("\\", "/") for p in paths if p.strip()]
+
+
+def enet_selection(paths):
+    """(run, only) for the changed paths. net/, a tests/enet/ file that is not one harness's
+    (tests/enet/<name>_enet.*) and the shared helper select the whole set (only=None); otherwise only
+    the harnesses named by changed tests/enet/<name>_enet.* or tools/run_<name>_enet.ps1 files run
+    (a set of names). (False, None) when nothing ENet-related changed."""
+    names, whole, touched = set(), False, False
+    for p in _norm_paths(paths):
+        named = next((m.group(1) for m in (r.match(p) for r in ENET_HARNESS_RES) if m), None)
+        if named:
+            names.add(named)
+            touched = True
+        elif p.startswith(ENET_PATHS) or p in ENET_SHARED_PATHS:
+            whole = touched = True
+    return touched, (None if whole else (names or None))
 
 
 def enet_step(ctx, wt, changed, skip_reason, say):
-    """Step 5b: run the ENet harness set when the merged diff touches net/ or tests/enet/.
+    """Step 5b: run the ENet harness set when the merged diff touches net/, tests/enet/ or a harness
+    runner: the whole set for any net/ (or unnamed shared) change, only the changed harnesses when the
+    diff names just their tests/enet/<name>_enet.* or tools/run_<name>_enet.ps1 files (a changed name
+    with no runner left, i.e. a deleted harness, is dropped).
     A harness that fails and then passes its one rerun is enet_flaky (reported; file a flaky-test bead).
     Raises StepFailed('enet') on a harness that fails its rerun too, or an empty set."""
-    if not touches_enet(changed):
-        say("enet      skip merged diff does not touch net/ or tests/enet/")
+    run, only = enet_selection(changed)
+    if not run:
+        say("enet      skip merged diff does not touch net/, tests/enet/ or a harness runner")
         return
     if skip_reason:
         say("enet      skip REQUESTED: %s" % skip_reason)
         return
+    if only is not None:
+        only = only & {n for n, _ in run_enet_set.discover(wt)}
+        if not only:
+            say("enet      skip changed harness files have no runner (harness removed)")
+            return
+        say("enet      only changed harnesses: %s" % ",".join(sorted(only)))
     out_dir = os.path.join(ctx.log_dir, "enet")
-    results = run_enet_set.run_set(wt, out_dir, say=lambda l: say("  " + l))
+    results = run_enet_set.run_set(wt, out_dir, say=lambda l: say("  " + l), only=only)
     green, line = run_enet_set.summary(results)
     say("enet      %s %s" % ("ok  " if green else "FAIL", line))
     if not green:

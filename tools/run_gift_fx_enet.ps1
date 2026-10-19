@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 4  (host + three clients; read by tools/run_enet_set.py)
 # Gift fx J: host + three lagged clients on loopback under a hard wall-clock
 # deadline (default 600 s). Process.Kill($true) ends the whole tree (the godot shim spawns the
 # real console exe); the finally block does it again so an error cannot orphan a child.

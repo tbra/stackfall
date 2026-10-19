@@ -261,10 +261,14 @@ class Tests(unittest.TestCase):
         err, _, _ = run(fake)
         self.assertEqual(err.step, "ff")
 
+    HARNESSES = [("qol", "x"), ("rocket", "x"), ("gift_fx", "x")]
+
     def _enet(self, changed, results, **kw):
         fake = Fake({"gate_touched": (0, changed)})
         out, res, err = [], {}, None
-        with mock.patch.object(ib, "run_cmd", fake),                 mock.patch.object(ib.run_enet_set, "run_set", return_value=results) as rs:
+        with mock.patch.object(ib, "run_cmd", fake), \
+                mock.patch.object(ib.run_enet_set, "discover", return_value=self.HARNESSES), \
+                mock.patch.object(ib.run_enet_set, "run_set", return_value=results) as rs:
             try:
                 ib.integrate(args_for(dry_run=True, **kw), ib.Ctx(tempfile.gettempdir()), out.append, res)
             except ib.StepFailed as e:
@@ -279,6 +283,38 @@ class Tests(unittest.TestCase):
             self.assertIsNone(err)
             rs.assert_called_once()
             self.assertTrue([l for l in out if "ENET SET GREEN" in l])
+
+    def test_enet_selection_net_change_runs_whole_set(self):
+        for paths in (["net/a.gd"], ["net/a.gd", "tests/enet/qol_enet.gd"], ["tests/enet/qol_enet.gd", "net\\b.gd"]):
+            self.assertEqual(ib.enet_selection(paths), (True, None))
+
+    def test_enet_selection_harness_files_run_only_those(self):
+        sel = ib.enet_selection(["tests/enet/qol_enet.gd", "tests/enet/qol_enet.tscn", "tools/run_rocket_enet.ps1", "core/a.gd"])
+        self.assertEqual(sel, (True, {"qol", "rocket"}))
+        self.assertEqual(ib.enet_selection(["tests/enet/gift_fx_enet.gd.uid"]), (True, {"gift_fx"}))
+
+    def test_enet_selection_shared_or_unnamed_enet_file_runs_whole_set(self):
+        for p in ("tests/enet/m3a_acceptance.gd", "tools/enet_result.ps1"):
+            self.assertEqual(ib.enet_selection([p, "tests/enet/qol_enet.gd"]), (True, None))
+
+    def test_enet_selection_unrelated_paths_skip(self):
+        self.assertEqual(ib.enet_selection(["core/a.gd", "tools/run_enet_set.py", "tests/unit/test_enet_x.gd"]), (False, None))
+
+    def test_enet_step_passes_only_for_changed_harnesses(self):
+        err, out, rs = self._enet("tests/enet/qol_enet.gd\ntools/run_rocket_enet.ps1\n", self.PASS2)
+        self.assertIsNone(err)
+        self.assertEqual(rs.call_args.kwargs["only"], {"qol", "rocket"})
+        self.assertTrue([l for l in out if "only changed harnesses: qol,rocket" in l])
+
+    def test_enet_step_net_change_runs_all(self):
+        _, _, rs = self._enet("net/a.gd\ntests/enet/qol_enet.gd\n", self.PASS2)
+        self.assertIsNone(rs.call_args.kwargs["only"])
+
+    def test_enet_step_removed_harness_is_skipped(self):
+        err, out, rs = self._enet("tests/enet/gone_enet.gd\n", self.PASS2)
+        self.assertIsNone(err)
+        rs.assert_not_called()
+        self.assertTrue([l for l in out if "no runner" in l])
 
     def test_enet_skipped_when_not_touched(self):
         err, out, rs = self._enet("core/a.gd\nui/net_panel.gd\n", self.PASS2)

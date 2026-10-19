@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # pause-menu Return to lobby, host + one lagged client on loopback under a
 # hard wall-clock deadline. Modelled on tools/run_reset_enet.ps1: Process.Kill($true) ends the
 # whole process tree (the godot shim spawns the real console exe) and a finally block does it

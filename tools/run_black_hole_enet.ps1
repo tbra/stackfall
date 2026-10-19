@@ -1,3 +1,4 @@
+# ENET-PROCESSES: 2  (host + one client; read by tools/run_enet_set.py)
 # host + one lagged client on loopback, hard 180 s deadline.
 param([string]$Path = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path, [int]$Port = 47793, [int]$Lag = 150, [string]$Out = $env:TEMP)
 $scene = "res://tests/enet/black_hole_enet.tscn"
