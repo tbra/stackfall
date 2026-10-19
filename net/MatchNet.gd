@@ -312,7 +312,10 @@ var capture_replay: bool:
 		_ensure_tap().capture_replay = value
 var replay_capture: Array[Array]:
 	get:
-		return tap.replay_capture if tap != null else []
+		if tap == null:
+			var none: Array[Array] = []
+			return none
+		return tap.replay_capture
 var replays_timed_out: int:
 	get:
 		return counters.replays_timed_out
