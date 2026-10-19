@@ -216,11 +216,20 @@ def forced_review(title: str, brief: str, files: List[str], kind: str) -> bool:
     return touches_tests and bool(TEST_REMOVAL_WORDS.search(f"{title}\n{brief}"))
 
 
-def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int) -> Dict[str, Any]:
+# DECISION (review routing): a review of a small diff runs on Sonnet; Opus reviewers spent most
+# of a usage window while small Sonnet reviews lost nothing.
+SMALL_REVIEW_DIFF_LINES = 50
+
+
+def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int,
+          diff_lines: Optional[int] = None) -> Dict[str, Any]:
     result = _route(title, brief, files, kind, prior_attempts)
     if not result["needs_review"] and forced_review(title, brief, files, kind):
         result["needs_review"] = True
         result["reason"] += "; review forced: test removal"
+    if kind == "review" and diff_lines is not None and diff_lines < SMALL_REVIEW_DIFF_LINES and result["model"] == "opus":
+        result["model"] = "sonnet"
+        result["reason"] += "; small review (%d diff lines) capped at sonnet" % diff_lines
     return result
 
 
@@ -351,12 +360,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--files", default="", help="comma-separated owned files")
     ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|diet|review|gate|triage|mechanical|prose|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
+    ap.add_argument("--diff-lines", type=int, default=None, help="changed lines of the reviewed diff (kind review)")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--no-memories", action="store_true", help="skip the bd memories lookup (offline/tests)")
     args = ap.parse_args(argv)
     brief = sys.stdin.read() if not sys.stdin.isatty() else ""
     files = [f.strip() for f in args.files.split(",") if f.strip()]
-    result = route(args.title, brief, files, args.kind, args.prior_attempts)
+    result = route(args.title, brief, files, args.kind, args.prior_attempts, args.diff_lines)
     memories = [] if args.no_memories else find_memories(args.title)
     result["memories"] = memories
     if args.json:

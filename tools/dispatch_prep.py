@@ -46,6 +46,8 @@ def prepare(args, brief, runner=run):
         handle.write(brief)
     route = [sys.executable, os.path.join(TOOLS, "route_model.py"), "--title", args.title, "--files", args.files,
              "--kind", args.kind, "--prior-attempts", str(args.prior_attempts), "--json"]
+    if getattr(args, "diff_lines", None) is not None:
+        route += ["--diff-lines", str(args.diff_lines)]
     code, out, err = runner(route, brief)
     try:
         verdict = json.loads(out)
@@ -80,6 +82,7 @@ def main(argv):
     ap.add_argument("--files", default="", help="comma-separated owned files")
     ap.add_argument("--kind", default="feature", help="feature|bugfix|refactor|review|gate|triage|mechanical|prose|plan")
     ap.add_argument("--prior-attempts", type=int, default=0)
+    ap.add_argument("--diff-lines", type=int, default=None, help="changed lines of the reviewed diff (kind review)")
     ap.add_argument("--model", default="", help="override the routed model (needs --reason)")
     ap.add_argument("--reason", default="", help="why the routed model is overridden")
     ap.add_argument("--redispatch", action="store_true", help="re-assign an in-progress bead after its previous worker handed back")

@@ -50,6 +50,15 @@ class RoutePolicyTests(unittest.TestCase):
         self.assertEqual(result["max_targeted_runs"], 2)
         self.assertIsNone(result["max_windowed_probes"])
 
+    def test_small_review_is_capped_at_sonnet(self):
+        reply = {"answers": {"model": {"choice": "opus", "confidence": 0.9}, "needs_review": {"noul": 0.9}}}
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request", return_value=reply):
+            small = router.route("Review fix", "Read the diff", ["net/a.gd"], "review", 0, diff_lines=49)
+            large = router.route("Review fix", "Read the diff", ["net/a.gd"], "review", 0, diff_lines=50)
+            unknown = router.route("Review fix", "Read the diff", ["net/a.gd"], "review", 0)
+            feature = router.route("Build fix", "Write it", ["net/a.gd"], "feature", 0, diff_lines=10)
+        self.assertEqual([r["model"] for r in (small, large, unknown, feature)], ["sonnet", "opus", "opus", "opus"])
+
     def test_test_removal_forces_review_on_every_path(self):
         reply = {"answers": {"model": {"choice": "sonnet", "confidence": 0.9}, "needs_review": {"noul": 0.01}}}
         tests = ["tests/unit/blocks/test_a.gd"]
