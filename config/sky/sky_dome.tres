@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://shaders/sky/sunset_clouds.gdshader" id="1_a8qjg"]
-[ext_resource type="Texture2D" path="res://config/sky/themes/cloud_noise.tres" id="3_hvq8o"]
+[ext_resource type="Texture2D" path="res://config/sky/noise/cloud_noise.tres" id="3_hvq8o"]
 
 [resource]
 shader = ExtResource("1_a8qjg")

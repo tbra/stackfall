@@ -139,7 +139,7 @@ uniform float rim_softness = 0.08;
 uniform float upper_rim_down_shift = 0.1;
 
 // Cauliflower domes from a cellular (F1 distance) noise texture
-// (config/sky/themes/puff_noise.tres). The silhouette octave is
+// (config/sky/noise/puff_noise.tres). The silhouette octave is
 // lump_vertex_scale x the shading frequency and pushes the radius out by up
 // to lump_height (fraction of radius, centred on lump_bias); the shading
 // uses the base frequency plus a finer octave (lump_detail_scale, lump_detail_weight) that scallops

@@ -1,7 +1,7 @@
 // Shared helpers for the stylized (cel/banded) cloud look used by the sky
 // shaders (sunset_clouds) and the cloud-sea puffs
 // (cloud_puffs.gdshader). Both sample one seamless grayscale noise
-// texture (config/sky/themes/cloud_noise.tres) rather than hashing math so
+// texture (config/sky/noise/cloud_noise.tres) rather than hashing math so
 // the per-pixel cost is a few texture fetches.
 
 // Three-octave value from a seamless 0..1 noise texture; returns 0..1.
