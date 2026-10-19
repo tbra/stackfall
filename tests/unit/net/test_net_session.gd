@@ -261,7 +261,7 @@ func test_peer_disconnect_fires_net_peer_left_with_the_right_slot() -> void:
 
 
 ## reproduces the teardown-ordering race in isolation.
-## Before the _can_send() guard, _broadcast_roster() called
+## Before the NetTransport.can_broadcast() guard, _broadcast_roster() called
 ## _rpc_roster_update.rpc(roster) unconditionally, and this exact sequence
 ## (peer_disconnected signal for a still-registered peer arriving after the
 ## transport itself has already been closed and nulled — as can happen while
@@ -283,7 +283,7 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 	_host.multiplayer.multiplayer_peer.close()
 	_host.multiplayer.multiplayer_peer = null
 
-	assert_false(_host._can_send(), "no live multiplayer_peer to send through")
+	assert_false(_host.transport.can_broadcast(_host.multiplayer, _host.is_host()), "no live multiplayer_peer to send through")
 	_host._on_peer_disconnected(client_id)
 	await get_tree().process_frame
 	# Reaching here without GUT recording an "Unexpected Errors" failure is
@@ -368,6 +368,55 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 	# see this file's own header comment above).
 	assert_eq(_host.mode(), Net.Mode.OFFLINE, "no real SteamMultiplayerPeer is ever built for a FakeSteam provider")
 	assert_false(_host.is_steam_session())
+
+
+## Stand-in for a SteamMultiplayerPeer: a connected peer that never touches a network.
+class StubSteamPeer:
+	extends MultiplayerPeerExtension
+
+	func _get_connection_status() -> MultiplayerPeer.ConnectionStatus:
+		return MultiplayerPeer.CONNECTION_CONNECTED
+
+	func _get_unique_id() -> int:
+		return Net.HOST_PEER_ID
+
+	func _poll() -> void:
+		pass
+
+	func _close() -> void:
+		pass
+
+
+## NetTransport.steam_host_peer_factory is the seam that replaced the old
+## steam_host_peer_override field: with it set, host_online() reaches the live
+## Steam HOST state under a FakeSteam, and the factory's peer is what Net uses.
+func test_steam_host_peer_factory_seam_reaches_the_host_state() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	var stub: StubSteamPeer = StubSteamPeer.new()
+	var calls: Array[int] = []
+	_host.transport.steam_host_peer_factory = func() -> MultiplayerPeer:
+		calls.append(1)
+		return stub
+	assert_eq(_host.host_online("Hostie"), OK)
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 4242)
+	assert_eq(calls.size(), 1, "the factory built the host peer once")
+	assert_eq(_host.mode(), Net.Mode.HOST, "the factory's peer carries the Steam HOST state")
+	assert_true(_host.is_steam_session())
+	assert_eq(_host.multiplayer.multiplayer_peer, stub)
+	assert_true(fake.leave_lobby_calls.is_empty(), "the lobby is kept, not released as for a refused peer")
+
+
+## An unset factory is the real path: a FakeSteam provider never gets a
+## SteamMultiplayerPeer, and the lobby is released.
+func test_steam_host_peer_without_a_factory_stays_unbuilt_for_a_fake_provider() -> void:
+	var fake: FakeSteam = FakeSteam.new()
+	_ready_steam(_host, fake)
+	assert_false(_host.transport.steam_host_peer_factory.is_valid())
+	assert_eq(_host.host_online("Hostie"), OK)
+	fake.lobby_created.emit(FakeSteam.RESULT_OK, 77)
+	assert_eq(_host.mode(), Net.Mode.OFFLINE)
+	assert_eq(fake.leave_lobby_calls, [77])
 
 
 func test_lobby_joined_with_a_failure_response_refuses_and_returns_offline() -> void:
@@ -705,7 +754,7 @@ func test_kicking_a_connected_peer_over_enet_raises_no_engine_error() -> void:
 	var published: Array = get_signal_parameters(Events, "net_roster_changed", 0)[0]
 	assert_eq(published.size(), 1, "the roster the host publishes is the host alone")
 	assert_true(_host.multiplayer.get_peers().has(client_id), "ENet still lists the peer until its disconnect completes")
-	assert_false(_host._broadcast_targets().has(client_id), "but no broadcast addresses it")
+	assert_false(_host.transport.broadcast_targets(_host.multiplayer, _host.is_host()).has(client_id), "but no broadcast addresses it")
 	# A republish by a net_peer_left listener (the lobby does) is a broadcast too.
 	_host.set_lobby_data({"map_variant": 1})
 	# Let the disconnect complete and a few frames pass.

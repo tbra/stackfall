@@ -4,9 +4,9 @@ extends Node
 ##
 ## Gameplay code only ever talks to MultiplayerAPI; this node decides whether
 ## the peer underneath is ENet (LAN, direct IP, tests) or Steam.
-## **Swapping the transport must be a change to _make_host_peer() /
-## _make_client_peer() and nothing else** — no other file in the project may
-## name ENetMultiplayerPeer, an IP address, or a port.
+## **Swapping the transport must be a change to net/session/NetTransport.gd
+## and nothing else** — no other file in the project may name
+## ENetMultiplayerPeer, an IP address, or a port.
 ##
 ## Net owns the *session*: who is connected, which slot each peer holds, the
 ## build-version handshake, ping, lobby data, and the lag/loss simulator. It
@@ -54,7 +54,7 @@ const REJOIN_TOKEN_MAX_CHARS: int = 64
 
 var _mode: Mode = Mode.OFFLINE
 ## The peer this instance created, generic MultiplayerPeer only — never typed
-## or cast to ENetMultiplayerPeer outside _make_host_peer()/_make_client_peer().
+## or cast to ENetMultiplayerPeer outside net/session/NetTransport.gd.
 var _peer: MultiplayerPeer = null
 
 ## peer_id -> {"peer_id", "slot_id", "name", "name_auto", "ready", "ping_ms", "build"}. On
@@ -66,12 +66,17 @@ var _ping_samples: Dictionary = {}
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
-## Host only: peer ids kick_peer() has asked the transport to disconnect that
-## are still listed in multiplayer.get_peers() (ENet drops them only once the
-## disconnect completes, a poll later). Sending to one logs the engine error
-## "Unable to send packet on channel 0, max channels: 0", so
-## every host-side fan-out goes through _broadcast_targets(), which skips them.
-var _disconnecting_peers: Dictionary = {}
+## The ENet/Steam peer factories, dead-peer timeouts, link predicates and the
+## set of peers kick_peer() or a refusal is still disconnecting
+## (net/session/NetTransport.gd). Public so a FakeSteam test can set
+## `transport.steam_host_peer_factory`.
+var transport: NetTransport = NetTransport.new()
+## TRANSITIONAL: the disconnecting-peers table now lives in `transport`; this is
+## the same Dictionary for the tests that still poke it. Removed with the other
+## private forwarders once those tests use is_peer_disconnecting().
+var _disconnecting_peers: Dictionary:
+	get:
+		return transport.disconnecting_marks()
 ## Host only: peer_id -> {"tokens": float, "at": float}, the
 ## request_seat_pref flood bucket of each peer that sent one (size and refill:
 ## NetConfig.seat_pref_burst / seat_pref_refill_per_s). Dropped with the
@@ -212,8 +217,8 @@ var _steam_signals_wired: Variant = null
 ## is the guard.
 var _steam_initialized: bool = false
 ## True only once steam_provider's init_result reports status 0 (steamInitEx
-## actually succeeded). Both steam_available() and the two _make_steam_*_peer()
-## factories require this (see the crash documented at _make_steam_host_peer()).
+## actually succeeded). Both steam_available() and NetTransport's two Steam peer
+## factories require this (see the crash documented at make_steam_host_peer()).
 var _steam_ready: bool = false
 ## _mode stays OFFLINE for the whole time a host_online()/join_lobby() Steam
 ## answer is pending, so a second call in the meantime would sail past the
@@ -263,10 +268,6 @@ const _STEAM_CREATE_REQUEST: int = -1
 ## and must never reach the stray-answer leave_lobby() (the host would destroy
 ## its own fresh lobby). One int per created lobby.
 var _steam_created_lobbies: Dictionary = {}
-## Tests only: _make_steam_host_peer() hands this out instead of building a
-## SteamMultiplayerPeer (never built for a FakeSteam provider, crash safety),
-## so a FakeSteam test can reach the live Steam HOST state.
-var steam_host_peer_override: MultiplayerPeer = null
 ## Seconds between `STEAM SELFCHECK` lines while a
 ## Steam session is live (diagnostic cadence, not a gameplay knob).
 const STEAM_SELFCHECK_PERIOD_S: float = 10.0
@@ -379,7 +380,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 		var free_port: int = AgentProbe.free_udp_port()
 		if free_port > 0:
 			use_port = free_port
-	var peer: MultiplayerPeer = _make_host_peer(use_port, "*" if advertise else "127.0.0.1")
+	var peer: MultiplayerPeer = transport.make_host_peer(use_port, config.max_peers, not advertise)
 	if peer == null:
 		return ERR_CANT_CREATE
 
@@ -412,7 +413,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	if _mode != Mode.OFFLINE:
 		leave()
 	var use_port: int = port if port > 0 else config.game_port
-	var peer: MultiplayerPeer = _make_client_peer(address, use_port)
+	var peer: MultiplayerPeer = transport.make_client_peer(address, use_port)
 	if peer == null:
 		return ERR_CANT_CREATE
 
@@ -532,8 +533,7 @@ func local_peer_id() -> int:
 	# path emits net_peer_left before leave() runs, and listeners such as Sfx ask
 	# "was that me?"), get_unique_id() is an engine error ("The multiplayer
 	# instance isn't currently active"). Answer with the last live id instead.
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED:
+	if transport.is_link_down(multiplayer):
 		return _last_local_peer_id
 	_last_local_peer_id = multiplayer.get_unique_id()
 	return _last_local_peer_id
@@ -659,10 +659,10 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	# Mark it before anything below can broadcast (the roster, and whatever a
 	# net_peer_left listener republishes), so it is never addressed again. A peer
 	# the transport does not hold (nothing to disconnect) needs no mark.
-	var transport: MultiplayerPeer = multiplayer.multiplayer_peer
-	if transport != null and multiplayer.get_peers().has(peer_id):
-		_disconnecting_peers[peer_id] = true
-		transport.disconnect_peer(peer_id)
+	var link: MultiplayerPeer = multiplayer.multiplayer_peer
+	if link != null and multiplayer.get_peers().has(peer_id):
+		transport.mark_disconnecting(peer_id)
+		link.disconnect_peer(peer_id)
 	# Compact BEFORE announcing the departure, as the
 	# disconnect path does, so a listener of net_peer_left (the lobby republishing
 	# its data) already reads the closed-up slot ids.
@@ -719,7 +719,7 @@ func set_lobby_data(data: Dictionary) -> void:
 	_lobby_data = data.duplicate(true)
 	Events.net_lobby_data_changed.emit(_lobby_data)
 	# Same teardown hazard as _broadcast_roster().
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		_rpc_lobby_data.rpc_id(peer_id, _lobby_data)
 	# Tee the same Dictionary into Steam lobby data, under one JSON key.
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
@@ -996,7 +996,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)),
 		steam_provider.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION))])
 
-	var peer: MultiplayerPeer = _make_steam_host_peer()
+	var peer: MultiplayerPeer = transport.make_steam_host_peer(_steam_ready, steam_provider is SteamClient)
 	if peer == null:
 		Events.net_join_failed.emit(JoinError.TRANSPORT, "SteamMultiplayerPeer unavailable")
 		steam_provider.leave_lobby(lobby_id, "host peer unavailable")
@@ -1041,7 +1041,7 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 		_fail_join(JoinError.REFUSED, "could not join Steam lobby (response %d)" % response)
 		return
 	var owner_id: int = steam_provider.lobby_owner(lobby_id)
-	var peer: MultiplayerPeer = _make_steam_client_peer(owner_id)
+	var peer: MultiplayerPeer = transport.make_steam_client_peer(owner_id, _steam_ready, steam_provider is SteamClient)
 	if peer == null:
 		# Steam's lobby_joined already made this instance a lobby member by the
 		# time the transport peer fails to construct, but neither
@@ -1355,91 +1355,6 @@ func _apply_connect_lobby_args(args: PackedStringArray) -> bool:
 	return true
 
 
-# --- Transport (the only place ENetMultiplayerPeer/SteamMultiplayerPeer may be named) --
-
-func _make_host_peer(port: int, bind_ip: String = "*") -> MultiplayerPeer:
-	var enet_peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
-	enet_peer.set_bind_ip(bind_ip)
-	# DECISION: ENet's own max_clients counts remote clients only, one fewer
-	# than config.max_peers (which includes the host). Passed through
-	# unreduced on purpose: this only widens ENet's own raw cap, giving a
-	# peer that arrives exactly at the limit room to complete the ENet
-	# handshake and receive _rpc_handshake's own SERVER_FULL refusal (with a
-	# reason the lobby can show) instead of a bare transport-level
-	# connection_failed. The real cap is enforced in _rpc_handshake.
-	var err: Error = enet_peer.create_server(port, config.max_peers)
-	if err != OK:
-		push_warning("Net: create_server on port %d failed with error %d" % [port, err])
-		return null
-	return enet_peer
-
-
-func _make_client_peer(address: String, port: int) -> MultiplayerPeer:
-	var enet_peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
-	var err: Error = enet_peer.create_client(address, port)
-	if err != OK:
-		push_warning("Net: create_client to %s:%d failed with error %d" % [address, port, err])
-		return null
-	return enet_peer
-
-
-## Sibling to _make_host_peer()/_make_client_peer() rather than a literal
-## extension of them: Steam peer construction takes no port/address (the
-## lobby, not an IP:port, is the rendezvous), so the parameter shapes cannot
-## match. With the ENet pair, the only functions that may name a concrete peer
-## class -- here reached purely through ClassDB, never a static
-## `SteamMultiplayerPeer` type, so this file still parses in a checkout
-## without the addon.
-##
-## SAFETY: calling SteamMultiplayerPeer.create_host()/create_client() when
-## the process's Steam context was never initialized (steamInitEx never
-## called, or it failed) segfaults the engine (SIGSEGV inside steam_api64.dll).
-## `not _steam_ready` guards the real, no-init case; `not (steam_provider is
-## SteamClient)` guards the FakeSteam case a GUT test always uses, so
-## ClassDB.instantiate(&"SteamMultiplayerPeer") is unreachable from any
-## automated test.
-func _make_steam_host_peer() -> MultiplayerPeer:
-	if steam_host_peer_override != null:
-		return steam_host_peer_override
-	if not _steam_ready or not (steam_provider is SteamClient):
-		return null
-	if not ClassDB.class_exists(&"SteamMultiplayerPeer"):
-		return null
-	var obj: Object = ClassDB.instantiate(&"SteamMultiplayerPeer")
-	var peer: MultiplayerPeer = obj as MultiplayerPeer
-	if peer == null:
-		return null
-	# server_relay = true: client traffic routes through the host (spec 2.6
-	# "Model: Host-authoritative listen server"), matching ENet's implicit
-	# star topology.
-	peer.set("server_relay", true)
-	# Virtual port 0: this project has exactly one Steam session per lobby,
-	# so it never needs more than SteamMultiplayerPeer's one default channel
-	# of virtual ports.
-	var err: Variant = peer.call("create_host", 0)
-	if int(err) != OK:
-		push_warning("Net: SteamMultiplayerPeer create_host failed with error %d" % int(err))
-		return null
-	return peer
-
-
-func _make_steam_client_peer(owner_steam_id: int) -> MultiplayerPeer:
-	if not _steam_ready or not (steam_provider is SteamClient):
-		return null
-	if not ClassDB.class_exists(&"SteamMultiplayerPeer"):
-		return null
-	var obj: Object = ClassDB.instantiate(&"SteamMultiplayerPeer")
-	var peer: MultiplayerPeer = obj as MultiplayerPeer
-	if peer == null:
-		return null
-	peer.set("server_relay", true)
-	var err: Variant = peer.call("create_client", owner_steam_id, 0)
-	if int(err) != OK:
-		push_warning("Net: SteamMultiplayerPeer create_client failed with error %d" % int(err))
-		return null
-	return peer
-
-
 # --- MultiplayerAPI signal handlers -----------------------------------------
 
 func _on_peer_connected(id: int) -> void:
@@ -1452,7 +1367,7 @@ func _on_peer_connected(id: int) -> void:
 
 
 func _on_peer_disconnected(id: int) -> void:
-	_disconnecting_peers.erase(id)
+	transport.unmark_disconnecting(id)
 	_pending_handshake.erase(id)
 	_seat_pref_buckets.erase(id)
 	_chat_forget_peer(id)
@@ -1712,7 +1627,7 @@ func _reject_peer(peer_id: int, error: int) -> void:
 	_pending_handshake.erase(peer_id)
 	# A refused peer lingers for the grace frames below; mark it so NetFanout
 	# broadcasts skip it like a kicked peer.
-	_disconnecting_peers[peer_id] = true
+	transport.mark_disconnecting(peer_id)
 	_rpc_join_refused.rpc_id(peer_id, error)
 	# Two frames' grace before closing the connection: rpc_id() only queues
 	# the packet, and disconnect_peer(force=false)'s own flush-then-close
@@ -1728,64 +1643,16 @@ func _reject_peer(peer_id: int, error: int) -> void:
 	# the moment the refusal lands, and on loopback the host has processed that
 	# disconnect before these two frames are up. disconnect_peer() on an id the
 	# transport no longer holds logs an engine error, so only close what is
-	# still open (the same check _apply_peer_timeout() makes).
+	# still open.
 	if multiplayer.multiplayer_peer and multiplayer.get_peers().has(peer_id):
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
-
-
-## Whether an RPC broadcast can actually reach the wire
-## right now. _on_peer_disconnected can call _broadcast_roster() while the
-## transport is mid-teardown — the multiplayer_peer already closed/nulled
-## (leave()/host shutdown racing a late disconnect signal), or still open but
-## down to zero connected remote peers (the last client just left). Either
-## way there is nothing to send to, and forcing the RPC anyway either raises
-## "Trying to call an RPC while no multiplayer peer is active" (peer null) or
-## logs ENet's own "Unable to send packet on channel 0, max channels: 0" for
-## a remote peer whose ENetPeer object already reports itself disconnected
-## before Godot's own peer_disconnected signal/roster bookkeeping catches up.
-func _can_send() -> bool:
-	return not _broadcast_targets().is_empty()
 
 
 ## True while kick_peer() has asked the transport to disconnect `peer_id` and it
 ## has not dropped out of get_peers() yet. A send to it logs an engine error, so
 ## per-peer senders outside this file (net/MatchNet.gd) skip it.
 func is_peer_disconnecting(peer_id: int) -> bool:
-	return _disconnecting_peers.has(peer_id) or not _transport_peer_sendable(peer_id)
-
-
-## ENet marks a remote peer ZOMBIE/DISCONNECTING as soon as its
-## disconnect command arrives, but get_peers() keeps listing it until its own
-## queued DISCONNECT event is dispatched (several clients leaving at host
-## shutdown, or one peer's event running a roster broadcast first). Sending then
-## logs "Unable to send packet on channel 0, max channels: 0". Non-ENet
-## transports have no such view and are always treated as sendable.
-func _transport_peer_sendable(peer_id: int) -> bool:
-	var enet: ENetMultiplayerPeer = multiplayer.multiplayer_peer as ENetMultiplayerPeer
-	if enet == null:
-		return true
-	var link: ENetPacketPeer = enet.get_peer(peer_id)
-	if link == null:
-		return false
-	return link.get_state() == ENetPacketPeer.STATE_CONNECTED
-
-
-## Host only: the connected peers a broadcast may address -- every entry of
-## multiplayer.get_peers() except one kick_peer() is disconnecting (see
-## _disconnecting_peers). Empty while the transport is down, not connected, or
-## has no remote peer left. Fan-out sites send with rpc_id() to each of these
-## rather than a plain rpc(), which would also address the disconnecting peer.
-func _broadcast_targets() -> Array[int]:
-	var targets: Array[int] = []
-	if not is_host():
-		return targets
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
-		return targets
-	for peer_id: int in multiplayer.get_peers():
-		if not _disconnecting_peers.has(peer_id) and _transport_peer_sendable(peer_id):
-			targets.append(peer_id)
-	return targets
+	return transport.is_peer_disconnecting(multiplayer, peer_id)
 
 
 func _broadcast_roster() -> void:
@@ -1797,7 +1664,7 @@ func _broadcast_roster() -> void:
 	# The host's own copy of the roster changed right here; tell
 	# ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
 	Events.net_roster_changed.emit(roster)
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		_rpc_roster_update.rpc_id(peer_id, roster)
 	_adverts.update_players(_peers.size())
 
@@ -1944,7 +1811,7 @@ func _reset_rejoin_state() -> void:
 	_seat_pref_buckets.clear()
 	_chat_reset()
 	ChatMute.clear()
-	_disconnecting_peers.clear()
+	transport.clear_disconnecting()
 
 
 # --- Ready state --------------------------------------------------------
@@ -1973,8 +1840,7 @@ func _rpc_set_ready(ready: bool) -> void:
 ## local human -- one press on the shared device readies all of them).
 func request_loading_ready() -> void:
 	if is_client():
-		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-		if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		if not transport.is_link_up(multiplayer):
 			return
 		_rpc_loading_ready.rpc_id(HOST_PEER_ID)
 		return
@@ -2001,7 +1867,7 @@ func _handle_loading_ready(sender: int) -> bool:
 func _on_loading_ready_changed(ready_ids: PackedInt32Array, required_ids: PackedInt32Array) -> void:
 	if _mode != Mode.HOST:
 		return
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		_rpc_loading_ready_state.rpc_id(peer_id, ready_ids, required_ids)
 
 
@@ -2009,7 +1875,7 @@ func _on_loading_ready_changed(ready_ids: PackedInt32Array, required_ids: Packed
 func _on_loading_gate_opened() -> void:
 	if _mode != Mode.HOST:
 		return
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		_rpc_loading_gate_open.rpc_id(peer_id)
 
 
@@ -2058,8 +1924,7 @@ func request_seat_pref(color_index: int = LobbySeats.UNCHANGED, team_pick: int =
 	if is_client():
 		if not _seat_pref_in_range(color_index, team_pick):
 			return
-		var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-		if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		if not transport.is_link_up(multiplayer):
 			return
 		_rpc_request_seat_pref.rpc_id(HOST_PEER_ID, color_index, team_pick)
 		return
@@ -2144,8 +2009,7 @@ func send_chat(text: String) -> void:
 
 
 func _client_connected() -> bool:
-	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
-	return peer != null and peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	return transport.is_link_up(multiplayer)
 
 
 ## `Variant` on purpose (any_peer): the engine must not coerce a float or bool before
@@ -2165,7 +2029,7 @@ func _rpc_chat_submit(payload: Variant) -> void:
 func _handle_chat(sender: int, payload: Variant, remote: bool, now: float = -1.0) -> bool:
 	if _mode != Mode.HOST or _private_session or not chat_config.enabled:
 		return false
-	if not _peers.has(sender) or (remote and _disconnecting_peers.has(sender)):
+	if not _peers.has(sender) or (remote and transport.is_marked_disconnecting(sender)):
 		return false
 	var clock: float = now if now >= 0.0 else _now()
 	var bucket: ChatRules.Bucket = _chat_buckets.get(sender) as ChatRules.Bucket
@@ -2221,7 +2085,7 @@ func _chat_publish(line: Dictionary) -> void:
 	_chat_history.push(line)
 	Events.chat_line_received.emit(line)
 	chat_line_accepted.emit(line)
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		_rpc_chat_line.rpc_id(peer_id, line)
 
 
@@ -2243,13 +2107,13 @@ func _chat_notify(peer_id: int, code: int, clock: float) -> void:
 	_chat_notice_at[peer_id] = clock
 	if peer_id == local_peer_id():
 		Events.chat_notice.emit(code)
-	elif _broadcast_targets().has(peer_id):
+	elif transport.broadcast_targets(multiplayer, is_host()).has(peer_id):
 		_rpc_chat_notice.rpc_id(peer_id, code)
 
 
 ## Host only: the last history_lines lines, to a peer that just joined (not re-broadcast).
 func _chat_send_history(peer_id: int) -> void:
-	if _chat_history == null or _private_session or not _broadcast_targets().has(peer_id):
+	if _chat_history == null or _private_session or not transport.broadcast_targets(multiplayer, is_host()).has(peer_id):
 		return
 	var lines: Array = _chat_history.lines()
 	if lines.is_empty():
@@ -2362,9 +2226,9 @@ func _tick_ping(delta: float) -> void:
 	_ping_accum = fmod(_ping_accum, interval)
 	var now_ms: int = Time.get_ticks_msec()
 	# Same teardown hazard as _broadcast_roster().
-	if not _can_send():
+	if not transport.can_broadcast(multiplayer, is_host()):
 		return
-	for peer_id: int in _broadcast_targets():
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
 		if peer_id != HOST_PEER_ID and _peers.has(peer_id):
 			_rpc_ping.rpc_id(peer_id, now_ms)
 
@@ -2422,26 +2286,9 @@ func _tick_handshake_timeouts(now: float) -> void:
 		_reject_peer(peer_id, JoinError.TIMEOUT)
 
 
-## Configures ENet's own dead-peer detection (NetConfig's peer_timeout_limit/
-## min/max triple). Reached through a duck-typed call so
-## ENetMultiplayerPeer/ENetPacketPeer are never named outside
-## _make_host_peer()/_make_client_peer().
+## Configures the dead-peer detection of the link to `id` (NetTransport owns how).
 func _apply_peer_timeout(id: int) -> void:
-	if _peer == null or not _peer.has_method("get_peer"):
-		return
-	# MultiplayerAPI relays every peer's connect/disconnect to every other
-	# peer (so a client can see a sibling client's id), but only the host
-	# holds a *direct* ENet connection to each remote id — a client's own
-	# ENetMultiplayerPeer only ever has one, to the host. Calling get_peer()
-	# for any other id logs an engine error, so only ever call it for a
-	# connection this instance actually made itself.
-	if not (is_host() or id == HOST_PEER_ID):
-		return
-	if not multiplayer.get_peers().has(id):
-		return
-	var packet_peer: Object = _peer.call("get_peer", id)
-	if packet_peer and packet_peer.has_method("set_timeout"):
-		packet_peer.call("set_timeout", config.peer_timeout_limit, config.peer_timeout_min_ms, config.peer_timeout_max_ms)
+	transport.apply_peer_timeout(multiplayer, _peer, id, is_host(), config)
 
 
 ## What the lobby reads. IDLE = not tried.
