@@ -74,7 +74,7 @@ func _net_for(weather: MatchWeather, host: bool, match_state: int = MatchAutoloa
 	_stubs.append(stub)
 	var node: WeatherNet = WeatherNet.new()
 	add_child(node)
-	node.set_providers(fake, stub)
+	assert_true(node.bind(SessionPort.new(fake, WeatherNet.SESSION_METHODS), MatchHostPort.new(stub, WeatherNet.AUTHORITY_METHODS)), "narrow doubles bind")
 	_nodes.append(node)
 	return node
 
@@ -233,6 +233,33 @@ func test_a_stale_epoch_is_ignored() -> void:
 	client_net.net_weather_state(valid)
 	assert_eq(client_net.states_applied, 1, "an older match's late packet is dropped")
 	assert_eq(client_net.states_refused, 1)
+
+
+# --- Typed binding -----------------------------------------------------------------------
+
+func test_bind_refuses_invalid_ports_and_keeps_the_previous_binding() -> void:
+	var w: MatchWeather = _weather(true)
+	var node: WeatherNet = _net_for(w, true)
+	assert_false(node.bind(null, null))
+	var bare: RefCounted = RefCounted.new()
+	var broken: MatchHostPort = MatchHostPort.new(bare, WeatherNet.AUTHORITY_METHODS)
+	assert_false(broken.is_valid())
+	assert_false(node.bind(SessionPort.new(FakeNet.host(), WeatherNet.SESSION_METHODS), broken))
+	assert_push_error_count(1, "one conformance error from the broken port")
+	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
+	assert_eq(node.states_sent, 1, "the earlier binding still answers")
+
+
+func test_set_providers_shim_binds_the_same_ports() -> void:
+	var w: MatchWeather = _weather(true)
+	var stub: StubMatch = StubMatch.new()
+	stub.weather_ref = w
+	var node: WeatherNet = WeatherNet.new()
+	add_child(node)
+	_nodes.append(node)
+	node.set_providers(FakeNet.host({1: 0}, [0]), stub)
+	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
+	assert_eq(node.states_sent, 1, "the shim routes through bind")
 
 
 # --- Presentation -----------------------------------------------------------------------

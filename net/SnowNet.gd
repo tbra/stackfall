@@ -21,22 +21,20 @@ var states_applied: int = 0
 var states_refused: int = 0
 var last_sent_state: Dictionary = {}
 
+## The session methods and the Match reads this node calls; a port is bound with
+## exactly this subset, so a narrow test double stays valid.
+const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
+const AUTHORITY_METHODS: PackedStringArray = ["weather", "state", "field", "registry"]
+
 var _tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
-var _net_provider: Variant = null
-var _match_provider: Variant = null
+var _session_port: SessionPort = null
+var _authority_port: MatchHostPort = null
 var _pending: Dictionary = {}
 var _has_pending: bool = false
 var _since_send: float = INF
-
-## Client render state: the last applied sanitized state, the blocks drawn
-## (net_id -> Block) and the records they were drawn from.
-var _client_state: Dictionary = {}
-var _rendered: Dictionary = {}
-var _rendered_records: Dictionary = {}
-var _rendered_disc: Dictionary = {}
-var _unresolved: bool = false
 var _render_queued: bool = false
-var _builder: SnowCapBuilder = null
+## Client drawing (built on first use, after the tuning is final).
+var _renderer: SnowClientRenderer = null
 
 
 func _ready() -> void:
@@ -54,22 +52,47 @@ func _exit_tree() -> void:
 		relay.state_published.disconnect(_on_published)
 
 
-## Same seam as WeatherNet.set_providers(); null keeps the real autoload.
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
 
 
+## Typed seam: the session and the Match this node reads. Returns false (and
+## binds nothing) when a port is invalid. Build the ports with SESSION_METHODS /
+## AUTHORITY_METHODS (default_session() / default_authority()).
+func bind(session: SessionPort, authority: MatchHostPort) -> bool:
+	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
+		return false
+	_session_port = session
+	_authority_port = authority
+	return true
+
+
+## The port over the real Net autoload (or `session_node`).
+static func default_session(session_node: Object = null) -> SessionPort:
+	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
+
+
+## The port over the real Match autoload (or `match_node`).
+static func default_authority(match_node: Object = null) -> MatchHostPort:
+	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
+
+
+## TRANSITIONAL shim for callers that still inject providers; null keeps the
+## real autoload.
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	_net_provider = net_provider
-	_match_provider = match_provider
+	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
 
 
-func _session() -> Variant:
-	return _net_provider if _net_provider != null else Net
+func _session() -> SessionPort:
+	if _session_port == null:
+		_session_port = default_session()
+	return _session_port
 
 
-func _authority() -> Variant:
-	return _match_provider if _match_provider != null else Match
+func _authority() -> MatchHostPort:
+	if _authority_port == null:
+		_authority_port = default_authority()
+	return _authority_port
 
 
 func _process(delta: float) -> void:
@@ -137,7 +160,7 @@ func apply_state(raw: Variant) -> bool:
 	if _session().is_host():
 		states_refused += 1
 		return false
-	var authority: Variant = _authority()
+	var authority: MatchHostPort = _authority()
 	var field: Field = authority.field() as Field
 	var max_cell: int = field.grid().cell_count() - 1 if field != null else -1
 	var data: Dictionary = SnowGeometry.sanitize_state(raw, _tuning, max_cell)
@@ -148,14 +171,13 @@ func apply_state(raw: Variant) -> bool:
 	if has_snow and not _snow_live(authority):
 		states_refused += 1
 		return false
-	_client_state = data
-	_render()
+	_client_renderer().apply(data)
 	states_applied += 1
 	return true
 
 
-func _snow_live(authority: Variant) -> bool:
-	if not MatchAutoload.is_replicating(int(authority.state())):
+func _snow_live(authority: MatchHostPort) -> bool:
+	if not MatchAutoload.is_replicating(authority.state()):
 		return false
 	var weather: MatchWeather = authority.weather() as MatchWeather
 	return weather != null and weather.active_id() == WeatherIds.SNOW
@@ -163,115 +185,27 @@ func _snow_live(authority: Variant) -> bool:
 
 ## Client: removes every drawn cap.
 func clear_client() -> void:
-	if _builder != null:
-		_builder.clear_all()
-	for key: Variant in _rendered.keys():
-		var held: Variant = _rendered[key]
-		if is_instance_valid(held):
-			SnowCaps.clear_block(held as Block)
-	_rendered.clear()
-	_rendered_records.clear()
-	_rendered_disc.clear()
-	_client_state = {}
-	_unresolved = false
-	var field: Field = _authority().field() as Field
-	if field != null:
-		SnowCaps.clear_disc(field)
+	_client_renderer().clear()
 
 
 ## Client: steps the geometry builder (budgeted like the host's).
 func step_client(budget: int) -> void:
-	if _builder != null and not _builder.is_idle():
-		_builder.step(budget)
+	if _renderer != null:
+		_renderer.step(budget)
 
 
-## Diffs the applied state against what is drawn and hands the changes to
-## the builder; drawing happens over the next frames in step_client().
-func _render() -> void:
-	_render_queued = false
-	if _client_state.is_empty():
-		return
-	if _builder == null or _builder.tuning != _tuning:
-		_builder = SnowCapBuilder.new(_tuning, false)
-	var authority: Variant = _authority()
-	var registry: BlockRegistry = authority.registry() as BlockRegistry
-	var seed_value: int = int(_client_state["seed"])
-	var blocks: Dictionary = _client_state["blocks"]
-	for key: Variant in _rendered.keys():
-		# A freed block (gift blast/despawn) is a stale key even if the host still lists it.
-		if not blocks.has(key) or not is_instance_valid(_rendered[key]):
-			var gone: Variant = _rendered[key]
-			_builder.drop_owner("b%d" % int(key))
-			if is_instance_valid(gone):
-				SnowCaps.clear_block(gone as Block)
-			_rendered.erase(key)
-			_rendered_records.erase(key)
-	_unresolved = false
-	for key: Variant in blocks.keys():
-		var net_id: int = int(key)
-		var record: Array = blocks[key]
-		var block: Block = registry.block_for_net_id(net_id) if registry != null else null
-		if block == null or not is_instance_valid(block):
-			_unresolved = true
-			continue
-		if _rendered.get(net_id) == block and _rendered_records.get(net_id) == record:
-			continue
-		_set_block_record(block, net_id, record, _rendered_records.get(net_id, []) as Array, seed_value)
-		_rendered[net_id] = block
-		_rendered_records[net_id] = record
-	var field: Field = authority.field() as Field
-	if field == null:
-		return
-	var disc: Dictionary = _client_state["disc"]
-	if disc != _rendered_disc:
-		var grid: CellGrid = field.grid()
-		var edge: float = SnowCaps.disc_patch_edge(grid, _tuning)
-		for key: Variant in _rendered_disc.keys():
-			if not disc.has(key):
-				_set_disc_cell(field, grid, edge, int(key), 0, seed_value)
-		for key: Variant in disc.keys():
-			if int(_rendered_disc.get(key, 0)) != int(disc[key]):
-				_set_disc_cell(field, grid, edge, int(key), int(disc[key]), seed_value)
-		_rendered_disc = disc
-	SnowCaps.set_disc_cover(field, seed_value, int(_client_state["cover"]), _tuning, _client_blocks)
+func _client_renderer() -> SnowClientRenderer:
+	if _renderer == null:
+		_renderer = SnowClientRenderer.new(_tuning, _client_field, _client_registry)
+	return _renderer
 
 
-func _client_blocks() -> Array:
-	var registry: BlockRegistry = _authority().registry() as BlockRegistry
-	return registry.all_blocks() if registry != null else []
+func _client_field() -> Field:
+	return _authority().field() as Field
 
 
-func _set_block_record(block: Block, net_id: int, record: Array, previous: Array, seed_value: int) -> void:
-	var axis: int = int(record[0])
-	var cells: PackedInt32Array = record[1]
-	var levels: PackedInt32Array = record[2]
-	var cube_size: float = SnowCaps.cube_size_of(block)
-	var centers: PackedVector3Array = SnowCaps.block_cells(block)
-	var key: String = "b%d" % net_id
-	if not previous.is_empty() and int(previous[0]) != axis:
-		_builder.drop_owner(key)
-		previous = []
-	if not previous.is_empty():
-		var old_cells: PackedInt32Array = previous[1]
-		for cell: int in old_cells:
-			if not cells.has(cell) and cell < centers.size():
-				_builder.set_patch(key, block, -1, cell, SnowGeometry.block_patch_transform(centers[cell], axis, cube_size), 0.0, 0, 0)
-	for k: int in range(cells.size()):
-		var cell: int = cells[k]
-		if cell >= centers.size():
-			continue
-		_builder.set_patch(
-			key, block, -1, cell, SnowGeometry.block_patch_transform(centers[cell], axis, cube_size),
-			SnowCaps.block_patch_edge(cube_size, _tuning), SnowGeometry.patch_seed(seed_value, net_id, cell, axis), levels[k]
-		)
-
-
-func _set_disc_cell(field: Field, grid: CellGrid, edge: float, cell: int, level: int, seed_value: int) -> void:
-	var region: int = SnowCaps.disc_region(grid, cell, _tuning)
-	_builder.set_patch(
-		"d%d" % region, field, region, cell, SnowCaps.disc_patch_frame(grid, cell, _tuning), edge,
-		SnowGeometry.patch_seed(seed_value, SnowGeometry.DISC_OWNER, cell, SnowGeometry.AXIS_UP), level
-	)
+func _client_registry() -> BlockRegistry:
+	return _authority().registry() as BlockRegistry
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
@@ -289,6 +223,12 @@ func _on_weather_stopped(weather_id: StringName) -> void:
 ## A block spawned on a client after the state that names it: draw it once
 ## its net_id is bound (MatchNet binds right after emitting block_placed).
 func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
-	if _unresolved and not _render_queued and not _session().is_host():
+	if _renderer != null and _renderer.is_unresolved() and not _render_queued and not _session().is_host():
 		_render_queued = true
-		_render.call_deferred()
+		_render_again.call_deferred()
+
+
+func _render_again() -> void:
+	_render_queued = false
+	if _renderer != null:
+		_renderer.render()

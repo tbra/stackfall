@@ -70,7 +70,7 @@ func before_each() -> void:
 	_match.registry_ref = _registry
 	_match.weather_ref = _weather
 	_snow_net = SnowNet.new()
-	_snow_net.set_providers(_net, _match)
+	assert_true(_snow_net.bind(SessionPort.new(_net, SnowNet.SESSION_METHODS), MatchHostPort.new(_match, SnowNet.AUTHORITY_METHODS)), "narrow doubles bind")
 	_snow_net._tuning = _snow
 	add_child_autofree(_snow_net)
 
@@ -219,4 +219,29 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 	Events.net_peer_joined.emit(7, 1, "late")
 	assert_eq(_snow_net.states_sent, before + 1, "late joiner gets the current state")
 	relay.publish(_empty_state())
+
+
+func test_bind_refuses_a_double_missing_a_called_method() -> void:
+	var bare: SnowNet = autofree(SnowNet.new()) as SnowNet
+	var lacking: RefCounted = RefCounted.new()
+	var session: SessionPort = SessionPort.new(_net, SnowNet.SESSION_METHODS)
+	var authority: MatchHostPort = MatchHostPort.new(lacking, SnowNet.AUTHORITY_METHODS)
+	assert_false(authority.is_valid())
+	assert_false(bare.bind(session, authority), "an invalid port is refused")
+	assert_false(bare.bind(null, null), "null ports are refused")
+	assert_push_error_count(1, "N0d's conformance check logs once")
+
+
+func test_set_providers_shim_binds_the_same_ports() -> void:
+	var shimmed: SnowNet = SnowNet.new()
+	shimmed.set_providers(_net, _match)
+	shimmed._tuning = _snow
+	add_child_autofree(shimmed)
+	_start_client_snow()
+	var block: Block = _client_block(NET_ID, Vector3.ZERO)
+	assert_true(shimmed.apply_state(_state([NET_ID], -1)), "the shim reads the injected match")
+	shimmed.step_client(BIG_BUDGET)
+	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME))
+	_net.host = true
+	assert_false(shimmed.apply_state(_state([NET_ID], -1)), "and the injected session")
 

@@ -100,7 +100,10 @@
   "net/UpnpRunner.gd",
   "ui/theme/UiScale.gd"
  ],
- "l1_exceptions": [],
+ "l1_exceptions": [
+  "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCapBuilder.gd",
+  "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCaps.gd"
+ ],
  "largest_scc": 30,
  "main_closure": [
   "assets/models/gifts/gift_outline.tres",
