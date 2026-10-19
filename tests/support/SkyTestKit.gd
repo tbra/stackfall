@@ -1,7 +1,7 @@
 class_name SkyTestKit
 extends RefCounted
-## Shared sky test set-up (SKY-15a). Replaces the per-file SkyThemeDef and theme-load set-ups:
-## tests build a Skybox on the shipped cycle and edit a fresh SkyCycleDef instead. No scene tree.
+## Shared sky test set-up: tests build a Skybox on the shipped cycle and edit a fresh
+## SkyCycleDef. No scene tree.
 
 const CYCLE_PATH: String = "res://config/sky/sky_cycle.tres"
 const STORM_PATH: String = "res://config/sky/storm_overlay.tres"
