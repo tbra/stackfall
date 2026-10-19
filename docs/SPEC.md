@@ -272,7 +272,7 @@ Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig
 **Visuals.**
 - The disc is a polished metal plate. A shader draws territory from the analytic circle list (capped by `TerritoryVisuals.max_shader_circles`): each area is a soft tint in the player's color with an outline; contested areas shimmer; hole edges glow.
 - Blocks are one merged cel-shaded shape per piece with thin cell-grid lines and a restrained outline.
-- Procedural sky driven by one day/night cycle resource (`config/sky/sky_cycle.tres` keyframes) and a storm overlay, with clouds and weather; GPUParticles3D for explosions, dust and debris; camera shake scales with impulse and can be turned off. Blocks that fall off fade out.
+- Procedural sky driven by one day/night cycle resource (`config/sky/sky_cycle.tres` keyframes) and a storm overlay that dims the current hour's light by a share and fades the colours in from the current (night-mixed) palette, so night storms stay dark, with clouds that follow the live sky gradient, and weather; GPUParticles3D for explosions, dust and debris; camera shake scales with impulse and can be turned off. Blocks that fall off fade out.
 
 **Audio.** Impact sounds vary in volume and pitch with impulse and material; stacking gives a rising tick that climbs with height; specials have distinct warning sounds. A shared menu and lobby playlist and a three-track gameplay playlist: tracks fade in 4 s, play once, fade out 5 s, then a random quiet gap of 20 to 50 s. A two-stem adaptive mix (calm and tense, crossfading as capture progress passes 0.6) is implemented in `autoload/Sfx.gd` and activates only when a tense-stem file exists (none ships). Capture progress also ducks the music.
 
