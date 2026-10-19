@@ -1,0 +1,995 @@
+{
+	"history": {
+		"0.0.3": "ad4042c1e28c26d05675e1e7559b3c76"
+	},
+	"surface": {
+		"constants": {
+			"discovery_port_default": 47777.0,
+			"discovery_port_shipped": 47777.0,
+			"match_event_names": [
+				"block_dissolve_started",
+				"block_frozen_changed",
+				"block_glued_changed",
+				"block_owner_changed",
+				"cat_ended",
+				"cat_started",
+				"countdown",
+				"feed_expired",
+				"feed_issued",
+				"gift_claimed",
+				"gift_expired",
+				"gift_flight_spawned",
+				"gift_landed",
+				"gift_slot",
+				"gift_spawned",
+				"glue_charges_changed",
+				"live_scores",
+				"loading_gate",
+				"match_clock",
+				"match_results",
+				"match_won",
+				"mode_state",
+				"placement_rejected",
+				"placement_relocated",
+				"player_eliminated",
+				"qol_feed",
+				"slot_replay",
+				"special_consumed",
+				"special_triggered",
+				"state_changed",
+				"turn_changed"
+			],
+			"res://net/MatchNet.gd": {
+				"CURSOR_CHANNEL": 2.0,
+				"RASTER_VERSION": 1.0
+			},
+			"res://net/SnapshotSync.gd": {
+				"DISK_STATE_BYTES": 12.0,
+				"FLAG_DISK_STATE": 1.0,
+				"FLAG_KEYFRAME": 2.0,
+				"HEADER_BYTES": 12.0,
+				"MAX_FRAGMENTS": 255.0,
+				"OFFSET_BODY_COUNT": 10.0,
+				"OFFSET_FLAGS": 9.0,
+				"OFFSET_FRAGMENT_COUNT": 4.0,
+				"OFFSET_FRAGMENT_INDEX": 3.0,
+				"OFFSET_HOST_TIME": 5.0,
+				"OFFSET_SEQUENCE": 1.0,
+				"OFFSET_VERSION": 0.0,
+				"PACKET_VERSION": 2.0,
+				"SEQUENCE_MODULUS": 65536.0,
+				"SNAPSHOT_CHANNEL": 1.0
+			}
+		},
+		"nodes": {
+			"BreezeNet": {
+				"ids": {
+					"net_breeze_gust": 0.0
+				},
+				"methods": {
+					"net_breeze_gust": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "gust",
+								"type": 27.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					}
+				},
+				"names": [
+					"net_breeze_gust"
+				],
+				"names_md5": "23ea4c178363e445b72fda633c26f9a1",
+				"node_path": "/root/MatchNet/WeatherNet/BreezeNet",
+				"rpc_count": 1.0,
+				"script": "res://net/BreezeNet.gd"
+			},
+			"MatchNet": {
+				"ids": {
+					"net_block_despawned": 0.0,
+					"net_block_impacts": 1.0,
+					"net_block_spawned": 2.0,
+					"net_cat_state": 3.0,
+					"net_cat_target": 4.0,
+					"net_cursor": 5.0,
+					"net_match_event": 6.0,
+					"net_match_loading": 7.0,
+					"net_match_start": 8.0,
+					"net_replay_ack": 9.0,
+					"net_replay_end": 10.0,
+					"net_request_place": 11.0,
+					"net_request_replay": 12.0,
+					"net_request_return_to_lobby": 13.0,
+					"net_request_throw": 14.0,
+					"net_request_use_gift_slot": 15.0,
+					"net_territory": 16.0,
+					"net_update_cursor": 17.0
+				},
+				"methods": {
+					"net_block_despawned": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "net_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "reason",
+								"type": 4.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_block_impacts": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "packet",
+								"type": 29.0
+							}
+						],
+						"call_local": false,
+						"channel": 2.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					},
+					"net_block_spawned": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "net_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "shape_id",
+								"type": 21.0
+							},
+							{
+								"class_name": "",
+								"name": "owner_slot",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "origin",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "rotation",
+								"type": 15.0
+							},
+							{
+								"class_name": "",
+								"name": "gift_id",
+								"type": 21.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [
+							"&\"\""
+						],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_cat_state": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "position",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "velocity",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "point",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "remaining",
+								"type": 3.0
+							}
+						],
+						"call_local": false,
+						"channel": 2.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					},
+					"net_cat_target": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "point",
+								"type": 9.0
+							}
+						],
+						"call_local": false,
+						"channel": 2.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 0.0
+					},
+					"net_cursor": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "origin",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "orientation_index",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "free_quat",
+								"type": 15.0
+							}
+						],
+						"call_local": false,
+						"channel": 2.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					},
+					"net_match_event": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "event",
+								"type": 21.0
+							},
+							{
+								"class_name": "",
+								"name": "args",
+								"type": 28.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_match_loading": {
+						"args": [],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_match_start": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "config_data",
+								"type": 27.0
+							},
+							{
+								"class_name": "",
+								"name": "roster",
+								"type": 28.0
+							},
+							{
+								"class_name": "",
+								"name": "replay_id",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [
+							"0"
+						],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_replay_ack": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "replay_id",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_replay_end": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "replay_id",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_request_place": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "origin",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "orientation_index",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "free_quat",
+								"type": 15.0
+							},
+							{
+								"class_name": "",
+								"name": "auto_drop",
+								"type": 1.0
+							},
+							{
+								"class_name": "",
+								"name": "feed_seq",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_request_replay": {
+						"args": [],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_request_return_to_lobby": {
+						"args": [],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_request_throw": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "origin",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "orientation_index",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "free_quat",
+								"type": 15.0
+							},
+							{
+								"class_name": "",
+								"name": "velocity",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "feed_seq",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_request_use_gift_slot": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"net_territory": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "payload",
+								"type": 29.0
+							},
+							{
+								"class_name": "",
+								"name": "full",
+								"type": 1.0
+							},
+							{
+								"class_name": "",
+								"name": "shares",
+								"type": 32.0
+							},
+							{
+								"class_name": "",
+								"name": "capture_team",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "capture_progress",
+								"type": 3.0
+							},
+							{
+								"class_name": "",
+								"name": "circle_payload",
+								"type": 29.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [
+							"null"
+						],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"net_update_cursor": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "origin",
+								"type": 9.0
+							},
+							{
+								"class_name": "",
+								"name": "orientation_index",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "free_quat",
+								"type": 15.0
+							},
+							{
+								"class_name": "",
+								"name": "aim",
+								"type": 9.0
+							}
+						],
+						"call_local": false,
+						"channel": 2.0,
+						"default_args": [
+							"Vector3(0, 0, 0)"
+						],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 0.0
+					}
+				},
+				"names": [
+					"net_block_despawned",
+					"net_block_impacts",
+					"net_block_spawned",
+					"net_cat_state",
+					"net_cat_target",
+					"net_cursor",
+					"net_match_event",
+					"net_match_loading",
+					"net_match_start",
+					"net_replay_ack",
+					"net_replay_end",
+					"net_request_place",
+					"net_request_replay",
+					"net_request_return_to_lobby",
+					"net_request_throw",
+					"net_request_use_gift_slot",
+					"net_territory",
+					"net_update_cursor"
+				],
+				"names_md5": "a0a4d83b77517c03f5c91a2f9539a45e",
+				"node_path": "/root/MatchNet",
+				"rpc_count": 18.0,
+				"script": "res://net/MatchNet.gd"
+			},
+			"Net": {
+				"ids": {
+					"_rpc_chat_history": 0.0,
+					"_rpc_chat_line": 1.0,
+					"_rpc_chat_notice": 2.0,
+					"_rpc_chat_submit": 3.0,
+					"_rpc_handshake": 4.0,
+					"_rpc_join_accepted": 5.0,
+					"_rpc_join_refused": 6.0,
+					"_rpc_loading_gate_open": 7.0,
+					"_rpc_loading_ready": 8.0,
+					"_rpc_loading_ready_state": 9.0,
+					"_rpc_lobby_data": 10.0,
+					"_rpc_ping": 11.0,
+					"_rpc_pong": 12.0,
+					"_rpc_report_ping": 13.0,
+					"_rpc_request_seat_pref": 14.0,
+					"_rpc_roster_update": 15.0,
+					"_rpc_set_ready": 16.0
+				},
+				"methods": {
+					"_rpc_chat_history": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "lines",
+								"type": 28.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_chat_line": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "line",
+								"type": 27.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_chat_notice": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "code",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_chat_submit": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "payload",
+								"type": 0.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_handshake": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "build",
+								"type": 4.0
+							},
+							{
+								"class_name": "",
+								"name": "player_name",
+								"type": 4.0
+							},
+							{
+								"class_name": "",
+								"name": "rejoin_token",
+								"type": 4.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [
+							"\"\""
+						],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_join_accepted": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "slot_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "_host_peer_id",
+								"type": 2.0
+							},
+							{
+								"class_name": "",
+								"name": "rejoin_token",
+								"type": 4.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [
+							"\"\""
+						],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_join_refused": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "error",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_loading_gate_open": {
+						"args": [],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_loading_ready": {
+						"args": [],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_loading_ready_state": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "ready_ids",
+								"type": 30.0
+							},
+							{
+								"class_name": "",
+								"name": "required_ids",
+								"type": 30.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_lobby_data": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "data",
+								"type": 27.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_ping": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "sent_at_ms",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					},
+					"_rpc_pong": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "sent_at_ms",
+								"type": 2.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 0.0
+					},
+					"_rpc_report_ping": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "value",
+								"type": 3.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					},
+					"_rpc_request_seat_pref": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "color_index",
+								"type": 0.0
+							},
+							{
+								"class_name": "",
+								"name": "team_pick",
+								"type": 0.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_roster_update": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "roster",
+								"type": 28.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					},
+					"_rpc_set_ready": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "ready",
+								"type": 1.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 1.0,
+						"transfer_mode": 2.0
+					}
+				},
+				"names": [
+					"_rpc_chat_history",
+					"_rpc_chat_line",
+					"_rpc_chat_notice",
+					"_rpc_chat_submit",
+					"_rpc_handshake",
+					"_rpc_join_accepted",
+					"_rpc_join_refused",
+					"_rpc_loading_gate_open",
+					"_rpc_loading_ready",
+					"_rpc_loading_ready_state",
+					"_rpc_lobby_data",
+					"_rpc_ping",
+					"_rpc_pong",
+					"_rpc_report_ping",
+					"_rpc_request_seat_pref",
+					"_rpc_roster_update",
+					"_rpc_set_ready"
+				],
+				"names_md5": "23c424eb7f9f89a9e736eb102529b07b",
+				"node_path": "/root/Net",
+				"rpc_count": 17.0,
+				"script": "res://autoload/Net.gd"
+			},
+			"SnapshotSync": {
+				"ids": {
+					"net_snapshot": 0.0
+				},
+				"methods": {
+					"net_snapshot": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "packet",
+								"type": 29.0
+							}
+						],
+						"call_local": false,
+						"channel": 1.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 0.0
+					}
+				},
+				"names": [
+					"net_snapshot"
+				],
+				"names_md5": "5b09714ae515760c8aad83332e7ca229",
+				"node_path": "/root/SnapshotSync",
+				"rpc_count": 1.0,
+				"script": "res://net/SnapshotSync.gd"
+			},
+			"SnowNet": {
+				"ids": {
+					"net_snow_state": 0.0
+				},
+				"methods": {
+					"net_snow_state": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "state",
+								"type": 27.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					}
+				},
+				"names": [
+					"net_snow_state"
+				],
+				"names_md5": "033286bfed422bf4fecee4ac181fc63e",
+				"node_path": "/root/MatchNet/WeatherNet/SnowNet",
+				"rpc_count": 1.0,
+				"script": "res://net/SnowNet.gd"
+			},
+			"WeatherNet": {
+				"ids": {
+					"net_weather_state": 0.0
+				},
+				"methods": {
+					"net_weather_state": {
+						"args": [
+							{
+								"class_name": "",
+								"name": "state",
+								"type": 27.0
+							}
+						],
+						"call_local": false,
+						"channel": 0.0,
+						"default_args": [],
+						"return_type": 0.0,
+						"rpc_mode": 2.0,
+						"transfer_mode": 2.0
+					}
+				},
+				"names": [
+					"net_weather_state"
+				],
+				"names_md5": "a21b7ea4bb92034e84fa7703208c60e0",
+				"node_path": "/root/MatchNet/WeatherNet",
+				"rpc_count": 1.0,
+				"script": "res://net/WeatherNet.gd"
+			}
+		},
+		"rpc_total": 39.0
+	}
+}
