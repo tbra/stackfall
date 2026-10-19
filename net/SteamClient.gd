@@ -2,8 +2,8 @@ class_name SteamClient
 extends RefCounted
 ## The Steam-facing half of the transport (spec 2.6).
 ##
-## The only file besides autoload/Net.gd's _make_steam_host_peer() /
-## _make_steam_client_peer() that may touch the Engine "Steam" singleton or a
+## The only file besides net/session/NetTransport.gd's Steam peer factories
+## that may touch the Engine "Steam" singleton or a
 ## lobby-list/lobby-data call. Peer instantiation itself still stays inside
 ## Net (no other file may name a concrete peer class); this file only reaches
 ## Steam's matchmaking API, never SteamMultiplayerPeer.

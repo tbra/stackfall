@@ -490,8 +490,8 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 		"the attempt delivered second must be accepted as the live one, tagged with its own player name"
 	)
 	# 222 is still handed to leave_lobby() here too, but for an unrelated,
-	# pre-existing reason every other P1 test already hits: _make_steam_host_
-	# peer() refuses to build a real SteamMultiplayerPeer for a FakeSteam-
+	# pre-existing reason every other P1 test already hits: NetTransport's Steam
+	# host peer factory refuses to build a real SteamMultiplayerPeer for a FakeSteam-
 	# driven provider (crash safety), so even the *accepted* lobby's peer
 	# construction fails and the lobby is released. That is not this fix's
 	# stale-answer path (which never reaches set_lobby_data() at all, proven
