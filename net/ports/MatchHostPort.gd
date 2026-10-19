@@ -225,7 +225,7 @@ func active_cat() -> RigidBody3D:
 
 
 func active_slot() -> int:
-	return int(_call(&"active_slot", [], 0))
+	return int(_call(&"active_slot", [], -1))
 
 
 func after_next_special(slot_id: int) -> StringName:
@@ -261,7 +261,7 @@ func disconnect_grace_left(slot_id: int) -> float:
 
 
 func eliminated_by(slot_id: int) -> int:
-	return int(_call(&"eliminated_by", [slot_id], 0))
+	return int(_call(&"eliminated_by", [slot_id], -1))
 
 
 func feed_time_left(slot_id: int) -> float:

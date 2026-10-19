@@ -206,6 +206,8 @@ func apply_replicated_match_timer(seconds_left: float) -> void:
 
 
 func _collaborator(property_name: StringName) -> Object:
+	if _match == null:
+		return null
 	return _match.get(property_name) as Object
 
 
