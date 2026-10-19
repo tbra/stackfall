@@ -7,6 +7,16 @@ extends Resource
 ## (the debug overlay's lag sliders) must duplicate() first, as Match does with
 ## MatchConfig.
 
+## Smallest refill a flood bucket may have, tokens per second (a bucket that never
+## refills would lock a peer out for good).
+const FLOOD_REFILL_MIN: float = 0.1
+## The cursor and cat-target refill must be at least this multiple of cursor_hz.
+const FLOOD_CURSOR_REFILL_FACTOR: float = 1.5
+## Smallest cat duration cap, in seconds.
+const WIRE_DURATION_MIN_S: float = 0.1
+## Smallest pong round-trip cap, in milliseconds.
+const PING_RTT_MIN_MS: int = 100
+
 # --- Ports and session (spec 2.6 "LAN discovery") ---------------------------
 
 ## UDP port the host broadcasts its game advert on, and clients listen on.
@@ -54,6 +64,81 @@ extends Resource
 @export var seat_pref_burst: int = 6
 ## Requests per second the seat-preference bucket refills (see seat_pref_burst).
 @export var seat_pref_refill_per_s: float = 3.0
+
+# --- Host flood limits (spec 2.6) -------------------------------------------
+#
+# One token bucket per peer per intent, built by core/net/FloodLimits.gd. Every
+# pair is `<burst>` (bucket size: requests that may arrive back to back) and
+# `<refill_per_s>` (sustained rate). A peer over its limit is dropped silently
+# and counted; it is never kicked and never answered (a refusal reply is itself
+# amplification). DECISION: each default is about 2x the honest maximum rate, so
+# honest play never reaches a limit.
+
+## Host: bucket size for the place intent, per peer. The client sends one per turn, so even a double click fits.
+@export var flood_place_burst: int = 6
+## Host: tokens per second the place intent bucket refills (see flood_place_burst).
+@export var flood_place_refill_per_s: float = 4.0
+## Host: bucket size for the throw intent, per peer. One per held block, so even a double click fits.
+@export var flood_throw_burst: int = 6
+## Host: tokens per second the throw intent bucket refills (see flood_throw_burst).
+@export var flood_throw_refill_per_s: float = 4.0
+## Host: bucket size for the cursor update, per peer. Honest traffic is cursor_hz (default 15); the burst is 2 s of it, so a lag spike that bunches a second of cursors is not clipped. sanitize() keeps the refill at least 1.5 * cursor_hz.
+@export var flood_cursor_burst: int = 30
+## Host: tokens per second the cursor update bucket refills (see flood_cursor_burst).
+@export var flood_cursor_refill_per_s: float = 30.0
+## Host: bucket size for the cat-target update, per peer. Rides the cursor cadence (cursor_hz); sanitize() keeps the refill at least 1.5 * cursor_hz.
+@export var flood_cat_target_burst: int = 30
+## Host: tokens per second the cat-target update bucket refills (see flood_cat_target_burst).
+@export var flood_cat_target_refill_per_s: float = 30.0
+## Host: bucket size for the gift-slot use request, per peer. A player cycles and fires gift slots by hand.
+@export var flood_gift_slot_burst: int = 4
+## Host: tokens per second the gift-slot use request bucket refills (see flood_gift_slot_burst).
+@export var flood_gift_slot_refill_per_s: float = 2.0
+## Host: bucket size for the ready toggle, per peer. A human toggles ready about twice a second at most.
+@export var flood_set_ready_burst: int = 4
+## Host: tokens per second the ready toggle bucket refills (see flood_set_ready_burst).
+@export var flood_set_ready_refill_per_s: float = 1.0
+## Host: bucket size for the loading-ready report, per peer. Sent once per world load.
+@export var flood_loading_ready_burst: int = 3
+## Host: tokens per second the loading-ready report bucket refills (see flood_loading_ready_burst).
+@export var flood_loading_ready_refill_per_s: float = 0.5
+## Host: bucket size for the world-replay request, per peer. Sent once when a mid-match joiner needs the world.
+@export var flood_replay_request_burst: int = 3
+## Host: tokens per second the world-replay request bucket refills (see flood_replay_request_burst).
+@export var flood_replay_request_refill_per_s: float = 0.5
+## Host: bucket size for the return-to-lobby request, per peer. A button press; nobody honest sends more than a few.
+@export var flood_return_lobby_burst: int = 3
+## Host: tokens per second the return-to-lobby request bucket refills (see flood_return_lobby_burst).
+@export var flood_return_lobby_refill_per_s: float = 0.5
+## Host: bucket size for the world-replay acknowledgement, per peer. Sent once per replay.
+@export var flood_replay_ack_burst: int = 3
+## Host: tokens per second the world-replay acknowledgement bucket refills (see flood_replay_ack_burst).
+@export var flood_replay_ack_refill_per_s: float = 0.5
+## Host: bucket size for the ping reply, per peer. Honest peers answer ping_hz (default 1 Hz); the burst absorbs a bunched pair.
+@export var flood_pong_burst: int = 4
+## Host: tokens per second the ping reply bucket refills (see flood_pong_burst).
+@export var flood_pong_refill_per_s: float = 2.0
+## Host: bucket size for the version handshake, per peer. Sent once per connection; a retry is rare.
+@export var flood_handshake_burst: int = 2
+## Host: tokens per second the version handshake bucket refills (see flood_handshake_burst).
+@export var flood_handshake_refill_per_s: float = 0.2
+
+# --- Wire caps (spec 2.6) ---------------------------------------------------
+
+## Longest special id (a gift/piece name) the host accepts on the wire, in characters.
+@export var special_id_max_length: int = 32
+## Longest rejection reason a client will accept in a place/throw refusal, in characters.
+@export var reject_reason_max_length: int = 48
+## Longest cat-spawn duration a client accepts from the host, in seconds.
+@export var cat_duration_max_s: float = 60.0
+## Longest build string the host reads from a handshake before comparing it, in characters.
+@export var handshake_build_max_length: int = 64
+## Longest raw player name the host reads from a handshake before cleaning it, in characters.
+## Always at least max_player_name_length; cleaning does the real truncation.
+@export var handshake_name_max_length: int = 64
+## Largest round trip, in milliseconds, the host accepts from a pong. A reply
+## claiming more (or a negative one) is a forged send time and is clamped to this.
+@export var ping_rtt_max_ms: int = 10000
 
 # --- Steam lobby (spec 2.6) -------------------------------------------------------
 
@@ -298,3 +383,37 @@ func sanitize() -> void:
 	impact_speed_max = clampf(impact_speed_max, 1.0, float(ImpactWire.SPEED_RAW_MAX) * ImpactWire.SPEED_QUANTUM)
 	seat_pref_burst = maxi(seat_pref_burst, 1)
 	seat_pref_refill_per_s = maxf(seat_pref_refill_per_s, 0.1)
+	flood_place_burst = maxi(flood_place_burst, 1)
+	flood_place_refill_per_s = maxf(flood_place_refill_per_s, FLOOD_REFILL_MIN)
+	flood_throw_burst = maxi(flood_throw_burst, 1)
+	flood_throw_refill_per_s = maxf(flood_throw_refill_per_s, FLOOD_REFILL_MIN)
+	flood_cursor_burst = maxi(flood_cursor_burst, 1)
+	flood_cursor_refill_per_s = maxf(flood_cursor_refill_per_s, FLOOD_REFILL_MIN)
+	flood_cat_target_burst = maxi(flood_cat_target_burst, 1)
+	flood_cat_target_refill_per_s = maxf(flood_cat_target_refill_per_s, FLOOD_REFILL_MIN)
+	flood_gift_slot_burst = maxi(flood_gift_slot_burst, 1)
+	flood_gift_slot_refill_per_s = maxf(flood_gift_slot_refill_per_s, FLOOD_REFILL_MIN)
+	flood_set_ready_burst = maxi(flood_set_ready_burst, 1)
+	flood_set_ready_refill_per_s = maxf(flood_set_ready_refill_per_s, FLOOD_REFILL_MIN)
+	flood_loading_ready_burst = maxi(flood_loading_ready_burst, 1)
+	flood_loading_ready_refill_per_s = maxf(flood_loading_ready_refill_per_s, FLOOD_REFILL_MIN)
+	flood_replay_request_burst = maxi(flood_replay_request_burst, 1)
+	flood_replay_request_refill_per_s = maxf(flood_replay_request_refill_per_s, FLOOD_REFILL_MIN)
+	flood_return_lobby_burst = maxi(flood_return_lobby_burst, 1)
+	flood_return_lobby_refill_per_s = maxf(flood_return_lobby_refill_per_s, FLOOD_REFILL_MIN)
+	flood_replay_ack_burst = maxi(flood_replay_ack_burst, 1)
+	flood_replay_ack_refill_per_s = maxf(flood_replay_ack_refill_per_s, FLOOD_REFILL_MIN)
+	flood_pong_burst = maxi(flood_pong_burst, 1)
+	flood_pong_refill_per_s = maxf(flood_pong_refill_per_s, FLOOD_REFILL_MIN)
+	flood_handshake_burst = maxi(flood_handshake_burst, 1)
+	flood_handshake_refill_per_s = maxf(flood_handshake_refill_per_s, FLOOD_REFILL_MIN)
+	# cursor_hz was clamped above. The client sends cursors at cursor_hz, so the
+	# refill must clear it with room for bunching after jitter.
+	flood_cursor_refill_per_s = maxf(flood_cursor_refill_per_s, FLOOD_CURSOR_REFILL_FACTOR * cursor_hz)
+	flood_cat_target_refill_per_s = maxf(flood_cat_target_refill_per_s, FLOOD_CURSOR_REFILL_FACTOR * cursor_hz)
+	special_id_max_length = maxi(special_id_max_length, 1)
+	reject_reason_max_length = maxi(reject_reason_max_length, 1)
+	cat_duration_max_s = maxf(cat_duration_max_s, WIRE_DURATION_MIN_S)
+	handshake_build_max_length = maxi(handshake_build_max_length, 1)
+	handshake_name_max_length = maxi(handshake_name_max_length, max_player_name_length)
+	ping_rtt_max_ms = maxi(ping_rtt_max_ms, PING_RTT_MIN_MS)
