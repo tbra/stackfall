@@ -1,0 +1,136 @@
+{
+ "allow": [
+  {
+   "entry": "config/audio/AudioConfig.gd:claim_tension_enabled",
+   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/audio/AudioConfig.gd:contextual_music_enabled",
+   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/audio/AudioConfig.gd:impacts_enabled",
+   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/blocks/tuning/BlockEffectsConfig.gd:puff_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/blocks/tuning/GhostTuning.gd:ghost_collision_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/blocks/tuning/GhostTuning.gd:spawn_clearance_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/blocks/tuning/GhostTuning.gd:throw_arc_end_marker_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/blocks/tuning/GhostTuning.gd:throw_arc_floor_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/gifts/GiftModelTable.gd:toon_enabled",
+   "reason": "Kill switch read by GiftModelTable when it builds a model; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/gifts/specials/fx/GiftExplosionFxTuning.gd:dust_enabled",
+   "reason": "Kill switch read by the gift explosion effect; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/graphics/GraphicsPreset.gd:vsync_enabled",
+   "reason": "Player setting in the graphics tab of the settings menu; every shipped preset enables it and the player flips it at runtime."
+  },
+  {
+   "entry": "config/graphics/QualityGovernorConfig.gd:render_scale_step_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/match/DebugConfig.gd:log_enabled",
+   "reason": "Kill switch read by PerfLogger; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/match/MatchConfig.gd:experiments_enabled",
+   "reason": "Host-editable lobby master switch replicated through the MatchConfig dictionary; the shipped config keeps the default."
+  },
+  {
+   "entry": "config/match/MatchConfig.gd:gifts_enabled",
+   "reason": "Host-editable lobby option replicated through the MatchConfig dictionary; the shipped config keeps the default."
+  },
+  {
+   "entry": "config/match/QolExperiments.gd:backlog_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/match/QolExperiments.gd:gift_slot_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/match/QolExperiments.gd:goal_radius_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/match/QolExperiments.gd:timer_pause_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/physics/PhysicsTuning.gd:catchup_cap_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/physics/PhysicsTuning.gd:settle_freeze_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/player/CameraTuning.gd:snap_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/sky/SkyCycleDef.gd:aurora_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/sky/SkyCycleDef.gd:variation_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/sky/SunFlareConfig.gd:reverse_ray_enabled",
+   "reason": "Kill switch read by SunFlare; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+  },
+  {
+   "entry": "config/territory/BeaconVisualTuning.gd:timer_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/territory/DiscBodyVisuals.gd:bottom_cap_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/territory/TerritoryVisuals.gd:circle_bake_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/territory/TerritoryVisuals.gd:reflection_probe_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/territory/TerritoryVisuals.gd:ssao_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/territory/TerritoryVisuals.gd:ssr_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/weather/RainTuning.gd:puddle_ripples_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  },
+  {
+   "entry": "config/weather/SnowTuning.gd:cross_merge_enabled",
+   "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
+  }
+ ]
+}
