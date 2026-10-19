@@ -1,6 +1,10 @@
 {
  "checks": {
-  "dead-file": [],
+  "dead-file": [
+   "net/ports/MatchHostPort.gd",
+   "net/ports/MatchReplicaPort.gd",
+   "net/ports/SessionPort.gd"
+  ],
   "test-only-func": [
    "autoload/Net.gd:accepting_joins",
    "autoload/Settings.gd:set_config_path_for_test",
