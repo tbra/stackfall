@@ -741,3 +741,19 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	assert_eq(net.cursors_refused(1), 0)
 	assert_eq(int(net.replicated_event_counts.get(&"x", 0)), 1, "the whole-session tallies survive a reset, as before")
 	assert_eq(net.counters.replays_started, 1)
+
+
+func test_the_intent_gateway_binds_the_current_providers() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	var first: MatchIntentGateway = net._intents()
+	assert_true(first.is_valid(), "the real Match and the faked session satisfy the gateway's ports")
+	assert_same(net._intents(), first, "built once per binding")
+	net.set_providers(_fake_net, Match)
+	assert_not_same(net._intents(), first, "rebinding the providers rebuilds the gateway")
+
+
+func test_the_transitional_reject_forwarder_goes_through_the_gateway_counters() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	net._reject_to_peer(2, 1, &"test")
+	assert_eq(net.last_reject_reply, [2, 1, &"test"])
+	assert_eq(int(net.reject_replies_by_peer.get(2, 0)), 1)

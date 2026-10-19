@@ -335,3 +335,69 @@ func test_a_refused_remote_intent_is_tallied_in_the_counters_object() -> void:
 	assert_eq(net.counters.refused_count(REMOTE_SLOT), 1)
 	assert_eq(net.counters.accepted_count(REMOTE_SLOT), 0)
 	assert_eq(net.intents_refused(REMOTE_SLOT), 1, "the public accessor reads the same object")
+
+
+# --- per-peer intent flood limits (MatchIntentGateway) -----------------------------------------
+
+
+func test_a_flood_of_refused_place_intents_is_answered_only_up_to_the_burst() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	var burst: int = _net_config.flood_place_burst
+	for _i: int in range(3 * burst):
+		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	# Real time passes between the calls, so the bucket may have refilled by a token.
+	assert_between(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), burst, burst + 1, "no reply for a flooded intent")
+	assert_between(net.intents_sent(REMOTE_SLOT), burst, burst + 1, "a flooded intent is not even counted as sent")
+	assert_gte(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 2 * burst - 1)
+	assert_eq(_block_count(), 0)
+	assert_eq(_fake_net.kick_peer_calls.size(), 0, "a flooder is dropped, never kicked")
+
+
+func test_a_single_normal_refusal_is_still_answered_once() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1)
+	assert_eq(net.last_reject_reply[0], REMOTE_PEER)
+	assert_eq(net.last_reject_reply[1], REMOTE_SLOT)
+	assert_eq(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0)
+
+
+func test_a_flood_of_remote_cursors_updates_the_ghost_only_up_to_the_burst() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	var seen: Array[int] = [0]
+	var on_cursor: Callable = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: seen[0] += 1
+	Events.remote_cursor_updated.connect(on_cursor)
+	var burst: int = _net_config.flood_cursor_burst
+	for _i: int in range(3 * burst):
+		_remote_cursor(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
+	Events.remote_cursor_updated.disconnect(on_cursor)
+	assert_between(seen[0], burst, burst + 1, "only what the bucket let through reaches the ghost")
+
+
+func test_a_peer_leaving_gives_a_rejoin_full_buckets() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	var burst: int = _net_config.flood_place_burst
+	for _i: int in range(2 * burst):
+		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_gt(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0)
+	Events.net_peer_left.emit(REMOTE_PEER, REMOTE_SLOT, 0)
+	assert_eq(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0, "buckets and counters are forgotten")
+	var replies_before: int = int(net.reject_replies_by_peer.get(REMOTE_PEER, 0))
+	for _i: int in range(burst):
+		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), replies_before + burst, "a full bucket again")
+
+
+func test_swapping_the_net_config_rebinds_the_gateway_limits() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	var tight: NetConfig = _net_config.duplicate() as NetConfig
+	tight.flood_place_burst = 2
+	net.config = tight
+	for _i: int in range(6):
+		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_between(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 2, 3, "the new burst of 2 applies")
