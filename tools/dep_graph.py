@@ -280,6 +280,14 @@ def category(path):
     return "game"
 
 
+PORT_DIR = "net/ports/"
+
+
+def is_port_file(path):
+    """Typed ports adapt Net/Match by forwarding to same-named methods."""
+    return path.startswith(PORT_DIR)
+
+
 # --------------------------------------------------------------------------
 # Graph building
 # --------------------------------------------------------------------------
@@ -867,6 +875,13 @@ class Builder(object):
             game_only = [c for c in cands if category(self.funcs[c]["file"]) == "game"]
             if game_only:
                 cands = game_only
+        if len(cands) > 1:
+            # DECISION: a typed port (net/ports/) re-exports the adapted autoload's methods under
+            # the same names; a Variant-receiver call is not evidence of a call on the port, so the
+            # port's same-named funcs are not candidates once another file also defines the name.
+            non_port = [c for c in cands if not is_port_file(self.funcs[c]["file"])]
+            if non_port:
+                cands = non_port
         # Instance calls never target static-only helper duplicates differently; keep all.
         if len(cands) == 1:
             return cands, "unique", False
@@ -960,10 +975,14 @@ class Builder(object):
                 if v in func_name_set:
                     oi = owner[ln] if ln < len(owner) else None
                     src = funcs[oi]["id"] if oi is not None else rel
-                    ids = self.lookup(rel, v)
+                    # A port's call(&"x") forwarder names the adapted object's x, never its own
+                    # same-named wrapper; resolve it to the funcs of that name in other files.
+                    ids = [] if is_port_file(rel) else self.lookup(rel, v)
                     amb = False
                     if not ids:
                         ids = self.funcs_by_name.get(v, [])
+                        if is_port_file(rel):
+                            ids = [i for i in ids if not is_port_file(self.funcs[i]["file"])]
                         amb = len(ids) > 1
                     for i in ids:
                         self.add_ce(src, i, "string", ln, amb)

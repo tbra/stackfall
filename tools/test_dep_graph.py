@@ -459,6 +459,12 @@ FIXTURE_FP = {
     "B.gd": "class_name B\nextends RefCounted\n\nfunc count_items() -> int:\n\treturn 1\n",
     "Fetcher.gd": "class_name Fetcher\nextends RefCounted\n\nfunc fetch() -> int:\n\treturn 1\n",
     "tests/FakeFetcher.gd": "extends RefCounted\n\nfunc fetch() -> int:\n\treturn 2\n",
+    "Plug.gd": "class_name Plug\nextends RefCounted\n\nfunc plug_op() -> int:\n\treturn 1\n",
+    "net/ports/PlugPort.gd": (
+        "class_name PlugPort\nextends RefCounted\n\nvar _plug: Object = null\n\n"
+        "func plug_op() -> int:\n\treturn int(_plug.call(&\"plug_op\"))\n"
+    ),
+    "Consumer.gd": "class_name Consumer\nextends RefCounted\n\nfunc use(target) -> void:\n\ttarget.plug_op()\n",
     "dyn/one.tres": '[gd_resource type="Resource" format=3]\n[ext_resource type="Texture2D" path="res://dyn_tex.png" id="1"]\n',
     "dyn_tex.png": "png",
     "source_art/x/project.godot.review": "config_version=5\n",
@@ -515,6 +521,19 @@ class FalsePositiveFixesTest(unittest.TestCase):
         self.assertIsNotNone(e)
         self.assertFalse(e["amb"])
         self.assertIsNone(self.cedge("main.gd:_ready", "tests/FakeFetcher.gd:fetch"))
+
+    def test_port_funcs_are_not_name_fallback_candidates(self):
+        # A Variant-receiver call is not ambiguous between the adapted Plug and its typed port.
+        e = self.cedge("Consumer.gd:use", "Plug.gd:plug_op")
+        self.assertIsNotNone(e)
+        self.assertFalse(e["amb"])
+        self.assertIsNone(self.cedge("Consumer.gd:use", "net/ports/PlugPort.gd:plug_op"))
+
+    def test_port_string_forwarder_resolves_to_the_adapted_func(self):
+        e = self.cedge("net/ports/PlugPort.gd:plug_op", "Plug.gd:plug_op")
+        self.assertIsNotNone(e)
+        self.assertFalse(e["amb"])
+        self.assertIsNone(self.cedge("net/ports/PlugPort.gd:plug_op", "net/ports/PlugPort.gd:plug_op"))
 
     def test_intentional_missing_paths_are_not_broken(self):
         refs = [b["ref"] for b in self.g["broken"]]
