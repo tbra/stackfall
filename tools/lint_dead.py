@@ -48,7 +48,6 @@ FOLDER_SCANS = (
     ("config/blocks/BlockShape.gd", "config/blocks", False, (".tres",)),             # load_all_shapes list_dir
     ("config/gifts/specials/SpecialDef.gd", "config/gifts/specials", False, (".tres",)),  # load_all list_dir
     ("config/weather/WeatherTuning.gd", "config/weather", False, (".tres",)),        # list_dir over WEATHER_DIR
-    ("game/sky/Skybox.gd", "config/sky/themes", False, (".tres",)),                  # list_available_themes
     ("autoload/Settings.gd", "config/graphics/presets", False, (".tres",)),          # PRESETS_DIR loads
     ("autoload/Sfx.gd", "assets/audio/sfx", True, (".wav", ".ogg", ".mp3")),         # get_files_at(_root_dir)
     ("ui/hud/HUD.gd", "assets/ui/block_previews", False, (".png",)),                 # "%s.png" % shape.id

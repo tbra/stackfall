@@ -50,8 +50,6 @@
    "autoload/match/WindEffect.gd:is_exposed",
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",
-   "config/sky/SkyThemeDef.gd:aurora_night_strength",
-   "config/sky/SkyThemeDef.gd:locked_phase_for",
    "core/ai/BotThink.gd:decision",
    "core/sky/SkyCycleClock.gd:clear",
    "core/sky/SkyEvaluator.gd:evaluate",

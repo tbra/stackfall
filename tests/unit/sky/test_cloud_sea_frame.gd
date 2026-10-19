@@ -1,10 +1,9 @@
 extends GutTest
-## CloudSea.apply_frame() writes the puff channel of an evaluated SkyFrame: the uniforms the old
-## set_cycle_appearance() + apply_storm_tint() writers produced from the themes (plan 4.1 steps 6-7),
-## now pinned as literals in fixtures/cloud_sea_frame_expected.json (captured from that code before it
-## was removed), with quirks Q1 (the storm re-copies the shared sky set) and Q3 (the far-fade gradient
-## is only copied at configure_cycle() and on a storm). configure_cycle() duplicates the def's puff
-## material.
+## CloudSea.apply_frame() writes the puff channel of an evaluated SkyFrame. The expected uniforms are
+## pinned as literals in fixtures/cloud_sea_frame_expected.json (captured from the theme-based writers
+## that apply_frame replaced), with quirks Q1 (the storm re-copies the shared sky set) and Q3 (the
+## far-fade gradient is only copied at configure_cycle() and on a storm). configure_cycle() duplicates
+## the def's puff material.
 
 const FIXTURE_PATH: String = "res://tests/unit/sky/fixtures/cloud_sea_frame_expected.json"
 const TONES: Array[StringName] = [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]

@@ -134,8 +134,8 @@ var lighting: CloudLighting = null
 var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
 var _upper: MultiMeshInstance3D = null
-
-## billow + hull margin, fraction of radius) and the disc exclusion volume.
+## Set by configure_cycle(): the shader's radius inflation (lumps + billow + hull margin, fraction
+## of radius), from hull_inflate().
 var _inflate: float = 0.0
 ## the largest disc radius (m) the clouds must clear -- the active
 ## (disc-size scaled) field radius; never below the largest shipped map.
