@@ -173,6 +173,8 @@ signal upnp_state_changed(state: int)
 var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
+## LAN advert + UPnP glue and the join code (net/session/NetHostAdverts.gd); built in _ready().
+var _adverts: NetHostAdverts
 
 ## `--match-config=<res path>`: host-only override for the MatchConfig a
 ## `--headless-host` match starts from. Null means "no override" --
@@ -316,6 +318,9 @@ func _ready() -> void:
 	add_child(_lan)
 	_lan.game_seen.connect(_on_lan_advert_changed)
 	_lan.game_expired.connect(_on_lan_advert_expired)
+	_adverts = NetHostAdverts.new(_lan, _upnp, config)
+	_adverts.backend_source = _upnp_backend
+	_adverts.upnp_state_changed.connect(upnp_state_changed.emit)
 	steam_provider = SteamClient.new()
 	# The host mirrors the loading-screen ready gate to clients.
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
@@ -327,8 +332,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _upnp.poll():
-		upnp_state_changed.emit(int(_upnp.state))
+	_adverts.poll()
 	# Steamworks is a manual-dispatch API: every async Steam signal (lobby
 	# creation, the lobby list, joins, invite-accepts) is queued internally
 	# and never fires without this (see net/SteamClient.gd's run_callbacks()).
@@ -397,10 +401,8 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	# Agent runs must not appear in the owner's LAN browser.
 	# `lan_visible=false` keeps the normal "*" bind and open joins but skips the
 	# broadcast (headless bot hosts must not show up in a Join browser).
-	if advertise and lan_visible and not AgentProbe.is_active():
-		_start_lan_advertising(host_name)
-	if advertise and lan_visible:
-		_start_upnp(use_port)
+	_adverts.upnp_config = upnp_config
+	_adverts.start(advertise and lan_visible, use_port, host_name, _peers.size(), build_version(), not AgentProbe.is_active())
 	return OK
 
 
@@ -458,9 +460,8 @@ func leave(forget_rejoin: bool = true) -> void:
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
 		steam_provider.leave_lobby(_steam_lobby_id, "Net.leave()")
 
-	_lan.stop_advertising()
+	_adverts.stop()
 	_lan.stop_listening()
-	_stop_upnp()
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -1266,45 +1267,32 @@ func apply_command_line() -> bool:
 
 ## The parsing/dispatch logic behind apply_command_line(), taking the argument
 ## list explicitly so a unit test can drive it without OS.get_cmdline_user_args()
-## (there is no OS.set_cmdline_user_args() to fake it with).
+## (there is no OS.set_cmdline_user_args() to fake it with). The parsing itself
+## is NetCommandLine.parse(); this only applies the result.
 func _apply_command_line_args(args: PackedStringArray) -> bool:
-	var options: Dictionary = {}
-	var flags: Dictionary = {}
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		var eq: int = text.find("=")
-		if eq >= 0:
-			options[text.substr(0, eq)] = text.substr(eq + 1)
-		else:
-			flags[text] = true
+	var options: NetCommandLine.Options = NetCommandLine.parse(args)
 
-	if options.has("sim-lag") or options.has("sim-loss"):
-		var lag: float = float(options.get("sim-lag", 0.0))
-		var loss: float = float(options.get("sim-loss", 0.0))
-		set_simulation(lag, 0.0, loss)
+	if options.has_simulation:
+		set_simulation(options.sim_lag_ms, 0.0, options.sim_loss)
 
 	# Host a Public Steam lobby so the Join > Steam list can find
 	# it (FriendsOnly lobbies never appear in Steam's lobby search). Duplicated so
 	# the shared net_config.tres resource is not mutated.
-	if flags.has("steam-public-lobby"):
+	if options.steam_public_lobby:
 		config = config.duplicate() as NetConfig
 		config.steam_lobby_type = NetConfig.STEAM_LOBBY_TYPE_PUBLIC
 
-	var port: int = int(options.get("port", 0))
-	var player_name: String = String(options.get("player-name", ""))
+	var player_name: String = options.player_name
 
-	if flags.has("host") or flags.has("headless-host"):
-		# --match-config=<path> is parsed here, inside the host branch, rather
+	if options.wants_host():
+		# --match-config=<path> is applied here, inside the host branch, rather
 		# than up with --sim-lag/--sim-loss above, so it is a no-op for --join.
-		if options.has("match-config"):
-			_load_match_config_override(String(options["match-config"]))
+		if options.has_match_config:
+			_load_match_config_override(options.match_config_path)
 		# DECISION: a --headless-host (bot training, soaks, h2h, ENet harness
 		# hosts) does not broadcast on the LAN by default, so it never appears as "Host (1/8)" in
 		# a Join browser; clients still connect by address. `--advertise` opts back in.
-		var lan_visible: bool = not flags.has("headless-host") or flags.has("advertise")
-		host_game(port, player_name if player_name != "" else "Host", true, lan_visible)
+		host_game(options.port, player_name if player_name != "" else "Host", true, options.lan_visible())
 		return true
 
 	# DECISION: --host-online is a windowed single-PC Steam smoke test aid, not
@@ -1313,19 +1301,12 @@ func _apply_command_line_args(args: PackedStringArray) -> bool:
 	# on a machine that has the addon installed and Steam running, without
 	# game/main/Main.gd's Net.init_steam() call. It uses the same bare-flag
 	# convention as --host/--headless-host.
-	if flags.has("host-online"):
+	if options.host_online:
 		_run_steam_smoke_host_online(player_name if player_name != "" else "SmokeHost")
 		return true
 
-	if options.has("join"):
-		var address_spec: String = String(options["join"])
-		var address: String = address_spec
-		var join_port: int = port
-		var colon: int = address_spec.rfind(":")
-		if colon >= 0:
-			address = address_spec.substr(0, colon)
-			join_port = int(address_spec.substr(colon + 1))
-		join_game(address, join_port, player_name if player_name != "" else "Player")
+	if options.has_join:
+		join_game(options.join_address, options.join_port, player_name if player_name != "" else "Player")
 		return true
 
 	return false
@@ -1363,22 +1344,15 @@ func _load_match_config_override(path: String) -> void:
 	_match_config_override = resource as MatchConfig
 
 
-## The +connect_lobby scan, separate from _apply_command_line_args()'s
-## "-"-stripping loop (which assumes every token has a "-" prefix and this one
-## never does). Takes its list explicitly so a unit test can drive it.
+## The +connect_lobby scan (NetCommandLine.connect_lobby_id), separate from
+## _apply_command_line_args() because that token has no "-" prefix. Takes its
+## list explicitly so a unit test can drive it.
 func _apply_connect_lobby_args(args: PackedStringArray) -> bool:
-	for i: int in range(args.size() - 1):
-		if args[i] != "+connect_lobby":
-			continue
-		var text: String = args[i + 1]
-		if not text.is_valid_int():
-			return false
-		var lobby_id: int = int(text)
-		if lobby_id <= 0:
-			return false
-		join_lobby(lobby_id, "Player")
-		return true
-	return false
+	var lobby_id: int = NetCommandLine.connect_lobby_id(args)
+	if lobby_id <= 0:
+		return false
+	join_lobby(lobby_id, "Player")
+	return true
 
 
 # --- Transport (the only place ENetMultiplayerPeer/SteamMultiplayerPeer may be named) --
@@ -1825,8 +1799,7 @@ func _broadcast_roster() -> void:
 	Events.net_roster_changed.emit(roster)
 	for peer_id: int in _broadcast_targets():
 		_rpc_roster_update.rpc_id(peer_id, roster)
-	if _lan.is_advertising():
-		_lan.update_advert({"players": _peers.size()})
+	_adverts.update_players(_peers.size())
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -2473,14 +2446,12 @@ func _apply_peer_timeout(id: int) -> void:
 
 ## What the lobby reads. IDLE = not tried.
 func upnp_state() -> int:
-	return int(_upnp.state)
+	return _adverts.router_state()
 
 
 ## "XXXXX-XXXXX" once the router opened the port, else "".
 func upnp_join_code() -> String:
-	if _upnp.state != UpnpRunner.State.OPENED:
-		return ""
-	return JoinCode.encode(_upnp.external_address, _host_port)
+	return _adverts.join_code()
 
 
 ## The UDP port a manual router forward must target (the fallback hint).
@@ -2489,8 +2460,9 @@ func host_port() -> int:
 
 
 ## DECISION: the real backend needs a windowed, non-agent autoload; headless hosts
-## (bot matches, GUT) never reach a router. Callers pass advertise and lan_visible, so bot hosts
-## (lan_visible false) and private sessions (advertise false) are excluded before this runs.
+## (bot matches, GUT) never reach a router. NetHostAdverts only asks for a backend when
+## the session is advertised, so bot hosts (lan_visible false) and private sessions
+## (advertise false) never get here.
 func _upnp_backend() -> UpnpBackend:
 	if upnp_backend_factory.is_valid():
 		return upnp_backend_factory.call() as UpnpBackend
@@ -2499,39 +2471,10 @@ func _upnp_backend() -> UpnpBackend:
 	return UpnpBackendReal.new()
 
 
-func _start_upnp(port: int) -> void:
-	if not upnp_config.enabled:
-		return
-	var backend: UpnpBackend = _upnp_backend()
-	if backend == null:
-		return
-	_upnp.start(backend, port, upnp_config)
-	upnp_state_changed.emit(int(_upnp.state))
-
-
-func _stop_upnp() -> void:
-	var was_active: bool = _upnp.state != UpnpRunner.State.IDLE
-	_upnp.stop()
-	if was_active:
-		upnp_state_changed.emit(int(_upnp.state))
-
-
 ## Quit: the mapping must not outlive the process (blocking, bounded by one router round trip).
 func _exit_tree() -> void:
-	_upnp.shutdown()
-
-
-func _start_lan_advertising(player_name: String) -> void:
-	var info: Dictionary = {
-		"game": String(DISCOVERY_MAGIC),
-		"version": build_version(),
-		"name": player_name,
-		"players": _peers.size(),
-		"max": config.max_peers,
-		"map": "",
-		"port": _host_port,
-	}
-	_lan.start_advertising(info)
+	if _adverts != null:
+		_adverts.shutdown()
 
 
 func _on_lan_advert_changed(_info: Dictionary) -> void:

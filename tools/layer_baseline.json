@@ -98,6 +98,8 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/session/NetCommandLine.gd",
+  "net/session/NetHostAdverts.gd",
   "ui/theme/UiScale.gd"
  ],
  "l1_exceptions": [],
@@ -464,6 +466,8 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/session/NetCommandLine.gd",
+  "net/session/NetHostAdverts.gd",
   "shaders/ambient/distant_birds.gdshader",
   "shaders/ambient/fireflies.gdshader",
   "shaders/ambient/perching_bird.gdshader",

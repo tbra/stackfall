@@ -103,4 +103,55 @@ func test_steam_public_lobby_flag_sets_public_lobby_type_on_a_copy() -> void:
 	assert_eq(shared.steam_lobby_type, 1, "shared default stays FriendsOnly")
 
 
+# --- Net applies what NetCommandLine parsed ---------------------------------
+
+func test_sim_flags_configure_the_simulator_without_starting_a_session() -> void:
+	var started: bool = _node._apply_command_line_args(PackedStringArray(["--sim-lag=90", "--sim-loss=0.1"]))
+	assert_false(started)
+	assert_false(_node._sim.is_idle())
+	_node.set_simulation(0.0, 0.0, 0.0)
+	assert_true(_node._sim.is_idle())
+
+
+func test_no_flags_start_nothing() -> void:
+	assert_false(_node._apply_command_line_args(PackedStringArray()))
+	assert_false(_node._apply_command_line_args(PackedStringArray(["--no-such-flag", "--port=abc"])))
+	assert_eq(_node.mode(), Net.Mode.OFFLINE)
+
+
+func test_host_flag_hosts_on_the_port_with_the_default_name_and_advertises() -> void:
+	var port: int = _take_port()
+	assert_true(_node._apply_command_line_args(PackedStringArray(["--host", "--port=%d" % port])))
+	assert_eq(_node.mode(), Net.Mode.HOST)
+	assert_eq(_node.host_port(), port)
+	assert_eq(_node.peer_info(Net.HOST_PEER_ID)["name"], "Host")
+	assert_true(_node._lan.is_advertising() or AgentProbe.is_active())
+
+
+func test_headless_host_stays_off_the_lan_unless_advertise_and_takes_the_name() -> void:
+	assert_true(_node._apply_command_line_args(PackedStringArray([
+		"--headless-host", "--port=%d" % _take_port(), "--player-name=Botty",
+	])))
+	assert_false(_node._lan.is_advertising())
+	assert_eq(_node.peer_info(Net.HOST_PEER_ID)["name"], "Botty")
+
+
+func test_join_flag_splits_the_port_and_joins_as_a_client() -> void:
+	var host: Variant = _make_side("CmdNet_JoinHost")
+	var host_port: int = _take_port()
+	host._apply_command_line_args(PackedStringArray(["--headless-host", "--port=%d" % host_port]))
+	assert_true(_node._apply_command_line_args(PackedStringArray(["--join=127.0.0.1:%d" % host_port])))
+	assert_eq(_node.mode(), Net.Mode.CLIENT)
+	assert_eq(_node._join_scope, "enet:127.0.0.1:%d" % host_port)
+	host.leave()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func test_connect_lobby_without_steam_does_not_join_on_a_bad_id() -> void:
+	assert_false(_node._apply_connect_lobby_args(PackedStringArray(["+connect_lobby", "abc"])))
+	assert_false(_node._apply_connect_lobby_args(PackedStringArray(["+connect_lobby", "0"])))
+	assert_false(_node._apply_connect_lobby_args(PackedStringArray(["+connect_lobby"])))
+
+
 # --- LAN advertising ---------------------------------------------------
