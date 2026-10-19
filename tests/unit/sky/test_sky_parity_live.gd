@@ -380,7 +380,7 @@ static func capture_all(host: Node) -> Dictionary:
 				_snap(states, "P_%s_fog0.7_0.47" % preset_id, rig)
 			_free_rig(rig)
 		var refreshed: Rig = _locked_rig(host, preset_id, 0.25)
-		refreshed.skybox.refresh_cycle_sources()
+		refreshed.skybox.refresh_sky_def()
 		_snap(states, "P_%s_refresh_0.25" % preset_id, refreshed)
 		_free_rig(refreshed)
 	# R: running cycle at a nonzero clock and at clock 0, half a tick of clock advance per step

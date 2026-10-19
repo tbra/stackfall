@@ -282,8 +282,11 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 		return
 	out["sky.present"] = true
 	skybox.flush_weather()
-	out["sky.theme"] = skybox.theme.resource_path if skybox.theme != null else ""
+	# Resolved sky identity: the sky definition in use, the launch sky id, and (below) the cycle flag and
+	# locked phase that id resolves to; a sky that did not reset differs in at least one of them.
+	out["sky.def_path"] = skybox.sky_def.resource_path if skybox.sky_def != null else ""
 	out["sky.config_theme_name"] = skybox.config.theme_name
+	out["sky.variation_seed"] = skybox.variation_seed()
 	out["sky.cycle_active"] = skybox.is_cycle_active()
 	out["sky.locked_phase"] = _r(skybox.locked_phase())
 	var weather: SkyWeatherState = skybox.weather_state()

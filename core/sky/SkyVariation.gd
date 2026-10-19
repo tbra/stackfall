@@ -2,7 +2,7 @@ class_name SkyVariation
 extends RefCounted
 ## C1b variation, "lets add some variation and just
 ## set a range so it can vary": the cycle sky's exposure and cloud coverage wander
-## inside the SkyThemeDef.variation_* ranges. Pure rules, no scene tree, no RNG state
+## inside the SkyCycleDef variation ranges. Pure rules, no scene tree, no RNG state
 ## and no clock: every value is a function of (match seed, cycle phase), so the host
 ## and every client compute the identical sky from the replicated match config and the
 ## shared cycle clock with no new wire field. game/sky/Skybox.gd calls these in
@@ -94,24 +94,6 @@ static func in_range(low: float, high: float, weight_value: float) -> float:
 
 
 ## `weight()` of `channel` mapped into [low, high] (a swapped pair is read as min/max): the
-## theme-free form of the *_at helpers below, for SkyCycleDef and any other range source.
+## form every SkyCycleDef range goes through.
 static func value_at(low: float, high: float, knots: int, phase: float, seed_value: int, channel: int) -> float:
 	return in_range(low, high, weight(phase, knots, seed_value, channel))
-
-
-## The sky shader `exposure` baseline at `phase` (weather overcast scales it afterwards).
-static func exposure_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return value_at(theme.variation_exposure_min, theme.variation_exposure_max,
-		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_EXPOSURE)
-
-
-## The sky shader `cloud_coverage` at `phase`.
-static func cloud_coverage_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return value_at(theme.variation_cloud_coverage_min, theme.variation_cloud_coverage_max,
-		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_CLOUD_COVERAGE)
-
-
-## The sky and puff shaders' `proc_sea_coverage` at `phase`.
-static func sea_coverage_at(theme: SkyThemeDef, phase: float, seed_value: int) -> float:
-	return value_at(theme.variation_sea_coverage_min, theme.variation_sea_coverage_max,
-		theme.variation_knots_per_cycle, phase, seed_value, CHANNEL_SEA_COVERAGE)

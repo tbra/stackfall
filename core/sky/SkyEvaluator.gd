@@ -123,7 +123,7 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.deck_density = into.fog_density
 	into.deck_albedo = into.fog_light_color
 	into.lighting_light_color = into.light_color
-	# Puff channel (CloudSea.apply_storm_tint): cel and cloud tones lerp from the cycle values in
+	# Puff channel (the retired CloudSea storm tint): cel and cloud tones lerp from the cycle values in
 	# effect; the far fade copies the sky's storm-blended day sea colours (quirk Q1).
 	into.puff_shadow_color = tick.puff_shadow_color.lerp(overlay.puff_shadow_color, t)
 	into.puff_mid_color = tick.puff_mid_color.lerp(overlay.puff_mid_color, t)

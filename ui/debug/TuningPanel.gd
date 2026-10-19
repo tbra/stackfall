@@ -176,7 +176,7 @@ var skybox_config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 
 ## The art-direction tunables: each preloads the identical path its own consumer preloads/exports
 ## (BlockFactory.gd's VISUAL_TUNING, BlockEffectsManager.config, HomeFlag.beacon_visuals,
-## CameraRig.shake_config, Skybox.theme), so the per-path Resource cache makes every field here the
+## CameraRig.shake_config, Skybox.sky_def), so the per-path Resource cache makes every field here the
 ## same live object those scripts read.
 var block_visual_tuning: BlockVisualTuning = preload("res://config/blocks/tuning/block_visual_tuning.tres")
 var block_effects_config: BlockEffectsConfig = preload("res://config/blocks/tuning/block_effects.tres")
