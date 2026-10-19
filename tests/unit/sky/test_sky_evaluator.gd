@@ -206,13 +206,23 @@ static func _golden_values(frame: SkyFrame, state: Dictionary) -> Dictionary[Str
 	return values
 
 
+## Every field of `frame` under its own name (the frame carries only plain typed script variables).
+static func frame_values(frame: SkyFrame) -> Dictionary[StringName, Variant]:
+	var values: Dictionary[StringName, Variant] = {}
+	for property: Dictionary in frame.get_property_list():
+		if (int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
+			var field: StringName = StringName(str(property["name"]))
+			values[field] = frame.get(field)
+	return values
+
+
 ## Every way `frame` differs from the golden `state` (empty when it equals it).
 static func golden_mismatches(frame: SkyFrame, state: Dictionary, label: String) -> Array[String]:
 	var problems: Array[String] = []
 	if state.is_empty():
 		problems.append("%s: the golden has no such state" % label)
 		return problems
-	var expected: Dictionary = frame.to_dict()
+	var expected: Dictionary = frame_values(frame)
 	var golden: Dictionary[StringName, Variant] = _golden_values(frame, state)
 	for field: StringName in golden:
 		if not _close(golden[field], expected[field]):
@@ -372,30 +382,30 @@ func test_staged_weather_uses_last_tick_values() -> void:
 		SkyEvaluator.apply_weather(storm_frame, weather, out)
 		_assert_golden(out, "R0_half_tick_%s" % step)
 		var chained: SkyFrame = SkyEvaluator.evaluate(_def, RUN_START_PHASE, seed_value, 0, weather, true)
-		assert_eq(chained.to_dict(), out.to_dict(), "%s: evaluate() chains the three stages" % step)
+		assert_eq(frame_values(chained), frame_values(out), "%s: evaluate() chains the three stages" % step)
 
 
 func test_stages_do_not_mutate_their_inputs() -> void:
 	var weather: SkyWeatherState = _weather()
 	_request(weather, "overcast", OVERCAST_AMOUNT)
 	var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, 0.6, SEED, 2, true)
-	var before: Dictionary = tick.to_dict()
+	var before: Dictionary = frame_values(tick)
 	var storm_frame: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_storm(tick, STORM_AMOUNT, _overlay, CEILING.storm_flare_off_amount, storm_frame)
 	var out: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_weather(storm_frame, weather, out)
-	assert_eq(tick.to_dict(), before, "stage A frame is untouched by B and C")
-	assert_ne(storm_frame.to_dict(), before)
+	assert_eq(frame_values(tick), before, "stage A frame is untouched by B and C")
+	assert_ne(frame_values(storm_frame), before)
 	var again: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_weather(storm_frame, weather, again)
-	assert_eq(again.to_dict(), out.to_dict(), "stage C is repeatable from the cached frame")
+	assert_eq(frame_values(again), frame_values(out), "stage C is repeatable from the cached frame")
 
 
 func test_zero_storm_and_clear_weather_are_identity() -> void:
 	var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, 0.3, SEED, 0, true)
 	var storm_frame: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_storm(tick, 0.0, _overlay, CEILING.storm_flare_off_amount, storm_frame)
-	assert_eq(storm_frame.to_dict(), tick.to_dict(), "amount 0 is the tick frame")
+	assert_eq(frame_values(storm_frame), frame_values(tick), "amount 0 is the tick frame")
 	var out: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_weather(storm_frame, _weather(), out)
 	for field: StringName in [&"light_energy", &"ambient_light_energy", &"fog_light_color", &"fog_density", &"exposure"]:
@@ -417,16 +427,43 @@ func test_night_index_is_carried_and_drives_the_aurora_roll() -> void:
 	assert_lt(shown, 40)
 
 
-func test_puff_snapshot_copies_the_sky_values_the_puffs_share() -> void:
-	var frame: SkyFrame = SkyEvaluator.evaluate_tick(_def, 0.25, SEED, 0, true)
-	var target: SkyFrame = SkyFrame.new()
-	SkyEvaluator.puff_snapshot(_def, frame, target)
-	assert_eq(target.puff_shared.size(), SkyEvaluator.PUFF_SHARED_KEYS.size())
-	assert_eq(target.puff_shared[&"proc_zenith_color"], frame.proc_zenith_color)
-	assert_eq(target.puff_shared[&"exposure"], frame.exposure)
-	var evening: SkyFrame = SkyEvaluator.evening_frame(_def)
-	assert_eq(evening.proc_zenith_color, _def.evening_keyframe().proc_zenith_color, "cycle start seeds the puffs from the evening key")
-	assert_eq(evening.sun_direction, _def.sun_base_direction)
+func test_a_night_storm_keeps_the_night_mixed_puff_far_fade() -> void:
+	# Q1 fixed: the storm does not re-copy the sky's day-only sea colours or the overcast-scaled
+	# exposure onto the puff channel.
+	var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, NIGHT_PHASE, SEED, 0, true)
+	assert_gt(tick.night, 0.9, "fixture: deep night")
+	var storm_frame: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_storm(tick, 1.0, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+	assert_eq(storm_frame.puff_sea_color_near, tick.puff_sea_color_near)
+	assert_eq(storm_frame.puff_sea_color_far, tick.puff_sea_color_far)
+	assert_ne(storm_frame.puff_sea_color_near, storm_frame.proc_sea_color_near, "not the storm-blended day sea colour")
+	var weather: SkyWeatherState = _weather()
+	weather.storm_amount = 1.0
+	weather.storm_overlay = _overlay
+	weather.overcast_amount = OVERCAST_AMOUNT
+	weather.overcast_exposure_scale = OVERCAST_EXPOSURE
+	var out: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_weather(storm_frame, weather, out)
+	assert_eq(out.puff_exposure, tick.puff_exposure, "baseline exposure, not the overcast-scaled one")
+	assert_ne(out.exposure, out.puff_exposure, "fixture: the sky exposure itself is overcast-scaled")
+
+
+func test_a_storm_scales_the_current_light_energy_by_the_overlay_share() -> void:
+	for phase: float in [0.25, 0.47, NIGHT_PHASE]:
+		var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, phase, SEED, 0, true)
+		var storm_frame: SkyFrame = SkyFrame.new()
+		SkyEvaluator.apply_storm(tick, 1.0, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+		assert_almost_eq(storm_frame.light_energy, tick.light_energy * _overlay.light_energy_share, TOLERANCE, "full storm at %s" % phase)
+		SkyEvaluator.apply_storm(tick, STORM_AMOUNT, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+		assert_almost_eq(storm_frame.light_energy, tick.light_energy * lerpf(1.0, _overlay.light_energy_share, STORM_AMOUNT),
+			TOLERANCE, "half storm at %s" % phase)
+	var night: SkyFrame = SkyEvaluator.evaluate_tick(_def, NIGHT_PHASE, SEED, 0, true)
+	var night_storm: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_storm(night, 1.0, _overlay, CEILING.storm_flare_off_amount, night_storm)
+	assert_lte(night_storm.light_energy, night.light_energy, "a night storm is never brighter than the night")
+	_overlay.light_energy_share = 1.0
+	SkyEvaluator.apply_storm(night, 1.0, _overlay, CEILING.storm_flare_off_amount, night_storm)
+	assert_eq(night_storm.light_energy, night.light_energy, "share 1 leaves the light unchanged")
 
 
 # --- SkyVariation.value_at ------------------------------------------------------------------
@@ -596,7 +633,7 @@ func test_palette_variation_is_a_pure_function_of_seed_and_phase() -> void:
 			SkyVariation.value_at(0.8, 0.95, 3, phase, 1234, SkyVariation.CHANNEL_EXPOSURE), "repeatable at %s" % phase)
 		var first: SkyFrame = SkyEvaluator.evaluate_tick(_def, phase, 1234, 0, true)
 		var second: SkyFrame = SkyEvaluator.evaluate_tick(_def, phase, 1234, 0, true)
-		assert_eq(first.to_dict(), second.to_dict(), "the whole tick frame repeats at %s" % phase)
+		assert_eq(frame_values(first), frame_values(second), "the whole tick frame repeats at %s" % phase)
 
 
 func test_palette_variation_seed_for_uses_the_match_seed_and_a_default_for_random() -> void:

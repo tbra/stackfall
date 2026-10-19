@@ -296,11 +296,3 @@ func aurora_night_strength(night_mix: float) -> float:
 	var low: float = minf(aurora_start_night_mix, aurora_full_night_mix)
 	var high: float = maxf(aurora_start_night_mix, aurora_full_night_mix)
 	return smoothstep(low, high, night_mix)
-
-
-## The key whose raw values seed the cloud-puff snapshot at cycle start (the evening key,
-## the last day keyframe), or null with no keys.
-func evening_keyframe() -> SkyKeyframe:
-	if day_keyframes.is_empty():
-		return null
-	return day_keyframes[day_keyframes.size() - 1]

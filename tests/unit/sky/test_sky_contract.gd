@@ -8,6 +8,7 @@ extends GutTest
 ## of the storm theme dumped through each resource's script variables (var_to_str), and the
 ## helper results from the old sunset theme's locked_phase_for / aurora_night_strength.
 
+const Evaluator := preload("res://tests/unit/sky/test_sky_evaluator.gd")
 ## Relative: the pinned literals round-trip, so only float32 rounding of the printed value remains.
 const LITERAL_TOLERANCE: float = 0.000001
 const SUN_BASE_DIRECTION: Vector3 = Vector3(0.963087, 0.069011, -0.260192)
@@ -29,7 +30,6 @@ const FRAME_PROBE_COLOR: Color = Color(0.25, 0.5, 0.75, 1.0)
 const FRAME_PROBE_VECTOR: Vector3 = Vector3(0.1, 0.2, 0.3)
 const FRAME_PROBE_FLOAT: float = 0.37
 const FRAME_PROBE_INT: int = 7
-const PUFF_PROBE_KEY: StringName = &"sea_color"
 const NIGHT_MOON_LIGHT_RATIO: float = 0.2
 const LIFE_NIGHT_ON_MIX: float = 0.85
 const LIFE_NIGHT_OFF_MIX: float = 0.15
@@ -240,7 +240,7 @@ const STORM_OVERLAY: Dictionary[StringName, Variant] = {
 	&"volumetric_fog_density": 0.00015,
 	&"volumetric_fog_albedo": Color(0.16, 0.24, 0.27, 1),
 	&"light_color": Color(0.6, 0.72, 0.78, 1),
-	&"light_energy": 0.45,
+	&"light_energy_share": 0.45,
 	&"ambient_energy": 0.55,
 	&"glow_intensity": 0.4,
 	&"proc_zenith_color": Color(0.07, 0.1, 0.13, 1),
@@ -332,7 +332,6 @@ func test_shipped_day_keyframes_are_dawn_then_sunset() -> void:
 	assert_eq(def.day_keyframes.size(), 2)
 	_assert_fields(def.day_keyframes[0], MORNING_KEY, "morning")
 	_assert_fields(def.day_keyframes[1], EVENING_KEY, "evening")
-	assert_eq(def.evening_keyframe(), def.day_keyframes[1])
 
 
 func test_shipped_night_is_the_pinned_night() -> void:
@@ -365,10 +364,6 @@ func test_aurora_night_strength_matches_the_pinned_ramp() -> void:
 	def.aurora_full_night_mix = AURORA_FULL_OVERRIDE
 	for mix: float in AURORA_REVERSED:
 		assert_almost_eq(def.aurora_night_strength(mix), AURORA_REVERSED[mix], 0.00001, "reversed mix %s" % mix)
-
-
-func test_evening_keyframe_is_null_without_keys() -> void:
-	assert_null(SkyCycleDef.new().evening_keyframe())
 
 
 func test_weather_state_defaults_are_inactive() -> void:
@@ -442,31 +437,9 @@ func test_frame_copy_from_round_trips_every_field() -> void:
 			source.set(field, FRAME_PROBE_INT)
 		elif current is float:
 			source.set(field, FRAME_PROBE_FLOAT)
-	source.puff_shared[PUFF_PROBE_KEY] = FRAME_PROBE_COLOR
 	var copy: SkyFrame = SkyFrame.new()
 	copy.copy_from(source)
 	for field: StringName in fields:
-		if field == &"puff_shared":
-			continue
 		assert_ne(copy.get(field), SkyFrame.new().get(field), "%s was probed away from its default" % field)
 		assert_eq(copy.get(field), source.get(field), "copy_from copies %s" % field)
-	assert_eq(copy.puff_shared, source.puff_shared)
-	assert_eq(copy.to_dict(), source.to_dict())
-
-
-func test_frame_copy_from_does_not_share_the_puff_snapshot() -> void:
-	var source: SkyFrame = SkyFrame.new()
-	source.puff_shared[PUFF_PROBE_KEY] = FRAME_PROBE_COLOR
-	var copy: SkyFrame = SkyFrame.new()
-	copy.copy_from(source)
-	source.puff_shared[PUFF_PROBE_KEY] = Color.BLACK
-	assert_eq(copy.puff_shared[PUFF_PROBE_KEY], FRAME_PROBE_COLOR)
-
-
-func test_frame_to_dict_has_one_stable_key_per_field() -> void:
-	var frame: SkyFrame = SkyFrame.new()
-	var dict: Dictionary = frame.to_dict()
-	var fields: Array[StringName] = _script_vars(frame)
-	assert_eq(dict.size(), fields.size())
-	for field: StringName in fields:
-		assert_true(dict.has(field), "to_dict has %s" % field)
+	assert_eq(Evaluator.frame_values(copy), Evaluator.frame_values(source))

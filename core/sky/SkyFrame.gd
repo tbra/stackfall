@@ -1,8 +1,7 @@
 class_name SkyFrame
 extends RefCounted
-## One evaluated sky state (plain typed fields, no Dictionary of Variants on the hot path;
-## puff_shared is the one exception, the explicit puff-material snapshot). Produced by
-## SkyEvaluator, consumed by the writers, which copy fields to their sink. Pure data: no scene tree.
+## One evaluated sky state (plain typed fields, no Dictionary of Variants on the hot path).
+## Produced by SkyEvaluator, consumed by the writers, which copy fields to their sink. Pure data: no scene tree.
 ## Field groups: time/sun, sky channel, environment channel, light channel, puff channel,
 ## cloud lighting inputs and flare.
 
@@ -201,8 +200,6 @@ var puff_sea_coverage: float = 0.0
 var puff_light_direction: Vector3 = Vector3(0.0, 1.0, 0.0)
 ## Puff sun direction.
 var puff_sun_direction: Vector3 = Vector3(0.0, 1.0, 0.0)
-## Snapshot of the sky values copied to the puff material for its far fade.
-var puff_shared: Dictionary[StringName, Variant] = {}
 ## Storm overlay amount this frame was evaluated with.
 var storm_amount: float = 0.0
 
@@ -326,7 +323,6 @@ func copy_from(other: SkyFrame) -> void:
 	puff_sea_coverage = other.puff_sea_coverage
 	puff_light_direction = other.puff_light_direction
 	puff_sun_direction = other.puff_sun_direction
-	puff_shared = other.puff_shared.duplicate()
 	storm_amount = other.storm_amount
 	lighting_light_color = other.lighting_light_color
 	cloud_overcast = other.cloud_overcast
@@ -338,114 +334,3 @@ func copy_from(other: SkyFrame) -> void:
 	floor_mid_ratio = other.floor_mid_ratio
 	flare_enabled = other.flare_enabled
 	flare_weather_scale = other.flare_weather_scale
-
-
-## Every field under a stable key, for the golden fixture and debug dumps.
-func to_dict() -> Dictionary:
-	return {
-		&"phase": phase,
-		&"sun_direction": sun_direction,
-		&"daylight": daylight,
-		&"night": night,
-		&"night_index": night_index,
-		&"use_global_dirs": use_global_dirs,
-		&"exposure": exposure,
-		&"proc_sea_coverage": proc_sea_coverage,
-		&"proc_zenith_color": proc_zenith_color,
-		&"proc_mid_color": proc_mid_color,
-		&"proc_horizon_color": proc_horizon_color,
-		&"proc_horizon_glow_color": proc_horizon_glow_color,
-		&"proc_gradient_mid_height": proc_gradient_mid_height,
-		&"proc_gradient_power": proc_gradient_power,
-		&"proc_horizon_glow_width": proc_horizon_glow_width,
-		&"proc_sun_glow_strength": proc_sun_glow_strength,
-		&"proc_sea_color_near": proc_sea_color_near,
-		&"proc_sea_color_far": proc_sea_color_far,
-		&"proc_sea_horizon_fade": proc_sea_horizon_fade,
-		&"sun_core_color": sun_core_color,
-		&"sun_halo_color": sun_halo_color,
-		&"sun_ray_color": sun_ray_color,
-		&"cloud_shadow_color": cloud_shadow_color,
-		&"cloud_mid_color": cloud_mid_color,
-		&"cloud_lit_color": cloud_lit_color,
-		&"cloud_rim_color": cloud_rim_color,
-		&"cycle_night_mix": cycle_night_mix,
-		&"cycle_night_zenith": cycle_night_zenith,
-		&"cycle_night_horizon": cycle_night_horizon,
-		&"cycle_night_below": cycle_night_below,
-		&"cycle_star_brightness": cycle_star_brightness,
-		&"cycle_star_cells": cycle_star_cells,
-		&"cycle_star_threshold": cycle_star_threshold,
-		&"cycle_star_radius": cycle_star_radius,
-		&"cycle_star_horizon_fade": cycle_star_horizon_fade,
-		&"moon_direction": moon_direction,
-		&"moon_visibility": moon_visibility,
-		&"moon_angular_radius_deg": moon_angular_radius_deg,
-		&"moon_halo_radius_deg": moon_halo_radius_deg,
-		&"moon_halo_strength": moon_halo_strength,
-		&"moon_brightness": moon_brightness,
-		&"aurora_visibility": aurora_visibility,
-		&"aurora_intensity": aurora_intensity,
-		&"aurora_color_low": aurora_color_low,
-		&"aurora_color_mid": aurora_color_mid,
-		&"aurora_color_top": aurora_color_top,
-		&"aurora_speed": aurora_speed,
-		&"aurora_base_height": aurora_base_height,
-		&"aurora_curtain_height": aurora_curtain_height,
-		&"sun_effect_scale": sun_effect_scale,
-		&"fog_light_color": fog_light_color,
-		&"fog_density": fog_density,
-		&"fog_sky_affect": fog_sky_affect,
-		&"fog_depth_mode": fog_depth_mode,
-		&"fog_depth_begin": fog_depth_begin,
-		&"fog_depth_end": fog_depth_end,
-		&"volumetric_fog_density": volumetric_fog_density,
-		&"volumetric_fog_albedo": volumetric_fog_albedo,
-		&"ambient_light_energy": ambient_light_energy,
-		&"background_energy_scale": background_energy_scale,
-		&"glow_intensity": glow_intensity,
-		&"glow_hdr_threshold": glow_hdr_threshold,
-		&"fog_aerial_perspective": fog_aerial_perspective,
-		&"fog_sun_scatter": fog_sun_scatter,
-		&"fog_height": fog_height,
-		&"fog_height_density": fog_height_density,
-		&"haze_strength": haze_strength,
-		&"haze_begin": haze_begin,
-		&"haze_end": haze_end,
-		&"deck_density": deck_density,
-		&"deck_albedo": deck_albedo,
-		&"light_color": light_color,
-		&"light_energy": light_energy,
-		&"light_uses_sun_basis": light_uses_sun_basis,
-		&"light_rotation_deg": light_rotation_deg,
-		&"puff_shadow_color": puff_shadow_color,
-		&"puff_mid_color": puff_mid_color,
-		&"puff_lit_color": puff_lit_color,
-		&"puff_rim_color": puff_rim_color,
-		&"puff_cloud_shadow_color": puff_cloud_shadow_color,
-		&"puff_cloud_mid_color": puff_cloud_mid_color,
-		&"puff_cloud_lit_color": puff_cloud_lit_color,
-		&"puff_cloud_rim_color": puff_cloud_rim_color,
-		&"puff_grade_dark": puff_grade_dark,
-		&"puff_grade_mid": puff_grade_mid,
-		&"puff_grade_light": puff_grade_light,
-		&"puff_grade_amount": puff_grade_amount,
-		&"puff_sea_color_near": puff_sea_color_near,
-		&"puff_sea_color_far": puff_sea_color_far,
-		&"puff_exposure": puff_exposure,
-		&"puff_sea_coverage": puff_sea_coverage,
-		&"puff_light_direction": puff_light_direction,
-		&"puff_sun_direction": puff_sun_direction,
-		&"puff_shared": puff_shared.duplicate(),
-		&"storm_amount": storm_amount,
-		&"lighting_light_color": lighting_light_color,
-		&"cloud_overcast": cloud_overcast,
-		&"weather_dim": weather_dim,
-		&"weather_desaturate": weather_desaturate,
-		&"sun_effects": sun_effects,
-		&"floor_color": floor_color,
-		&"floor_shadow_ratio": floor_shadow_ratio,
-		&"floor_mid_ratio": floor_mid_ratio,
-		&"flare_enabled": flare_enabled,
-		&"flare_weather_scale": flare_weather_scale,
-	}

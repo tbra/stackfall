@@ -150,9 +150,7 @@ func test_cloud_sea_puffs_join_the_fog_and_follow_it() -> void:
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
 	var def: SkyCycleDef = (load("res://config/sky/sky_cycle.tres") as SkyCycleDef)
-	var snapshot: SkyFrame = SkyFrame.new()
-	SkyEvaluator.puff_snapshot(def, SkyEvaluator.evening_frame(def), snapshot)
-	sea.configure_cycle(def, snapshot, 1.0)
+	sea.configure_cycle(def, null, 1.0)
 	if sea.get_child_count() == 0:
 		pending("no puff material in this environment")
 		return

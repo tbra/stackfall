@@ -16,8 +16,9 @@ extends Resource
 @export var volumetric_fog_albedo: Color = Color.WHITE
 ## Sun light colour at full overlay.
 @export var light_color: Color = Color.WHITE
-## Sun light energy at full overlay.
-@export_range(0.0, 16.0, 0.01) var light_energy: float = 0.85
+## Share of the cycle's current sun/moon light energy kept at full overlay (1 = unchanged), so a
+## storm dims the light of the hour instead of pulling it to one fixed energy (a night storm stays dark).
+@export_range(0.0, 1.0, 0.01) var light_energy_share: float = 0.5
 ## Environment ambient light energy at full overlay.
 @export_range(0.0, 16.0, 0.01) var ambient_energy: float = 0.5
 ## Environment glow intensity at full overlay.

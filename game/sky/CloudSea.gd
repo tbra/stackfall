@@ -178,13 +178,10 @@ func set_drift_offset(offset: Vector2) -> void:
 
 
 ## Writes the puff channel of an evaluated frame (plan 4.1 steps 6-7), the cycle's tick values:
-## cel tones, sky cloud tones, moonlit grade, sea colours the far fade targets, light and sun
-## direction. While `frame.storm_amount` > 0 the storm copy follows (quirk Q1): the frame's
-## puff_shared set (the storm-blended sky's shared uniforms) is re-copied onto the puff material
-## and the storm-lerped tones are written over it, in the order the old storm tint used. Outside
-## a storm puff_shared is never written here (quirk Q3: the far-fade gradient is only copied at
-## configure_cycle() and on a storm), nor are exposure and sea coverage, which travel inside
-## puff_shared.
+## cel tones, sky cloud tones, moonlit grade, the live sky gradient and sea colours the far fade
+## targets, exposure, sea coverage, light and sun direction. Every write comes from the frame, so
+## the far fade follows the sky each tick, a storm included (the frame's tones are already
+## storm-lerped; its sea colours and exposure stay the tick's).
 func apply_frame(frame: SkyFrame) -> void:
 	if _material == null or frame == null:
 		return
@@ -193,17 +190,18 @@ func apply_frame(frame: SkyFrame) -> void:
 	_material.set_shader_parameter(&"grade_mid", frame.puff_grade_mid)
 	_material.set_shader_parameter(&"grade_light", frame.puff_grade_light)
 	_material.set_shader_parameter(&"grade_amount", frame.puff_grade_amount)
+	_material.set_shader_parameter(&"proc_zenith_color", frame.proc_zenith_color)
+	_material.set_shader_parameter(&"proc_mid_color", frame.proc_mid_color)
+	_material.set_shader_parameter(&"proc_horizon_color", frame.proc_horizon_color)
+	_material.set_shader_parameter(&"proc_gradient_mid_height", frame.proc_gradient_mid_height)
+	_material.set_shader_parameter(&"proc_gradient_power", frame.proc_gradient_power)
+	_material.set_shader_parameter(&"proc_horizon_glow_color", frame.proc_horizon_glow_color)
+	_material.set_shader_parameter(&"proc_horizon_glow_width", frame.proc_horizon_glow_width)
+	_material.set_shader_parameter(&"proc_sea_horizon_fade", frame.proc_sea_horizon_fade)
 	_material.set_shader_parameter(&"proc_sea_color_near", frame.puff_sea_color_near)
 	_material.set_shader_parameter(&"proc_sea_color_far", frame.puff_sea_color_far)
 	_material.set_shader_parameter(&"light_direction", frame.puff_light_direction)
 	_material.set_shader_parameter(&"sun_direction", frame.puff_sun_direction)
-	if frame.storm_amount > 0.0:
-		# Q1: the storm copy overwrites the sky cloud tones and sea colours just written, so the
-		# frame's tones (already storm-lerped) go back on top, as the old storm tint did.
-		_copy_shared(frame.puff_shared)
-		_write_tones(frame)
-	# The far fade targets the sky's per-tick exposure and sea coverage; under a storm the frame
-	# carries the exposure the storm copy had (written last, after the shared copy).
 	_material.set_shader_parameter(&"exposure", frame.puff_exposure)
 	_material.set_shader_parameter(&"proc_sea_coverage", frame.puff_sea_coverage)
 
@@ -220,17 +218,14 @@ func _write_tones(frame: SkyFrame) -> void:
 	_material.set_shader_parameter(&"cloud_rim_color", frame.puff_cloud_rim_color)
 
 
-## Copies the snapshot of sky values the puff far fade shares onto the puff material.
-## Keys the snapshot lacks (the evaluator carries only evaluated channels) come from the cycle's
-## static sky material, as the old copy of the sky material's set uniforms did.
-func _copy_shared(shared: Dictionary[StringName, Variant]) -> void:
+## Copies the cycle's authored sky-material values the puff far fade shares onto the puff material
+## (the static ones the frame does not carry: gradient bands, sea shape, noise; the frame-carried
+## ones start from here and apply_frame() overwrites them every tick).
+func _copy_static_sky() -> void:
 	for parameter: StringName in SHARED_SKY_PARAMETERS:
-		if shared.has(parameter):
-			_material.set_shader_parameter(parameter, shared[parameter])
-		else:
-			var value: Variant = _static_sky_value(parameter)
-			if value != null:
-				_material.set_shader_parameter(parameter, value)
+		var value: Variant = _static_sky_value(parameter)
+		if value != null:
+			_material.set_shader_parameter(parameter, value)
 
 
 func _static_sky_value(parameter: StringName) -> Variant:
@@ -241,11 +236,10 @@ func _static_sky_value(parameter: StringName) -> Variant:
 	return _static_sky.get_shader_parameter(parameter)
 
 
-## Rebuilds the puffs from `def`. `snapshot.puff_shared` is the sky-uniform snapshot the puffs'
-## far fade is copied from (quirk Q3: SkyEvaluator.puff_snapshot, from the evening key at cycle
-## start and from the live frame on a preset change). `density` scales the clump counts; 0 hides
-## the cloud sea.
-func configure_cycle(def: SkyCycleDef, snapshot: SkyFrame, density: float, subdivisions: int = PUFF_SUBDIVISIONS,
+## Rebuilds the puffs from `def`. `frame` (null before the first tick) is written onto the fresh
+## material so the far fade matches the live sky at once; the next tick writes it anyway.
+## `density` scales the clump counts; 0 hides the cloud sea.
+func configure_cycle(def: SkyCycleDef, frame: SkyFrame, density: float, subdivisions: int = PUFF_SUBDIVISIONS,
 		billboard_distance_m: float = 0.0) -> void:
 	_billboard_distance_m = maxf(billboard_distance_m, 0.0)
 	_static_sky = def.sky_material if def != null else null
@@ -287,8 +281,8 @@ func configure_cycle(def: SkyCycleDef, snapshot: SkyFrame, density: float, subdi
 	# transparents, so ghosts, particles and birds blend over the clouds.
 	_material.render_priority = RenderingServer.MATERIAL_RENDER_PRIORITY_MIN
 	apply_lighting(lighting)
-	if snapshot != null:
-		_copy_shared(snapshot.puff_shared)
+	_copy_static_sky()
+	apply_frame(frame)
 
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = def.cloud_seed
