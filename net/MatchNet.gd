@@ -128,7 +128,11 @@ const EVENT_LOADING_GATE: StringName = &"loading_gate"
 ## hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd). Display only.
 const EVENT_LIVE_SCORES: StringName = &"live_scores"
 
-@export var config: NetConfig = preload("res://config/net/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres"):
+	set(value):
+		config = value
+		# The intent gateway reads the flood limits and send cadence from this resource.
+		_intent_gateway = null
 
 ## Clients build their replicated bodies with the same factory and the same
 ## tuning the host built the originals with, so a frozen copy has the same
@@ -247,18 +251,19 @@ var _auto_drops: Dictionary:
 var _duplicate_net_ids: int:
 	get:
 		return counters.duplicate_net_ids
-## the slot whose refusal _on_placement_rejected() already sent
-## to its owning peer while the current intent was being applied, so the intent
-## handler's own tail reply (for refusals Match never announces: a stale
-## feed_seq, a held-block lock, NOT_A_SPECIAL) is not a second copy. -1 = none.
-var _reject_replied_slot: int = -1
+## The intent door (net/match/MatchIntentGateway.gd): local submit_*, host handle_* with the
+## per-peer flood gate. Built on first use so set_providers() can rebind it.
+var _intent_gateway: MatchIntentGateway = null
+## The gateway, built on first read (a typed receiver, so the call graph resolves it).
+var _gateway: MatchIntentGateway:
+	get:
+		return _intents()
 
 ## net_id -> true for every spawn this instance has seen. A net_id arriving
 ## twice is a hard failure of the "never duplicated" criterion, so it is
 ## counted rather than quietly overwritten.
 var _spawned_net_ids: Dictionary = {}
 
-var _cursor_send_accum: float = 0.0
 var _raster_send_accum: float = 0.0
 
 ## The last slot/state bytes the host sent, to diff this tick's against.
@@ -344,7 +349,6 @@ var _applier: Node = null
 var _late_active: bool = false
 var _cat_send_accum: float = 0.0
 var _scores_send_accum: float = 0.0
-var _cat_target_last_send: float = -1.0
 
 
 func _ready() -> void:
@@ -447,6 +451,7 @@ func _exit_tree() -> void:
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_net_provider = net_provider
 	_match_provider = match_provider
+	_intent_gateway = null
 	if _weather_net != null:
 		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
@@ -459,6 +464,23 @@ func _session() -> Variant:
 
 func _authority() -> Variant:
 	return _match_provider if _match_provider != null else Match
+
+
+## The intent gateway, bound to the current session and Match providers. The seams are the only
+## transport it sees; the sender id of an RPC is read by the stubs below, never by the gateway.
+func _intents() -> MatchIntentGateway:
+	if _intent_gateway == null:
+		var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+		seams.can_send = func() -> bool: return NetFanout.can_send(multiplayer, _session())
+		seams.send_to_host = func(method: StringName, args: Array) -> void: callv(&"rpc_id", [Net.HOST_PEER_ID, method] + args)
+		seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+			return NetFanout.send_to(self, _session(), peer_id, method, args)
+		seams.broadcast = func(method: StringName, args: Array) -> void: _broadcast(method, args)
+		seams.now_s = _now
+		seams.is_replay_pending = func(peer_id: int) -> bool: return _replay_pending.has(peer_id)
+		seams.store_cursor = _store_cursor
+		_intent_gateway = MatchIntentGateway.new(_session(), _authority(), config, counters, seams)
+	return _intent_gateway
 
 
 ## every host -> clients broadcast goes through here, so a peer the
@@ -501,15 +523,12 @@ func _process(delta: float) -> void:
 
 # --- Local -> authority (the one door every intent goes through) ------------
 
-## The single call site for a placement, host or client, local or remote.
-## On the host it is Match.request_place() inline; on a client it is the
-## reliable intent RPC below and the return value is REASON_OK optimistically
-## (the real outcome arrives as Events.placement_rejected or the next
-## feed_block_issued).
-##
-## `feed_seq` is Match.feed_seq(slot_id) as the caller last saw it. The host
-## refuses an intent whose feed_seq is not current, which is what makes a
-## replayed or doubled intent a no-op instead of spending the next block.
+## The single call site for a placement, host or client, local or remote
+## (net/match/MatchIntentGateway.gd). On the host it is Match.request_place()
+## inline; on a client it is the reliable intent RPC and the return value is
+## REASON_OK optimistically (the real outcome arrives as Events.placement_rejected
+## or the next feed_block_issued). `feed_seq` is Match.feed_seq(slot_id) as the
+## caller last saw it; the host refuses an intent whose feed_seq is not current.
 func submit_place(
 	slot_id: int,
 	origin: Vector3,
@@ -518,41 +537,10 @@ func submit_place(
 	auto_drop: bool,
 	feed_seq: int
 ) -> StringName:
-	if _session().is_host():
-		if not auto_drop:
-			counters.count_sent(slot_id)
-		return _apply_intent(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
-
-	# A client never auto-drops: spec 1.4's auto-drop is [ORIGINAL] and must
-	# not be able to go missing in a round trip, so the host fires it from the
-	# last cursor it received (see _on_feed_timer_expired).
-	if auto_drop:
-		return PlacementRules.REASON_NO_BLOCK
-	if not NetFanout.can_send(multiplayer, _session()):
-		# Nothing went on the wire, so nothing is counted: the harness proves
-		# "never lost" by comparing this client's intents_sent with the host's
-		# count for the same slot, and a phantom here would break that.
-		return PlacementRules.REASON_NO_BLOCK
-	counters.count_sent(slot_id)
-	rpc_id(
-		Net.HOST_PEER_ID,
-		&"net_request_place",
-		slot_id,
-		origin,
-		orientation_index,
-		free_quat,
-		false,
-		feed_seq
-	)
-	return PlacementRules.REASON_OK
+	return _gateway.submit_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 
-## The single call site for a throw, host or client, local or remote --
-## submit_place()'s own twin (spec 2.6: "request_throw(slot_id, pos, orient,
-## velocity): the host clamps velocity to throw_max_speed"). A throw has no
-## auto_drop equivalent at all (MatchPlacement.request_throw()'s own doc
-## comment), so unlike submit_place() there is no bool to gate the host-side
-## counter bump on -- every call here is a deliberate release.
+## submit_place()'s twin for a throw (spec 2.6: the host clamps velocity to throw_max_speed).
 func submit_throw(
 	slot_id: int,
 	origin: Vector3,
@@ -561,26 +549,7 @@ func submit_throw(
 	velocity: Vector3,
 	feed_seq: int
 ) -> StringName:
-	if _session().is_host():
-		counters.count_sent(slot_id)
-		return _apply_throw_intent(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
-
-	if not NetFanout.can_send(multiplayer, _session()):
-		# See submit_place()'s matching comment: nothing went on the wire, so
-		# nothing is counted.
-		return PlacementRules.REASON_NO_BLOCK
-	counters.count_sent(slot_id)
-	rpc_id(
-		Net.HOST_PEER_ID,
-		&"net_request_throw",
-		slot_id,
-		origin,
-		orientation_index,
-		free_quat,
-		velocity,
-		feed_seq
-	)
-	return PlacementRules.REASON_OK
+	return _gateway.submit_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
 ## The local player's ghost pose, at NetConfig.cursor_hz. Unreliable: a lost
@@ -598,45 +567,18 @@ func submit_throw(
 func submit_cursor(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, aim: Vector3 = Vector3.ZERO
 ) -> void:
-	_store_cursor(slot_id, origin, orientation_index, free_quat)
-	if not NetFanout.can_send(multiplayer, _session()):
-		return
-	var step: float = 1.0 / maxf(config.cursor_hz, 0.001)
-	var now: float = _now()
-	if now - _cursor_send_accum < step:
-		return
-	_cursor_send_accum = now
-	if _session().is_host():
-		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
-	else:
-		rpc_id(Net.HOST_PEER_ID, &"net_update_cursor", slot_id, origin, orientation_index, free_quat, aim)
+	_gateway.submit_cursor(slot_id, origin, orientation_index, free_quat, aim)
 
 
 func submit_cat_target(slot_id: int, point: Vector3) -> void:
-	if not point.is_finite():
-		return
-	if _session().is_host():
-		_authority().set_cat_target(slot_id, point)
-	elif NetFanout.can_send(multiplayer, _session()):
-		var now: float = _now()
-		if now - _cat_target_last_send >= 1.0 / maxf(config.cursor_hz, 0.001):
-			_cat_target_last_send = now
-			rpc_id(Net.HOST_PEER_ID, &"net_cat_target", slot_id, point)
-
-
-func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> void:
-	if not _session().is_host() or int(_session().slot_of_peer(sender_peer_id)) != slot_id:
-		return
-	if _replay_pending.has(sender_peer_id):
-		return
-	_authority().set_cat_target(slot_id, point)
+	_gateway.submit_cat_target(slot_id, point)
 
 
 ## results screen "Play again": restarts the match that just
 ## ended with the same MatchConfig, for every peer. Mirrors submit_place()'s
 ## own single-door shape: **the host's own local call acts inline, with no
 ## sender check** (exactly submit_place()'s host branch calling
-## _apply_intent() directly, never through _handle_place_intent()'s
+## apply_place() directly, never through handle_place()'s
 ## sender-owns-slot gate) -- a call arriving offline (hot-seat, sandbox) would
 ## otherwise be refused, since Net's `_peers` map (slot_of_peer()'s backing
 ## store) is only ever populated by host_game()/join_game(), never in pure
@@ -651,87 +593,26 @@ func _handle_cat_target(sender_peer_id: int, slot_id: int, point: Vector3) -> vo
 ## does not name a narrower "only the host's own local player" rule the way
 ## it names "the host checks ... that the slot matches" for a placement, and
 ## the results screen's own Replay/Return buttons are a natural thing for any
-## player to click. _remote_may_request_match_flow() below is what actually
+## player to click. MatchIntentGateway's remote gate is what actually
 ## authorizes a remote sender: unseated (no slot) and mid-match (not
 ## State.END) requests are both dropped on the host's floor. The host's own
-## local call skips only the sender-slot check (see _match_flow_state_allows()
-## below) -- it is validated on State.END exactly like
+## local call skips only the sender-slot check -- it is validated on State.END exactly like
 ## a remote request, since a stray local call mid-match must not restart or
 ## abandon every other player's match either.
 func request_replay() -> void:
-	if _session().is_host():
-		if _match_flow_state_allows():
-			_replay_current_match()
-		return
-	if NetFanout.can_send(multiplayer, _session()):
-		rpc_id(Net.HOST_PEER_ID, &"net_request_replay")
+	_gateway.request_replay()
 
 
 ## Results screen "Return to lobby": sends every peer back to State.LOBBY.
 ## Mirrors request_replay() above exactly.
 func request_return_to_lobby() -> void:
-	if _session().is_host():
-		if _match_flow_state_allows():
-			_authority().abort_match()
-		return
-	if NetFanout.can_send(multiplayer, _session()):
-		rpc_id(Net.HOST_PEER_ID, &"net_request_return_to_lobby")
+	_gateway.request_return_to_lobby()
 
 
-## The actual restart, shared by request_replay()'s trusted host-local branch
-## and _handle_replay_request()'s validated remote branch below. Reads
-## `_authority().config` (still the just-ended match's own sanitized
-## duplicate -- MatchLifecycle only clears it on the *next* start_match()/
-## abort_match()) rather than requiring a caller to have kept its own copy.
-func _replay_current_match() -> void:
-	var current: MatchConfig = _authority().config
-	if current == null:
-		return
-	_authority().start_match(current)
-
-
-## The state half of both request_replay()'s and
-## request_return_to_lobby()'s authorization, shared by their trusted
-## host-local branch above (request_replay()'s own doc explains why a local
-## call is still checked against this) and _remote_may_request_match_flow()
-## below (a remote request's other check, sender-holds-a-slot, has no local
-## equivalent -- the host's own process always "holds a slot" in the sense
-## that matters here). A replay/return mid-PLAYING would restart or abandon
-## every other player's match out from under them with no confirmation.
-func _match_flow_state_allows() -> bool:
-	return int(_authority().state()) == int(MatchPhase.State.END)
-
-
-## Gate for a REMOTE net_request_* RPC only (see request_replay()'s own doc
-## for why the host's local call above checks _match_flow_state_allows()
-## directly instead): the sender must additionally hold a live slot -- an
-## unseated peer (mid-handshake, a spectator) gets no say, exactly
-## _handle_place_intent's own "no slot to count against" gate.
-func _remote_may_request_match_flow(sender_peer_id: int) -> bool:
-	if int(_session().slot_of_peer(sender_peer_id)) < 0:
-		return false
-	if _replay_pending.has(sender_peer_id):
-		return false
-	return _match_flow_state_allows()
-
-
-## Host side of net_request_replay, split out (like _handle_place_intent) so
-## a test can drive it with a manufactured sender id and no peer at all.
+## TRANSITIONAL: host side of net_request_replay (MatchIntentGateway), kept under
+## its old private name for tests outside this file.
 func _handle_replay_request(sender_peer_id: int) -> void:
-	if not _session().is_host():
-		return
-	if not _remote_may_request_match_flow(sender_peer_id):
-		return
-	_replay_current_match()
-
-
-## Host side of net_request_return_to_lobby, split out the same way.
-func _handle_return_to_lobby_request(sender_peer_id: int) -> void:
-	if not _session().is_host():
-		return
-	if not _remote_may_request_match_flow(sender_peer_id):
-		return
-	_authority().abort_match()
+	_gateway.handle_replay_request(sender_peer_id)
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -741,7 +622,7 @@ func net_request_replay() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func net_request_return_to_lobby() -> void:
-	_handle_return_to_lobby_request(multiplayer.get_remote_sender_id())
+	_gateway.handle_return_request(multiplayer.get_remote_sender_id())
 
 
 ## The last cursor the host received for `slot_id`, or an empty Dictionary.
@@ -985,7 +866,8 @@ func cursors_refused(slot_id: int) -> int:
 ## Drops every counter and cursor. Called when a match starts or ends.
 func reset_counters() -> void:
 	_cat_send_accum = 0.0
-	_cat_target_last_send = -1.0
+	if _intent_gateway != null:
+		_intent_gateway.reset_throttles()
 	_gift_wire_phases.clear()
 	_gift_spawn_notified.clear()
 	counters.reset()
@@ -1009,8 +891,8 @@ func reset_counters() -> void:
 
 # --- Host-side intent handling ----------------------------------------------
 
-## The one place an intent becomes a placement, whether it arrived inline from
-## the host's own player or over the wire. Host only.
+## TRANSITIONAL: the one place an intent becomes a placement (MatchIntentGateway.apply_place);
+## the host's feed-timer auto-drop still enters here.
 func _apply_intent(
 	slot_id: int,
 	origin: Vector3,
@@ -1019,57 +901,7 @@ func _apply_intent(
 	auto_drop: bool,
 	feed_seq: int
 ) -> StringName:
-	var reason: StringName = _authority().request_place(
-		slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq
-	)
-	var consumed: bool = _consumed_a_block(reason, auto_drop)
-	if auto_drop:
-		if consumed:
-			counters.count_auto_drop(slot_id)
-	elif consumed:
-		counters.count_accepted(slot_id)
-	else:
-		counters.count_refused(slot_id)
-	return reason
-
-
-## _apply_intent()'s own twin for a throw, whether it arrived inline from the
-## host's own player or over the wire. Host only. A throw is never an
-## auto-drop (see submit_throw()'s own comment), so _consumed_a_block() is
-## always called with auto_drop == false -- only REASON_OK ever spends the
-## block (MatchPlacement.request_throw() never burns a refused throw).
-func _apply_throw_intent(
-	slot_id: int,
-	origin: Vector3,
-	orientation_index: int,
-	free_quat: Quaternion,
-	velocity: Vector3,
-	feed_seq: int
-) -> StringName:
-	var reason: StringName = _authority().request_throw(
-		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
-	)
-	if _consumed_a_block(reason, false):
-		counters.count_accepted(slot_id)
-	else:
-		counters.count_refused(slot_id)
-	return reason
-
-
-## Whether an outcome spent the slot's held block. Two reasons always mean the
-## intent never reached the field: the slot had nothing to place (an empty
-## feed, an eliminated slot, a stale feed_seq — all REASON_NO_BLOCK) and it
-## was not its turn in hot-seat.
-##
-## An auto-drop (a forced release) always lands somewhere, relocated or
-## burned, so it consumes the block for any reason; a manual
-## (auto_drop == false) refusal spends nothing at all
-## (MatchPlacement.request_place()'s own DECISION), so only REASON_OK
-## consumes for a manual release.
-static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
-	if reason == PlacementRules.REASON_NO_BLOCK or reason == PlacementRules.REASON_NOT_YOUR_TURN:
-		return false
-	return auto_drop or reason == PlacementRules.REASON_OK
+	return _gateway.apply_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 
 ## the use_gift_slot intent, host or client. The client only
@@ -1077,27 +909,11 @@ static func _consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 ## gift, state, no gift already in hand) and the result arrives as the normal
 ## feed event. Returns whether the request was applied (host) or sent (client).
 func submit_use_gift_slot(slot_id: int) -> bool:
-	if _session().is_host():
-		return bool(_authority().request_use_gift_slot(slot_id))
-	if not NetFanout.can_send(multiplayer, _session()):
-		return false
-	rpc_id(Net.HOST_PEER_ID, &"net_request_use_gift_slot", slot_id)
-	return true
+	return _gateway.submit_use_gift_slot(slot_id)
 
 
-## Host side of net_request_use_gift_slot, split out so a test can drive it
-## with a manufactured sender id.
-func _handle_use_gift_slot_intent(sender_peer_id: int, slot_id: int) -> bool:
-	if not _session().is_host():
-		return false
-	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
-	if sender_slot < 0 or sender_slot != slot_id or _replay_pending.has(sender_peer_id):
-		return false
-	return bool(_authority().request_use_gift_slot(slot_id))
-
-
-## Host side of net_request_place, split out so a test can drive it with a
-## manufactured sender id and no peer at all.
+## TRANSITIONAL (MatchIntentGateway): host side of net_request_place, under its
+## old private name for tests outside this file.
 func _handle_place_intent(
 	sender_peer_id: int,
 	slot_id: int,
@@ -1106,63 +922,10 @@ func _handle_place_intent(
 	free_quat: Quaternion,
 	feed_seq: int
 ) -> void:
-	if not _session().is_host():
-		return
-	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
-	if sender_slot < 0:
-		# A peer with no slot — mid-handshake, a spectator, or one that has
-		# already gone — gets no say at all, and is not counted: it has no
-		# slot to count against.
-		return
-	counters.count_sent(sender_slot)
-	if _replay_pending.has(sender_peer_id):
-		# a mid-match joiner's world is not built until it has
-		# acknowledged its replay. Refused (counted and echoed, like every
-		# other refusal, so the harness identities hold and its ghost unlocks)
-		# rather than acted on.
-		counters.intents_refused_before_replay_ack += 1
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if sender_slot != slot_id:
-		# Spec 2.6: the host checks "that the slot matches". A peer may only
-		# ever act for its own slot; the claimed slot_id is never trusted.
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
-		return
-	if feed_seq < 0:
-		# Match.request_place() reads a negative feed_seq as "don't check" —
-		# the sentinel local call sites and the host's own timer rely on.
-		# From the wire it would switch off the "never duplicated" defence (1)
-		# for whoever sends it, so a remote intent has
-		# to quote the sequence it was actually issued.
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if not _pose_is_acceptable(origin, orientation_index, free_quat):
-		# Not a rule violation — a real ghost cannot produce such a pose — so
-		# the block is neither burned (spec 1.5 is for releases on a spot) nor
-		# consumed; the sender is told so its ghost unlocks and it may retry.
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	# auto_drop is never taken from the wire: it grants the relocation
-	# privilege of spec 1.4, so only the host's own timer may set it.
-	_reject_replied_slot = -1
-	var reason: StringName = _apply_intent(slot_id, origin, orientation_index, free_quat, false, feed_seq)
-	if not _consumed_a_block(reason, false):
-		# Nothing was burned. Match announces most refusals itself (and
-		# _on_placement_rejected already told the sender); for the rest,
-		# tell the sender anyway so its ghost unlocks now instead of
-		# waiting out NetConfig.intent_ack_timeout.
-		_reply_reject_once(sender_peer_id, slot_id, reason)
+	_gateway.handle_place(sender_peer_id, slot_id, origin, orientation_index, free_quat, feed_seq)
 
 
-## Host side of net_request_throw, split out (like _handle_place_intent) so a
-## test can drive it with a manufactured sender id and no peer at all. Mirrors
-## _handle_place_intent() check-for-check (sender-owns-slot, feed_seq, pose)
-## with one addition: `velocity.is_finite()`. The host does not also bound
-## its length here -- MatchPlacement.request_throw() always clamps to
-## SpecialTuning.throw_max_speed rather than ever refusing on speed (spec 2.6:
-## "the host clamps velocity to throw_max_speed"), so a second length check at
-## this boundary would only reject a pose the authority is happy to clamp and
-## use anyway.
+## TRANSITIONAL (MatchIntentGateway): host side of net_request_throw.
 func _handle_throw_intent(
 	sender_peer_id: int,
 	slot_id: int,
@@ -1172,49 +935,10 @@ func _handle_throw_intent(
 	velocity: Vector3,
 	feed_seq: int
 ) -> void:
-	if not _session().is_host():
-		return
-	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
-	if sender_slot < 0:
-		return
-	counters.count_sent(sender_slot)
-	if _replay_pending.has(sender_peer_id):
-		counters.intents_refused_before_replay_ack += 1
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if sender_slot != slot_id:
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
-		return
-	if feed_seq < 0:
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if not _pose_is_acceptable(origin, orientation_index, free_quat) or not velocity.is_finite():
-		# A non-finite velocity is this function's own wire-boundary check, on
-		# top of _pose_is_acceptable()'s existing origin/orientation/free_quat
-		# gate -- neither is a rule violation, so nothing is burned or
-		# consumed; the sender is told so its ghost unlocks and it may retry,
-		# exactly like a malformed placement pose.
-		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	_reject_replied_slot = -1
-	var reason: StringName = _apply_throw_intent(
-		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
-	)
-	if not _consumed_a_block(reason, false):
-		# MatchPlacement.request_throw() emits Events.placement_rejected for
-		# an off-disk/hole/goal-zone refusal, which _on_placement_rejected
-		# already sent to the sender alone; the refusals it does not announce
-		# (a stale feed_seq, a lock, no held special) still need this targeted
-		# reply so the *sender's own* ghost unlocks now instead of waiting out
-		# NetConfig.intent_ack_timeout, exactly like _handle_place_intent's own
-		# tail.
-		_reply_reject_once(sender_peer_id, slot_id, reason)
+	_gateway.handle_throw(sender_peer_id, slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 
-## Host side of net_update_cursor, split out (like _handle_place_intent) so a
-## test can drive it with a manufactured sender id and no peer at all. What is
-## stored here is what spec 1.4's auto-drop fires from when the slot's timer
-## expires (_on_feed_timer_expired), so it is an input boundary too.
+## TRANSITIONAL (MatchIntentGateway): host side of net_update_cursor.
 func _handle_cursor_update(
 	sender_peer_id: int,
 	slot_id: int,
@@ -1223,55 +947,10 @@ func _handle_cursor_update(
 	free_quat: Quaternion,
 	aim: Vector3 = Vector3.ZERO
 ) -> void:
-	if not _session().is_host():
-		return
-	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
-	if sender_slot < 0 or sender_slot != slot_id:
-		return
-	if _replay_pending.has(sender_peer_id):
-		# a cursor is what the host auto-drops from, so an
-		# unreplayed peer's pose (formed against no world) is not stored.
-		return
-	if not _pose_is_acceptable(origin, orientation_index, free_quat):
-		# DECISION (net/MatchNet.gd): a malformed cursor is dropped, not
-		# clamped. Clamping would invent a pose the player never had and then
-		# auto-drop from it; dropping keeps the last well-formed cursor (or,
-		# if there never was one, Match.default_ghost_origin's home flag), and
-		# the next honest update at NetConfig.cursor_hz replaces it anyway.
-		# Nothing is rebroadcast, so other clients' RemoteCursors never see it.
-		counters.count_cursor_refused(sender_slot)
-		return
-	_store_cursor(slot_id, origin, orientation_index, free_quat)
-	# the aim is validated again by the throw itself (GiftThrow.sanitize_aim);
-	# a non-finite one just forgets the slot's aim (note_aim).
-	if _authority().has_method(&"note_aim"):
-		_authority().note_aim(slot_id, aim)
-	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
-	if NetFanout.can_send(multiplayer, _session()):
-		_broadcast(&"net_cursor", [slot_id, origin, orientation_index, free_quat])
+	_gateway.handle_cursor(sender_peer_id, slot_id, origin, orientation_index, free_quat, aim)
 
 
-## Every check the wire gets that Match does not: the pose must be one the
-## authority can evaluate (Match.is_pose_well_formed: finite origin, finite
-## unit free quaternion, orientation index inside BlockOrientations' table) and
-## its height must lie inside the volume snapshots quantize positions into.
-##
-## DECISION (net/MatchNet.gd): the height band is NetConfig.pos_min_y ..
-## pos_max_y, the same numbers core/net/Quantize.gd packs `global_position.y`
-## with, judged on the world-space origin exactly as SnapshotSync does. A
-## block spawned outside it could not be replicated to anyone, so refusing it
-## changes nothing a legitimate client can do: the ghost sits at most
-## hover offset (GhostTuning, capped by pos_max_y - hover_ceiling_margin) above
-## the disk or a tower, and pos_max_y (NetConfig.build_height_target_m +
-## build_height_margin_m) brackets the tallest reachable tower. No new tunable; X/Z are left to territory validation,
-## which already burns an off-disk release (spec 1.5).
-func _pose_is_acceptable(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> bool:
-	if not bool(_authority().is_pose_well_formed(origin, orientation_index, free_quat)):
-		return false
-	return origin.y >= config.pos_min_y and origin.y <= config.pos_max_y
-
-
-## Wire safety for EVENT_GIFT_SPAWNED, following _pose_is_acceptable's
+## Wire safety for EVENT_GIFT_SPAWNED, following MatchIntentGateway.pose_is_acceptable()'s
 ## own pattern: a malformed or out-of-disk position from a bad or ancient build
 ## is dropped rather than trusted, since a client only ever uses this position
 ## to place a visual and to compute the cell it later frees for.
@@ -1344,27 +1023,10 @@ func _gift_special_id_wire_ok(special_id: String) -> bool:
 	return _known_special_ids().has(special_id)
 
 
-## A remote intent the host will not act on: counted against the sender's own
-## slot so the harness identity accepted + refused == sent still holds, and
-## echoed back so the sender's ghost unlocks now instead of waiting out
-## NetConfig.intent_ack_timeout.
-func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -> void:
-	counters.count_refused(sender_slot)
-	_reject_to_peer(sender_peer_id, sender_slot, reason)
-
-
+## TRANSITIONAL (MatchIntentGateway.reject_to_peer): the placement_rejected reply
+## to one peer, under its old private name for tests outside this file.
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
-	counters.note_reject_reply(peer_id, slot_id, reason)
-	NetFanout.send_to(self, _session(), peer_id, &"net_match_event", [EVENT_PLACEMENT_REJECTED, [slot_id, reason]])
-
-
-## _reject_to_peer() unless _on_placement_rejected() already sent this slot's
-## refusal while the intent was being applied (one reply per refused intent).
-func _reply_reject_once(peer_id: int, slot_id: int, reason: StringName) -> void:
-	if _reject_replied_slot == slot_id:
-		_reject_replied_slot = -1
-		return
-	_reject_to_peer(peer_id, slot_id, reason)
+	_gateway.reject_to_peer(peer_id, slot_id, reason)
 
 
 func _ensure_tap() -> MatchNetTap:
@@ -1562,7 +1224,7 @@ func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 		return
 	_reject_to_peer(owner_peer, slot_id, reason)
 	# The intent handler that is applying this refusal must not send it again.
-	_reject_replied_slot = slot_id
+	_gateway.note_rejection_sent(slot_id)
 
 
 ## The remote peer that holds `slot_id`, or -1 when nobody remote does: the
@@ -1948,6 +1610,8 @@ func _reset_impacts() -> void:
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 	_replay_pending.erase(peer_id)
 	_replay_age.erase(peer_id)
+	# A rejoin starts with full intent buckets.
+	_gateway.forget_peer(peer_id)
 	if slot_id >= 0:
 		_authority().on_peer_left(slot_id)
 
@@ -2534,7 +2198,7 @@ func net_request_throw(
 
 @rpc("any_peer", "call_remote", "reliable")
 func net_request_use_gift_slot(slot_id: int) -> void:
-	_handle_use_gift_slot_intent(multiplayer.get_remote_sender_id(), slot_id)
+	_gateway.handle_gift_slot(multiplayer.get_remote_sender_id(), slot_id)
 
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
@@ -2546,7 +2210,7 @@ func net_update_cursor(
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_cat_target(slot_id: int, point: Vector3) -> void:
-	_handle_cat_target(multiplayer.get_remote_sender_id(), slot_id, point)
+	_gateway.handle_cat_target(multiplayer.get_remote_sender_id(), slot_id, point)
 
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
