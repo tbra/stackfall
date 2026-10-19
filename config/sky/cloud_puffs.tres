@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://shaders/sky/cloud_puffs.gdshader" id="1_wxw6p"]
-[ext_resource type="Texture2D" path="res://config/sky/themes/puff_noise.tres" id="2_cgxpk"]
+[ext_resource type="Texture2D" path="res://config/sky/noise/puff_noise.tres" id="2_cgxpk"]
 
 [resource]
 render_priority = 0

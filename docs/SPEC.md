@@ -272,7 +272,7 @@ Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig
 **Visuals.**
 - The disc is a polished metal plate. A shader draws territory from the analytic circle list (capped by `TerritoryVisuals.max_shader_circles`): each area is a soft tint in the player's color with an outline; contested areas shimmer; hole edges glow.
 - Blocks are one merged cel-shaded shape per piece with thin cell-grid lines and a restrained outline.
-- Procedural sky with HDRI themes, clouds and weather; GPUParticles3D for explosions, dust and debris; camera shake scales with impulse and can be turned off. Blocks that fall off fade out.
+- Procedural sky driven by one day/night cycle resource (`config/sky/sky_cycle.tres` keyframes) and a storm overlay, with clouds and weather; GPUParticles3D for explosions, dust and debris; camera shake scales with impulse and can be turned off. Blocks that fall off fade out.
 
 **Audio.** Impact sounds vary in volume and pitch with impulse and material; stacking gives a rising tick that climbs with height; specials have distinct warning sounds. A shared menu and lobby playlist and a three-track gameplay playlist: tracks fade in 4 s, play once, fade out 5 s, then a random quiet gap of 20 to 50 s. A two-stem adaptive mix (calm and tense, crossfading as capture progress passes 0.6) is implemented in `autoload/Sfx.gd` and activates only when a tense-stem file exists (none ships). Capture progress also ducks the music.
 
@@ -320,7 +320,7 @@ res://
     ai/ ambient/ audio/ blocks/ gifts/ net/ perf/ physics/ rules/ sky/ territory/ weather/
   config/                      Resource scripts next to their default .tres, by feature
     audio/ blocks/ (BlockShape .tres, tuning/) bots/ breeze/ gifts/ (specials/) graphics/ (presets/)
-    match/ (maps/round.tres) net/ physics/ (presets/) player/ sky/ (themes/) territory/ (disc_surfaces/)
+    match/ (maps/round.tres) net/ physics/ (presets/) player/ sky/ (noise/) territory/ (disc_surfaces/)
     ui/ weather/
   game/                        scene-tree gameplay and presentation nodes, scenes next to scripts
     main/ field/ blocks/ player/ bots/ flags/ gifts/ (specials/, fx/) sky/ weather/ ambient/
