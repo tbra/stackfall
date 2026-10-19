@@ -222,6 +222,68 @@ func test_client_sanitizer_accepts_good_and_refuses_hostile_gusts() -> void:
 		assert_true(BreezeNet.sanitize_gust(gust, _tuning).is_empty(), "rejects %s=%s" % [bad[0], bad[1]])
 
 
+class BreezeFakeNet:
+	extends RefCounted
+	var host: bool = false
+
+	func is_host() -> bool:
+		return host
+
+	func is_offline() -> bool:
+		return true
+
+
+class BreezeFakeMatch:
+	extends RefCounted
+	var match_state: int = MatchAutoload.State.PLAYING
+
+	func state() -> int:
+		return match_state
+
+
+func _breeze_net(net: BreezeFakeNet, authority: BreezeFakeMatch) -> BreezeNet:
+	var node: BreezeNet = BreezeNet.new()
+	add_child_autofree(node)
+	assert_true(node.bind(SessionPort.new(net, BreezeNet.SESSION_METHODS), MatchHostPort.new(authority, BreezeNet.AUTHORITY_METHODS)), "narrow doubles bind")
+	return node
+
+
+func test_breeze_net_client_applies_a_good_gust_and_refuses_the_rest() -> void:
+	var authority: BreezeFakeMatch = BreezeFakeMatch.new()
+	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), authority)
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_applied, 1)
+	assert_eq(_gusts_seen.size(), 1, "re-emitted for the presenter")
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_refused, 1, "a repeated id is dropped")
+	authority.match_state = MatchAutoload.State.END
+	node.net_breeze_gust(_wire(2))
+	assert_eq(node.gusts_refused, 2, "a late packet after the match is dropped")
+	assert_eq(node.gusts_applied, 1)
+
+
+func test_breeze_net_host_refuses_replicated_gusts_and_set_providers_shim_binds() -> void:
+	var net: BreezeFakeNet = BreezeFakeNet.new()
+	net.host = true
+	var node: BreezeNet = BreezeNet.new()
+	add_child_autofree(node)
+	node.set_providers(net, BreezeFakeMatch.new())
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_refused, 1, "the host never applies a replicated gust")
+	assert_eq(node.gusts_applied, 0)
+	net.host = false
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_applied, 1, "the shim bound the injected session and match")
+
+
+func test_breeze_net_bind_refuses_an_invalid_port() -> void:
+	var node: BreezeNet = BreezeNet.new()
+	add_child_autofree(node)
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), BreezeNet.AUTHORITY_METHODS)
+	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), BreezeNet.SESSION_METHODS), broken))
+	assert_push_error_count(1, "one conformance error from the broken port")
+
+
 func test_tuning_panel_breeze_toggle_is_host_only() -> void:
 	var panel: TuningPanel = load("res://ui/debug/TuningPanel.tscn").instantiate() as TuningPanel
 	add_child_autofree(panel)

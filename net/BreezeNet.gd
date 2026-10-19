@@ -15,6 +15,11 @@ extends Node
 ## Largest heading magnitude (radians) a gust may carry: four turns. Wire format, not a tunable.
 const GUST_MAX_ANGLE: float = TAU * 4.0
 
+## The session methods and the Match reads this node calls; a port is bound with
+## exactly this subset, so a narrow test double stays valid.
+const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
+const AUTHORITY_METHODS: PackedStringArray = ["state"]
+
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
 var gusts_sent: int = 0
@@ -23,8 +28,8 @@ var gusts_refused: int = 0
 var last_sent_gust: Dictionary = {}
 
 var _tuning: BreezeTuning = preload("res://config/breeze/breeze.tres")
-var _net_provider: Variant = null
-var _match_provider: Variant = null
+var _session_port: SessionPort = null
+var _authority_port: MatchHostPort = null
 var _last_id: int = 0
 
 
@@ -36,18 +41,43 @@ func _ready() -> void:
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
-## Same seam as WeatherNet.set_providers(); null keeps the real autoload.
+## Typed seam: the session and the Match this node reads. Returns false (and
+## binds nothing) when a port is invalid. Build the ports with SESSION_METHODS /
+## AUTHORITY_METHODS (default_session() / default_authority()).
+func bind(session: SessionPort, authority: MatchHostPort) -> bool:
+	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
+		return false
+	_session_port = session
+	_authority_port = authority
+	return true
+
+
+## The port over the real Net autoload (or `session_node`).
+static func default_session(session_node: Object = null) -> SessionPort:
+	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
+
+
+## The port over the real Match autoload (or `match_node`).
+static func default_authority(match_node: Object = null) -> MatchHostPort:
+	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
+
+
+## TRANSITIONAL shim for callers that still inject providers; null keeps the
+## real autoload.
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	_net_provider = net_provider
-	_match_provider = match_provider
+	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
 
 
-func _session() -> Variant:
-	return _net_provider if _net_provider != null else Net
+func _session() -> SessionPort:
+	if _session_port == null:
+		_session_port = default_session()
+	return _session_port
 
 
-func _authority() -> Variant:
-	return _match_provider if _match_provider != null else Match
+func _authority() -> MatchHostPort:
+	if _authority_port == null:
+		_authority_port = default_authority()
+	return _authority_port
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:
@@ -77,7 +107,7 @@ func net_breeze_gust(gust: Dictionary) -> void:
 	if awaiting_world.is_valid() and bool(awaiting_world.call()):
 		gusts_refused += 1
 		return
-	if not MatchAutoload.is_replicating(int(_authority().state())):
+	if not MatchAutoload.is_replicating(_authority().state()):
 		gusts_refused += 1
 		return
 	apply_gust(gust)
