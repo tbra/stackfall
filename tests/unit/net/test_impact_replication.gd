@@ -49,7 +49,8 @@ func _make_net(fake: FakeNet) -> MatchNetScript:
 
 func _host() -> MatchNetScript:
 	var node: MatchNetScript = _make_net(FakeNet.host({1: 0, 2: 1}, [0]))
-	node.capture_impacts = true
+	node.tap = MatchNetTap.new()
+	node.tap.capture_impacts = true
 	return node
 
 
@@ -81,7 +82,7 @@ func test_host_impact_reaches_client_as_the_same_signals() -> void:
 	Events.block_impacted_at.emit(6.5, position)
 	var packet: PackedByteArray = host.flush_impacts(1000)
 	assert_eq(packet.size(), ImpactWire.HEADER_BYTES + ImpactWire.EVENT_BYTES, "one event on the wire")
-	host.capture_impacts = false
+	host.tap.capture_impacts = false
 	_speeds.clear()
 	_at.clear()
 
@@ -95,7 +96,7 @@ func test_host_impact_reaches_client_as_the_same_signals() -> void:
 	assert_almost_eq(got.x, position.x, ImpactWire.POSITION_QUANTUM_M)
 	assert_almost_eq(got.y, position.y, ImpactWire.POSITION_QUANTUM_M)
 	assert_almost_eq(got.z, position.z, ImpactWire.POSITION_QUANTUM_M)
-	assert_eq(client.impacts_emitted, 1)
+	assert_eq(client.counters.impacts_emitted, 1)
 
 
 # --- Coalescing and caps ----------------------------------------------------
@@ -157,7 +158,7 @@ func test_malformed_batches_are_ignored() -> void:
 	for packet: PackedByteArray in packets:
 		client.receive_impacts(packet, 100)
 	assert_eq(_speeds.size(), 0, "nothing from a malformed batch plays")
-	assert_eq(client.impact_batches_rejected, packets.size())
+	assert_eq(client.counters.impact_batches_rejected, packets.size())
 	client.receive_impacts(good, 100)
 	assert_eq(_speeds.size(), 1, "the well-formed control still plays")
 
@@ -179,8 +180,8 @@ func test_one_bad_event_does_not_silence_the_rest_of_the_batch() -> void:
 	assert_almost_eq(_speeds[0], 3.0, ImpactWire.SPEED_QUANTUM)
 	assert_almost_eq(_speeds[1], 5.0, ImpactWire.SPEED_QUANTUM)
 	assert_almost_eq(_speeds[2], 7.0, ImpactWire.SPEED_QUANTUM)
-	assert_eq(client.impact_batches_rejected, 0, "the batch itself was fine")
-	assert_eq(client.impact_events_dropped, 2, "the two out-of-volume events are counted")
+	assert_eq(client.counters.impact_batches_rejected, 0, "the batch itself was fine")
+	assert_eq(client.counters.impact_events_dropped, 2, "the two out-of-volume events are counted")
 	# A bad speed is per-event too.
 	_speeds.clear()
 	var bad_speed: PackedByteArray = _batch([_event(3.0, Vector3.ZERO), _event(3.0, Vector3(1.0, 1.0, 1.0))])

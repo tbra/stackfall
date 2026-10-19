@@ -15,7 +15,8 @@ func after_each() -> void:
 
 func _deferred_match() -> MatchAutoload:
 	var node: MatchAutoload = MatchAutoload.new()
-	node.force_defer_activation = true
+	node.net_tap = MatchNetTap.new()
+	node.net_tap.defer_activation = true
 	add_child_autofree(node)
 	return node
 
@@ -43,7 +44,8 @@ func test_context_answers_defaults_while_inactive() -> void:
 func test_deferred_match_net_is_idle_until_activated() -> void:
 	var match_node: MatchAutoload = _deferred_match()
 	var net: Node = load("res://net/MatchNet.gd").new() as Node
-	net.set("force_defer_activation", true)
+	net.set("tap", MatchNetTap.new())
+	(net.get("tap") as MatchNetTap).defer_activation = true
 	add_child_autofree(net)
 	net.call(&"set_providers", null, match_node)
 	assert_false(net.call(&"is_late_active"))

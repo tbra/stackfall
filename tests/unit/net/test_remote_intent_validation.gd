@@ -310,3 +310,28 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	assert_eq(rejections.size(), far_origins.size(), "Each refused release reports placement_rejected once.")
 	assert_eq(rejections.count(REMOTE_SLOT), far_origins.size(), "The rejection names the releasing slot.")
 
+
+
+# --- wire id limits and the counter identity (the WireLimits / NetCounters split) ---
+
+
+func test_special_id_wire_check_follows_the_configured_length() -> void:
+	var net: MatchNetScript = _make_host_net()
+	net.config = net.config.duplicate() as NetConfig
+	var at_cap: String = "a".repeat(net.config.special_id_max_length)
+	assert_true(net._special_id_wire_ok(at_cap), "an id of exactly the cap is trusted")
+	assert_false(net._special_id_wire_ok(at_cap + "a"), "one character past the cap is not")
+	assert_false(net._special_id_wire_ok(""), "an empty id is not")
+	assert_false(net._special_id_wire_ok("bad id"), "nor is one with a space")
+	net.config.special_id_max_length = 6
+	assert_false(net._special_id_wire_ok("rocket1"), "the cap is NetConfig's, not a literal")
+
+
+func test_a_refused_remote_intent_is_tallied_in_the_counters_object() -> void:
+	var net: MatchNetScript = _make_host_net()
+	_start_playing()
+	_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -5)
+	assert_eq(net.counters.sent_count(REMOTE_SLOT), 1)
+	assert_eq(net.counters.refused_count(REMOTE_SLOT), 1)
+	assert_eq(net.counters.accepted_count(REMOTE_SLOT), 0)
+	assert_eq(net.intents_refused(REMOTE_SLOT), 1, "the public accessor reads the same object")

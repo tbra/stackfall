@@ -55,6 +55,9 @@
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",
    "core/ai/BotThink.gd:decision",
+   "core/net/WireLimits.gd:args_shape_ok",
+   "core/net/WireLimits.gd:cat_duration_clamped",
+   "core/net/WireLimits.gd:reject_reason_clamped",
    "core/sky/SkyCycleClock.gd:clear",
    "core/sky/SkyEvaluator.gd:evaluate",
    "core/territory/TerritoryRaster.gd:_rebuild_team_counts",
@@ -944,11 +947,6 @@
    "id": "dead-file",
    "entry": "core/net/HandshakePolicy.gd",
    "reason": "netcode interface stub; body and consumer land in N3"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/WireLimits.gd",
-   "reason": "netcode interface stub; body and consumer land in M1"
   },
   {
    "id": "dead-file",

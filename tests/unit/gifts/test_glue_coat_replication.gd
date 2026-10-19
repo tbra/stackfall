@@ -91,13 +91,13 @@ func test_host_coats_fused_pair_and_uncoats_the_survivor_when_a_member_is_remove
 	assert_not_null(carrier)
 	assert_true(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 2)
+	assert_eq(int(net.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 2)
 	var coat_mesh: MeshInstance3D = a.get_node("BlockMesh").get_node(HoneyCoat.COAT_NODE_NAME) as MeshInstance3D
 	assert_not_null(coat_mesh.material_override)
 	carrier.remove_member(a, &"hole")
 	await get_tree().process_frame
 	assert_false(HoneyCoat.is_coated(b), "survivor collapsed to a lone block -> coat removed")
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3)
+	assert_eq(int(net.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3)
 	assert_true(net._fused_ids.is_empty())
 
 
@@ -138,7 +138,7 @@ func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void
 	drops.bind(a, _tuning)
 	Events.glue_drop_charged.emit(a)
 	assert_true(HoneyCoat.is_coated(a), "coated while still falling, no bond yet")
-	assert_eq(int(host.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 1)
+	assert_eq(int(host.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 1)
 	assert_eq(_glued_events(host.build_world_replay()), [[251, true]])
 	var b: Block = _block(252)
 	assert_true(drops.try_bond(b))
