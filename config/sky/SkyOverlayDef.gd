@@ -18,6 +18,8 @@ extends Resource
 @export var light_color: Color = Color.WHITE
 ## Share of the cycle's current sun/moon light energy kept at full overlay (1 = unchanged), so a
 ## storm dims the light of the hour instead of pulling it to one fixed energy (a night storm stays dark).
+# DECISION: storm_overlay.tres uses 0.3164 = 0.45 / 1.4222: the brightest cycle hour (phase 0.407) has
+# light energy 1.4222, and a full storm there keeps the old fixed storm energy 0.45.
 @export_range(0.0, 1.0, 0.01) var light_energy_share: float = 0.5
 ## Environment ambient light energy at full overlay.
 @export_range(0.0, 16.0, 0.01) var ambient_energy: float = 0.5

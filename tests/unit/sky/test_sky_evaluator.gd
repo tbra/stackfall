@@ -12,6 +12,13 @@ const SEED: int = 1234
 ## First match seed whose night 0 shows the aurora; the golden's aurora states use it.
 const AURORA_SEED: int = 8
 const NIGHT_PHASE: float = 0.75
+## The cycle hour with the highest key light, and the fixed storm light energy the old overlay lerped to.
+## Full-day phase (night mix 0, so the puff sea equals the sky sea) and the largest per-channel step a
+## 0.001 storm may make.
+const DAY_STORM_PHASES: Array[float] = [0.25]
+const SMALL_STORM_STEP_TOLERANCE: float = 0.01
+const BRIGHTEST_PHASE: float = 0.407
+const OLD_STORM_LIGHT_ENERGY: float = 0.45
 const STORM_AMOUNT: float = 0.5
 const MIN_COMPARED: int = 70
 ## Weather requests the golden applied (test_sky_parity_live's constants).
@@ -429,14 +436,19 @@ func test_night_index_is_carried_and_drives_the_aurora_roll() -> void:
 
 func test_a_night_storm_keeps_the_night_mixed_puff_far_fade() -> void:
 	# Q1 fixed: the storm does not re-copy the sky's day-only sea colours or the overcast-scaled
-	# exposure onto the puff channel.
+	# exposure onto the puff channel; the puff sea colours lerp from the night-mixed tick values.
 	var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, NIGHT_PHASE, SEED, 0, true)
 	assert_gt(tick.night, 0.9, "fixture: deep night")
 	var storm_frame: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_storm(tick, 0.001, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+	var jump: Color = storm_frame.puff_sea_color_near - tick.puff_sea_color_near
+	assert_lt(maxf(absf(jump.r), maxf(absf(jump.g), absf(jump.b))), SMALL_STORM_STEP_TOLERANCE, "a storm starting at night does not jump")
+	assert_ne(storm_frame.puff_sea_color_near, storm_frame.proc_sea_color_near, "starts from the night-mixed colour, not the day sea")
+	SkyEvaluator.apply_storm(tick, STORM_AMOUNT, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+	assert_eq(storm_frame.puff_sea_color_near, tick.puff_sea_color_near.lerp(_overlay.proc_sea_color_near, STORM_AMOUNT))
+	assert_eq(storm_frame.puff_sea_color_far, tick.puff_sea_color_far.lerp(_overlay.proc_sea_color_far, STORM_AMOUNT))
 	SkyEvaluator.apply_storm(tick, 1.0, _overlay, CEILING.storm_flare_off_amount, storm_frame)
-	assert_eq(storm_frame.puff_sea_color_near, tick.puff_sea_color_near)
-	assert_eq(storm_frame.puff_sea_color_far, tick.puff_sea_color_far)
-	assert_ne(storm_frame.puff_sea_color_near, storm_frame.proc_sea_color_near, "not the storm-blended day sea colour")
+	assert_eq(storm_frame.puff_sea_color_near, _overlay.proc_sea_color_near)
 	var weather: SkyWeatherState = _weather()
 	weather.storm_amount = 1.0
 	weather.storm_overlay = _overlay
@@ -446,6 +458,15 @@ func test_a_night_storm_keeps_the_night_mixed_puff_far_fade() -> void:
 	SkyEvaluator.apply_weather(storm_frame, weather, out)
 	assert_eq(out.puff_exposure, tick.puff_exposure, "baseline exposure, not the overcast-scaled one")
 	assert_ne(out.exposure, out.puff_exposure, "fixture: the sky exposure itself is overcast-scaled")
+
+
+func test_a_day_storm_puff_sea_follows_the_sky_sea() -> void:
+	for phase: float in DAY_STORM_PHASES:
+		var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, phase, SEED, 0, true)
+		var storm_frame: SkyFrame = SkyFrame.new()
+		SkyEvaluator.apply_storm(tick, STORM_AMOUNT, _overlay, CEILING.storm_flare_off_amount, storm_frame)
+		assert_true(storm_frame.puff_sea_color_near.is_equal_approx(storm_frame.proc_sea_color_near), "near at %s" % phase)
+		assert_true(storm_frame.puff_sea_color_far.is_equal_approx(storm_frame.proc_sea_color_far), "far at %s" % phase)
 
 
 func test_a_storm_scales_the_current_light_energy_by_the_overlay_share() -> void:
@@ -461,6 +482,9 @@ func test_a_storm_scales_the_current_light_energy_by_the_overlay_share() -> void
 	var night_storm: SkyFrame = SkyFrame.new()
 	SkyEvaluator.apply_storm(night, 1.0, _overlay, CEILING.storm_flare_off_amount, night_storm)
 	assert_lte(night_storm.light_energy, night.light_energy, "a night storm is never brighter than the night")
+	var brightest: SkyFrame = SkyEvaluator.evaluate_tick(_def, BRIGHTEST_PHASE, SEED, 0, true)
+	SkyEvaluator.apply_storm(brightest, 1.0, _overlay, CEILING.storm_flare_off_amount, night_storm)
+	assert_almost_eq(night_storm.light_energy, OLD_STORM_LIGHT_ENERGY, 0.001, "the brightest hour's full storm equals the old fixed storm energy")
 	_overlay.light_energy_share = 1.0
 	SkyEvaluator.apply_storm(night, 1.0, _overlay, CEILING.storm_flare_off_amount, night_storm)
 	assert_eq(night_storm.light_energy, night.light_energy, "share 1 leaves the light unchanged")

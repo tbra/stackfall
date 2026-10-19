@@ -240,7 +240,7 @@ const STORM_OVERLAY: Dictionary[StringName, Variant] = {
 	&"volumetric_fog_density": 0.00015,
 	&"volumetric_fog_albedo": Color(0.16, 0.24, 0.27, 1),
 	&"light_color": Color(0.6, 0.72, 0.78, 1),
-	&"light_energy_share": 0.45,
+	&"light_energy_share": 0.3164,
 	&"ambient_energy": 0.55,
 	&"glow_intensity": 0.4,
 	&"proc_zenith_color": Color(0.07, 0.1, 0.13, 1),

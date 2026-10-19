@@ -117,8 +117,10 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.deck_density = into.fog_density
 	into.deck_albedo = into.fog_light_color
 	into.lighting_light_color = into.light_color
-	# Puff channel: cel and cloud tones lerp from the cycle values in effect. The far fade keeps the
-	# night-mixed sea colours and the baseline exposure of the tick (copy_from above).
+	# Puff channel: cel and cloud tones lerp from the cycle values in effect. The far fade sea
+	# colours lerp from the tick's night-mixed values toward the overlay sea, as the sky sea does (a
+	# day storm matches the sky sea, a night storm starts from the night colours without a jump); the
+	# exposure stays the tick's baseline (copy_from above).
 	into.puff_shadow_color = tick.puff_shadow_color.lerp(overlay.puff_shadow_color, t)
 	into.puff_mid_color = tick.puff_mid_color.lerp(overlay.puff_mid_color, t)
 	into.puff_lit_color = tick.puff_lit_color.lerp(overlay.puff_lit_color, t)
@@ -127,6 +129,8 @@ static func apply_storm(tick: SkyFrame, storm_amount: float, overlay: SkyOverlay
 	into.puff_cloud_mid_color = tick.puff_cloud_mid_color.lerp(overlay.cloud_mid_color, t)
 	into.puff_cloud_lit_color = tick.puff_cloud_lit_color.lerp(overlay.cloud_lit_color, t)
 	into.puff_cloud_rim_color = tick.puff_cloud_rim_color.lerp(overlay.cloud_rim_color, t)
+	into.puff_sea_color_near = tick.puff_sea_color_near.lerp(overlay.proc_sea_color_near, t)
+	into.puff_sea_color_far = tick.puff_sea_color_far.lerp(overlay.proc_sea_color_far, t)
 
 
 ## Stage C (weather): overcast, snow, weather fog and sun dimming over the cached stage B frame.
