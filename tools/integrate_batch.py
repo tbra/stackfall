@@ -639,7 +639,8 @@ def integrate(args, ctx, say, res):
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
     if getattr(args, "merge_only", False):
         # Lints need no Godot, so a lint RED (e.g. a dropped dead_baseline edit) shows here, not after a gate.
-        code, text, log = run_cmd(ctx, "lint", [sys.executable, os.path.join(ROOT, "tools", "lint_all.py"), "--path", wt], wt, STEP_TIMEOUT_S)
+        # The merged tree's own lints judge it, so a batch that fixes a lint or its baseline is not judged by main's copy.
+        code, text, log = run_cmd(ctx, "lint", [sys.executable, os.path.join(wt, "tools", "lint_all.py"), "--path", wt], wt, STEP_TIMEOUT_S)
         lint_line = ([l for l in text.splitlines() if l.startswith("LINT ALL")] or ["no LINT ALL line"])[-1]
         say("lint      %s %s" % ("ok  " if code == 0 else "FAIL", lint_line))
         if code != 0:
