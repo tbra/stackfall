@@ -84,6 +84,17 @@ func test_opened_state_and_join_code() -> void:
 	assert_eq(int(decoded["port"]), port)
 
 
+func test_net_re_emits_the_adverts_state_changes() -> void:
+	var backend: FakeBackend = FakeBackend.new()
+	var net: Variant = _host_with(backend)
+	var states: Array[int] = []
+	net.upnp_state_changed.connect(func(state: int) -> void: states.append(state))
+	net.host_game(AgentProbe.free_udp_port(), "H")
+	assert_true(await _wait_for(func() -> bool: return net.upnp_state() == UpnpRunner.State.OPENED))
+	net.leave()
+	assert_eq(states, [UpnpRunner.State.PENDING, UpnpRunner.State.OPENED, UpnpRunner.State.IDLE] as Array[int])
+
+
 func test_private_address_is_a_failure() -> void:
 	var backend: FakeBackend = FakeBackend.new()
 	backend.address = "192.168.1.9"
