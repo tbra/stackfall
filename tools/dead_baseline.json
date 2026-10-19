@@ -925,6 +925,36 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/TokenBucket.gd",
+   "reason": "netcode interface stub; consumed from N3/N4"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/PeerFloodGate.gd",
+   "reason": "netcode interface stub; consumed from N3/N4/M2"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/HandshakePolicy.gd",
+   "reason": "netcode interface stub; body and consumer land in N3"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/WireLimits.gd",
+   "reason": "netcode interface stub; body and consumer land in M1"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/MatchWireEvents.gd",
+   "reason": "netcode interface stub; consumer lands in M4"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/FloodLimits.gd",
+   "reason": "netcode interface stub; consumed from N4/M2"
   }
  ]
 }
