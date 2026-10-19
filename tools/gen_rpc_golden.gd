@@ -9,6 +9,10 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			out_path = arg.trim_prefix("--out=")
+	if out_path.is_empty():
+		push_error("usage: -- --out=<golden path>")
+		get_tree().quit(2)
+		return
 	var surface: Dictionary = RpcSurface.normalise(RpcSurface.build()) as Dictionary
 	var version: String = String(ProjectSettings.get_setting("application/config/version", ""))
 	var md5: String = RpcSurface.surface_md5(surface)
