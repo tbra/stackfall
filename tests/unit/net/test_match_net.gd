@@ -437,10 +437,10 @@ func test_start_match_from_lobby_does_not_replicate_its_own_transient_states() -
 	Match.start_match(_config())
 
 	assert_eq(
-		host_net.replicated_state_changes, [],
+		host_net.counters.replicated_state_changes, [],
 		"LOBBY->LOADING->COUNTDOWN inside start_match() must not be replicated a second time -- only net_match_start carries the start"
 	)
-	assert_eq(host_net.match_starts_replicated, 1)
+	assert_eq(host_net.counters.match_starts_replicated, 1)
 	assert_eq(
 		get_signal_emit_count(Events, "match_state_changed"), 2,
 		"exactly the real LOBBY->LOADING and LOADING->COUNTDOWN transitions, the same two a client's own net_match_start-triggered start_match() call produces"
@@ -701,3 +701,43 @@ func test_gift_flight_interpolates_but_waits_for_authoritative_landing() -> void
 	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
 	assert_eq(Match.gift_state(101)["phase"], MatchGifts.LANDED)
 
+
+
+# --- NetCounters and MatchNetTap (the instrumentation split) ------------------
+
+
+func test_tap_is_null_in_production_and_replay_forwarder_creates_one() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	assert_null(net.tap, "a shipped MatchNet holds no test tap")
+	assert_false(net.capture_replay)
+	net.capture_replay = false
+	assert_null(net.tap, "switching a hook off must not create a tap")
+	net.capture_replay = true
+	assert_not_null(net.tap)
+	assert_true(net.tap.capture_replay)
+	net._send_replay(2, &"net_replay_end", [7])
+	assert_eq(net.tap.replay_capture, [[2, &"net_replay_end", [7]]], "the tap records [peer, method, args]")
+	assert_eq(net.replay_capture, net.tap.replay_capture, "the old name reads the tap's rows")
+
+
+func test_counter_forwarders_read_the_one_netcounters_object() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	net.counters.count_sent(1)
+	net.counters.count_sent(1)
+	net.counters.count_accepted(1)
+	net.counters.count_refused(1)
+	net.counters.count_auto_drop(0)
+	net.counters.count_cursor_refused(1)
+	assert_eq(net.intents_sent(1), 2)
+	assert_eq(net.intents_accepted(1), 1)
+	assert_eq(net.intents_refused(1), 1)
+	assert_eq(net.cursors_refused(1), 1)
+	assert_eq(net._intents_sent, {1: 2}, "ENet harnesses and MatchFingerprint still read the private names")
+	assert_eq(net._auto_drops, {0: 1})
+	net.counters.count_event(&"x")
+	net.counters.replays_started += 1
+	net.reset_counters()
+	assert_eq(net.intents_sent(1), 0, "reset_counters() drops the per-match counters")
+	assert_eq(net.cursors_refused(1), 0)
+	assert_eq(int(net.replicated_event_counts.get(&"x", 0)), 1, "the whole-session tallies survive a reset, as before")
+	assert_eq(net.counters.replays_started, 1)

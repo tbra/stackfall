@@ -152,29 +152,39 @@ var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tun
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## Test-only: net_ids _on_block_dissolve_started() decided
-## to replicate, in order -- NetFanout.can_send() is false without a live peer, so this
-## is what proves the host would have sent them. Game code never reads it.
-var replicated_dissolve_starts: Array[int] = []
+## Every instrumentation counter (intent identities, replay and impact tallies, the test-only
+## "what would have gone on the wire" records); net/NetCounters.gd. The old public/private
+## names below are TRANSITIONAL read forwarders for tests outside this file.
+var counters: NetCounters = NetCounters.new()
+## Test seam (net/MatchNetTap.gd): null in every shipped build. A test installs one to force the
+## deferred activation path and to capture impact batches and replay messages.
+var tap: MatchNetTap = null
+## TRANSITIONAL: net_ids _on_block_dissolve_started() decided to replicate (NetCounters).
+var replicated_dissolve_starts: Array[int]:
+	get:
+		return counters.replicated_dissolve_starts
 ## Host: net ids of blocks currently fused into a FusedBody.
 var _fused_ids: Dictionary = {}
 ## net ids of charged glue drops coated at spawn (cleared when their
 ## last bond ends, as that is when the coat is removed).
 var _glue_charged_ids: Dictionary = {}
-## Test-only: how many times each event name reached
-## replicate_match_event() on the host, counted before its NetFanout.can_send() gate
-## (false in a unit test). Proves a refusal was never broadcast to every peer.
-## Bounded by the number of event names. Game code never reads it.
-var replicated_event_counts: Dictionary = {}
-## Test-only: peer_id -> placement_rejected replies addressed
-## to it by _reject_to_peer(), and the most recent one as [peer_id, slot_id,
-## reason]. Game code never reads either.
-var reject_replies_by_peer: Dictionary = {}
-var last_reject_reply: Array = []
-## Test-only: the same pair for placement_relocated, the other
-## per-player cursor message. Game code never reads either.
-var relocate_replies_by_peer: Dictionary = {}
-var last_relocate_reply: Array = []
+## TRANSITIONAL read forwarders (NetCounters): how many times each event name reached
+## replicate_match_event() on the host, and the refusal / relocation replies addressed to a peer.
+var replicated_event_counts: Dictionary:
+	get:
+		return counters.replicated_event_counts
+var reject_replies_by_peer: Dictionary:
+	get:
+		return counters.reject_replies_by_peer
+var last_reject_reply: Array:
+	get:
+		return counters.last_reject_reply
+var relocate_replies_by_peer: Dictionary:
+	get:
+		return counters.relocate_replies_by_peer
+var last_relocate_reply: Array:
+	get:
+		return counters.last_relocate_reply
 
 ## replicated block impacts (core/net/ImpactWire.gd).
 ## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
@@ -188,20 +198,9 @@ var _impact_refill_ms: int = -1
 ## Client: [due_ms, speed, position] rows waiting for the interpolated view to
 ## reach the moment they happened (receive_impacts()).
 var _impact_queue: Array[Array] = []
-## Test-only: when true the host collects impacts and records
-## every batch flush_impacts() builds even without a live peer (NetFanout.can_send() is
-## false in a unit test). Game code never sets it.
-var capture_impacts: bool = false
-var impact_batches: Array[PackedByteArray] = []
 ## Test-only: >= 0 replaces SnapshotSync's interpolation delay as the client's
 ## impact playback delay.
 var impact_delay_override_ms: float = -1.0
-## Diagnostics: batches a client dropped as malformed, events it re-emitted.
-var impact_batches_rejected: int = 0
-var impacts_emitted: int = 0
-## Client: events a well-formed batch carried that were not played (a bad event
-## skipped by ImpactWire.decode, or past the per-batch / per-second cap).
-var impact_events_dropped: int = 0
 ## The "per second" of impact_client_max_per_second, in milliseconds.
 const IMPACT_RATE_WINDOW_MS: int = 1000
 ## Client: Time.get_ticks_msec() of each event played within the last second,
@@ -224,8 +223,6 @@ var _special_ids_cached: bool = false
 ## build uses; tests inject doubles with set_providers().
 var _net_provider: Variant = null
 var _match_provider: Variant = null
-## Test seam (tests/unit/match/test_match_activation.gd): forces the deferred path in a headless run.
-var force_defer_activation: bool = false
 
 ## slot_id -> {"origin": Vector3, "orientation_index": int,
 ## "free_quat": Quaternion, "time": float}. On the host this is what spec
@@ -233,38 +230,33 @@ var force_defer_activation: bool = false
 ## game/player/RemoteCursors.gd draws.
 var _cursors: Dictionary = {}
 
-var _intents_sent: Dictionary = {}
-var _intents_accepted: Dictionary = {}
-var _intents_refused: Dictionary = {}
+## TRANSITIONAL read forwarders (NetCounters): the per-slot identities the ENet harnesses and
+## MatchFingerprint read by private name. The public intents_*() accessors below stay.
+var _intents_sent: Dictionary:
+	get:
+		return counters.sent
+var _intents_accepted: Dictionary:
+	get:
+		return counters.accepted
+var _intents_refused: Dictionary:
+	get:
+		return counters.refused
+var _auto_drops: Dictionary:
+	get:
+		return counters.auto_drops
+var _duplicate_net_ids: int:
+	get:
+		return counters.duplicate_net_ids
 ## the slot whose refusal _on_placement_rejected() already sent
 ## to its owning peer while the current intent was being applied, so the intent
 ## handler's own tail reply (for refusals Match never announces: a stale
 ## feed_seq, a held-block lock, NOT_A_SPECIAL) is not a second copy. -1 = none.
 var _reject_replied_slot: int = -1
-var _auto_drops: Dictionary = {}
-## Cursor updates from a client that the host dropped as malformed (see
-## _handle_cursor_update). Not an intent, so not part of the sent/accepted/
-## refused identity; counted so the debug overlay can show a misbehaving peer.
-var _cursors_refused: Dictionary = {}
 
 ## net_id -> true for every spawn this instance has seen. A net_id arriving
 ## twice is a hard failure of the "never duplicated" criterion, so it is
 ## counted rather than quietly overwritten.
 var _spawned_net_ids: Dictionary = {}
-var _duplicate_net_ids: int = 0
-
-## Test-only: to_state values _on_match_state_changed
-## actually decided to replicate as EVENT_STATE_CHANGED, in order. Needed
-## because NetFanout.can_send() is already false in a unit test with no live
-## peer, so it alone cannot prove the transient LOBBY/LOADING/COUNTDOWN states
-## a start_match() call produces internally were suppressed rather than merely handed to a no-op rpc().
-## Game code never reads it.
-var replicated_state_changes: Array[int] = []
-
-## Test-only: how many times replicate_match_start()
-## actually queued net_match_start for the running match. Must be exactly 1
-## per start, including a restart from PLAYING/END with a client connected.
-var match_starts_replicated: int = 0
 
 var _cursor_send_accum: float = 0.0
 var _raster_send_accum: float = 0.0
@@ -307,17 +299,32 @@ var _next_replay_id: int = 1
 ## exist yet could only corrupt the mirror (a stray LOBBY -> PLAYING emit, a
 ## feed event for slots that are not built).
 var _awaiting_match_start: bool = false
-## Test seam: when true, replay messages are appended to `replay_capture` as
-## [peer_id, method, args] instead of going out by rpc_id(). There is no peer
-## in a unit test, and this is what lets a test apply the exact ordered
-## replay to a client-mode MatchNet.
-var capture_replay: bool = false
-var replay_capture: Array[Array] = []
-## Test-only counters. Game code never reads them.
-var replays_started: int = 0
-var replays_timed_out: int = 0
-var replays_acknowledged: int = 0
-var intents_refused_before_replay_ack: int = 0
+## TRANSITIONAL (MatchNetTap / NetCounters): the replay test seam and its tallies, still read by
+## tests outside this file. capture_replay makes replay messages land in `replay_capture` as
+## [peer_id, method, args] instead of going out by rpc_id(); there is no peer in a unit test, and
+## this is what lets a test apply the exact ordered replay to a client-mode MatchNet.
+var capture_replay: bool:
+	get:
+		return tap != null and tap.capture_replay
+	set(value):
+		if tap == null and not value:
+			return
+		_ensure_tap().capture_replay = value
+var replay_capture: Array[Array]:
+	get:
+		if tap == null:
+			var none: Array[Array] = []
+			return none
+		return tap.replay_capture
+var replays_timed_out: int:
+	get:
+		return counters.replays_timed_out
+var replays_acknowledged: int:
+	get:
+		return counters.replays_acknowledged
+var intents_refused_before_replay_ack: int:
+	get:
+		return counters.intents_refused_before_replay_ack
 ## Client only: the replay id this instance last acknowledged (0 = none).
 var last_replay_acknowledged: int = 0
 ## Client only: the id of the late-join world replay being
@@ -379,7 +386,7 @@ func _ready() -> void:
 	Events.net_mode_changed.connect(_on_net_mode_changed)
 	# the WeatherNet child is built by late_activate(); headless
 	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
-	if LateScripts.boot_defers_activation(get_tree()) or force_defer_activation:
+	if LateScripts.boot_defers_activation(get_tree()) or (tap != null and tap.defer_activation):
 		# _process reads Match state, which does not exist until
 		# Match.late_activate(); stay idle until our own late_activate() re-enables it.
 		set_process(false)
@@ -513,7 +520,7 @@ func submit_place(
 ) -> StringName:
 	if _session().is_host():
 		if not auto_drop:
-			_bump(_intents_sent, slot_id)
+			counters.count_sent(slot_id)
 		return _apply_intent(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
 
 	# A client never auto-drops: spec 1.4's auto-drop is [ORIGINAL] and must
@@ -526,7 +533,7 @@ func submit_place(
 		# "never lost" by comparing this client's intents_sent with the host's
 		# count for the same slot, and a phantom here would break that.
 		return PlacementRules.REASON_NO_BLOCK
-	_bump(_intents_sent, slot_id)
+	counters.count_sent(slot_id)
 	rpc_id(
 		Net.HOST_PEER_ID,
 		&"net_request_place",
@@ -545,7 +552,7 @@ func submit_place(
 ## velocity): the host clamps velocity to throw_max_speed"). A throw has no
 ## auto_drop equivalent at all (MatchPlacement.request_throw()'s own doc
 ## comment), so unlike submit_place() there is no bool to gate the host-side
-## _bump() on -- every call here is a deliberate release.
+## counter bump on -- every call here is a deliberate release.
 func submit_throw(
 	slot_id: int,
 	origin: Vector3,
@@ -555,14 +562,14 @@ func submit_throw(
 	feed_seq: int
 ) -> StringName:
 	if _session().is_host():
-		_bump(_intents_sent, slot_id)
+		counters.count_sent(slot_id)
 		return _apply_throw_intent(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
 
 	if not NetFanout.can_send(multiplayer, _session()):
 		# See submit_place()'s matching comment: nothing went on the wire, so
 		# nothing is counted.
 		return PlacementRules.REASON_NO_BLOCK
-	_bump(_intents_sent, slot_id)
+	counters.count_sent(slot_id)
 	rpc_id(
 		Net.HOST_PEER_ID,
 		&"net_request_throw",
@@ -915,7 +922,7 @@ func _encode_circles() -> PackedByteArray:
 func replicate_match_event(event: StringName, args: Array) -> void:
 	if not _session().is_host():
 		return
-	replicated_event_counts[event] = int(replicated_event_counts.get(event, 0)) + 1
+	counters.count_event(event)
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_match_event", [event, args])
@@ -929,7 +936,7 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	if not _session().is_host() or match_config == null or _match_start_sent:
 		return
 	_match_start_sent = true
-	match_starts_replicated += 1
+	counters.match_starts_replicated += 1
 	_force_full_raster = true
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
@@ -959,20 +966,20 @@ func replicate_match_loading() -> void:
 ## (auto_drops); and across instances, a client's intents_sent for its own
 ## slot equals the host's.
 func intents_sent(slot_id: int) -> int:
-	return int(_intents_sent.get(slot_id, 0))
+	return counters.sent_count(slot_id)
 
 
 func intents_accepted(slot_id: int) -> int:
-	return int(_intents_accepted.get(slot_id, 0))
+	return counters.accepted_count(slot_id)
 
 
 func intents_refused(slot_id: int) -> int:
-	return int(_intents_refused.get(slot_id, 0))
+	return counters.refused_count(slot_id)
 
 
 ## Cursor updates from `slot_id`'s peer the host dropped as malformed.
 func cursors_refused(slot_id: int) -> int:
-	return int(_cursors_refused.get(slot_id, 0))
+	return counters.cursors_refused_count(slot_id)
 
 
 ## Drops every counter and cursor. Called when a match starts or ends.
@@ -981,13 +988,8 @@ func reset_counters() -> void:
 	_cat_target_last_send = -1.0
 	_gift_wire_phases.clear()
 	_gift_spawn_notified.clear()
-	_intents_sent.clear()
-	_intents_accepted.clear()
-	_intents_refused.clear()
-	_auto_drops.clear()
-	_cursors_refused.clear()
+	counters.reset()
 	_spawned_net_ids.clear()
-	_duplicate_net_ids = 0
 	_cursors.clear()
 	_last_owner_bytes = PackedByteArray()
 	_last_state_bytes = PackedByteArray()
@@ -1001,10 +1003,6 @@ func reset_counters() -> void:
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_replay_pending.clear()
 	_replay_age.clear()
-	# Test-only instrumentation; bounded per match.
-	replicated_state_changes.clear()
-	match_starts_replicated = 0
-	replicated_dissolve_starts.clear()
 	_fused_ids.clear()
 	_glue_charged_ids.clear()
 
@@ -1027,11 +1025,11 @@ func _apply_intent(
 	var consumed: bool = _consumed_a_block(reason, auto_drop)
 	if auto_drop:
 		if consumed:
-			_bump(_auto_drops, slot_id)
+			counters.count_auto_drop(slot_id)
 	elif consumed:
-		_bump(_intents_accepted, slot_id)
+		counters.count_accepted(slot_id)
 	else:
-		_bump(_intents_refused, slot_id)
+		counters.count_refused(slot_id)
 	return reason
 
 
@@ -1052,9 +1050,9 @@ func _apply_throw_intent(
 		slot_id, origin, orientation_index, free_quat, velocity, feed_seq
 	)
 	if _consumed_a_block(reason, false):
-		_bump(_intents_accepted, slot_id)
+		counters.count_accepted(slot_id)
 	else:
-		_bump(_intents_refused, slot_id)
+		counters.count_refused(slot_id)
 	return reason
 
 
@@ -1116,13 +1114,13 @@ func _handle_place_intent(
 		# already gone — gets no say at all, and is not counted: it has no
 		# slot to count against.
 		return
-	_bump(_intents_sent, sender_slot)
+	counters.count_sent(sender_slot)
 	if _replay_pending.has(sender_peer_id):
 		# a mid-match joiner's world is not built until it has
 		# acknowledged its replay. Refused (counted and echoed, like every
 		# other refusal, so the harness identities hold and its ghost unlocks)
 		# rather than acted on.
-		intents_refused_before_replay_ack += 1
+		counters.intents_refused_before_replay_ack += 1
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
 	if sender_slot != slot_id:
@@ -1179,9 +1177,9 @@ func _handle_throw_intent(
 	var sender_slot: int = int(_session().slot_of_peer(sender_peer_id))
 	if sender_slot < 0:
 		return
-	_bump(_intents_sent, sender_slot)
+	counters.count_sent(sender_slot)
 	if _replay_pending.has(sender_peer_id):
-		intents_refused_before_replay_ack += 1
+		counters.intents_refused_before_replay_ack += 1
 		_refuse_intent(sender_peer_id, sender_slot, PlacementRules.REASON_NO_BLOCK)
 		return
 	if sender_slot != slot_id:
@@ -1241,7 +1239,7 @@ func _handle_cursor_update(
 		# if there never was one, Match.default_ghost_origin's home flag), and
 		# the next honest update at NetConfig.cursor_hz replaces it anyway.
 		# Nothing is rebroadcast, so other clients' RemoteCursors never see it.
-		_bump(_cursors_refused, sender_slot)
+		counters.count_cursor_refused(sender_slot)
 		return
 	_store_cursor(slot_id, origin, orientation_index, free_quat)
 	# the aim is validated again by the throw itself (GiftThrow.sanitize_aim);
@@ -1299,8 +1297,8 @@ func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 
 ## Wire safety, reused by EVENT_SPECIAL_TRIGGERED's def_id
 ## as well as EVENT_GIFT_CLAIMED's third argument: the id is trusted only if
-## it is shaped like one of ours -- non-empty, at most 32 characters,
-## [A-Za-z0-9_] only -- following _gift_wire_ok's own "a malformed or ancient
+## it is shaped like one of ours -- non-empty, at most NetConfig.special_id_max_length
+## characters, [A-Za-z0-9_] only (core/net/WireLimits.gd) -- following _gift_wire_ok's own "a malformed or ancient
 ## payload is dropped, not trusted" pattern. This is a syntactic check only;
 ## _gift_special_id_wire_ok() below layers real roster membership on top of it
 ## for EVENT_GIFT_CLAIMED specifically (a client only ever queues this id and,
@@ -1310,17 +1308,7 @@ func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
 ## RegEx dependency (none exists elsewhere in this codebase) -- a plain
 ## character scan is enough for an id this short.
 func _special_id_wire_ok(special_id: String) -> bool:
-	if special_id.is_empty() or special_id.length() > 32:
-		return false
-	for i: int in range(special_id.length()):
-		var c: int = special_id.unicode_at(i)
-		var is_upper: bool = c >= 65 and c <= 90
-		var is_lower: bool = c >= 97 and c <= 122
-		var is_digit: bool = c >= 48 and c <= 57
-		var is_underscore: bool = c == 95
-		if not (is_upper or is_lower or is_digit or is_underscore):
-			return false
-	return true
+	return WireLimits.special_id_ok(StringName(special_id), config)
 
 
 ## String(SpecialDef.id) -> true for every SpecialDef in SpecialDef.
@@ -1361,13 +1349,12 @@ func _gift_special_id_wire_ok(special_id: String) -> bool:
 ## echoed back so the sender's ghost unlocks now instead of waiting out
 ## NetConfig.intent_ack_timeout.
 func _refuse_intent(sender_peer_id: int, sender_slot: int, reason: StringName) -> void:
-	_bump(_intents_refused, sender_slot)
+	counters.count_refused(sender_slot)
 	_reject_to_peer(sender_peer_id, sender_slot, reason)
 
 
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
-	reject_replies_by_peer[peer_id] = int(reject_replies_by_peer.get(peer_id, 0)) + 1
-	last_reject_reply = [peer_id, slot_id, reason]
+	counters.note_reject_reply(peer_id, slot_id, reason)
 	NetFanout.send_to(self, _session(), peer_id, &"net_match_event", [EVENT_PLACEMENT_REJECTED, [slot_id, reason]])
 
 
@@ -1380,15 +1367,17 @@ func _reply_reject_once(peer_id: int, slot_id: int, reason: StringName) -> void:
 	_reject_to_peer(peer_id, slot_id, reason)
 
 
-func _bump(counter: Dictionary, slot_id: int) -> void:
-	counter[slot_id] = int(counter.get(slot_id, 0)) + 1
+func _ensure_tap() -> MatchNetTap:
+	if tap == null:
+		tap = MatchNetTap.new()
+	return tap
 
 
 func _note_spawn(net_id: int) -> void:
 	if net_id < 0:
 		return
 	if _spawned_net_ids.has(net_id):
-		_duplicate_net_ids += 1
+		counters.duplicate_net_ids += 1
 		return
 	_spawned_net_ids[net_id] = true
 
@@ -1466,7 +1455,7 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 	# a _match_provider without one.
 	if _authority()._lifecycle.is_starting_match():
 		return
-	replicated_state_changes.append(to_state)
+	counters.replicated_state_changes.append(to_state)
 	replicate_match_event(EVENT_STATE_CHANGED, [to_state])
 
 
@@ -1601,8 +1590,7 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	var owner_peer: int = _remote_peer_of_slot(slot_id)
 	if owner_peer < 0:
 		return
-	relocate_replies_by_peer[owner_peer] = int(relocate_replies_by_peer.get(owner_peer, 0)) + 1
-	last_relocate_reply = [owner_peer, slot_id, point]
+	counters.note_relocate_reply(owner_peer, slot_id, point)
 	NetFanout.send_to(self, _session(), owner_peer, &"net_match_event", [EVENT_PLACEMENT_RELOCATED, [slot_id, point]])
 
 
@@ -1761,7 +1749,7 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 func _on_block_dissolve_started(_block: RigidBody3D, net_id: int, _duration_s: float) -> void:
 	if not _session().is_host() or not Quantize.is_wire_id(net_id):
 		return
-	replicated_dissolve_starts.append(net_id)
+	counters.replicated_dissolve_starts.append(net_id)
 	replicate_match_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id])
 
 
@@ -1788,7 +1776,7 @@ func _on_cat_ended(id: int) -> void:
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	if not _session().is_host():
 		return
-	if not capture_impacts and not _impact_audience():
+	if not (tap != null and tap.capture_impacts) and not _impact_audience():
 		return
 	collect_impact(speed, position, Time.get_ticks_msec())
 
@@ -1854,8 +1842,8 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 		event[ImpactWire.KEY_AGE_MS] = now_ms - int(event[ImpactWire.KEY_TIME_MS])
 	_impact_tokens -= float(chosen.size())
 	var packet: PackedByteArray = ImpactWire.encode(chosen)
-	if capture_impacts:
-		impact_batches.append(packet)
+	if tap != null and tap.capture_impacts:
+		tap.on_impacts(packet)
 	if NetFanout.can_send(multiplayer, _session()):
 		for peer_id: int in multiplayer.get_peers():
 			# A mid-match joiner still loading its world replay hears nothing
@@ -1876,16 +1864,16 @@ func receive_impacts(packet: PackedByteArray, now_ms: int) -> void:
 		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y, _impact_batch_cap()
 	)
 	if events.is_empty():
-		impact_batches_rejected += 1
+		counters.impact_batches_rejected += 1
 		return
 	# The wire's event_count byte: how many the host claimed, so events decode
 	# skipped (bad speed/height, past the per-batch cap) show up in the counter.
-	impact_events_dropped += maxi(packet.decode_u8(1) - events.size(), 0)
+	counters.impact_events_dropped += maxi(packet.decode_u8(1) - events.size(), 0)
 	var delay_ms: float = _impact_playback_delay_ms()
 	var queue_cap: int = config.impact_max_per_second + config.impact_max_per_batch
 	var budget: int = _impact_client_budget(now_ms)
 	if events.size() > budget:
-		impact_events_dropped += events.size() - budget
+		counters.impact_events_dropped += events.size() - budget
 		events.resize(budget)
 	for _i: int in range(events.size()):
 		_impact_accept_ms.append(now_ms)
@@ -1943,7 +1931,7 @@ func _impact_playback_delay_ms() -> float:
 ## (shake), Rumble, BlockEffectsManager (dust) and PerchingBirds need nothing
 ## network-aware.
 func _emit_impact(speed: float, position: Vector3) -> void:
-	impacts_emitted += 1
+	counters.impacts_emitted += 1
 	Events.block_impacted.emit(speed)
 	Events.block_impacted_at.emit(speed, position)
 
@@ -2079,7 +2067,7 @@ func _tick_replay_timeouts(delta: float) -> void:
 		if age >= config.replay_ack_timeout:
 			expired.append(peer_id)
 	for peer_id: int in expired:
-		replays_timed_out += 1
+		counters.replays_timed_out += 1
 		_replay_pending.erase(peer_id)
 		_replay_age.erase(peer_id)
 		var session: Variant = _session()
@@ -2121,7 +2109,7 @@ func _replay_world_to(peer_id: int) -> void:
 	_next_replay_id += 1
 	_replay_pending[peer_id] = replay_id
 	_replay_age[peer_id] = 0.0
-	replays_started += 1
+	counters.replays_started += 1
 	for message: Array in build_world_replay(replay_id):
 		_send_replay(peer_id, StringName(message[0]), message[1] as Array)
 	call_deferred(&"_finish_replay", peer_id, replay_id)
@@ -2136,8 +2124,8 @@ func _finish_replay(peer_id: int, replay_id: int) -> void:
 
 
 func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
-	if capture_replay:
-		replay_capture.append([peer_id, method, args])
+	if tap != null and tap.capture_replay:
+		tap.on_replay(peer_id, method, args)
 		return
 	NetFanout.send_to(self, _session(), peer_id, method, args)
 
@@ -2377,7 +2365,7 @@ func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
 		return
 	_replay_pending.erase(sender_peer_id)
 	_replay_age.erase(sender_peer_id)
-	replays_acknowledged += 1
+	counters.replays_acknowledged += 1
 	# Spec 2.6's snapshots resume: the next one carries every body, so the
 	# joiner's interpolator starts from fresh samples for sleepers too.
 	if _net_provider == null:

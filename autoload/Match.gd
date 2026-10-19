@@ -143,8 +143,9 @@ var _context: MatchContextLive = null
 ## True once late_activate() has built the controllers. Windowed runs defer it until Boot has
 ## prewarmed the scripts (LateScripts.boot_defers_activation); headless runs activate in _ready().
 var _late_active: bool = false
-## Test seam (tests/unit/match/test_match_activation.gd): forces the deferred path in a headless run.
-var force_defer_activation: bool = false
+## Test seam (net/MatchNetTap.gd): null in every shipped build. A tap with defer_activation set forces
+## the deferred path in a headless run (tests/unit/match/test_match_activation.gd).
+var net_tap: MatchNetTap = null
 
 
 ## The live port; world setup points that already receive Match hand it on (WeatherEffect.bind).
@@ -161,7 +162,7 @@ func _notification(what: int) -> void:
 func _ready() -> void:
 	_context = MatchContextLive.new(self)
 	MatchContext.install(_context)
-	if force_defer_activation or LateScripts.boot_defers_activation(get_tree()):
+	if (net_tap != null and net_tap.defer_activation) or LateScripts.boot_defers_activation(get_tree()):
 		set_process(false)
 		set_physics_process(false)
 		return
