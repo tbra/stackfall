@@ -61,15 +61,6 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _clock: float = 0.0
 
 
-## Transitional: converts the old theme through the migration adapter (all three roles
-## the same theme) until the themes are deleted; use configure_cycle.
-func configure(theme: SkyThemeDef, enabled: bool) -> void:
-	if theme == null:
-		configure_cycle(null, enabled)
-		return
-	configure_cycle(SkyThemeMigration.cycle_from_themes(theme, theme, theme), enabled)
-
-
 ## Rebuilds the scheduler from `def` (birds hidden when it has none or
 ## `enabled` is false). Safe to call repeatedly.
 func configure_cycle(def: SkyCycleDef, enabled: bool) -> void:

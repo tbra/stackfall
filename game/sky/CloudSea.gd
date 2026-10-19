@@ -4,7 +4,7 @@ extends Node3D
 ## real 3D stylized cumulus. One MultiMeshInstance3D draws flat-bottomed
 ## low-poly spheres ("puffs") clustered into cumulus clumps scattered on a
 ## ring around and below the disc; shaders/sky/cloud_puffs.gdshader toon-shades
-## them from theme colours, drifts every clump slowly around the disc and
+## them from cycle colours, drifts every clump slowly around the disc and
 ## billows the surfaces, all from TIME and per-instance custom data -- no
 ## per-frame script, so it animates in the game, the editor and the baked
 ## demo. Distant clumps fade into the procedural far cloud sea
@@ -99,7 +99,7 @@ class _Layer:
 	## upper layer, seen from below: the puffs' base plane in unit-sphere
 	## space (1 = round bottoms), how far a puff may hang below its clump's base level,
 	## and how far down the small detail puffs may sit on the big ones. Left at the
-	## sea's behaviour (the theme's flat base, no sink, upper half only) elsewhere.
+	## sea's behaviour (the cycle's flat base, no sink, upper half only) elsewhere.
 	var flat_base: float = 0.0
 	var sink_m: float = 0.0
 	var detail_min_up: float = DETAIL_MIN_UP
@@ -126,12 +126,7 @@ var _billboard_distance_m: float = 0.0
 var _material: ShaderMaterial = null
 ## The cycle's authored sky material (static uniforms the puffs' far fade copies).
 var _static_sky: ShaderMaterial = null
-## the cycle-mixed cloud colours last written by
-## set_cycle_appearance(), keyed by shader parameter. apply_storm_tint() lerps
-## from these (the colours in effect) instead of the DAY theme. Empty outside
-## CYCLE (configure() clears it); keys are reused so no per-frame allocation.
-var _cycle_base: Dictionary[StringName, Color] = {}
-## the shared cloud lighting (owned by Skybox). configure()
+## The shared cloud lighting (owned by Skybox); the configure step
 ## re-applies its weather grade to the fresh puff material.
 var lighting: CloudLighting = null
 ## tuning of the upper (overcast) puff layer and whether the Low
@@ -140,37 +135,6 @@ var upper_tuning: WeatherCeilingTuning = null
 var upper_low: bool = false
 var _upper: MultiMeshInstance3D = null
 
-## A cycle changes the existing puff material's palette and direction in place.
-func set_cycle_appearance(day: SkyThemeDef, night_theme: SkyThemeDef, weight: float, direction: Vector3) -> void:
-	if _material == null:
-		return
-	var day_material: ShaderMaterial = day.cloud_puff_material as ShaderMaterial
-	var night_material: ShaderMaterial = night_theme.cloud_puff_material as ShaderMaterial
-	if day_material == null or night_material == null:
-		return
-	for parameter: StringName in [&"shadow_color", &"mid_color", &"lit_color", &"rim_color"]:
-		var a: Color = day_material.get_shader_parameter(parameter) as Color
-		var b: Color = night_material.get_shader_parameter(parameter) as Color
-		var mixed: Color = a.lerp(b, weight)
-		_material.set_shader_parameter(parameter, mixed)
-		_cycle_base[parameter] = mixed
-	var day_sky: ShaderMaterial = day.sky_material as ShaderMaterial
-	var night_sky: ShaderMaterial = night_theme.sky_material as ShaderMaterial
-	if day_sky != null and night_sky != null:
-		for parameter: StringName in [&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color"]:
-			var day_color: Color = day_sky.get_shader_parameter(parameter) as Color
-			var night_color: Color = night_sky.get_shader_parameter(parameter) as Color
-			var mixed_sky: Color = day_color.lerp(night_color, weight)
-			_material.set_shader_parameter(parameter, mixed_sky)
-			_cycle_base[parameter] = mixed_sky
-		for parameter: StringName in [&"grade_dark", &"grade_mid", &"grade_light"]:
-			_material.set_shader_parameter(parameter, night_sky.get_shader_parameter(parameter))
-		_material.set_shader_parameter(&"grade_amount", weight)
-		_material.set_shader_parameter(&"proc_sea_color_near", day.proc_sea_color_near.lerp(night_theme.proc_sea_color_near, weight))
-		_material.set_shader_parameter(&"proc_sea_color_far", day.proc_sea_color_far.lerp(night_theme.proc_sea_color_far, weight))
-	_material.set_shader_parameter(&"light_direction", direction)
-	_material.set_shader_parameter(&"sun_direction", direction)
-## set by configure() -- the shader's radius inflation (lumps +
 ## billow + hull margin, fraction of radius) and the disc exclusion volume.
 var _inflate: float = 0.0
 ## the largest disc radius (m) the clouds must clear -- the active
@@ -186,40 +150,9 @@ var _drift_offset: Vector2 = Vector2.ZERO
 var drift_config: CloudDriftConfig = CloudDriftState.DEFAULT_CONFIG
 
 
-## Storm tint. Re-bases the live puff material on `base` (the
-## match theme) blended toward `storm` by `amount` 0..1: puff cel colours and
-## the sky cloud colours lerp between the two themes, then the shared sky
-## uniforms (procedural sea colours the far fade targets) are re-copied from
-## `blended_sky`, which Skybox has already tinted. Amount 0 changes nothing:
-## configure() restores the theme's own look.
-func apply_storm_tint(base: SkyThemeDef, storm: SkyThemeDef, amount: float, blended_sky: Material) -> void:
-	if _material == null or base == null or storm == null:
-		return
-	var sky: ShaderMaterial = blended_sky as ShaderMaterial
-	if sky != null:
-		for parameter: StringName in SHARED_SKY_PARAMETERS:
-			var value: Variant = sky.get_shader_parameter(parameter)
-			if value != null:
-				_material.set_shader_parameter(parameter, value)
-	_lerp_colors(base.cloud_puff_material as ShaderMaterial, storm.cloud_puff_material as ShaderMaterial,
-			[&"shadow_color", &"mid_color", &"lit_color", &"rim_color"], amount)
-	_lerp_colors(base.sky_material as ShaderMaterial, storm.sky_material as ShaderMaterial,
-			[&"cloud_shadow_color", &"cloud_mid_color", &"cloud_lit_color", &"cloud_rim_color"], amount)
-
-
-func _lerp_colors(from: ShaderMaterial, to: ShaderMaterial, parameters: Array[StringName], weight: float) -> void:
-	if from == null or to == null:
-		return
-	for parameter: StringName in parameters:
-		var a: Variant = _cycle_base[parameter] if _cycle_base.has(parameter) else from.get_shader_parameter(parameter)
-		var b: Variant = to.get_shader_parameter(parameter)
-		if a is Color and b is Color:
-			_material.set_shader_parameter(parameter, (a as Color).lerp(b as Color, weight))
-
-
 ## the weather grade (overcast dim + desaturate) of the shared
 ## CloudLighting reaches the puffs as shader uniforms; their palette and light
-## direction already arrive through set_cycle_appearance()/apply_storm_tint().
+## direction already arrive through apply_frame().
 func apply_lighting(state: CloudLighting) -> void:
 	lighting = state
 	if _material == null or state == null:
@@ -244,36 +177,11 @@ func set_drift_offset(offset: Vector2) -> void:
 		_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, offset)
 
 
-## Rebuilds the puffs from the old theme: converts it through SkyThemeMigration and hands the
-## sky material's shared uniforms over as the puff snapshot (transitional; Skybox moves to
-## configure_cycle()). `density` (GraphicsPreset.cloud_puff_density, 0..1) scales the clump
-## count; 0 hides the cloud sea. `sky_material` is the active sky material whose grade and
-## procedural uniforms the puffs copy.
-func configure(theme: SkyThemeDef, density: float, sky_material: Material = null, subdivisions: int = PUFF_SUBDIVISIONS,
-		billboard_distance_m: float = 0.0) -> void:
-	var def: SkyCycleDef = null
-	if theme != null:
-		def = SkyThemeMigration.cycle_from_themes(theme, theme, theme)
-		# The cycle has one (procedural) look; a theme that turned it off had no far ring and
-		# no far-fade cap.
-		if not theme.sky_look_procedural:
-			def.proc_far_count = 0
-			def.proc_far_fade_cap = 1.0
-	var snapshot: SkyFrame = SkyFrame.new()
-	var sky: ShaderMaterial = sky_material as ShaderMaterial
-	if sky != null:
-		for parameter: StringName in SHARED_SKY_PARAMETERS:
-			var value: Variant = sky.get_shader_parameter(parameter)
-			if value != null:
-				snapshot.puff_shared[parameter] = value
-	configure_cycle(def, snapshot, density, subdivisions, billboard_distance_m)
-
-
 ## Writes the puff channel of an evaluated frame (plan 4.1 steps 6-7), the cycle's tick values:
 ## cel tones, sky cloud tones, moonlit grade, sea colours the far fade targets, light and sun
 ## direction. While `frame.storm_amount` > 0 the storm copy follows (quirk Q1): the frame's
 ## puff_shared set (the storm-blended sky's shared uniforms) is re-copied onto the puff material
-## and the storm-lerped tones are written over it, in the order apply_storm_tint() used. Outside
+## and the storm-lerped tones are written over it, in the order the old storm tint used. Outside
 ## a storm puff_shared is never written here (quirk Q3: the far-fade gradient is only copied at
 ## configure_cycle() and on a storm), nor are exposure and sea coverage, which travel inside
 ## puff_shared.
@@ -291,7 +199,7 @@ func apply_frame(frame: SkyFrame) -> void:
 	_material.set_shader_parameter(&"sun_direction", frame.puff_sun_direction)
 	if frame.storm_amount > 0.0:
 		# Q1: the storm copy overwrites the sky cloud tones and sea colours just written, so the
-		# frame's tones (already storm-lerped) go back on top, as apply_storm_tint() did.
+		# frame's tones (already storm-lerped) go back on top, as the old storm tint did.
 		_copy_shared(frame.puff_shared)
 		_write_tones(frame)
 	# The far fade targets the sky's per-tick exposure and sea coverage; under a storm the frame
@@ -349,7 +257,6 @@ func configure_cycle(def: SkyCycleDef, snapshot: SkyFrame, density: float, subdi
 	_upper = null
 	_upper_far = null
 	_material = null
-	_cycle_base.clear()
 	_bounds.clear()
 	var layers: Array[_Layer] = _layers_for(def, density)
 	var clumps: int = 0
@@ -542,7 +449,7 @@ func _upper_layers_for(def: SkyCycleDef, density: float) -> Array[_Layer]:
 	return layers
 
 
-## The sea layer and (when the theme has any) the cloud-bank layer, with the
+## The sea layer and (when the cycle has any) the cloud-bank layer, with the
 ## density preset applied to both clump counts.
 static func _layers_for(def: SkyCycleDef, density: float) -> Array[_Layer]:
 	var layers: Array[_Layer] = []

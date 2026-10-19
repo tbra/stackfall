@@ -11,18 +11,9 @@ extends Node3D
 ## written state flushes on demand. Stage A (keyframes) runs only at a radiance tick, a lock,
 ## a cycle start, a preset change or a definition refresh, so a locked sky with no weather
 ## writes nothing to the sky material after its first frame.
-##
-## Transitional shims (removed with the F4 and test migration): `theme`, `apply_theme`,
-## `refresh_cycle_sources`, `set_theme_by_id`, `load_theme` and `list_available_themes` keep the
-## old SkyThemeDef-based F4 panel and tests working; they re-derive `sky_def` from the live
-## theme resources through SkyThemeMigration.
-
 @export var config: SkyboxConfig = preload("res://config/sky/skybox_config.tres")
 ## The sky description. Defaults to the shipped cycle; an F4 edit goes through refresh_sky_def().
 @export var sky_def: SkyCycleDef = preload("res://config/sky/sky_cycle.tres")
-## Transitional: the SkyThemeDef the old API exposed. After a cycle starts it is a shallow copy
-## of the sunset theme pointing at the live sky material (see _publish_theme_shim).
-@export var theme: SkyThemeDef = preload("res://config/sky/themes/sunset.tres")
 ## The live Environment Main.tscn's WorldEnvironment displays; null in fixtures that only care
 ## about the cycle state (every Environment/sky write is then skipped).
 @export var environment: Environment = null
@@ -40,12 +31,10 @@ extends Node3D
 
 ## Probe cull mask (the disc, cloud puffs and rain streaks excluded).
 const PROBE_CULL_MASK: int = SkyReflections.PROBE_CULL_MASK
-const THEME_DIR: String = "res://config/sky/themes"
-const DEFAULT_THEME_ID: String = "sunset"
+## The sky a launch id falls back to when sky_def has no lock for it.
+const LAUNCH_SKY_ID: String = "sunset"
 ## SkyboxConfig.theme_name value that means "the running day/night cycle".
 const CYCLE_THEME_ID: String = "cycle"
-const CYCLE_NIGHT_THEME_ID: String = "night"
-const CYCLE_DAWN_THEME_ID: String = "dawn"
 const SKY_TIME_GLOBAL: StringName = SkyDomeWriter.SKY_TIME_GLOBAL
 const SKY_SUN_DIR_GLOBAL: StringName = SkyDomeWriter.SKY_SUN_DIR_GLOBAL
 const SKY_MOON_DIR_GLOBAL: StringName = SkyDomeWriter.SKY_MOON_DIR_GLOBAL
@@ -93,8 +82,6 @@ var _probe_stale: bool = false
 var _probe_wait_s: float = INF
 
 var _dome: SkyDomeWriter = SkyDomeWriter.new()
-## The day theme whose static look (view offsets, overhead/cards layers) the dome material carries.
-var _look_theme: SkyThemeDef = null
 var _env_writer: SkyEnvironmentWriter = SkyEnvironmentWriter.new()
 var _reflections: SkyReflections = SkyReflections.new()
 var _cloud_sea: CloudSea = null
@@ -257,7 +244,7 @@ func _launch_lock_for(sky_id: String) -> float:
 	if sky_id == CYCLE_THEME_ID or sky_def == null:
 		return -1.0
 	var phase: float = sky_def.locked_phase_for(sky_id)
-	return phase if phase >= 0.0 else sky_def.locked_phase_for(DEFAULT_THEME_ID)
+	return phase if phase >= 0.0 else sky_def.locked_phase_for(LAUNCH_SKY_ID)
 
 
 ## Starts the cycle now (F4 "cycle", boot). `lock_phase` >= 0 freezes it at that phase; a
@@ -278,7 +265,6 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_cycle_clock_s = clock_seconds
 	_rebuild_ambient(true)
 	_push_flare_reset()
-	_publish_theme_shim()
 	_tick_to(_clock.phase_at(clock_seconds), true)
 	flush_weather()
 	if _clock.locked_phase() >= 0.0:
@@ -741,7 +727,7 @@ func _disc_radius_for_ambient_life() -> float:
 	return MapDef.RADIUS_MEDIUM
 
 
-# --- F4 definition refresh and the transitional theme bridge ------------------------------------
+# --- F4 definition refresh ---------------------------------------------------------------------
 
 ## A live edit of `sky_def`: re-evaluates the current phase now and rebuilds the clouds and ambient
 ## life from it. A lock or a running clock is untouched.
@@ -752,86 +738,3 @@ func refresh_sky_def() -> void:
 	if _has_tick:
 		_tick_to(_cycle_phase_last, true)
 		flush_weather()
-
-
-## Transitional bridge (until the F4 panel edits SkyCycleDef): re-derives `sky_def` from the live
-## SkyThemeDef resources the panel edits, then refreshes.
-func refresh_cycle_sources() -> void:
-	_derive_def_from_themes(null)
-	refresh_sky_def()
-
-
-## Transitional: a theme edit or switch re-derives the definition and refreshes. A theme outside
-## the shipped sunset/dawn/night trio stands in for the whole day.
-func apply_theme(applied_theme: SkyThemeDef) -> void:
-	if applied_theme == null:
-		return
-	_derive_def_from_themes(applied_theme)
-	refresh_sky_def()
-
-
-func _derive_def_from_themes(applied: SkyThemeDef) -> void:
-	var sunset: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
-	var dawn: SkyThemeDef = load_theme(CYCLE_DAWN_THEME_ID)
-	var night: SkyThemeDef = load_theme(CYCLE_NIGHT_THEME_ID)
-	if applied != null and applied != sunset and applied != dawn and applied != night:
-		sunset = applied
-		dawn = applied
-	if sunset == null:
-		return
-	sky_def = SkyThemeMigration.cycle_from_themes(sunset, dawn, night)
-	_look_theme = sunset
-
-
-func _publish_theme_shim() -> void:
-	var source: SkyThemeDef = load_theme(DEFAULT_THEME_ID)
-	if source == null:
-		return
-	var shim: SkyThemeDef = source.duplicate(false) as SkyThemeDef
-	shim.sky_material = _dome.material()
-	shim.sky_look_procedural = true
-	shim.procedural_sea_mix = 1.0
-	theme = shim
-
-
-## Loads res://config/sky/themes/<id>.tres, or null if missing (transitional shim).
-static func load_theme(theme_id: String) -> SkyThemeDef:
-	var path: String = "%s/%s.tres" % [THEME_DIR, theme_id]
-	if not ResourceLoader.exists(path):
-		return null
-	return load(path) as SkyThemeDef
-
-
-## F4 / probe sky switch: "cycle" runs the cycle, a locked id (sunset, dawn, night) locks it at
-## sky_def.locked_phase_for(id). False for an unknown id.
-func set_theme_by_id(theme_id: String) -> bool:
-	if theme_id == CYCLE_THEME_ID:
-		start_cycle()
-		config.theme_name = theme_id
-		return true
-	var phase: float = sky_def.locked_phase_for(theme_id)
-	if phase < 0.0:
-		return false
-	config.theme_name = theme_id
-	if _clock.is_active():
-		set_locked_phase(phase)
-	else:
-		start_cycle(phase)
-	return true
-
-
-## Theme ids (file basenames) under THEME_DIR whose resource is a SkyThemeDef, sorted.
-static func list_available_themes() -> PackedStringArray:
-	var ids: PackedStringArray = PackedStringArray()
-	var dir: DirAccess = DirAccess.open(THEME_DIR)
-	if dir == null:
-		return ids
-	for file_name: String in dir.get_files():
-		var clean: String = file_name.trim_suffix(".remap")
-		if not clean.ends_with(".tres"):
-			continue
-		var theme_id: String = clean.get_basename()
-		if load_theme(theme_id) != null and not ids.has(theme_id):
-			ids.append(theme_id)
-	ids.sort()
-	return ids
