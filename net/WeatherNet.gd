@@ -26,8 +26,13 @@ var last_sent_state: Dictionary = {}
 ## (net_match_start); weather, snow and breeze traffic is dropped until then.
 var awaiting_world: Callable = Callable()
 
-var _net_provider: Variant = null
-var _match_provider: Variant = null
+## The session methods and the Match reads this node calls; a port is bound with
+## exactly this subset, so a narrow test double stays valid.
+const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
+const AUTHORITY_METHODS: PackedStringArray = ["weather", "state"]
+
+var _session_port: SessionPort = null
+var _authority_port: MatchHostPort = null
 
 
 func _ready() -> void:
@@ -60,18 +65,43 @@ func _is_awaiting_world() -> bool:
 	return awaiting_world.is_valid() and bool(awaiting_world.call())
 
 
-## Same seam as MatchNet.set_providers(); null keeps the real autoload.
+## Typed seam: the session and the Match this node reads. Returns false (and
+## binds nothing) when a port is invalid. Pass ports built with SESSION_METHODS /
+## AUTHORITY_METHODS (see default_session() / default_authority()).
+func bind(session: SessionPort, authority: MatchHostPort) -> bool:
+	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
+		return false
+	_session_port = session
+	_authority_port = authority
+	return true
+
+
+## The port over the real Net autoload.
+static func default_session(session_node: Object = null) -> SessionPort:
+	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
+
+
+## The port over the real Match autoload.
+static func default_authority(match_node: Object = null) -> MatchHostPort:
+	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
+
+
+## TRANSITIONAL shim for MatchNet.set_providers() until its caller binds ports;
+## null keeps the real autoload.
 func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	_net_provider = net_provider
-	_match_provider = match_provider
+	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
 
 
-func _session() -> Variant:
-	return _net_provider if _net_provider != null else Net
+func _session() -> SessionPort:
+	if _session_port == null:
+		_session_port = default_session()
+	return _session_port
 
 
-func _authority() -> Variant:
-	return _match_provider if _match_provider != null else Match
+func _authority() -> MatchHostPort:
+	if _authority_port == null:
+		_authority_port = default_authority()
+	return _authority_port
 
 
 # --- Host -> clients ----------------------------------------------------------------
@@ -95,7 +125,7 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 		return
 	if multiplayer.has_multiplayer_peer() and peer_id == multiplayer.get_unique_id():
 		return
-	var weather: MatchWeather = _authority().weather()
+	var weather: MatchWeather = _authority().weather() as MatchWeather
 	if weather == null or not weather.is_running():
 		return
 	states_sent += 1
@@ -118,14 +148,14 @@ func net_weather_state(state: Dictionary) -> void:
 	if sender != 0 and sender != MultiplayerPeer.TARGET_PEER_SERVER:
 		states_refused += 1
 		return
-	var authority: Variant = _authority()
-	var weather: MatchWeather = authority.weather()
+	var authority: MatchHostPort = _authority()
+	var weather: MatchWeather = authority.weather() as MatchWeather
 	if weather == null:
 		states_refused += 1
 		return
 	# A late packet from a finished match must not resurrect weather: only a
 	# started match (countdown onward, not END) accepts one.
-	var live: bool = MatchAutoload.is_replicating(int(authority.state()))
+	var live: bool = MatchAutoload.is_replicating(authority.state())
 	if weather.apply_replicated_state(state, live):
 		states_applied += 1
 	else:
