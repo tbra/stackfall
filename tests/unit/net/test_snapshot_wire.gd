@@ -1,15 +1,16 @@
 extends GutTest
-## net/SnapshotSync.gd's packet format (spec 2.6 "Snapshots").
+## core/net/SnapshotWire.gd's packet format (spec 2.6 "Snapshots").
 ##
 ## "Split into several packets if needed to stay under ~1200 bytes each" and
-## "tag each with a sequence number". Everything here is the static half of
-## SnapshotSync, which is pure by design so the whole format can be asserted
-## without a peer, a registry or a scene tree.
+## "tag each with a sequence number". The wire is pure by design so the whole
+## format is asserted without a peer, a registry or a scene tree. The fixtures
+## below were captured from the pre-move SnapshotSync statics, so they prove
+## the move left the bytes identical; net/SnapshotSync.gd keeps forwarders and
+## re-exported constants (the golden and the benches read them) and a test pins
+## those to the wire.
 ##
-## SnapshotSync has no `class_name` (it is an autoload), and the integrator
-## registers it, not P2 — so the tests reach it through an instance built from
-## the script. Static functions are callable on an instance, which is why the
-## helpers below go through `_sync`.
+## SnapshotSync has no `class_name` (it is an autoload), so the live-client
+## tests at the bottom reach it through an instance built from the script.
 
 const RNG_SEED: int = 20260918
 var _config: NetConfig = preload("res://config/net/net_config.tres")
@@ -43,26 +44,28 @@ func _encode(
 	bodies: Array,
 	disk_transform: Transform3D = Transform3D.IDENTITY
 ) -> PackedByteArray:
-	return _sync.call(
-		"encode_fragment", sequence, fragment_index, fragment_count, host_time_ms,
+	return SnapshotWire.encode_fragment(
+		sequence, fragment_index, fragment_count, host_time_ms,
 		flags, bodies, disk_transform, _bounds
-	) as PackedByteArray
+	)
 
 
 func _decode(packet: PackedByteArray) -> Dictionary:
-	return _sync.call("decode_fragment", packet, _bounds) as Dictionary
+	return SnapshotWire.decode_fragment(packet, _bounds)
 
 
 func _build(sequence: int, host_time_ms: int, flags: int, bodies: Array,
 		disk_transform: Transform3D = Transform3D.IDENTITY) -> Array:
-	return _sync.call(
-		"build_snapshot", sequence, host_time_ms, flags, bodies, disk_transform,
-		_bounds, _config
-	) as Array
+	var packets: Array[PackedByteArray] = SnapshotWire.build_snapshot(
+		sequence, host_time_ms, flags, bodies, disk_transform, _bounds, _config
+	)
+	var untyped: Array = []
+	untyped.assign(packets)
+	return untyped
 
 
 func _const(name: String) -> int:
-	return int((load("res://net/SnapshotSync.gd") as GDScript).get_script_constant_map()[name])
+	return int((load("res://core/net/SnapshotWire.gd") as GDScript).get_script_constant_map()[name])
 
 
 func _bodies(count: int, first_net_id: int = 1) -> Array:
@@ -85,6 +88,109 @@ func _bodies(count: int, first_net_id: int = 1) -> Array:
 
 func _flag_disk() -> int:
 	return _const("FLAG_DISK_STATE")
+
+
+# --- Pre-move fixtures --------------------------------------------------------
+#
+# Captured from the SnapshotSync statics before they moved into SnapshotWire
+# (round.tres bounds, net_config.tres): the same inputs must give the same bytes.
+
+const FIXTURE_SMALL_DISK_HEX: String = "029210010315cd5b07030300c2809c3fac7eb4c148a04771701101096d0f3e2b8f0040002000f0411501bd6dbe3fc58e9fc00ae12770121901706e6c415f8ef441f4214b70"
+const FIXTURE_NO_DISK_HEX: String = "02ffff00014d000000000200701101096d0f3e2b8f0040002000f0411501bd6dbe3fc58e9fc00ae12770"
+const FIXTURE_EMPTY_HEX: String = "020100000100000000010000c2809c3fac7eb4c148a04771"
+const FIXTURE_BUILD_SIZES: Array[int] = [1194, 42]
+const FIXTURE_BUILD_MD5: Array[String] = ["a91018070f6be304f4a428f1e68cd0f2", "99b47e89962468a34ad42c1586e07d0f"]
+const FIXTURE_BODY_COUNT: int = 80
+
+
+func _fixture_disk() -> Transform3D:
+	return Transform3D(
+		Basis(Quaternion(Vector3(0.3, 0.1, 0.9).normalized(), 0.12)), Vector3(0.4, 1.2, -0.7)
+	)
+
+
+func _fixture_bodies() -> Array:
+	var bodies: Array = []
+	for i: int in range(FIXTURE_BODY_COUNT):
+		bodies.append({
+			"net_id": 70000 + i * 977,
+			"position": Vector3(float(i) * 0.37 - 10.0, float(i % 7) * 1.3, 8.0 - float(i) * 0.21),
+			"rotation": Quaternion(Vector3(0.2 * float(i % 5) + 0.1, 1.0, 0.3).normalized(), 0.05 * float(i)),
+			"sleeping": i % 3 == 0,
+		})
+	return bodies
+
+
+func test_a_fragment_with_disk_state_matches_the_pre_move_bytes() -> void:
+	var packet: PackedByteArray = _encode(
+		4242, 1, 3, 123456789, _flag_disk() | _const("FLAG_KEYFRAME"),
+		_fixture_bodies().slice(0, 3), _fixture_disk()
+	)
+	assert_eq(packet.hex_encode(), FIXTURE_SMALL_DISK_HEX, "bytes identical to the base")
+
+
+func test_a_fragment_without_disk_state_matches_the_pre_move_bytes() -> void:
+	var packet: PackedByteArray = _encode(
+		65535, 0, 1, 77, 0, _fixture_bodies().slice(0, 2), _fixture_disk()
+	)
+	assert_eq(packet.hex_encode(), FIXTURE_NO_DISK_HEX, "bytes identical to the base")
+
+
+func test_an_empty_snapshot_matches_the_pre_move_bytes() -> void:
+	var packets: Array = _build(1, 0, _flag_disk(), [], _fixture_disk())
+	assert_eq(packets.size(), 1, "an empty snapshot is one fragment")
+	assert_eq((packets[0] as PackedByteArray).hex_encode(), FIXTURE_EMPTY_HEX, "bytes identical to the base")
+
+
+func test_a_two_fragment_snapshot_matches_the_pre_move_bytes() -> void:
+	var packets: Array = _build(
+		9, 5000, _flag_disk() | _const("FLAG_KEYFRAME"), _fixture_bodies(), _fixture_disk()
+	)
+	assert_eq(packets.size(), FIXTURE_BUILD_SIZES.size(), "same fragment count")
+	for index: int in range(mini(packets.size(), FIXTURE_BUILD_SIZES.size())):
+		var packet: PackedByteArray = packets[index] as PackedByteArray
+		assert_eq(packet.size(), FIXTURE_BUILD_SIZES[index], "fragment %d size" % index)
+		assert_eq(packet.hex_encode().md5_text(), FIXTURE_BUILD_MD5[index], "fragment %d bytes" % index)
+
+
+func test_the_pre_move_fixture_decodes_to_its_inputs() -> void:
+	var decoded: Dictionary = _decode(FIXTURE_SMALL_DISK_HEX.hex_decode())
+	assert_eq(int(decoded["sequence"]), 4242)
+	assert_eq(int(decoded["fragment_index"]), 1)
+	assert_eq(int(decoded["fragment_count"]), 3)
+	assert_eq(int(decoded["host_time_ms"]), 123456789)
+	assert_eq((decoded["bodies"] as Array).size(), 3)
+	assert_eq(int(((decoded["bodies"] as Array)[2] as Dictionary)["net_id"]), 71954)
+
+
+# --- SnapshotSync keeps the old names ------------------------------------------
+
+func test_snapshot_sync_reexports_the_wire_constants_and_statics() -> void:
+	var sync_constants: Dictionary = (load("res://net/SnapshotSync.gd") as GDScript).get_script_constant_map()
+	var wire_constants: Dictionary = (load("res://core/net/SnapshotWire.gd") as GDScript).get_script_constant_map()
+	for name: String in [
+		"PACKET_VERSION", "HEADER_BYTES", "DISK_STATE_BYTES", "FLAG_DISK_STATE", "FLAG_KEYFRAME",
+		"SNAPSHOT_CHANNEL", "OFFSET_VERSION", "OFFSET_SEQUENCE", "OFFSET_FRAGMENT_INDEX",
+		"OFFSET_FRAGMENT_COUNT", "OFFSET_HOST_TIME", "OFFSET_FLAGS", "OFFSET_BODY_COUNT",
+		"SEQUENCE_MODULUS", "MAX_FRAGMENTS",
+	]:
+		assert_true(sync_constants.has(name), "SnapshotSync still exposes %s" % name)
+		assert_eq(sync_constants.get(name), wire_constants.get(name), "%s equals the wire's" % name)
+
+	var bodies: Array = _fixture_bodies().slice(0, 3)
+	var via_sync: PackedByteArray = _sync.call(
+		"encode_fragment", 4242, 1, 3, 123456789, 3, bodies, _fixture_disk(), _bounds
+	) as PackedByteArray
+	assert_eq(via_sync.hex_encode(), FIXTURE_SMALL_DISK_HEX, "the forwarder gives the base bytes")
+	assert_eq(
+		_sync.call("decode_fragment", via_sync, _bounds),
+		SnapshotWire.decode_fragment(via_sync, _bounds),
+		"the decode forwarder agrees with the wire"
+	)
+	var via_sync_build: Array = _sync.call(
+		"build_snapshot", 9, 5000, 3, _fixture_bodies(), _fixture_disk(), _bounds, _config
+	) as Array
+	assert_eq(via_sync_build.size(), FIXTURE_BUILD_SIZES.size(), "the build forwarder fragments the same")
 
 
 # --- Header -----------------------------------------------------------------

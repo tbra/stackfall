@@ -12,33 +12,10 @@ extends Node
 ## inside MultiplayerAPI (CLAUDE.md: gameplay code must never assume a
 ## transport). Steam's peer carries it unchanged.
 ##
-## **Wire layout** — one fragment, little-endian throughout. Bodies are packed
-## by core/net/Quantize.gd, 15 bytes each (u24 net_id; see its DECISION).
-##
-## | offset | size | field |
-## |---|---|---|
-## | 0 | 1 | packet version, PACKET_VERSION |
-## | 1 | 2 | `sequence`, u16, wraps; the same value on every fragment of one snapshot |
-## | 3 | 1 | `fragment_index` |
-## | 4 | 1 | `fragment_count` |
-## | 5 | 4 | `host_time_ms`, u32 — the host's snapshot clock, the only time base the client interpolates against |
-## | 9 | 1 | flags: bit0 FLAG_DISK_STATE, bit1 FLAG_KEYFRAME |
-## | 10 | 2 | `body_count`, u16 |
-## | 12 | 12 | disk state, only when FLAG_DISK_STATE: 6 B quantized offset + 6 B tilt quaternion (spec 2.6 "Disk state: tilt quaternion and position offset, sent every snapshot") |
-## | .. | 15 x body_count | body records |
-##
-## The header is HEADER_BYTES (12) or HEADER_BYTES + DISK_STATE_BYTES (24);
-## NetConfig.bodies_per_fragment() turns that into the per-fragment body cap,
-## which at 1200 bytes is 78 bodies, so spec 2.6's 300 awake bodies take four
-## fragments.
-##
-## Every fragment is independently decodable — it carries the whole header and
-## whole body records — so an unreliable channel losing one costs only those
-## bodies for one interval, never the snapshot. The disk state rides fragment 0
-## alone (that is "every snapshot", not "every packet"): repeating 12 bytes on
-## all four fragments would buy nothing an unreliable link can use, and
-## bodies_per_fragment() already sizes every fragment against the larger
-## header so the cap is uniform.
+## **Wire layout** lives in core/net/SnapshotWire.gd (version, header, flags,
+## fragmentation); the constants and the three statics are re-exported below
+## under their old names because the contract golden, the benches and the tests
+## read them off this script.
 ##
 ## **Client side** it owns net/Interpolator.gd: buffer, render 100 ms behind
 ## with a jitter-adaptive delay, extrapolate at most 100 ms, and write every
@@ -46,37 +23,29 @@ extends Node
 ## writes fight Godot's own physics interpolation (project.godot has
 ## physics_interpolation on).
 
-## Bumped whenever the layout above changes. A mismatched version is dropped
-## rather than misread; the build-version handshake in Net should already have
-## refused the peer, so this is a belt-and-braces check.
-## 2: the body record's net_id grew from u16 to u24.
-const PACKET_VERSION: int = 2
+## The wire constants, re-exported from core/net/SnapshotWire.gd (the layout
+## and the PACKET_VERSION rule are documented there). @rpc needs the channel as
+## a compile-time constant on this script.
+const PACKET_VERSION: int = SnapshotWire.PACKET_VERSION
 
-const HEADER_BYTES: int = 12
-const DISK_STATE_BYTES: int = 12
+const HEADER_BYTES: int = SnapshotWire.HEADER_BYTES
+const DISK_STATE_BYTES: int = SnapshotWire.DISK_STATE_BYTES
 
-const FLAG_DISK_STATE: int = 1 << 0
-const FLAG_KEYFRAME: int = 1 << 1
+const FLAG_DISK_STATE: int = SnapshotWire.FLAG_DISK_STATE
+const FLAG_KEYFRAME: int = SnapshotWire.FLAG_KEYFRAME
 
-## Snapshots ride their own channel so a burst of them cannot head-of-line
-## block the reliable stream (spec 2.6 "Channels"). @rpc needs a compile-time
-## constant, so the number lives here rather than in NetConfig, which
-## documents the pairing; it is architecture, not a tunable.
-const SNAPSHOT_CHANNEL: int = 1
+const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
 
-## Field offsets inside the fragment header.
-const OFFSET_VERSION: int = 0
-const OFFSET_SEQUENCE: int = 1
-const OFFSET_FRAGMENT_INDEX: int = 3
-const OFFSET_FRAGMENT_COUNT: int = 4
-const OFFSET_HOST_TIME: int = 5
-const OFFSET_FLAGS: int = 9
-const OFFSET_BODY_COUNT: int = 10
+const OFFSET_VERSION: int = SnapshotWire.OFFSET_VERSION
+const OFFSET_SEQUENCE: int = SnapshotWire.OFFSET_SEQUENCE
+const OFFSET_FRAGMENT_INDEX: int = SnapshotWire.OFFSET_FRAGMENT_INDEX
+const OFFSET_FRAGMENT_COUNT: int = SnapshotWire.OFFSET_FRAGMENT_COUNT
+const OFFSET_HOST_TIME: int = SnapshotWire.OFFSET_HOST_TIME
+const OFFSET_FLAGS: int = SnapshotWire.OFFSET_FLAGS
+const OFFSET_BODY_COUNT: int = SnapshotWire.OFFSET_BODY_COUNT
 
-## Sequence numbers are u16 on the wire.
-const SEQUENCE_MODULUS: int = 65536
-## A fragment_count of 0 is meaningless and 255 is the u8 ceiling.
-const MAX_FRAGMENTS: int = 255
+const SEQUENCE_MODULUS: int = SnapshotWire.SEQUENCE_MODULUS
+const MAX_FRAGMENTS: int = SnapshotWire.MAX_FRAGMENTS
 
 @export var config: NetConfig = preload("res://config/net/net_config.tres")
 
@@ -86,9 +55,11 @@ const MAX_FRAGMENTS: int = 255
 var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
-## Set by Net._ready via bind_net(); see _net().
-var _bound_net: Node = null
+## The session seam: bind_session() (or the bind_net() shim) sets it; see _session().
+var _session_port: SessionPort = null
 const NET_NODE_NAME: NodePath = ^"Net"
+## The SessionPort methods this node calls (and NetFanout through it).
+const SESSION_METHODS: PackedStringArray = ["is_host", "is_client", "is_offline", "report_stats"]
 
 # --- Host state -------------------------------------------------------------
 
@@ -115,7 +86,8 @@ var _host_clock_ms: float = 0.0
 func sky_cycle_seconds() -> float:
 	if not _running:
 		return 0.0
-	if _net().is_client():
+	var session: SessionPort = _session()
+	if session.is_client():
 		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
 	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
@@ -132,34 +104,9 @@ var _interpolator: Interpolator = null
 var _last_noted_sequence: int = -1
 var _stats_accumulator: float = 0.0
 
-## Disk pose interpolation: a 2-sample bracket (oldest,
-## newest) kept the same way Interpolator.Track keeps one per body, sampled at
-## _interpolator.render_time_ms() so the disc moves on the same render clock
-## bodies do. Not folded into Interpolator itself: it buffers per net_id
-## through a BlockRegistry-backed "is this id spawned yet?" filter (net/
-## Interpolator.gd's set_known_id_filter()) that the disk -- one pose, no
-## net_id, never absent -- does not need and should not be made to fake one
-## for. -1 means "no sample yet".
-var _disk_prev_time_ms: int = -1
-var _disk_prev_position: Vector3 = Vector3.ZERO
-var _disk_prev_rotation: Quaternion = Quaternion.IDENTITY
-var _disk_next_time_ms: int = -1
-var _disk_next_position: Vector3 = Vector3.ZERO
-var _disk_next_rotation: Quaternion = Quaternion.IDENTITY
-
-## Convergence state for the disk pose, the scalar (there is only ever one
-## disk) equivalent of Interpolator.Track's error_position/error_rotation/
-## last_position/last_rotation/was_clamped fields (see that class's docs for
-## why: leaving a held/extrapolated pose is the one place a jump can appear,
-## so that is the one place an offset is seeded, and it decays everywhere
-## else). Without it a snapshot that broke a stall at a materially different
-## tilt would snap the mirrored disc straight there.
-var _disk_error_position: Vector3 = Vector3.ZERO
-var _disk_error_rotation: Quaternion = Quaternion.IDENTITY
-var _disk_last_position: Vector3 = Vector3.ZERO
-var _disk_last_rotation: Quaternion = Quaternion.IDENTITY
-var _disk_has_last: bool = false
-var _disk_was_clamped: bool = false
+## Client-side disk pose smoothing (bracket, extrapolation, convergence); built
+## per match so it always reads the live config.
+var _disk_smoother: DiskPoseSmoother = null
 
 ## Seconds since begin_match(): the one time base the NetSim queue and the
 ## Interpolator's jitter estimate share. It has to be read at *arrival*, not
@@ -198,12 +145,7 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 	_last_snapshot_bytes = 0
 	_keyframe_cursor = 0
 	_known_peer_count = 0
-	_disk_prev_time_ms = -1
-	_disk_next_time_ms = -1
-	_disk_error_position = Vector3.ZERO
-	_disk_error_rotation = Quaternion.IDENTITY
-	_disk_has_last = false
-	_disk_was_clamped = false
+	_disk_smoother = DiskPoseSmoother.new(config)
 
 	_interpolator = Interpolator.new(config)
 	_interpolator.set_known_id_filter(_is_spawned)
@@ -230,12 +172,9 @@ func end_match() -> void:
 	_registry = null
 	_bodies.clear()
 	_last_sent.clear()
-	_disk_prev_time_ms = -1
-	_disk_next_time_ms = -1
-	_disk_error_position = Vector3.ZERO
-	_disk_error_rotation = Quaternion.IDENTITY
-	_disk_has_last = false
-	_disk_was_clamped = false
+	if _disk_smoother != null:
+		_disk_smoother.reset()
+	_disk_smoother = null
 	if _interpolator != null:
 		_interpolator.clear()
 	_interpolator = null
@@ -277,12 +216,13 @@ func set_disk(disk: Node3D) -> void:
 ## deliberately looser and feed territory influence; confusing the two makes
 ## towers stutter or influence flicker.
 func host_tick(delta: float) -> void:
-	if not _running or _net().is_client():
+	var session: SessionPort = _session()
+	if not _running or session.is_client():
 		return
 	# DECISION: the snapshot clock also ticks in offline play;
 	# only packet selection and sending require a network host.
 	_host_clock_ms += delta * 1000.0
-	if not _net().is_host() or _net().is_offline():
+	if not session.is_host() or session.is_offline():
 		return
 	var peers: PackedInt32Array = _remote_peers()
 	var peer_count: int = peers.size()
@@ -332,7 +272,7 @@ func host_tick(delta: float) -> void:
 	for packet: PackedByteArray in packets:
 		_send_packet(packet)
 
-	_net().report_stats(&"snapshot", {
+	session.report_stats(&"snapshot", {
 		"snapshot_last_bytes": _last_snapshot_bytes,
 		"snapshot_bodies": bodies.size(),
 		"snapshot_fragments": packets.size(),
@@ -355,7 +295,8 @@ static func keyframe_slice_for(sleeping_count: int, net_config: NetConfig) -> in
 ## Advances every synced body to the current render time. **Call from
 ## _physics_process only.** Client only.
 func client_tick(delta: float) -> void:
-	if not _running or not _net().is_client() or _interpolator == null:
+	var session: SessionPort = _session()
+	if not _running or not session.is_client() or _interpolator == null:
 		return
 
 	if _sim != null and not _sim.is_idle():
@@ -363,7 +304,8 @@ func client_tick(delta: float) -> void:
 			_apply_packet(payload as PackedByteArray)
 
 	_interpolator.advance(delta)
-	_decay_disk_error(delta * 1000.0)
+	if _disk_smoother != null:
+		_disk_smoother.decay(delta * 1000.0)
 
 	for net_id: int in _interpolator.tracked_ids():
 		var block: BlockBody = _registry.call("block_for_net_id", net_id) as BlockBody if _registry != null else null
@@ -397,7 +339,7 @@ func client_tick(delta: float) -> void:
 	# tests) must not have client_tick() throw.
 	var field: FieldBody = _disk as FieldBody
 	if field != null:
-		var disk_pose: Dictionary = _disk_pose_at_render_time()
+		var disk_pose: Dictionary = _disk_smoother.pose_at(_interpolator.render_time_ms())
 		if bool(disk_pose["ok"]):
 			field.apply_replicated_pose(
 				disk_pose["position"] as Vector3, disk_pose["rotation"] as Quaternion
@@ -407,7 +349,7 @@ func client_tick(delta: float) -> void:
 	var stats_interval: float = 1.0 / maxf(config.stats_hz, 0.1)
 	if _stats_accumulator >= stats_interval:
 		_stats_accumulator = 0.0
-		_net().report_stats(&"snapshot", {
+		session.report_stats(&"snapshot", {
 			"snapshot_last_bytes": _last_snapshot_bytes,
 			"interp_delay_ms": interpolation_delay_ms(),
 			"loss_pct": measured_loss() * 100.0,
@@ -440,10 +382,9 @@ static func freeze_body(body: RigidBody3D) -> void:
 	body.angular_velocity = Vector3.ZERO
 
 
-# --- Wire (pure, so a test can round-trip a packet with no peer) ------------
+# --- Wire (pure forwarders to core/net/SnapshotWire.gd) ----------------------
 
-## Packs one fragment. `bodies` is an Array of
-## {"net_id", "position", "rotation", "sleeping"}.
+## See SnapshotWire.encode_fragment().
 static func encode_fragment(
 	sequence: int,
 	fragment_index: int,
@@ -454,92 +395,17 @@ static func encode_fragment(
 	disk_transform: Transform3D,
 	bounds: AABB
 ) -> PackedByteArray:
-	var has_disk: bool = (flags & FLAG_DISK_STATE) != 0
-	var header_bytes: int = HEADER_BYTES + (DISK_STATE_BYTES if has_disk else 0)
-	var packet: PackedByteArray = PackedByteArray()
-	packet.resize(header_bytes + bodies.size() * Quantize.BODY_RECORD_BYTES)
-
-	packet[OFFSET_VERSION] = PACKET_VERSION
-	packet.encode_u16(OFFSET_SEQUENCE, posmod(sequence, SEQUENCE_MODULUS))
-	packet[OFFSET_FRAGMENT_INDEX] = fragment_index & 0xFF
-	packet[OFFSET_FRAGMENT_COUNT] = fragment_count & 0xFF
-	packet.encode_u32(OFFSET_HOST_TIME, host_time_ms & 0xFFFFFFFF)
-	packet[OFFSET_FLAGS] = flags & 0xFF
-	packet.encode_u16(OFFSET_BODY_COUNT, bodies.size() & 0xFFFF)
-
-	var offset: int = HEADER_BYTES
-	if has_disk:
-		offset = Quantize.pack_position(packet, offset, disk_transform.origin, bounds)
-		offset = Quantize.pack_quat(packet, offset, disk_transform.basis.get_rotation_quaternion(), false)
-
-	for entry: Variant in bodies:
-		var body: Dictionary = entry as Dictionary
-		offset = Quantize.pack_body(
-			packet,
-			offset,
-			int(body["net_id"]),
-			body["position"] as Vector3,
-			body["rotation"] as Quaternion,
-			bool(body["sleeping"]),
-			bounds
-		)
-	return packet
+	return SnapshotWire.encode_fragment(
+		sequence, fragment_index, fragment_count, host_time_ms, flags, bodies, disk_transform, bounds
+	)
 
 
-## Unpacks a fragment into {"sequence", "fragment_index", "fragment_count",
-## "host_time_ms", "flags", "bodies", "disk_transform"}. Returns an empty
-## Dictionary for a truncated, foreign or wrong-version packet — never an
-## error, because an unreliable channel will eventually deliver garbage.
+## See SnapshotWire.decode_fragment().
 static func decode_fragment(packet: PackedByteArray, bounds: AABB) -> Dictionary:
-	if packet.size() < HEADER_BYTES:
-		return {}
-	if packet[OFFSET_VERSION] != PACKET_VERSION:
-		return {}
-
-	var fragment_count: int = packet[OFFSET_FRAGMENT_COUNT]
-	var fragment_index: int = packet[OFFSET_FRAGMENT_INDEX]
-	if fragment_count < 1 or fragment_count > MAX_FRAGMENTS or fragment_index >= fragment_count:
-		return {}
-
-	var flags: int = packet[OFFSET_FLAGS]
-	var has_disk: bool = (flags & FLAG_DISK_STATE) != 0
-	var body_count: int = packet.decode_u16(OFFSET_BODY_COUNT)
-	var header_bytes: int = HEADER_BYTES + (DISK_STATE_BYTES if has_disk else 0)
-	# Exact, not "at least": a random payload that happens to start with the
-	# right version byte is far likelier to be the wrong length than the right
-	# one, and a truncated fragment must not decode to half a body list.
-	if packet.size() != header_bytes + body_count * Quantize.BODY_RECORD_BYTES:
-		return {}
-
-	var offset: int = HEADER_BYTES
-	var disk_transform: Transform3D = Transform3D.IDENTITY
-	if has_disk:
-		var origin: Vector3 = Quantize.unpack_position(packet, offset, bounds)
-		offset += Quantize.POSITION_BYTES
-		var tilt: Quaternion = Quantize.unpack_quat(packet, offset)
-		offset += Quantize.ROTATION_BYTES
-		disk_transform = Transform3D(Basis(tilt), origin)
-
-	var bodies: Array = []
-	bodies.resize(body_count)
-	for index: int in range(body_count):
-		bodies[index] = Quantize.unpack_body(packet, offset, bounds)
-		offset += Quantize.BODY_RECORD_BYTES
-
-	return {
-		"sequence": packet.decode_u16(OFFSET_SEQUENCE),
-		"fragment_index": fragment_index,
-		"fragment_count": fragment_count,
-		"host_time_ms": packet.decode_u32(OFFSET_HOST_TIME),
-		"flags": flags,
-		"bodies": bodies,
-		"disk_transform": disk_transform,
-	}
+	return SnapshotWire.decode_fragment(packet, bounds)
 
 
-## Splits `bodies` across as few fragments as config.max_packet_bytes allows
-## and encodes each. Always returns at least one fragment, so an empty snapshot
-## still carries the disk state and keeps the sequence advancing.
+## See SnapshotWire.build_snapshot().
 static func build_snapshot(
 	sequence: int,
 	host_time_ms: int,
@@ -549,25 +415,7 @@ static func build_snapshot(
 	bounds: AABB,
 	net_config: NetConfig
 ) -> Array[PackedByteArray]:
-	var per_fragment: int = net_config.bodies_per_fragment(
-		HEADER_BYTES + DISK_STATE_BYTES, Quantize.BODY_RECORD_BYTES
-	)
-	var fragment_count: int = maxi(
-		1, int(ceil(float(bodies.size()) / float(maxi(per_fragment, 1))))
-	)
-	fragment_count = mini(fragment_count, MAX_FRAGMENTS)
-
-	var packets: Array[PackedByteArray] = []
-	for index: int in range(fragment_count):
-		var first: int = index * per_fragment
-		var slice: Array = bodies.slice(first, mini(first + per_fragment, bodies.size()))
-		# Only fragment 0 carries the disk; see the class docs.
-		var fragment_flags: int = flags if index == 0 else flags & ~FLAG_DISK_STATE
-		packets.append(encode_fragment(
-			sequence, index, fragment_count, host_time_ms, fragment_flags,
-			slice, disk_transform, bounds
-		))
-	return packets
+	return SnapshotWire.build_snapshot(sequence, host_time_ms, flags, bodies, disk_transform, bounds, net_config)
 
 
 # --- RPC --------------------------------------------------------------------
@@ -624,7 +472,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 
 	if (int(fragment["flags"]) & FLAG_DISK_STATE) != 0:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
-		_push_disk_sample(
+		_disk_smoother.push_sample(
 			host_time_ms, disk_transform.origin, disk_transform.basis.get_rotation_quaternion()
 		)
 
@@ -648,23 +496,39 @@ func _is_spawned(net_id: int) -> bool:
 	return _registry.call("block_for_net_id", net_id) != null
 
 
-func _session() -> Variant:
-	return _net()
-
-
-## Net binds itself in its _ready (bind_net); an
-## unbound instance (a test, or a call before Net._ready) falls back to the real
-## Net autoload by path so no file edge to autoload/Net.gd exists.
-func bind_net(net: Node) -> void:
-	_bound_net = net
-
-
-func _net() -> Node:
-	if _bound_net != null and is_instance_valid(_bound_net):
-		return _bound_net
+## The session every send and mode check goes through. Net binds itself in its
+## _ready (bind_net, until the global wiring replaces it); an unbound instance (a
+## test, or a call before Net._ready) falls back to the real Net autoload by path
+## so no file edge to autoload/Net.gd exists.
+func _session() -> SessionPort:
+	if _session_port != null:
+		return _session_port
 	# Through the SceneTree root so an instance not (yet) in the tree resolves too.
 	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	return tree.root.get_node_or_null(NET_NODE_NAME) if tree != null else null
+	var net: Node = tree.root.get_node_or_null(NET_NODE_NAME) if tree != null else null
+	if net == null:
+		return null
+	var port: SessionPort = SessionPort.new(net, SESSION_METHODS)
+	if not port.is_valid():
+		return null
+	_session_port = port
+	return port
+
+
+## Binds the typed session. An invalid port (a session missing a method this node
+## calls) is refused with an error and leaves the current binding alone.
+func bind_session(port: SessionPort) -> bool:
+	if port == null or not port.is_valid():
+		push_error("SnapshotSync.bind_session: the session port is missing or invalid")
+		return false
+	_session_port = port
+	return true
+
+
+## Shim until the global wiring replaces Net's call (the one in Net._ready):
+## wraps the session node in a SessionPort over just the methods used here.
+func bind_net(net: Node) -> void:
+	bind_session(SessionPort.new(net, SESSION_METHODS))
 
 
 ## The one network send (a seam so tests can count sends without a peer).
@@ -754,132 +618,14 @@ func _disk_transform() -> Transform3D:
 	return Transform3D.IDENTITY
 
 
-## Buffers one decoded disk sample as the (prev, next) bracket
-## sample_at_render_time()-style interpolation needs (see the fields' own
-## comment). A late or duplicate host_time_ms is dropped rather than
-## reordering the bracket, the same rule Interpolator.push_sample() applies
-## per body.
-func _push_disk_sample(host_time_ms: int, position: Vector3, rotation: Quaternion) -> void:
-	if host_time_ms <= _disk_next_time_ms:
-		return
-	_disk_prev_time_ms = _disk_next_time_ms
-	_disk_prev_position = _disk_next_position
-	_disk_prev_rotation = _disk_next_rotation
-	_disk_next_time_ms = host_time_ms
-	_disk_next_position = position
-	_disk_next_rotation = rotation
-
-
-## {"ok": bool, "position": Vector3, "rotation": Quaternion} for the disk at
-## _interpolator's current render time -- lerp/slerp between the buffered
-## bracket the same way Interpolator.sample_at_render_time() blends a body's
-## two bracketing samples, extrapolating past the newest sample for at most
-## config.max_extrapolation_ms (the same tunable Interpolator reads, see the
-## DECISION on _extrapolate_disk() below) and then holding, with a
-## convergence offset seeded the moment a hold/extrapolation cap ends so the
-## resumed pose eases back in step rather than snapping (mirrors
-## Interpolator.sample_at_render_time()'s comment on the same trick --
-## the disk's own spring is irrelevant here: once apply_replicated_pose() is
-## mirroring a client's disc, the spring never runs, so nothing else here
-## smooths a stall). `ok` is false until the first disk sample has arrived.
-func _disk_pose_at_render_time() -> Dictionary:
-	if _disk_next_time_ms < 0:
-		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY}
-
-	var render_ms: float = _interpolator.render_time_ms()
-	# With only one sample ever buffered there is no "oldest" distinct from
-	# "newest" yet; treat the lone sample as both, the same degenerate case
-	# Interpolator's own single-sample buffer collapses to.
-	var has_prev: bool = _disk_prev_time_ms >= 0
-	var oldest_time_ms: int = _disk_prev_time_ms if has_prev else _disk_next_time_ms
-	var oldest_position: Vector3 = _disk_prev_position if has_prev else _disk_next_position
-	var oldest_rotation: Quaternion = _disk_prev_rotation if has_prev else _disk_next_rotation
-
-	var raw_position: Vector3 = _disk_next_position
-	var raw_rotation: Quaternion = _disk_next_rotation
-	var clamped: bool = false
-
-	if render_ms <= float(oldest_time_ms):
-		raw_position = oldest_position
-		raw_rotation = oldest_rotation
-	elif render_ms >= float(_disk_next_time_ms):
-		var ahead_ms: float = render_ms - float(_disk_next_time_ms)
-		clamped = ahead_ms > config.max_extrapolation_ms
-		var extrapolated: Dictionary = _extrapolate_disk(has_prev, ahead_ms)
-		raw_position = extrapolated["position"] as Vector3
-		raw_rotation = extrapolated["rotation"] as Quaternion
-	else:
-		var span_ms: float = float(_disk_next_time_ms - oldest_time_ms)
-		var t: float = clampf((render_ms - float(oldest_time_ms)) / span_ms, 0.0, 1.0)
-		raw_position = oldest_position.lerp(_disk_next_position, t)
-		raw_rotation = oldest_rotation.slerp(_disk_next_rotation, t)
-
-	# Leaving the hold/extrapolation cap is the one place a jump can appear, so
-	# that is the one place an offset is seeded; everywhere else the raw pose
-	# is continuous in render time and the offset only decays
-	# (_decay_disk_error(), called once per client_tick()).
-	if _disk_was_clamped and not clamped and _disk_has_last:
-		_disk_error_position = _disk_last_position - raw_position
-		_disk_error_rotation = (_disk_last_rotation * raw_rotation.inverse()).normalized()
-	_disk_was_clamped = clamped
-
-	_disk_last_position = raw_position + _disk_error_position
-	_disk_last_rotation = (_disk_error_rotation * raw_rotation).normalized()
-	_disk_has_last = true
-	return {"ok": true, "position": _disk_last_position, "rotation": _disk_last_rotation}
-
-
-## Past the newest disk sample: continues the (prev, next) segment's velocity
-## for at most config.max_extrapolation_ms, then holds -- the disk's own
-## _extrapolate() twin. `ahead_ms` is the *uncapped* time past the newest
-## sample (the caller uses it to decide `clamped` too); this clamps it
-## internally so the hold is exact, same as Interpolator._extrapolate()'s own
-## comment on why clamping the elapsed time rather than the result is what
-## makes the hold exact.
-##
-## DECISION: reuses
-## config.max_extrapolation_ms rather than adding a second tunable. The disk
-## rides the same NetConfig resource and the same render clock
-## (_interpolator.render_time_ms()) every synced body does; a second knob for
-## the same "how late is late" question would let the disk and the bodies
-## disagree about it for no reason a player could ever perceive.
-func _extrapolate_disk(has_prev: bool, ahead_ms: float) -> Dictionary:
-	var capped_ahead_ms: float = clampf(ahead_ms, 0.0, config.max_extrapolation_ms)
-	if not has_prev or capped_ahead_ms <= 0.0:
-		return {"position": _disk_next_position, "rotation": _disk_next_rotation}
-	var span_ms: float = float(_disk_next_time_ms - _disk_prev_time_ms)
-	if span_ms <= 0.0:
-		return {"position": _disk_next_position, "rotation": _disk_next_rotation}
-	var t: float = capped_ahead_ms / span_ms
-	var position: Vector3 = _disk_next_position + (_disk_next_position - _disk_prev_position) * t
-	var rotation: Quaternion = _disk_prev_rotation.slerp(_disk_next_rotation, 1.0 + t).normalized()
-	return {"position": position, "rotation": rotation}
-
-
-## Relaxes the disk's convergence offset toward zero with a time constant of
-## config.max_extrapolation_ms, the same decay Interpolator._decay_errors()
-## runs per body, so the disk catches up over roughly the same window the
-## hold froze it for. Exponential, so it is frame-rate independent and never
-## overshoots. Called once per client_tick(), unconditionally -- a no-op
-## while the offset is already zero, which is the steady-state case.
-func _decay_disk_error(delta_ms: float) -> void:
-	if _disk_error_position == Vector3.ZERO and _disk_error_rotation == Quaternion.IDENTITY:
-		return
-	var tau_ms: float = maxf(config.max_extrapolation_ms, 1.0)
-	var keep: float = exp(-delta_ms / tau_ms)
-	_disk_error_position *= keep
-	_disk_error_rotation = Quaternion.IDENTITY.slerp(_disk_error_rotation, keep).normalized()
-	if _disk_error_position.length_squared() < 1e-12:
-		_disk_error_position = Vector3.ZERO
-
-
 func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	_track(block)
 
 
 func _on_block_replicated(block: RigidBody3D, _net_id: int) -> void:
 	_track(block)
-	if _net().is_client():
+	var session: SessionPort = _session()
+	if session.is_client():
 		freeze_body(block)
 
 

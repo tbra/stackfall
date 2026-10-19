@@ -109,15 +109,10 @@ func _bounds() -> AABB:
 ## One host -> client fragment carrying `disk_transform` and no bodies, the
 ## same shape host_tick() sends once FLAG_DISK_STATE is set (every snapshot).
 func _snapshot_packet(sequence: int, host_time_ms: int, disk_transform: Transform3D) -> PackedByteArray:
-	var encoder: Node = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
-	var flag_disk: int = int(
-		(load("res://net/SnapshotSync.gd") as GDScript).get_script_constant_map()["FLAG_DISK_STATE"]
+	var packets: Array[PackedByteArray] = SnapshotWire.build_snapshot(
+		sequence, host_time_ms, SnapshotWire.FLAG_DISK_STATE, [], disk_transform, _bounds(), _config
 	)
-	var packets: Array = encoder.call(
-		"build_snapshot", sequence, host_time_ms, flag_disk, [], disk_transform, _bounds(), _config
-	) as Array
-	encoder.free()
-	return packets[0] as PackedByteArray
+	return packets[0]
 
 
 ## Ticks the host's own real _physics_process() -- a genuine engine physics
@@ -172,64 +167,76 @@ func test_the_client_field_tilts_to_match_the_hosts_tilt_after_a_snapshot() -> v
 # --- glow must follow the wire, not this body's own (inert on a client) -----
 # --- sleeping_state_changed ---------------------------------------------------
 
-# --- The 2-sample bracket: blend, ordering, extrapolation, decay -----------
+# --- The disk smoothing itself ---------------------------------------------
 #
-# review SHOULD-FIX 2: every test above delivers exactly one
-# snapshot, so the bracket itself -- lerp/slerp between two samples,
-# rejecting a late/duplicate one, extrapolating past the newest for at most
-# config.max_extrapolation_ms then holding, and converging rather than
-# snapping once a hold/extrapolation ends -- had zero coverage. These reach
-# into _client_sync's private bracket/convergence state through .get()/.call()
-# (it has no class_name, so it is typed Node and has no static members to
-# read directly) and net/Interpolator.gd's own render_time_ms through a
-# plain property write on the real Interpolator instance _interpolator
-# holds (that one does have a class_name, so a cast makes it a normal
-# typed write) -- the same white-box pattern test_field_tilt.gd already uses
-# for _mirrored, applied here so render time can be pinned exactly rather
-# than fought over with the adaptive clock-chase real client_tick() calls
-# drive it with.
+# The 2-sample bracket, the late/duplicate rule, the extrapolation cap and the
+# convergence offset live in game/net/DiskPoseSmoother.gd and are covered by
+# test_disk_pose_smoother.gd. What stays here is the wiring: a snapshot reaches
+# the smoother through receive_packet() and its pose reaches the Field.
 
-func _set_render_time_ms(ms: float) -> void:
-	var interp: Interpolator = _client_sync.get("_interpolator") as Interpolator
-	interp._render_time_ms = ms
+func test_a_received_snapshot_feeds_the_disk_smoother() -> void:
+	var smoother: DiskPoseSmoother = _client_sync.get("_disk_smoother") as DiskPoseSmoother
+	assert_not_null(smoother, "begin_match builds the smoother")
+	assert_false(bool(smoother.pose_at(1000.0)["ok"]), "nothing buffered before a snapshot")
+	_client_sync.call("receive_packet", _snapshot_packet(1, 1000, Transform3D(Basis(), Vector3(1.0, 0.0, 0.0))))
+	assert_true(bool(smoother.pose_at(1000.0)["ok"]), "the snapshot's disk pose was buffered")
+	_client_sync.call("end_match")
+	assert_null(_client_sync.get("_disk_smoother"), "end_match drops the smoother")
 
 
-func _disk_pose() -> Dictionary:
-	return _client_sync.call("_disk_pose_at_render_time") as Dictionary
+# --- The typed session seam -------------------------------------------------
+
+## A narrow session double: exactly the four methods SnapshotSync calls.
+class SessionDouble:
+	extends RefCounted
+	var client: bool = false
+	var reports: Array[Dictionary] = []
+
+	func is_host() -> bool:
+		return not client
+
+	func is_client() -> bool:
+		return client
+
+	func is_offline() -> bool:
+		return false
+
+	func report_stats(source: StringName, values: Dictionary) -> void:
+		reports.append({"source": source, "values": values})
 
 
-func test_disk_pose_blends_between_two_bracketing_samples() -> void:
-	var tilt_a: Basis = Basis(Vector3.RIGHT, deg_to_rad(2.0))
-	var tilt_b: Basis = Basis(Vector3.RIGHT, deg_to_rad(8.0))
-	_client_sync.call(
-		"receive_packet", _snapshot_packet(1, 1000, Transform3D(tilt_a, Vector3.ZERO))
-	)
-	_client_sync.call(
-		"receive_packet", _snapshot_packet(2, 1033, Transform3D(tilt_b, Vector3(1.0, 0.0, 0.0)))
-	)
+func test_bind_session_routes_mode_checks_through_the_port() -> void:
+	var double: SessionDouble = SessionDouble.new()
+	double.client = true
+	var port: SessionPort = SessionPort.new(double, SnapshotSync.SESSION_METHODS)
+	assert_true(port.is_valid(), "the narrow double satisfies the subset SnapshotSync binds")
+	Net._mode = Net.Mode.OFFLINE # the live autoload says "not a client": client_tick gates out
+	_client_sync.call("client_tick", TICK)
+	assert_eq(float(_client_sync.get("_stats_accumulator")), 0.0, "fixture: the unbound client tick is a no-op")
+	assert_true(_client_sync.call("bind_session", port), "a valid port binds")
+	_client_sync.call("client_tick", TICK)
+	assert_gt(float(_client_sync.get("_stats_accumulator")), 0.0, "the bound session's is_client() opened the gate")
 
-	_set_render_time_ms(1016.5) # strictly mid-bracket (1000 .. 1033)
-	var mid: Dictionary = _disk_pose()
-	assert_true(bool(mid["ok"]), "a two-sample bracket is drawable")
-	var mid_x: float = (mid["position"] as Vector3).x
-	assert_gt(mid_x, 0.001, "the blend is not equal to the older endpoint")
-	assert_lt(mid_x, 0.999, "the blend is not equal to the newer endpoint")
-	var mid_rotation: Quaternion = mid["rotation"] as Quaternion
-	assert_gt(
-		mid_rotation.angle_to(tilt_a.get_rotation_quaternion()), deg_to_rad(0.01),
-		"the blended tilt is not equal to the older endpoint"
-	)
-	assert_gt(
-		mid_rotation.angle_to(tilt_b.get_rotation_quaternion()), deg_to_rad(0.01),
-		"the blended tilt is not equal to the newer endpoint"
-	)
 
-	_set_render_time_ms(1008.25) # quarter-way
-	var quarter_x: float = (_disk_pose()["position"] as Vector3).x
-	_set_render_time_ms(1024.75) # three-quarters
-	var three_quarter_x: float = (_disk_pose()["position"] as Vector3).x
-	assert_lt(quarter_x, mid_x, "the blend is monotone across the bracket")
-	assert_lt(mid_x, three_quarter_x, "the blend is monotone across the bracket")
+func test_bind_session_refuses_an_invalid_port() -> void:
+	var narrow: RefCounted = RefCounted.new()
+	var port: SessionPort = SessionPort.new(narrow, SnapshotSync.SESSION_METHODS)
+	assert_push_error("SessionPort:")
+	assert_false(port.is_valid(), "a double missing the methods is invalid")
+	var before: Variant = _client_sync.call("_session")
+	assert_false(_client_sync.call("bind_session", port), "an invalid port is refused")
+	assert_push_error("SnapshotSync.bind_session")
+	assert_same(_client_sync.call("_session"), before, "the previous binding is kept")
+	assert_false(_client_sync.call("bind_session", null), "null is refused")
+	assert_push_error("SnapshotSync.bind_session")
+
+
+func test_bind_net_shim_wraps_the_node_in_a_port() -> void:
+	var node: Node = autofree((load("res://autoload/Net.gd") as GDScript).new() as Node)
+	_client_sync.call("bind_net", node)
+	var session: SessionPort = _client_sync.call("_session") as SessionPort
+	assert_not_null(session, "bind_net leaves a typed session behind")
+	assert_true(session.is_valid(), "the shim's port is valid")
 
 
 # --- Host peer gating ------------------------------------
