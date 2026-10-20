@@ -46,6 +46,14 @@ class Sample:
 	var sleeping: bool = false
 
 
+## A reusable pose written by pose_into(), so a tick allocates no Dictionary.
+class Pose:
+	extends RefCounted
+	var position: Vector3 = Vector3.ZERO
+	var rotation: Quaternion = Quaternion.IDENTITY
+	var sleeping: bool = false
+
+
 ## Everything kept per body: its sample buffer and the convergence state that
 ## unwinds a capped extrapolation without a snap.
 class Track:
@@ -275,6 +283,19 @@ func tracked_ids() -> PackedInt32Array:
 
 
 ## Drops every sample for a body the host despawned.
+## Ids of tracks that are not at rest (stub: not implemented).
+func active_ids() -> PackedInt32Array:
+	push_error("Interpolator.active_ids: not implemented")
+	return PackedInt32Array()
+
+
+## Writes the render-time pose of `net_id` into `out`; false when untracked
+## (stub: not implemented).
+func pose_into(_net_id: int, _out: Pose) -> bool:
+	push_error("Interpolator.pose_into: not implemented")
+	return false
+
+
 func forget(net_id: int) -> void:
 	_buffers.erase(net_id)
 
