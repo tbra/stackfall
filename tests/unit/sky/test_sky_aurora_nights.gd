@@ -31,6 +31,20 @@ func test_chance_extremes() -> void:
 		assert_true(SkyVariation.aurora_night_shown(5, night, 1.0))
 
 
+var _context: FakeMatchContext
+var _previous_context: MatchContext
+
+
+func before_each() -> void:
+	_context = FakeMatchContext.new()
+	_previous_context = MatchContext.installed()
+	MatchContext.install(_context)
+
+
+func after_each() -> void:
+	MatchContext.install(_previous_context)
+
+
 func _cycle_skybox(seed_value: int) -> Skybox:
 	var environment: Environment = Environment.new()
 	environment.sky = Sky.new()
@@ -48,10 +62,10 @@ func _cycle_skybox(seed_value: int) -> Skybox:
 
 
 func _visibility_at_night(skybox: Skybox, night: int) -> float:
-	var length: float = skybox.cycle_length_seconds()
+	var length: float = skybox.sky_def.cycle_length_seconds
 	# set_cycle_phase() skips an unchanged phase, so alternate nights sit a hair apart.
 	var phase: float = NIGHT_PHASE + float(night % 2) * PHASE_NUDGE
-	skybox.update_cycle_clock((float(night) + phase - START_PHASE) * length)
+	SkyTestKit.run_to_clock(skybox, _context, (float(night) + phase - START_PHASE) * length)
 	return float((skybox.environment.sky.sky_material as ShaderMaterial).get_shader_parameter(&"aurora_visibility"))
 
 

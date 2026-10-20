@@ -1,5 +1,26 @@
 extends GutTest
 ## sky cycle: locked looks, cycle-driven light/environment, 3D cloud-puff sea and distant bird flocks.
+## The pure phase maths (rate, continuity at a length edit or a lock, night count) is in
+## test_sky_cycle_clock; the cases here drive the Skybox through the shared clock.
+
+var _context: FakeMatchContext
+var _previous_context: MatchContext
+
+
+func before_each() -> void:
+	_context = FakeMatchContext.new()
+	_previous_context = MatchContext.installed()
+	MatchContext.install(_context)
+
+
+func after_each() -> void:
+	MatchContext.install(_previous_context)
+
+
+## Moves the shared clock to `clock_s` and runs one radiance interval of the real frame path.
+func _run_to(skybox: Skybox, clock_s: float) -> void:
+	SkyTestKit.run_to_clock(skybox, _context, clock_s)
+
 
 func _make_skybox() -> Array:
 	var environment: Environment = Environment.new()
@@ -91,7 +112,7 @@ func test_live_sky_switch_is_stable_and_matches_the_cycle() -> void:
 		assert_true(light.light_color.is_equal_approx(night.light_color))
 		assert_almost_eq(light.rotation_degrees.x, night.light_rotation_deg.x, 0.001)
 		assert_almost_eq(environment.glow_hdr_threshold, skybox.sky_def.glow_hdr_threshold, 0.0001, "glow threshold is cycle structure")
-		assert_eq(environment.sky.sky_material, skybox.sky_material(), "one live sky material")
+		assert_eq(environment.sky.sky_material, SkyTestKit.sky_material(skybox), "one live sky material")
 		assert_false(flare._theme_enabled, "night hides the sunset-aimed flare")
 		var fog: FogVolume = skybox.get_node_or_null("CloudDeck") as FogVolume
 		assert_eq(fog.size, skybox.sky_def.cloud_deck_size_m)
@@ -116,38 +137,42 @@ func _cycle_skybox(length_s: float = 0.0) -> Skybox:
 
 func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
 	var skybox: Skybox = _cycle_skybox(300.0)
-	assert_almost_eq(skybox.cycle_length_seconds(), 300.0, 0.001)
+	assert_almost_eq(skybox.sky_def.cycle_length_seconds, 300.0, 0.001)
 	# the cycle opens at SkyCycleDef.cycle_start_phase, not at dawn.
 	var start: float = skybox.sky_def.cycle_start_phase
-	skybox.update_cycle_clock(75.0)
-	assert_almost_eq(skybox.cycle_phase_at(75.0), fposmod(start + 0.25, 1.0), 0.0001, "a quarter of 5 min on")
-	skybox.update_cycle_clock(150.0)
-	assert_almost_eq(skybox.cycle_phase_at(150.0), fposmod(start + 0.5, 1.0), 0.0001)
-	assert_almost_eq(skybox.cycle_phase_at(300.0), start, 0.0001, "a full cycle takes 300 s")
+	assert_almost_eq(skybox.current_cycle_phase(), start, 0.0001, "opens at the start phase")
+	_run_to(skybox, 75.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 0.25, 1.0), 0.0001, "a quarter of 5 min on")
+	_run_to(skybox, 150.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 0.5, 1.0), 0.0001)
+	_run_to(skybox, 300.0)
+	assert_almost_eq(skybox.current_cycle_phase(), start, 0.0001, "a full cycle takes 300 s")
 
 
 ## a live length edit changes the speed only; the time of day
-## at the moment of the edit is unchanged.
+## at the moment of the edit is unchanged. (The clock maths itself: test_sky_cycle_clock.)
 func test_cycle_length_change_keeps_the_phase_continuous() -> void:
 	var skybox: Skybox = _cycle_skybox(300.0)
-	skybox.update_cycle_clock(100.0)
-	var before: float = skybox.cycle_phase_at(100.0)
+	_run_to(skybox, 100.0)
+	var before: float = skybox.current_cycle_phase()
 	skybox.set_cycle_length_seconds(900.0)
-	assert_almost_eq(skybox.cycle_length_seconds(), 900.0, 0.001)
-	assert_almost_eq(skybox.cycle_phase_at(100.0), before, 0.0001, "no jump at the edit")
-	skybox.update_cycle_clock(190.0)
-	assert_almost_eq(skybox.cycle_phase_at(190.0), fposmod(before + 90.0 / 900.0, 1.0), 0.0001,
+	assert_almost_eq(skybox.sky_def.cycle_length_seconds, 900.0, 0.001)
+	_run_to(skybox, 100.0)
+	assert_almost_eq(skybox.current_cycle_phase(), before, 0.0001, "no jump at the edit")
+	_run_to(skybox, 190.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0, 1.0), 0.0001,
 		"afterwards the phase advances at the new rate")
 	skybox.set_cycle_length_seconds(60.0)
-	assert_almost_eq(skybox.cycle_phase_at(190.0), fposmod(before + 90.0 / 900.0, 1.0), 0.0001, "shortening is continuous too")
-	skybox.update_cycle_clock(220.0)
-	assert_almost_eq(skybox.cycle_phase_at(220.0), fposmod(before + 90.0 / 900.0 + 30.0 / 60.0, 1.0), 0.0001)
+	_run_to(skybox, 190.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0, 1.0), 0.0001, "shortening is continuous too")
+	_run_to(skybox, 220.0)
+	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0 + 30.0 / 60.0, 1.0), 0.0001)
 	# A direct write to the live definition (not through the seam) is folded in on
 	# the next clock update without a jump as well.
-	var direct: float = skybox.cycle_phase_at(220.0)
+	var direct: float = skybox.current_cycle_phase()
 	skybox.sky_def.cycle_length_seconds = 120.0
-	skybox.update_cycle_clock(220.0)
-	assert_almost_eq(skybox.cycle_phase_at(220.0), direct, 0.0001)
+	_run_to(skybox, 220.0)
+	assert_almost_eq(skybox.current_cycle_phase(), direct, 0.0001)
 
 
 ## S0: the locked phases the lobby's Sunset / Dawn / Night options
@@ -179,11 +204,11 @@ func _configured_skybox(config: MatchConfig, length_s: float = 0.0) -> Array:
 
 
 func _sun_elevation(skybox: Skybox) -> float:
-	return (skybox.sky_material().get_shader_parameter(&"sun_direction") as Vector3).y
+	return (SkyTestKit.sky_material(skybox).get_shader_parameter(&"sun_direction") as Vector3).y
 
 
 func _night_mix(skybox: Skybox) -> float:
-	return float(skybox.sky_material().get_shader_parameter(&"cycle_night_mix"))
+	return float(SkyTestKit.sky_material(skybox).get_shader_parameter(&"cycle_night_mix"))
 
 
 func test_each_sky_mode_locks_the_right_phase() -> void:
@@ -211,7 +236,7 @@ func test_each_sky_mode_locks_the_right_phase() -> void:
 		assert_almost_eq(skybox.locked_phase(), expected, 0.0001, "%s: locked phase" % label)
 		assert_almost_eq(skybox.current_cycle_phase(), expected, 0.0001, "%s: applied phase" % label)
 		for clock: float in [0.0, 41.0, 987654.0]:
-			skybox.update_cycle_clock(clock)
+			_run_to(skybox, clock)
 			assert_almost_eq(skybox.current_cycle_phase(), expected, 0.0001, "%s: the clock is ignored at %s s" % [label, clock])
 		assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY, "%s: a locked sky stops radiance updates" % label)
 		if entry[1] == "night":
@@ -236,34 +261,34 @@ func test_host_and_client_configs_give_the_same_phase_at_the_same_clock() -> voi
 		var client: Skybox = _configured_skybox(client_config)[0] as Skybox
 		assert_eq(client.locked_phase(), host.locked_phase(), "mode %s: same lock" % mode)
 		for clock: float in [0.0, 37.5, 123.4, 299.0, 301.0, 12345.6]:
-			host.update_cycle_clock(clock)
-			client.update_cycle_clock(clock)
+			_run_to(host, clock)
+			_run_to(client, clock)
 			assert_almost_eq(client.current_cycle_phase(), host.current_cycle_phase(), 0.00001,
 				"mode %s at clock %s" % [mode, clock])
-			assert_eq(client.cycle_phase_at(clock), host.cycle_phase_at(clock), "mode %s pure phase at %s" % [mode, clock])
+			assert_eq(client.current_cycle_phase(), host.current_cycle_phase(), "mode %s exact phase at %s" % [mode, clock])
 
 
 func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
 	var parts: Array = _configured_skybox(MatchConfig.new(), 300.0)
 	var skybox: Skybox = parts[0]
 	var environment: Environment = parts[1]
-	skybox.update_cycle_clock(30.0)
+	_run_to(skybox, 30.0)
 	skybox.set_locked_phase(0.75)
 	assert_almost_eq(skybox.locked_phase(), 0.75, 0.0001)
 	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the lock applies at once")
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
 	assert_gt(_night_mix(skybox), 0.99)
-	skybox.update_cycle_clock(60.0)
+	# A moving shared clock plus the frame path leaves a locked phase unchanged.
+	_run_to(skybox, 45.0)
 	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the clock does not move a locked sky")
 	skybox.set_locked_phase(1.25)
 	assert_almost_eq(skybox.locked_phase(), 0.25, 0.0001, "a lock wraps into 0..1")
 	skybox.set_locked_phase(-1.0)
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "running again")
-	assert_almost_eq(skybox.cycle_phase_at(60.0), 0.25, 0.0001, "no jump at the unlock")
-	skybox.update_cycle_clock(90.0)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.35, 0.0001, "and it carries on at the cycle rate")
+	assert_eq(skybox.locked_phase(), -1.0)
+	assert_almost_eq(skybox.current_cycle_phase(), 0.25, 0.0001, "no jump at the unlock")
 	skybox.set_locked_phase(-1.0)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.35, 0.0001, "unlocking a running cycle is a no-op")
+	assert_almost_eq(skybox.current_cycle_phase(), 0.25, 0.0001, "unlocking a running cycle is a no-op")
 
 
 ## The cycle's day half is the
@@ -277,7 +302,7 @@ func _day_palette_skybox(mode: MatchConfig.SkyThemeMode) -> Array:
 
 
 func _live_sky(skybox: Skybox) -> ShaderMaterial:
-	return skybox.sky_material()
+	return SkyTestKit.sky_material(skybox)
 
 
 func _sky_color(material: ShaderMaterial, uniform: StringName) -> Color:
@@ -302,10 +327,8 @@ const PUFF_KEY_FIELDS: Dictionary = {
 
 func _assert_day_palette(skybox: Skybox, expected: SkyKeyframe, label: String) -> void:
 	var live: ShaderMaterial = _live_sky(skybox)
-	var frame: SkyFrame = skybox.current_frame()
 	for field: StringName in [&"proc_zenith_color", &"proc_mid_color", &"proc_horizon_color", &"proc_horizon_glow_color",
 			&"proc_sea_color_near", &"proc_sea_color_far"]:
-		assert_true((frame.get(field) as Color).is_equal_approx(expected.get(field) as Color), "%s: frame %s" % [label, field])
 		assert_true(_sky_color(live, field).is_equal_approx(expected.get(field) as Color), "%s: sky uniform %s" % [label, field])
 	for uniform: StringName in SKY_UNIFORM_COLORS:
 		assert_true(_sky_color(live, uniform).is_equal_approx(expected.get(uniform) as Color), "%s: sky %s" % [label, uniform])
@@ -320,10 +343,10 @@ func test_the_sunset_lock_wears_exactly_the_sunset_palette() -> void:
 	var sunset: SkyKeyframe = def.day_keyframes[1]
 	assert_almost_eq(skybox.locked_phase(), def.cycle_locked_phase_sunset, 0.0001)
 	assert_eq(SkyEvaluator.window_weight(skybox.locked_phase(), sunset.phase_window), 1.0)
-	assert_eq(skybox.current_frame().proc_zenith_color, sunset.proc_zenith_color, "bit-exact sunset zenith")
-	assert_eq(skybox.current_frame().proc_horizon_color, sunset.proc_horizon_color)
+	assert_eq(_sky_color(_live_sky(skybox), &"proc_zenith_color"), sunset.proc_zenith_color, "bit-exact sunset zenith")
+	assert_eq(_sky_color(_live_sky(skybox), &"proc_horizon_color"), sunset.proc_horizon_color)
 	_assert_day_palette(skybox, sunset, "locked Sunset")
-	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
+	var puffs: ShaderMaterial = SkyTestKit.puff_material(skybox.get_node("CloudSea") as CloudSea)
 	var night: float = _night_mix(skybox)
 	assert_lt(night, 0.01, "locked Sunset is a day sky")
 	for uniform: StringName in PUFF_KEY_FIELDS:
@@ -340,16 +363,15 @@ func test_the_palette_fades_from_dawn_to_sunset_across_the_dusk_window() -> void
 	var middle: float = (window.x + window.y) * 0.5
 	skybox.set_cycle_phase(middle)
 	var halfway: Color = dawn.proc_zenith_color.lerp(sunset.proc_zenith_color, 0.5)
-	assert_true(skybox.current_frame().proc_zenith_color.is_equal_approx(halfway), "half dawn, half sunset at the window middle")
-	assert_true(_sky_color(_live_sky(skybox), &"proc_zenith_color").is_equal_approx(halfway), "and on the live sky")
+	assert_true(_sky_color(_live_sky(skybox), &"proc_zenith_color").is_equal_approx(halfway), "half dawn, half sunset at the window middle")
 	var previous: float = -1.0
 	for step: int in range(0, 17):
 		skybox.set_cycle_phase(window.x + (window.y - window.x) * float(step) / 16.0)
-		var progress: float = _color_distance(skybox.current_frame().proc_zenith_color, dawn.proc_zenith_color)
+		var progress: float = _color_distance(_sky_color(_live_sky(skybox), &"proc_zenith_color"), dawn.proc_zenith_color)
 		assert_gte(progress, previous - 0.00001, "the zenith drifts monotonically toward sunset (step %d)" % step)
 		previous = progress
 	skybox.set_cycle_phase(window.y)
-	assert_eq(skybox.current_frame().proc_zenith_color, sunset.proc_zenith_color, "the sunset palette is complete at the window end")
+	assert_eq(_sky_color(_live_sky(skybox), &"proc_zenith_color"), sunset.proc_zenith_color, "the sunset palette is complete at the window end")
 
 
 ## C1b variation, "lets add some variation and just set
@@ -382,7 +404,7 @@ func _variation_skybox(mode: MatchConfig.SkyThemeMode, rng_seed: int = VARIATION
 ## The live sky's three varying uniforms and the puff material's two, in one dictionary.
 func _look(skybox: Skybox) -> Dictionary:
 	var sky: ShaderMaterial = _live_sky(skybox)
-	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
+	var puffs: ShaderMaterial = SkyTestKit.puff_material(skybox.get_node("CloudSea") as CloudSea)
 	return {
 		"exposure": float(sky.get_shader_parameter(&"exposure")),
 		"sea_coverage": float(sky.get_shader_parameter(&"proc_sea_coverage")),
@@ -398,7 +420,7 @@ func test_the_running_cycle_varies_exposure_and_coverage_inside_the_configured_r
 	var lowest: float = INF
 	var highest: float = -INF
 	for second: int in range(0, 300, 2):
-		skybox.update_cycle_clock(float(second))
+		_run_to(skybox, float(second))
 		var look: Dictionary = _look(skybox)
 		assert_between(look["exposure"], def.variation_exposure_min, def.variation_exposure_max, "exposure at %s s" % second)
 		assert_between(look["sea_coverage"], def.variation_sea_coverage_min, def.variation_sea_coverage_max, "sea coverage at %s s" % second)
@@ -421,11 +443,11 @@ func test_the_variation_never_writes_the_shipped_sky_material_and_reset_restores
 	var source: ShaderMaterial = skybox.sky_def.sky_material as ShaderMaterial
 	var environment: Environment = parts[1] as Environment
 	for clock: float in SWEEP_CLOCKS:
-		skybox.update_cycle_clock(clock)
+		_run_to(skybox, clock)
 	skybox.set_overcast(1.0, 0.5, 0.6, OVERCAST_EXPOSURE_SCALE, Color(0.4, 0.4, 0.5), 0.5)
 	assert_eq(float(source.get_shader_parameter(&"exposure")), launch_exposure, "the cycle varies its own duplicate, not the definition's material")
 	assert_eq(float(source.get_shader_parameter(&"proc_sea_coverage")), launch_sea)
-	skybox.reset_to_launch()
+	Events.match_scope_reset.emit()
 	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "reset: the cycle locked at the launch sky")
 	var restored: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
 	var sunset_exposure: float = _exposure_at(skybox.sky_def, skybox.locked_phase(), SkyVariation.DEFAULT_SEED)
