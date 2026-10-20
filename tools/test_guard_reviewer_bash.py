@@ -55,13 +55,14 @@ class GuardReviewerBashTest(unittest.TestCase):
         for cmd in (f"python tools/check_packages.py plans/net_packages.json --path {R}",
                     "python tools/lint_dead.py --report", "python tools/lint_all.py",
                     "python tools/dep_graph.py --callers SnapshotSync.host_tick",
-                    "python tools/affected_tests.py net/SnapshotSync.gd --json"):
+                    "python tools/affected_tests.py net/SnapshotSync.gd --json",
+                    f"python {R}/tools/check_packages.py plans/p.json --path {R}"):
             self.assertTrue(g.allowed(cmd), cmd)
         for cmd in ("python tools/lint_dead.py --update-baseline", "python tools/dep_graph.py --update",
                     "python tools/dep_graph.py --out x.json", "python tools/dep_graph.py --allow-new a.gd",
                     "python tools/lint_all.py --path ../x", "python tools/mutate_core.py core/a.gd",
                     "python tools/lint_all.py; rm x", "python tools/lint_all.py > out.txt",
-                    "python -c print(1)"):
+                    "python -c print(1)", "python other/tools/lint_all.py"):
             self.assertFalse(g.allowed(cmd), cmd)
 
     def test_counter_caps_at_two_per_agent(self):

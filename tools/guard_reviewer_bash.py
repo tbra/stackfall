@@ -11,7 +11,7 @@ one of those two roots and may not contain "..":
     test_a[,test_b...] [-Path <checkout>] [-Unit name]: explicit test_* script names only.
     Max 2 runs per review (RUN_CAP) is a profile rule; the hook also counts per subagent when
     the hook event carries an agent_id (no agent_id = not enforced, to avoid a shared session cap).
-  - python tools/check_packages.py|lint_dead.py|lint_all.py|dep_graph.py|affected_tests.py
+  - python [<repo>/]tools/check_packages.py|lint_dead.py|lint_all.py|dep_graph.py|affected_tests.py
     [plain args]: read-only tools; flags that write (--update, --update-baseline, --allow-new,
     --out) and ".." are denied.
 Everything else (edits, other tests, commits, status changes, pipes, redirects,
@@ -60,7 +60,7 @@ GUT_RUN_ALT = re.compile(
 )
 # Read-only project tools with plain-token args; PY_DENY drops the flags that write files.
 PY_READ = re.compile(
-    r'^python tools/(check_packages|lint_dead|lint_all|dep_graph|affected_tests)\.py'
+    r'^python (?:' + REPO + r'/)?tools/(check_packages|lint_dead|lint_all|dep_graph|affected_tests)\.py'
     r'( [A-Za-z0-9_.:/=@,-]+)*$'
 )
 PY_DENY = re.compile(r' --(update|update-baseline|allow-new|out)(=| |$)|\.\.')
