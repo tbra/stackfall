@@ -11,17 +11,8 @@ var defer_activation: bool = false
 var capture_impacts: bool = false
 ## Batches recorded while capture_impacts is on, in send order.
 var impact_batches: Array[PackedByteArray] = []
-## When true replay messages are recorded instead of sent by rpc_id().
-var capture_replay: bool = false
-## [peer_id, method, args] rows recorded while capture_replay is on, in send order.
-var replay_capture: Array[Array] = []
 
 
 ## Records one impact batch the host built.
 func on_impacts(packet: PackedByteArray) -> void:
 	impact_batches.append(packet)
-
-
-## Records one replay message addressed to `peer_id`: `kind` is the RPC method name.
-func on_replay(peer_id: int, kind: StringName, args: Array) -> void:
-	replay_capture.append([peer_id, kind, args])
