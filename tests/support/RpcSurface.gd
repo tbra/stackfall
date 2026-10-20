@@ -74,6 +74,8 @@ const EXPECTED_COUNTS: Dictionary = {
 
 ## Integer constants that define a packet layout or a channel, per script.
 ## A change to any of them is a wire change even when no RPC signature moves.
+## The SnapshotSync group key is kept for golden stability; its values are read
+## from SnapshotWire, which owns them.
 const LAYOUT_CONSTANTS: Dictionary = {
 	"res://net/SnapshotSync.gd": [
 		"PACKET_VERSION", "HEADER_BYTES", "DISK_STATE_BYTES", "FLAG_DISK_STATE",
@@ -82,6 +84,11 @@ const LAYOUT_CONSTANTS: Dictionary = {
 		"OFFSET_FLAGS", "OFFSET_BODY_COUNT", "SEQUENCE_MODULUS", "MAX_FRAGMENTS",
 	],
 	"res://net/MatchNet.gd": ["RASTER_VERSION", "CURSOR_CHANNEL"],
+}
+
+## Layout group key -> script that actually defines its constants.
+const LAYOUT_SOURCES: Dictionary = {
+	"res://net/SnapshotSync.gd": "res://core/net/SnapshotWire.gd",
 }
 
 const EVENT_PREFIX: String = "EVENT_"
@@ -187,7 +194,7 @@ static func _method_surface(cfg: Dictionary, method: Dictionary) -> Dictionary:
 static func _wire_constants() -> Dictionary:
 	var out: Dictionary = { }
 	for path: String in LAYOUT_CONSTANTS.keys():
-		var script: Script = load(path) as Script
+		var script: Script = load(LAYOUT_SOURCES.get(path, path)) as Script
 		var map: Dictionary = script.get_script_constant_map()
 		var values: Dictionary = { }
 		for const_name: String in LAYOUT_CONSTANTS[path] as Array:
