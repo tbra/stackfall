@@ -178,10 +178,9 @@ func _run_late_joiner() -> void:
 		print("LRENET late result=FAIL reason=no_match_start")
 		get_tree().quit(2)
 		return
-	# The replay's last message (net_replay_end) lands after every gate message, so
-	# the mirror read here is what the replay alone left it with -- before any later
-	# ready press or roster change can re-publish the sets and mask a wiped mirror.
-	while int(_match_net.get(&"last_replay_acknowledged")) <= 0 and Time.get_ticks_msec() < deadline:
+	# The replay's effect is the gate mirror: wait until the required set is populated,
+	# then read it before any later ready press or roster change can re-publish it.
+	while Match._lifecycle.loading_required_peers().size() < LATE_SEATS and Time.get_ticks_msec() < deadline:
 		await _wait(0.005)
 	var replay_required: PackedInt32Array = Match._lifecycle.loading_required_peers()
 	_late_replay_mirror_ok = replay_required.size() == LATE_SEATS and replay_required.has(Net.local_peer_id()) and replay_required.has(Net.HOST_PEER_ID) and Match._lifecycle.loading_gate_blocking()

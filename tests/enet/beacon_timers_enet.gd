@@ -90,8 +90,6 @@ func _force_host_state() -> void:
 		Match._lifecycle.publish_mode_state_if_changed()
 	else:
 		Events.goal_capture_progress.emit(0, CAPTURE_PROGRESS)
-		_match_net.set(&"_capture_team", 0)
-		_match_net.set(&"_capture_progress", CAPTURE_PROGRESS)
 	Events.territory_replicated.emit(raster)
 
 
