@@ -55,10 +55,10 @@ func test_storm_hides_the_moon() -> void:
 	skybox.set_cycle_phase(0.75)
 	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	skybox.set_storm_sky(1.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(_param(skybox, &"moon_visibility") as float, 0.0, 0.0001, "full storm hides the moon like the sun")
 	skybox.set_storm_sky(0.0, null)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(_param(skybox, &"moon_visibility") as float, 1.0, 0.0001, "clear again")
 
 
