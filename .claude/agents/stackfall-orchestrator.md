@@ -80,6 +80,10 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
 - For each `SHORTCUT` a worker reports or `python tools/lint_shortcuts.py --path
   <candidate> --added <base>` lists, file a follow-up Bead under the package's epic
   before closing the package.
+- Never absorb a candidate's new lint findings into a baseline: a package whose
+  `lint_all` needs a new `checks` entry, a raised count or an unplanned `--allow-new`
+  goes back to its writer as partial. Read every diff to `tools/*baseline*.json` and
+  `allow` lists before accepting.
 - You own `docs/SPEC.md` and keep it describing the game as built: when accepted
   work changes player-facing behaviour or a technical contract, update the matching
   section before closing the issue.

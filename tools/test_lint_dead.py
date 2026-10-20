@@ -211,18 +211,34 @@ class BaselineTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("stale allow entry", out)
 
-    def test_update_baseline_rewrites_findings_and_keeps_matching_allow_entries(self):
+    def test_update_baseline_only_shrinks_and_refuses_new_findings(self):
         files = {"game/Dead.tscn": TSCN, "game/Main.gd": "extends Node\nfunc orphan() -> void:\n\tpass\n"}
         with make_repo(files) as root:
             allow = [{"id": "test-only-func", "entry": "game/Main.gd:orphan", "reason": "r"}]
             self.write_baseline(root, {"checks": {"dead-file": ["game/Old.tscn"]}, "allow": allow})
+            code, out = self.run_main(root, "--update-baseline")
+            self.assertEqual(code, 1)
+            self.assertIn("not baselined (fix it, or add an allow entry with a reason): dead-file game/Dead.tscn", out)
+            with open(os.path.join(root, "tools", "dead_baseline.json"), encoding="utf-8") as fh:
+                data = json.load(fh)
+            self.assertEqual(data["checks"]["dead-file"], [])
+            self.assertEqual(data["allow"], allow)
+            self.write_baseline(root, {"checks": {"dead-file": ["game/Dead.tscn", "game/Old.tscn"]}, "allow": allow})
             code, _ = self.run_main(root, "--update-baseline")
             self.assertEqual(code, 0)
             with open(os.path.join(root, "tools", "dead_baseline.json"), encoding="utf-8") as fh:
-                data = json.load(fh)
-            self.assertEqual(data["checks"]["dead-file"], ["game/Dead.tscn"])
-            self.assertEqual(data["checks"]["test-only-func"], [])
-            self.assertEqual(data["allow"], allow)
+                self.assertEqual(json.load(fh)["checks"]["dead-file"], ["game/Dead.tscn"])
+
+    def test_allow_reason_that_is_empty_or_a_test_exempts_nothing(self):
+        files = {"game/Main.gd": "extends Node\nfunc orphan() -> void:\n\tpass\n"}
+        with make_repo(files) as root:
+            for reason in ("", "used by tests/unit/test_main.gd", "test_main.gd drives it", "tests only"):
+                allow = [{"id": "test-only-func", "entry": "game/Main.gd:orphan", "reason": reason}]
+                self.write_baseline(root, {"checks": {}, "allow": allow})
+                code, out = self.run_main(root)
+                self.assertEqual(code, 1, reason)
+                self.assertIn("game/Main.gd:2: test-only-func: orphan", out)
+                self.assertIn("allow entry exempts nothing (empty reason or a test): test-only-func game/Main.gd:orphan", out)
 
     def test_report_prints_counts_per_check_and_folder(self):
         with make_repo({"game/Dead.tscn": TSCN}) as root:

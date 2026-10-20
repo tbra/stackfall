@@ -18,10 +18,12 @@ dead" and "no dead weight left behind". Four checks, one finding per line as `pa
                   identifier without `(expires YYYY-MM-DD)` on the line, or past its expiry. The older
                   `(Bontago-<id>, expires YYYY-MM-DD)` form still passes until the code pass converts it.
 
-tools/dead_baseline.json holds today's findings per check (`checks`) and reviewed exceptions (`allow`:
-[{"id","entry","reason"}]). Only findings outside both fail the run (exit 1); baseline entries that no longer
-occur are reported as stale so the baseline only shrinks (`--update-baseline` rewrites it, keeping `allow`
-entries that still match). `--report` prints counts per check and folder. Graph building reuses
+tools/dead_baseline.json holds the findings that predate the lint per check (`checks`) and reviewed exceptions
+(`allow`: [{"id","entry","reason"}]). Only findings outside both fail the run (exit 1). The baseline only
+shrinks: `--update-baseline` drops entries that no longer occur and keeps `allow` entries that still match,
+but never adds a finding; it lists each new one and exits 1. A new finding is fixed (delete the code) or
+gets an `allow` entry whose reason names its live caller or what removes it; a reason that is empty or
+points at a test exempts nothing. `--report` prints counts per check and folder. Graph building reuses
 tools/dep_graph.py (about 15 s).
 """
 import argparse
@@ -384,10 +386,19 @@ def load_baseline(root):
     return {c: list(data.get("checks", {}).get(c, [])) for c in CHECKS}, list(data.get("allow", []))
 
 
+# A test never keeps code alive, so an allow reason that points at a test exempts nothing.
+TEST_REASON_RE = re.compile(r"(^|[\s(`'\"])tests?/|\btest_\w+|\bGUT\b|\btests? only\b|\bused by tests?\b", re.I)
+
+
+def valid_reason(reason):
+    """True when an allow entry's reason can exempt a finding: non-empty and not a test."""
+    return bool(reason.strip()) and not TEST_REASON_RE.search(reason)
+
+
 def classify(findings, baseline, allow):
     """(new findings, baselined count, stale baseline entries (id, entry), stale allow entries)."""
     base = {c: set(v) for c, v in baseline.items()}
-    allowed = set((a.get("id"), a.get("entry")) for a in allow)
+    allowed = set((a.get("id"), a.get("entry")) for a in allow if valid_reason(a.get("reason", "")))
     new, seen_base, seen_allow = [], set(), set()
     for f in findings:
         cid, key = f[2], f[4]
@@ -402,19 +413,26 @@ def classify(findings, baseline, allow):
     return new, len(seen_base), stale, stale_allow
 
 
-def write_baseline(root, findings, allow):
-    keep = {}
+def write_baseline(root, findings, allow, baseline=None):
+    """Rewrite the baseline from `findings`, keeping only entries `baseline` already holds (it only
+    shrinks; `baseline` None means no baseline file yet, so every finding is taken). Allow entries
+    that still match are kept. Returns the findings left out: new ones the caller must fix."""
     grouped = {c: sorted(set(f[4] for f in findings if f[2] == c)) for c in CHECKS}
-    allowed_now = set((f[2], f[4]) for f in findings)
-    for a in allow:
-        if (a.get("id"), a.get("entry")) in allowed_now:
-            keep[(a["id"], a["entry"])] = a
-    for (cid, key) in keep:
+    now = set((f[2], f[4]) for f in findings)
+    keep = {(a["id"], a["entry"]): a for a in allow if (a.get("id"), a.get("entry")) in now}
+    for cid, key in keep:
         grouped[cid] = [k for k in grouped[cid] if k != key]
+    refused = []
+    if baseline is not None:
+        for cid in CHECKS:
+            old = set(baseline.get(cid, ()))
+            refused += [(cid, k) for k in grouped[cid] if k not in old]
+            grouped[cid] = [k for k in grouped[cid] if k in old]
     data = {"checks": grouped, "allow": sorted(keep.values(), key=lambda a: (a["id"], a["entry"]))}
     with open(os.path.join(root, "tools", BASELINE_NAME), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(data, fh, indent=1)
         fh.write("\n")
+    return refused
 
 
 def print_report(findings):
@@ -435,9 +453,12 @@ def main(argv):
     findings = collect(root, args.today)
     baseline, allow = load_baseline(root)
     if args.update_baseline:
-        write_baseline(root, findings, allow)
-        print("lint_dead: baseline rewritten (%d findings)" % len(findings))
-        return 0
+        exists = os.path.isfile(os.path.join(root, "tools", BASELINE_NAME))
+        refused = write_baseline(root, findings, allow, baseline if exists else None)
+        for cid, key in refused:
+            print("not baselined (fix it, or add an allow entry with a reason): %s %s" % (cid, key))
+        print("lint_dead: baseline lowered; %d new finding(s) refused" % len(refused))
+        return 1 if refused else 0
     if args.report:
         print_report(findings)
     new, n_base, stale, stale_allow = classify(findings, baseline, allow)
@@ -447,6 +468,9 @@ def main(argv):
         print("stale baseline entry (no longer found, run --update-baseline): %s %s" % (cid, key))
     for cid, key in stale_allow:
         print("stale allow entry (no longer found, delete it): %s %s" % (cid, key))
+    for a in allow:
+        if not valid_reason(a.get("reason", "")):
+            print("allow entry exempts nothing (empty reason or a test): %s %s" % (a.get("id"), a.get("entry")))
     if new:
         print("LINT DEAD RED: %d new finding(s) (%d baselined, %d stale)" % (len(new), n_base, len(stale) + len(stale_allow)))
         return 1

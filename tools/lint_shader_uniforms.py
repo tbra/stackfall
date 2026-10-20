@@ -17,9 +17,9 @@ checks, one finding per line as `path:line: id: message`:
                   cannot read counts as unknown, never as constant.
 
 tools/shader_uniform_baseline.json holds today's findings per check (`checks`) and reviewed exceptions
-(`allow`: [{"id","entry","reason"}], reasons plain text). Only findings outside both fail the run (exit 1);
-baseline entries that no longer occur are reported as stale so the baseline only shrinks
-(`--update-baseline` rewrites it, keeping `allow` entries that still match). Entries are `path:uniform`.
+(`allow`: [{"id","entry","reason"}], reasons plain text). Only findings outside both fail the run (exit 1).
+The baseline only shrinks: `--update-baseline` drops entries that no longer occur and keeps `allow` entries
+that still match, but never adds a finding; it lists each new one and exits 1. Entries are `path:uniform`.
 `--report` prints counts per check and folder.
 """
 import argparse
@@ -393,16 +393,26 @@ def classify(findings, baseline, allow):
     return new, len(seen_base), stale, stale_allow
 
 
-def write_baseline(root, findings, allow):
+def write_baseline(root, findings, allow, baseline=None):
+    """Rewrite the baseline from `findings`, keeping only entries `baseline` already holds (it only
+    shrinks; `baseline` None means no baseline file yet, so every finding is taken). Allow entries
+    that still match are kept. Returns the findings left out: new ones the caller must fix."""
     grouped = {c: sorted(set(f[4] for f in findings if f[2] == c)) for c in CHECKS}
     now = set((f[2], f[4]) for f in findings)
     keep = {(a["id"], a["entry"]): a for a in allow if (a.get("id"), a.get("entry")) in now}
     for cid, key in keep:
         grouped[cid] = [k for k in grouped[cid] if k != key]
+    refused = []
+    if baseline is not None:
+        for cid in CHECKS:
+            old = set(baseline.get(cid, ()))
+            refused += [(cid, k) for k in grouped[cid] if k not in old]
+            grouped[cid] = [k for k in grouped[cid] if k in old]
     data = {"checks": grouped, "allow": sorted(keep.values(), key=lambda a: (a["id"], a["entry"]))}
     with open(os.path.join(root, "tools", BASELINE_NAME), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(data, fh, indent=1)
         fh.write("\n")
+    return refused
 
 
 def print_report(findings):
@@ -422,9 +432,12 @@ def main(argv):
     findings = collect(root)
     baseline, allow = load_baseline(root)
     if args.update_baseline:
-        write_baseline(root, findings, allow)
-        print("lint_shader_uniforms: baseline rewritten (%d findings)" % len(findings))
-        return 0
+        exists = os.path.isfile(os.path.join(root, "tools", BASELINE_NAME))
+        refused = write_baseline(root, findings, allow, baseline if exists else None)
+        for cid, key in refused:
+            print("not baselined (fix it, or add an allow entry with a reason): %s %s" % (cid, key))
+        print("lint_shader_uniforms: baseline lowered; %d new finding(s) refused" % len(refused))
+        return 1 if refused else 0
     if args.report:
         print_report(findings)
     new, n_base, stale, stale_allow = classify(findings, baseline, allow)

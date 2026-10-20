@@ -141,18 +141,20 @@ class BaselineTest(unittest.TestCase):
         self.assertIn("stale baseline entry (no longer found, run --update-baseline): uniform-unread shaders/a.gdshader:gone", out)
         self.assertIn("GREEN: 2 baselined, 1 stale", out)
 
-    def test_allow_entry_exempts_a_finding_and_update_keeps_it(self):
+    def test_allow_entry_is_kept_and_update_refuses_a_new_finding(self):
         base = {"checks": {}, "allow": [{"id": "uniform-unread", "entry": "shaders/a.gdshader:dead_one", "reason": "set by code"}]}
         with make_repo({"shaders/a.gdshader": SHADER, "tools/shader_uniform_baseline.json": json.dumps(base)}) as root:
             buf = io.StringIO()
             with redirect_stdout(buf):
-                self.assertEqual(lint.main(["--path", root, "--update-baseline"]), 0)
-                self.assertEqual(lint.main(["--path", root]), 0)
+                self.assertEqual(lint.main(["--path", root, "--update-baseline"]), 1)
+                self.assertEqual(lint.main(["--path", root]), 1)
+            self.assertIn("not baselined (fix it, or add an allow entry with a reason): uniform-gated "
+                          "shaders/a.gdshader:inside_gate", buf.getvalue())
             with open(os.path.join(root, "tools", "shader_uniform_baseline.json"), encoding="utf-8") as fh:
                 data = json.load(fh)
             self.assertEqual([a["entry"] for a in data["allow"]], ["shaders/a.gdshader:dead_one"])
             self.assertEqual(data["checks"]["uniform-unread"], [])
-            self.assertEqual(data["checks"]["uniform-gated"], ["shaders/a.gdshader:inside_gate"])
+            self.assertEqual(data["checks"]["uniform-gated"], [])
 
 
 if __name__ == "__main__":
