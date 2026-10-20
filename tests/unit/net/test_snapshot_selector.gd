@@ -262,3 +262,21 @@ func test_the_begin_tick_after_reset_counts_as_a_disc_change() -> void:
 	assert_true(_selector.needs_check(ID_A, true), "the first tick after reset is a disc change")
 	_selector.begin_tick(_disc)
 	assert_false(_selector.needs_check(ID_A, true), "the second equal tick is not")
+
+
+func test_a_move_exactly_at_the_position_epsilon_is_not_a_move() -> void:
+	_config.resend_position_epsilon = 1.0
+	_selector = SnapshotSelector.new(_config)
+	_settled([ID_A])
+	assert_false(_selector.moved_since_sent(ID_A, _pose + Vector3(1.0, 0.0, 0.0), _rot), "at the epsilon: not past it")
+	assert_true(_selector.moved_since_sent(ID_A, _pose + Vector3(1.01, 0.0, 0.0), _rot), "just past it")
+
+
+func test_a_turn_exactly_at_the_angle_epsilon_is_not_a_move() -> void:
+	var turned: Quaternion = Quaternion(Vector3.UP, deg_to_rad(30.0))
+	_config.resend_angle_epsilon = rad_to_deg(_rot.angle_to(turned))
+	_selector = SnapshotSelector.new(_config)
+	_settled([ID_A])
+	assert_false(_selector.moved_since_sent(ID_A, _pose, turned), "at the epsilon: not past it")
+	_config.resend_angle_epsilon *= 0.99
+	assert_true(_selector.moved_since_sent(ID_A, _pose, turned), "just past a slightly smaller epsilon")
