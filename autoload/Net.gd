@@ -32,7 +32,7 @@ enum LeaveReason { GRACEFUL, TIMEOUT, KICKED, HOST_SHUTDOWN }
 
 ## Peer id of the listen-server host. Godot fixes this at 1; named here so no
 ## other file writes the literal.
-const HOST_PEER_ID: int = 1
+const HOST_PEER_ID: int = NetRoster.HOST_PEER_ID
 
 ## Key the LAN advert carries so a stray UDP broadcast on 47777 is ignored.
 ## Defined in core/net/NetIds.gd; aliased here.
@@ -45,22 +45,34 @@ const DISCOVERY_MAGIC: StringName = NetIds.DISCOVERY_MAGIC
 const STEAM_APP_ID_EXPECTED: int = NetIds.STEAM_APP_ID_EXPECTED
 
 ## Size of a rejoin token (random bytes; hex doubles it) and
-## the longest token string the handshake will even look up. Architecture,
-## not tunables, like HOST_PEER_ID.
-const REJOIN_TOKEN_BYTES: int = 16
-const REJOIN_TOKEN_MAX_CHARS: int = 64
+## the longest token string the handshake will even look up. Defined in
+## net/session/NetRoster.gd; aliased here.
+const REJOIN_TOKEN_BYTES: int = NetRoster.REJOIN_TOKEN_BYTES
+const REJOIN_TOKEN_MAX_CHARS: int = NetRoster.REJOIN_TOKEN_MAX_CHARS
 
-@export var config: NetConfig = preload("res://config/net/net_config.tres")
+@export var config: NetConfig = preload("res://config/net/net_config.tres"):
+	set(value):
+		config = value
+		net_roster.config = value
+
+## Who is seated where, ready flags, rejoin tokens and reservations, slot compaction
+## and the handshake gate (net/session/NetRoster.gd). On the host this is the source
+## of truth; on a client it is a mirror kept in sync by _rpc_roster_update.
+var net_roster: NetRoster = NetRoster.new(config)
 
 var _mode: Mode = Mode.OFFLINE
 ## The peer this instance created, generic MultiplayerPeer only — never typed
 ## or cast to ENetMultiplayerPeer outside net/session/NetTransport.gd.
 var _peer: MultiplayerPeer = null
 
-## peer_id -> {"peer_id", "slot_id", "name", "name_auto", "ready", "ping_ms", "build"}. On
-## the host this is the source of truth; on a client it is a mirror kept in
-## sync by _rpc_roster_update.
-var _peers: Dictionary = {}
+## TRANSITIONAL: the roster table now lives in `net_roster`; this is the same Dictionary
+## for the tests that still poke it. Removed with the other private forwarders once
+## those tests use the public accessors.
+var _peers: Dictionary:
+	get:
+		return net_roster.peers
+	set(value):
+		net_roster.peers = value
 ## peer_id -> RTT samples (ms), host only, averaged into _peers[id].ping_ms.
 var _ping_samples: Dictionary = {}
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
@@ -103,36 +115,22 @@ signal chat_history_accepted(lines: Array)
 const _CHAT_LOBBY_SEATS_KEY: String = "seats"
 const _CHAT_JOINED_FORMAT: String = "%s joined"
 const _CHAT_LEFT_FORMAT: String = "%s left"
-var _next_slot_id: int = 1
-## Host only: whether _rpc_handshake may still seat a new peer. True in the
-## lobby, false once the match flow leaves it (see set_accepting_joins()).
-var _accepting_joins: bool = true
+## TRANSITIONAL: whether _rpc_handshake may still seat a new peer now lives in `net_roster`
+## (see set_accepting_joins()).
+var _accepting_joins: bool:
+	get:
+		return net_roster.accepting_joins
+	set(value):
+		net_roster.accepting_joins = value
 ## True for a private loopback host (host_game(..., advertise=false), the
 ## Vs bots session); lets the lobby badge say so instead of "LAN". Cleared by leave().
 var _private_session: bool = false
 
 ## -- Mid-match join and reconnect (spec 2.6 "Late join / reconnect") ----------
-## Host only: true while the match flow is past the lobby (game/main/Main.gd sets
-## it next to set_accepting_joins()). Decides which seat a handshake gets: the
-## next lobby slot, or a seat-policy choice / spectator seat mid-match.
-var _match_in_progress: bool = false
-## Host only: peer_id -> the rejoin token issued to it in _rpc_join_accepted.
-## Never part of the roster (that is broadcast to every client): a token is a
-## bearer credential for its slot.
-var _tokens: Dictionary = {}
-## Host only: rejoin token -> slot_id held by a peer that dropped while a
-## match was running. A handshake quoting the token reclaims that slot if the
-## seat policy still calls it reclaimable (inside its NetConfig.
-## disconnect_grace). Cleared whenever a match (re)starts or ends.
-var _reservations: Dictionary = {}
-## Host only (installed by game/main/Main.gd): () -> int. The open human seat a new
-## mid-match joiner may take, or -1 to seat it as a spectator. Net never
-## decides this itself: "open" is a gameplay question (a living human slot no
-## peer holds and no departed peer has reserved).
-var _pick_open_seat: Callable = Callable()
-## Host only (installed by game/main/Main.gd): (slot_id: int) -> bool. Whether a
-## returning peer may reclaim `slot_id` (still inside its disconnect grace).
-var _can_reclaim_seat: Callable = Callable()
+## The match phase, the rejoin tokens and reservations and the installed seat policy
+## (set_seat_policy()) live in `net_roster`: a handshake quoting a reserved token reclaims
+## that slot if the seat policy still calls it reclaimable (inside its NetConfig.
+## disconnect_grace). Net never decides what "open" means: that is a gameplay question.
 ## Client only: the token the host issued on our last accepted join. Survives
 ## a connection loss on purpose (leave(false)), so a dropped player who joins
 ## the same host again (the direct-IP field, the LAN browser or the Steam
@@ -161,8 +159,17 @@ var _host_build_version: String = ""
 var _host_port: int = 0
 
 var _local_slot: int = 0
-var _joined_accepted: bool = false
-var _pending_join_name: String = ""
+## TRANSITIONAL: the client's join state now lives in `net_roster`.
+var _joined_accepted: bool:
+	get:
+		return net_roster.joined_accepted
+	set(value):
+		net_roster.joined_accepted = value
+var _pending_join_name: String:
+	get:
+		return net_roster.pending_join_name
+	set(value):
+		net_roster.pending_join_name = value
 var _join_deadline: float = 0.0
 ## Client only: this instance's own ping to the host, reported down by the
 ## host (the host measures the RTT; the client cannot measure it itself).
@@ -350,7 +357,7 @@ func _process(delta: float) -> void:
 		_tick_handshake_timeouts(now)
 		_tick_ping(delta)
 	elif _mode == Mode.CLIENT:
-		if not _joined_accepted and now > _join_deadline:
+		if not net_roster.joined_accepted and now > _join_deadline:
 			_fail_join(JoinError.TIMEOUT, "no response from host")
 
 	_stats_accum += delta
@@ -389,13 +396,10 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	_mode = Mode.HOST
 	_host_port = use_port
 	_host_build_version = build_version()
-	_peers.clear()
 	# The host's own name goes through the same check a joiner's
 	# does, so an empty or oversized typed name is "Player 1" or cut, everywhere.
 	var host_name: String = PlayerNames.sanitize(resolve_local_name(player_name), config.max_player_name_length, 0)
-	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
-	_next_slot_id = 1
-	_accepting_joins = advertise
+	net_roster.add_host(host_name, _host_build_version, advertise)
 	_private_session = not advertise
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
@@ -403,7 +407,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	# `lan_visible=false` keeps the normal "*" bind and open joins but skips the
 	# broadcast (headless bot hosts must not show up in a Join browser).
 	_adverts.upnp_config = upnp_config
-	_adverts.start(advertise and lan_visible, use_port, host_name, _peers.size(), build_version(), not AgentProbe.is_active())
+	_adverts.start(advertise and lan_visible, use_port, host_name, net_roster.peers.size(), build_version(), not AgentProbe.is_active())
 	return OK
 
 
@@ -420,12 +424,10 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	multiplayer.multiplayer_peer = peer
 	_peer = peer
 	_mode = Mode.CLIENT
-	_peers.clear()
 	# Cleaned here so a bad name is never sent; "" stays "" (the
 	# host seats the joiner as "Player N"). The host re-checks it regardless.
-	_pending_join_name = PlayerNames.clean(resolve_local_name(player_name), config.max_player_name_length)
+	net_roster.begin_client(PlayerNames.clean(resolve_local_name(player_name), config.max_player_name_length))
 	_join_scope = "enet:%s:%d" % [address, use_port]
-	_joined_accepted = false
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
 	return OK
@@ -454,9 +456,9 @@ func leave(forget_rejoin: bool = true) -> void:
 	if _mode == Mode.OFFLINE:
 		return
 	if _mode == Mode.HOST:
-		for peer_id: int in _peers.keys():
+		for peer_id: int in net_roster.peers.keys():
 			if peer_id != HOST_PEER_ID:
-				Events.net_peer_left.emit(peer_id, int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)), LeaveReason.HOST_SHUTDOWN)
+				Events.net_peer_left.emit(peer_id, net_roster.slot_of_peer(peer_id), LeaveReason.HOST_SHUTDOWN)
 
 	if _steam_session and steam_provider != null and _steam_lobby_id != 0:
 		steam_provider.leave_lobby(_steam_lobby_id, "Net.leave()")
@@ -468,14 +470,12 @@ func leave(forget_rejoin: bool = true) -> void:
 	multiplayer.multiplayer_peer = null
 	_peer = null
 	_mode = Mode.OFFLINE
-	_peers.clear()
+	net_roster.end_session()
 	_ping_samples.clear()
 	_pending_handshake.clear()
 	_local_slot = 0
-	_joined_accepted = false
 	_own_ping_ms = 0.0
 	_lobby_data = {}
-	_accepting_joins = true
 	_private_session = false
 	_reset_rejoin_state()
 	_steam_session = false
@@ -550,42 +550,26 @@ func build_version() -> String:
 
 ## Every connected peer id including the host, in slot order.
 func peer_ids() -> PackedInt32Array:
-	var ids: Array = _peers.keys()
-	ids.sort_custom(func(a: int, b: int) -> bool:
-		return int(_peers[a].get(LobbySeats.FIELD_SLOT_ID, -1)) < int(_peers[b].get(LobbySeats.FIELD_SLOT_ID, -1))
-	)
-	var result: PackedInt32Array = PackedInt32Array()
-	for id: int in ids:
-		result.append(id)
-	return result
+	return net_roster.peer_ids()
 
 
 ## {"peer_id": int, "slot_id": int, "name": String, "name_auto": bool (joiners
 ## only: the name is the host's "Player N" for the seat), "ready": bool,
 ## "ping_ms": float, "build": String}. Empty for an unknown peer.
 func peer_info(peer_id: int) -> Dictionary:
-	if not _peers.has(peer_id):
-		return {}
-	return (_peers[peer_id] as Dictionary).duplicate()
+	return net_roster.peer_info(peer_id)
 
 
 ## Which PlayerSlot a peer holds, or -1. The host assigns these and broadcasts
 ## the roster; a client never invents one.
 func slot_of_peer(peer_id: int) -> int:
-	if not _peers.has(peer_id):
-		return -1
-	return int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
+	return net_roster.slot_of_peer(peer_id)
 
 
 ## Inverse of slot_of_peer(). -1 for an unclaimed slot (an empty seat or a
 ## bot's). A negative slot_id is never a seat: spectators all hold -1, so it must not match the first of them.
 func peer_of_slot(slot_id: int) -> int:
-	if slot_id < 0:
-		return -1
-	for peer_id: int in _peers.keys():
-		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) == slot_id:
-			return peer_id
-	return -1
+	return net_roster.peer_of_slot(slot_id)
 
 
 ## The replicated name of the human peer seated at `slot_id`, or
@@ -594,10 +578,7 @@ func peer_of_slot(slot_id: int) -> int:
 ## slot on both sides; late joiners and rejoiners get theirs from the roster
 ## RPC the host already sends on every change.
 func name_for_slot(slot_id: int) -> String:
-	var peer_id: int = peer_of_slot(slot_id)
-	if peer_id == -1 or not _peers.has(peer_id):
-		return ""
-	return String(_peers[peer_id].get(LobbySeats.FIELD_NAME, ""))
+	return net_roster.name_at_slot(slot_id)
 
 
 ## The slot this instance's local player controls. Offline this is
@@ -623,37 +604,24 @@ func is_local_slot(slot_id: int) -> bool:
 
 ## Host only: marks a peer ready in the lobby, or drops it from the session.
 func set_peer_ready(peer_id: int, ready: bool) -> void:
-	if not is_host() or not _peers.has(peer_id):
+	if not is_host() or not net_roster.has_peer(peer_id):
 		return
-	_peers[peer_id][LobbySeats.FIELD_READY] = ready
+	net_roster.set_ready(peer_id, ready)
+	# Broadcast on every accepted call, changed or not: the roster stays synchronous
+	# and ordered; the caller's flood bucket bounds the rate.
 	_broadcast_roster()
 
 
-## Host only: clears every peer's ready flag (host included) without broadcasting; whether any
-## flag changed. Net owns this rule -- the session returning to the lobby applies it (through
-## set_match_in_progress(false)) -- and the Lobby's Ready toggle only shows the result.
-func _clear_ready_flags() -> bool:
-	if not is_host():
-		return false
-	var changed: bool = false
-	for peer_id: int in _peers.keys():
-		if bool(_peers[peer_id].get(LobbySeats.FIELD_READY, false)):
-			_peers[peer_id][LobbySeats.FIELD_READY] = false
-			changed = true
-	return changed
-
-
 func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
-	if not is_host() or not _peers.has(peer_id):
+	if not is_host() or not net_roster.has_peer(peer_id):
 		return
-	var slot_id: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
-	var kicked_name: String = String(_peers[peer_id].get(LobbySeats.FIELD_NAME, ""))
-	_peers.erase(peer_id)
+	var kicked_name: String = net_roster.name_of_peer(peer_id)
+	# A kicked peer forfeits its rejoin token: no reservation is made for it.
+	var slot_id: int = net_roster.remove(peer_id, false)
+	net_roster.forget_flood(peer_id)
 	_ping_samples.erase(peer_id)
 	_chat_forget_peer(peer_id)
 	_pending_handshake.erase(peer_id)
-	# A kicked peer forfeits its rejoin token: no reservation is made for it.
-	_tokens.erase(peer_id)
 	# ENet keeps a disconnecting peer in get_peers() until the
 	# disconnect completes a poll later, and a send to it logs an engine error.
 	# Mark it before anything below can broadcast (the roster, and whatever a
@@ -666,7 +634,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	# Compact BEFORE announcing the departure, as the
 	# disconnect path does, so a listener of net_peer_left (the lobby republishing
 	# its data) already reads the closed-up slot ids.
-	_compact_lobby_slots()
+	net_roster.compact()
 	Events.net_peer_left.emit(peer_id, slot_id, reason)
 	_broadcast_roster()
 	_chat_system_line(_CHAT_LEFT_FORMAT % kicked_name)
@@ -681,17 +649,10 @@ func set_local_ready(ready: bool) -> void:
 
 
 func all_peers_ready() -> bool:
-	if _peers.is_empty():
-		return false
-	for peer_id: int in _peers.keys():
-		# DECISION: the host's own entry mirrors its Ready toggle like
-		# any peer's (seeded false), but pressing Start is the host's consent, so the
-		# Start gate waits for every OTHER seated human only.
-		if peer_id == HOST_PEER_ID:
-			continue
-		if not bool(_peers[peer_id].get(LobbySeats.FIELD_READY, false)):
-			return false
-	return true
+	# DECISION: the host's own entry mirrors its Ready toggle like
+	# any peer's (seeded false), but pressing Start is the host's consent, so the
+	# Start gate waits for every OTHER seated human only.
+	return net_roster.all_ready()
 
 
 ## Measured round trip to `peer_id` in milliseconds, from Net's own ping RPC
@@ -702,9 +663,7 @@ func ping_ms(peer_id: int = 0) -> float:
 		if is_client():
 			return _own_ping_ms
 		target = local_peer_id()
-	if not _peers.has(target):
-		return 0.0
-	return float(_peers[target].get(LobbySeats.FIELD_PING_MS, 0.0))
+	return net_roster.ping_of(target)
 
 
 # --- Lobby data (spec 2.6: "Steam lobbies store match settings as lobby
@@ -1008,10 +967,7 @@ func _on_steam_lobby_created(result: int, lobby_id: int) -> void:
 	_steam_session = true
 	_steam_lobby_id = lobby_id
 	_host_build_version = build_version()
-	_peers.clear()
-	_peers[HOST_PEER_ID] = LobbySeats.entry_to_wire(HOST_PEER_ID, 0, host_name, false, 0.0, _host_build_version)
-	_next_slot_id = 1
-	_accepting_joins = true
+	net_roster.add_host(host_name, _host_build_version, true)
 	_reset_rejoin_state()
 	_steam_selfcheck_accum = 0.0
 	Events.net_mode_changed.emit(_mode)
@@ -1059,11 +1015,9 @@ func _on_steam_lobby_joined(lobby_id: int, response: int) -> void:
 	_steam_selfcheck_accum = 0.0
 	_steam_session = true
 	_steam_lobby_id = lobby_id
-	_peers.clear()
-	_pending_join_name = PlayerNames.clean(
+	net_roster.begin_client(PlayerNames.clean(
 		resolve_local_name(_steam_pending_name), config.max_player_name_length
-	)
-	_joined_accepted = false
+	))
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
 	# From here _on_connected_to_server() (already wired in _ready()) fires
@@ -1230,7 +1184,7 @@ func stats() -> Dictionary:
 		loss_pct = float(_sim.dropped_count()) / float(submitted) * 100.0
 	return {
 		"mode": _mode,
-		"peers": _peers.size(),
+		"peers": net_roster.peers.size(),
 		"ping_ms": ping_ms(),
 		"snapshot_bps": float(_report.get("snapshot_bps", 0.0)),
 		"snapshot_last_bytes": int(_report.get("snapshot_last_bytes", 0)),
@@ -1371,24 +1325,21 @@ func _on_peer_disconnected(id: int) -> void:
 	_pending_handshake.erase(id)
 	_seat_pref_buckets.erase(id)
 	_chat_forget_peer(id)
+	# A handshake bucket outlives no connection: a rejoin starts full.
+	net_roster.forget_flood(id)
 	if _mode != Mode.HOST:
 		return
-	if not _peers.has(id):
+	if not net_roster.has_peer(id):
 		return
-	var slot_id: int = int(_peers[id].get(LobbySeats.FIELD_SLOT_ID, -1))
-	var left_name: String = String(_peers[id].get(LobbySeats.FIELD_NAME, ""))
-	_peers.erase(id)
+	var left_name: String = net_roster.name_of_peer(id)
 	_ping_samples.erase(id)
 	# A seated peer dropping mid-match keeps a reservation on
 	# its slot for as long as the seat policy calls it reclaimable (its
 	# disconnect grace); quoting the token on the next handshake gets it back.
-	var token: String = String(_tokens.get(id, ""))
-	_tokens.erase(id)
-	if _match_in_progress and slot_id >= 0 and token != "":
-		_reservations[token] = slot_id
+	var slot_id: int = net_roster.remove(id, net_roster.match_in_progress)
 	# In the lobby the seats close up behind the leaver, in the
 	# same roster broadcast (a no-op mid-match).
-	_compact_lobby_slots()
+	net_roster.compact()
 	_broadcast_roster()
 	_chat_system_line(_CHAT_LEFT_FORMAT % left_name)
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
@@ -1403,7 +1354,7 @@ func _on_connected_to_server() -> void:
 	if _mode != Mode.CLIENT:
 		return
 	# Only the host that issued the token may see it.
-	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), _pending_join_name, quoted_rejoin_token())
+	_rpc_handshake.rpc_id(HOST_PEER_ID, build_version(), net_roster.pending_join_name, quoted_rejoin_token())
 
 
 ## The token the handshake quotes: the stored one only when it came from the
@@ -1435,154 +1386,42 @@ func _on_server_disconnected() -> void:
 
 ## `rejoin_token` is what _rpc_join_accepted handed this player on an earlier
 ## join, or "". It has a default so the RPC still binds for a sender that
-## omits it; the build check runs inside this handler.
+## omits it; the build check runs inside the roster's decision.
+##
+## The roster gates it first (raw string lengths, then a per-sender HANDSHAKE
+## bucket) and HandshakePolicy decides; a capped or flooded handshake gets no reply.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_handshake(build: String, player_name: String, rejoin_token: String = "") -> void:
 	if not is_host():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
-	if _peers.has(sender):
-		return
-	if build != _host_build_version:
-		_reject_peer(sender, JoinError.VERSION_MISMATCH)
-		return
-	if _match_in_progress:
-		_handshake_mid_match(sender, build, player_name, rejoin_token)
-		return
-	# Spec 2.6: joining is lobby-only unless the match allows mid-match joins.
-	# Checked before capacity so a
-	# late joiner learns the real reason — a full lobby is a different message.
-	if not _accepting_joins:
-		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
-		return
-	if _peers.size() >= config.max_peers:
-		_reject_peer(sender, JoinError.SERVER_FULL)
-		return
-	_accept_peer(sender, build, player_name, _take_next_lobby_slot())
+	_apply_handshake(sender, build, player_name, rejoin_token,
+		net_roster.handle_handshake(sender, build, player_name, rejoin_token, _now()))
 
 
-## The handshake while a match runs. A token naming a slot
-## that is still reclaimable wins first and skips _accepting_joins and the
-## capacity check (its own departure freed the room): spec 2.6 lists
-## reconnect separately from "Mid-match joins can be enabled in settings", and
-## the disconnect grace exists precisely so a dropped player can come back.
-## Anyone else is a new late joiner: refused unless the match allows
-## mid-match joins, then seated in an open human slot or, failing that, as a
-## spectator (slot -1).
-##
-## DECISION: a returning player whose grace already ran out
-## (its slot was eliminated) is treated as a brand-new late joiner, not
-## refused -- the eliminated slot is no longer theirs to reclaim, and the
-## ordinary mid-match-join rules decide whether they may watch or take a seat.
+## Acts on a handshake decision: refuse (reply and close), seat the newcomer, give a
+## returning peer its slot back, or do nothing for a dropped one.
+func _apply_handshake(sender: int, build: String, player_name: String, rejoin_token: String, decision: HandshakePolicy.Decision) -> void:
+	match decision.kind:
+		HandshakePolicy.Decision.Kind.REFUSE:
+			_reject_peer(sender, decision.error)
+		HandshakePolicy.Decision.Kind.RECLAIM:
+			_accept_peer(sender, build, player_name, decision.slot_id, rejoin_token)
+		HandshakePolicy.Decision.Kind.ACCEPT:
+			_accept_peer(sender, build, player_name, decision.slot_id)
+
+
+## TRANSITIONAL: the handshake while a match runs, decided as if the match flag were
+## set (the reclaim and late-joiner rules live in HandshakePolicy). Kept for the ENet
+## acceptance harness that names it.
 func _handshake_mid_match(sender: int, build: String, player_name: String, rejoin_token: String) -> void:
-	var reclaimed: int = _reclaimable_slot_for(rejoin_token)
-	if reclaimed >= 0:
-		_reservations.erase(rejoin_token)
-		_accept_peer(sender, build, player_name, reclaimed, rejoin_token)
-		return
-	if not _accepting_joins:
-		_reject_peer(sender, JoinError.MATCH_IN_PROGRESS)
-		return
-	# DECISION: spectators count against config.max_peers --
-	# it is the transport's connection budget, not a player count.
-	if _peers.size() >= config.max_peers:
-		_reject_peer(sender, JoinError.SERVER_FULL)
-		return
-	var seat: int = -1
-	if _pick_open_seat.is_valid():
-		seat = int(_pick_open_seat.call())
-	if seat >= 0 and (peer_of_slot(seat) != -1 or _reservations.values().has(seat)):
-		# Defensive: a policy must never hand out a seat a live peer holds or a
-		# departed peer has reserved.
-		seat = -1
-	_accept_peer(sender, build, player_name, seat)
-
-
-## The slot `rejoin_token` reserves, if the seat policy still lets it be
-## reclaimed and no live peer holds it; -1 otherwise (including an unknown or
-## oversized token -- a new joiner's empty string in practice).
-func _reclaimable_slot_for(rejoin_token: String) -> int:
-	if rejoin_token.is_empty() or rejoin_token.length() > REJOIN_TOKEN_MAX_CHARS:
-		return -1
-	if not _reservations.has(rejoin_token):
-		return -1
-	var slot_id: int = int(_reservations[rejoin_token])
-	if slot_id < 0 or peer_of_slot(slot_id) != -1:
-		return -1
-	if not _can_reclaim_seat.is_valid() or not bool(_can_reclaim_seat.call(slot_id)):
-		return -1
-	return slot_id
-
-
-## The slot a lobby joiner (or a spectator returning to the lobby) is seated in.
-##
-## The LOWEST free slot, not the next monotonic id, so a joiner never lands
-## above a hole. (_compact_lobby_slots closes
-## the holes a leaver makes; this keeps the invariant for every seating path.)
-## "Free" = no roster entry holds it and no rejoin reservation names it. Mid-match
-## the monotonic counter still applies (a slot a dropped player may reclaim, or
-## one the match already built a PlayerSlot for, is never handed to someone else).
-func _take_next_lobby_slot() -> int:
-	if _match_in_progress:
-		var next_id: int = _next_slot_id
-		_next_slot_id += 1
-		return next_id
-	var taken: Dictionary = {}
-	for peer_id: int in _peers.keys():
-		var held: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
-		if held >= 0:
-			taken[held] = true
-	for reserved: Variant in _reservations.values():
-		taken[int(reserved)] = true
-	var slot_id: int = 0
-	while taken.has(slot_id):
-		slot_id += 1
-	return slot_id
-
-
-## Host only. Lobby phase only: moves every seated peer down so the slot ids run
-## 0..n-1 with no hole, keeping their order (ascending old slot, peer id as the
-## tie-break, so every run agrees). Spectators (slot -1) hold no seat and are left
-## alone. Returns how many peers changed slot; the CALLER publishes the roster
-## (_broadcast_roster), which is what carries the new peer -> slot map to every
-## client (and to the host's own lobby through net_roster_changed).
-##
-## Without this, a player leaving the lobby would leave a hole below the
-## highest human slot, and LobbySeats.start_blocker would report a slot
-## conflict that blocks Start until someone rejoins. Never during a match: there a slot id is a
-## PlayerSlot index the match already built, and a dropped player's rejoin token
-## reserves it, so a mid-match leave keeps its hole (see _handshake_mid_match).
-## The host never moves: it holds slot 0, the lowest, and local_slot() relies on it.
-func _compact_lobby_slots() -> int:
-	if _mode != Mode.HOST or _match_in_progress:
-		return 0
-	var seated: Array[Vector2i] = []
-	for peer_id: int in _peers.keys():
-		var held: int = int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1))
-		if held >= 0:
-			seated.append(Vector2i(held, peer_id))
-	seated.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return a.x < b.x if a.x != b.x else a.y < b.y
-	)
-	var moved: int = 0
-	for index: int in range(seated.size()):
-		if seated[index].x != index:
-			_set_peer_slot(seated[index].y, index)
-			moved += 1
-	return moved
-
-
-## Host only. Moves `peer_id` to `slot_id` (-1 = spectator). A name the host
-## derived itself (the joiner sent none, so it holds the "Player N" fallback of
-## the slot it was accepted into: "name_auto") is derived again for the new slot,
-## so the label never goes stale and never collides with the next joiner's or a
-## bot's "Player N" for the slot this peer vacated. A
-## name the player chose is never touched, even when it reads "Player 3".
-func _set_peer_slot(peer_id: int, slot_id: int) -> void:
-	var entry: Dictionary = _peers[peer_id]
-	entry[LobbySeats.FIELD_SLOT_ID] = slot_id
-	if bool(entry.get(LobbySeats.FIELD_NAME_AUTO, false)):
-		entry[LobbySeats.FIELD_NAME] = PlayerNames.fallback_for_slot(slot_id)
+	var state: Dictionary = net_roster.host_state()
+	state["match_in_progress"] = true
+	var request: Dictionary = {
+		"sender": sender, "build": build, "name": player_name, "token": rejoin_token,
+		"already_seated": net_roster.has_peer(sender),
+	}
+	_apply_handshake(sender, build, player_name, rejoin_token, HandshakePolicy.decide(request, state))
 
 
 ## Seats `peer_id` in `slot_id` (-1 = spectator). `token` is a
@@ -1596,31 +1435,15 @@ func _set_peer_slot(peer_id: int, slot_id: int) -> void:
 ## joiner's world against Net.local_slot() -- which must already be the seat
 ## assigned here.
 func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int, token: String = "") -> void:
-	if slot_id >= _next_slot_id:
-		_next_slot_id = slot_id + 1
-	var issued: String = token if token != "" else _new_rejoin_token()
-	_tokens[peer_id] = issued
-	# The host owns the roster, so it validates the name a peer
-	# claims (control characters, trim, max length, "Player N" if empty) before
-	# anyone else sees it. Everything below uses the checked name.
-	var typed_name: String = PlayerNames.clean(player_name, config.max_player_name_length)
-	var name_auto: bool = typed_name == ""
-	var checked_name: String = PlayerNames.fallback_for_slot(slot_id) if name_auto else typed_name
-	# name_auto is true when the joiner sent no usable name and
-	# the name is the host's own "Player N" for the seat (see _set_peer_slot).
-	_peers[peer_id] = LobbySeats.entry_to_wire(peer_id, slot_id, checked_name, false, 0.0, build, true, name_auto)
+	net_roster.accept(peer_id, build, player_name, slot_id, token)
+	var checked_name: String = net_roster.name_of_peer(peer_id)
 	_ping_samples[peer_id] = []
 	_pending_handshake.erase(peer_id)
-	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, issued)
+	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, net_roster.token_of(peer_id))
 	_broadcast_roster()
 	Events.net_peer_joined.emit(peer_id, slot_id, checked_name)
 	_chat_send_history(peer_id)
 	_chat_system_line(_CHAT_JOINED_FORMAT % checked_name)
-
-
-## Unguessable, so a token is worth exactly one slot.
-func _new_rejoin_token() -> String:
-	return Crypto.new().generate_random_bytes(REJOIN_TOKEN_BYTES).hex_encode()
 
 
 func _reject_peer(peer_id: int, error: int) -> void:
@@ -1658,15 +1481,15 @@ func is_peer_disconnecting(peer_id: int) -> bool:
 func _broadcast_roster() -> void:
 	if not is_host():
 		return
-	var roster: Array[Dictionary] = []
-	for peer_id: int in _peers.keys():
-		roster.append((_peers[peer_id] as Dictionary).duplicate())
+	var entries: Array[Dictionary] = []
+	for peer_id: int in net_roster.peers.keys():
+		entries.append((net_roster.peers[peer_id] as Dictionary).duplicate())
 	# The host's own copy of the roster changed right here; tell
 	# ui/lobby/Lobby.gd directly rather than waiting on a lobby-data republish.
-	Events.net_roster_changed.emit(roster)
+	Events.net_roster_changed.emit(entries)
 	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
-		_rpc_roster_update.rpc_id(peer_id, roster)
-	_adverts.update_players(_peers.size())
+		_rpc_roster_update.rpc_id(peer_id, entries)
+	_adverts.update_players(net_roster.peers.size())
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1681,10 +1504,10 @@ func _rpc_roster_update(roster: Array) -> void:
 			continue
 		updated[int(data[LobbySeats.FIELD_PEER_ID])] = data
 		typed_roster.append(data)
-	_peers = updated
+	net_roster.peers = updated
 	var mine: int = local_peer_id()
-	if _peers.has(mine):
-		_local_slot = int(_peers[mine].get(LobbySeats.FIELD_SLOT_ID, -1))
+	if net_roster.has_peer(mine):
+		_local_slot = net_roster.slot_of_peer(mine)
 	# The client-side mirror of the emit above, so a client's ui/lobby/Lobby.gd
 	# updates the moment this RPC lands rather than on the next
 	# net_lobby_data_changed republish.
@@ -1699,11 +1522,11 @@ func _rpc_join_accepted(slot_id: int, _host_peer_id: int, rejoin_token: String =
 		_rejoin_token = rejoin_token
 		_rejoin_scope = _current_join_scope()
 	_local_slot = slot_id
-	_joined_accepted = true
+	net_roster.joined_accepted = true
 	# Same check the host ran on the name it was sent, so this event carries the
 	# very string the roster will show.
 	Events.net_peer_joined.emit(
-		local_peer_id(), slot_id, PlayerNames.sanitize(_pending_join_name, config.max_player_name_length, slot_id)
+		local_peer_id(), slot_id, PlayerNames.sanitize(net_roster.pending_join_name, config.max_player_name_length, slot_id)
 	)
 
 
@@ -1747,11 +1570,11 @@ func _fail_join(error: int, detail: String = "") -> void:
 ## Refusing in the handshake costs one reliable RPC and the same two-frame
 ## disconnect every other refusal pays.
 func set_accepting_joins(accepting: bool) -> void:
-	_accepting_joins = accepting
+	net_roster.accepting_joins = accepting
 
 
 func accepting_joins() -> bool:
-	return _accepting_joins
+	return net_roster.accepting_joins
 
 
 ## Host only. game/main/Main.gd calls this with true when a match
@@ -1764,36 +1587,28 @@ func accepting_joins() -> bool:
 ## Like set_accepting_joins(), a flag the match flow flips rather than a
 ## subscription to a gameplay signal: this file must not name Match.
 func set_match_in_progress(active: bool) -> void:
-	_reservations.clear()
-	var was_active: bool = _match_in_progress
-	_match_in_progress = active
+	var was_active: bool = net_roster.match_in_progress
+	net_roster.set_match_phase(active)
 	if active or not was_active or not is_host():
 		return
-	var reseated: bool = false
-	for peer_id: int in peer_ids():
-		if int(_peers[peer_id].get(LobbySeats.FIELD_SLOT_ID, -1)) < 0:
-			_set_peer_slot(peer_id, _take_next_lobby_slot())
-			reseated = true
-	# A player who left for good during the match left a hole too
-	# (nothing compacts mid-match); close it now the lobby is back, so Start is not
-	# blocked on a seat nobody can fill.
-	var compacted: bool = _compact_lobby_slots() > 0
-	# Back in the lobby nobody is ready (every lobby view reads this flag).
-	var cleared: bool = _clear_ready_flags()
-	if reseated or compacted or cleared:
+	# Spectators get a real lobby slot again, a player who left for good during the
+	# match left a hole (nothing compacts mid-match) that closes now so Start is not
+	# blocked on a seat nobody can fill, and nobody is ready (every lobby view reads
+	# the flag).
+	if net_roster.return_to_lobby():
 		_broadcast_roster()
 
 
 func match_in_progress() -> bool:
-	return _match_in_progress
+	return net_roster.match_in_progress
 
 
 ## Host only: installs the gameplay side of mid-match
 ## admission (see _pick_open_seat / _can_reclaim_seat). Either Callable may be
 ## invalid: then every late joiner spectates and no slot can be reclaimed.
 func set_seat_policy(pick_open_seat: Callable, can_reclaim_seat: Callable) -> void:
-	_pick_open_seat = pick_open_seat
-	_can_reclaim_seat = can_reclaim_seat
+	net_roster.pick_open_seat = pick_open_seat
+	net_roster.can_reclaim_seat = can_reclaim_seat
 
 
 ## Client only: the rejoin token the host issued on the last accepted join
@@ -1803,9 +1618,7 @@ func rejoin_token() -> String:
 
 
 func _reset_rejoin_state() -> void:
-	_match_in_progress = false
-	_tokens.clear()
-	_reservations.clear()
+	net_roster.reset_rejoin_state()
 	# Per-session host state that must not outlive its peers (called wherever a
 	# session starts or ends: host_game, the Steam lobby host, leave).
 	_seat_pref_buckets.clear()
@@ -1857,7 +1670,7 @@ func _rpc_loading_ready() -> void:
 ## a spectator (slot -1) never reach the lifecycle. Phase, the required set and
 ## idempotence are the lifecycle's checks. Returns whether it was forwarded.
 func _handle_loading_ready(sender: int) -> bool:
-	if _mode != Mode.HOST or not _peers.has(sender) or slot_of_peer(sender) < 0:
+	if _mode != Mode.HOST or not net_roster.peers.has(sender) or slot_of_peer(sender) < 0:
 		return false
 	Events.net_loading_ready_received.emit(sender)
 	return true
@@ -1952,9 +1765,9 @@ func _rpc_request_seat_pref(color_index: Variant, team_pick: Variant) -> void:
 func _handle_seat_pref(sender: int, color_index: Variant, team_pick: Variant, remote: bool = true, now: float = -1.0) -> bool:
 	if _mode == Mode.CLIENT:
 		return false
-	if remote and (_mode != Mode.HOST or not _peers.has(sender) or slot_of_peer(sender) < 0):
+	if remote and (_mode != Mode.HOST or not net_roster.peers.has(sender) or slot_of_peer(sender) < 0):
 		return false
-	if _match_in_progress:
+	if net_roster.match_in_progress:
 		return false
 	if remote and not _seat_pref_take_token(sender, now if now >= 0.0 else _now()):
 		return false
@@ -2002,7 +1815,7 @@ func _seat_pref_take_token(peer_id: int, now: float) -> bool:
 func send_chat(text: String) -> void:
 	if _mode == Mode.HOST:
 		_handle_chat(local_peer_id(), text, false)
-	elif _mode == Mode.CLIENT and _joined_accepted and _client_connected():
+	elif _mode == Mode.CLIENT and net_roster.joined_accepted and _client_connected():
 		var cleaned: String = ChatRules.clean(text, chat_config.max_chars)
 		if cleaned != "":
 			_rpc_chat_submit.rpc_id(HOST_PEER_ID, cleaned)
@@ -2029,7 +1842,7 @@ func _rpc_chat_submit(payload: Variant) -> void:
 func _handle_chat(sender: int, payload: Variant, remote: bool, now: float = -1.0) -> bool:
 	if _mode != Mode.HOST or _private_session or not chat_config.enabled:
 		return false
-	if not _peers.has(sender) or (remote and transport.is_marked_disconnecting(sender)):
+	if not net_roster.peers.has(sender) or (remote and transport.is_marked_disconnecting(sender)):
 		return false
 	var clock: float = now if now >= 0.0 else _now()
 	var bucket: ChatRules.Bucket = _chat_buckets.get(sender) as ChatRules.Bucket
@@ -2050,7 +1863,7 @@ func _handle_chat(sender: int, payload: Variant, remote: bool, now: float = -1.0
 		_chat_notify(sender, ChatRules.NOTICE_DUPLICATE, clock)
 		return false
 	_chat_last[sender] = {"text": text, "at": clock}
-	var entry: Dictionary = _peers[sender]
+	var entry: Dictionary = net_roster.peers[sender]
 	var slot_id: int = int(entry.get(LobbySeats.FIELD_SLOT_ID, -1))
 	_chat_publish(ChatRules.make_line(
 		_chat_take_seq(), sender, slot_id, String(entry.get(LobbySeats.FIELD_NAME, "")),
@@ -2062,7 +1875,7 @@ func _handle_chat(sender: int, payload: Variant, remote: bool, now: float = -1.0
 ## Host only: a host-generated KIND_SYSTEM line, lobby only (nothing mid-match or in
 ## the private bot session).
 func _chat_system_line(text: String) -> void:
-	if _mode != Mode.HOST or _private_session or _match_in_progress or not chat_config.enabled:
+	if _mode != Mode.HOST or _private_session or net_roster.match_in_progress or not chat_config.enabled:
 		return
 	var cleaned: String = ChatRules.clean(text, chat_config.max_chars)
 	if cleaned == "":
@@ -2229,7 +2042,7 @@ func _tick_ping(delta: float) -> void:
 	if not transport.can_broadcast(multiplayer, is_host()):
 		return
 	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
-		if peer_id != HOST_PEER_ID and _peers.has(peer_id):
+		if peer_id != HOST_PEER_ID and net_roster.peers.has(peer_id):
 			_rpc_ping.rpc_id(peer_id, now_ms)
 
 
@@ -2245,13 +2058,13 @@ func _rpc_pong(sent_at_ms: int) -> void:
 	if not is_host():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
-	if not _peers.has(sender):
+	if not net_roster.peers.has(sender):
 		return
 	var rtt: float = float(Time.get_ticks_msec() - sent_at_ms)
 	_record_ping_sample(sender, rtt)
 	if is_peer_disconnecting(sender):
 		return
-	_rpc_report_ping.rpc_id(sender, float(_peers[sender][LobbySeats.FIELD_PING_MS]))
+	_rpc_report_ping.rpc_id(sender, float(net_roster.peers[sender][LobbySeats.FIELD_PING_MS]))
 
 
 @rpc("authority", "call_remote", "unreliable")
@@ -2270,7 +2083,7 @@ func _record_ping_sample(peer_id: int, rtt: float) -> void:
 	var total: float = 0.0
 	for sample: float in samples:
 		total += sample
-	_peers[peer_id][LobbySeats.FIELD_PING_MS] = total / samples.size()
+	net_roster.peers[peer_id][LobbySeats.FIELD_PING_MS] = total / samples.size()
 
 
 # --- Internal helpers -------------------------------------------------------
