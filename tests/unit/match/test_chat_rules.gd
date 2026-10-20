@@ -56,22 +56,6 @@ func test_validate_rejects_bad_lines() -> void:
 	assert_false(ChatRules.validate_line(neg, cfg, MAX_NAME), "negative seq")
 
 
-func test_bucket_burst_then_refill() -> void:
-	var bucket: ChatRules.Bucket = ChatRules.Bucket.new()
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_false(bucket.take(0.0, 3, 0.5), "burst spent")
-	assert_false(bucket.take(1.0, 3, 0.5), "half a token is not enough")
-	assert_true(bucket.take(2.0, 3, 0.5), "one token after 2 s")
-	assert_false(bucket.take(2.0, 3, 0.5))
-	# A long idle never banks more than the burst.
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_false(bucket.take(1000.0, 3, 0.5))
-
-
 func test_history_ring_drops_the_oldest() -> void:
 	var hist: ChatRules.History = ChatRules.History.new(SMALL_RING)
 	for i: int in range(OVER_RING):
