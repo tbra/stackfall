@@ -112,6 +112,13 @@ static func territory(
 	if sum > sum_limit:
 		found.append(_violation(&"territory.share_range", "sum", sum, sum_limit))
 	if board.in_disk_cells > 0:
+		# DECISION: SOAK_PLAN 6.2 names no id for a size mismatch; it reports under
+		# territory.owned_cells_recount with subject "size", value owned_cells.size(), limit shares.size().
+		if board.shares.size() != board.owned_cells.size():
+			found.append(_violation(
+				&"territory.owned_cells_recount", "size", float(board.owned_cells.size()),
+				float(board.shares.size())
+			))
 		for team: int in mini(board.shares.size(), board.owned_cells.size()):
 			var counted: float = float(board.owned_cells[team]) / float(board.in_disk_cells)
 			if absf(counted - board.shares[team]) > config.share_sum_eps:
