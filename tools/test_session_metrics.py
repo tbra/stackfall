@@ -93,5 +93,11 @@ class SessionMetricsTest(unittest.TestCase):
         self.assertEqual(h["verdicts"], {"done": 1, "review": 2})
 
 
+    def test_since_time_accepts_a_trailing_z(self):
+        utc = datetime.timezone.utc
+        self.assertEqual(sm.parse_since("2026-10-20T20:59:55Z"), datetime.datetime(2026, 10, 20, 20, 59, 55, tzinfo=utc))
+        self.assertEqual(sm.parse_since("2026-10-20T22:59:55+02:00"),
+                         datetime.datetime(2026, 10, 20, 20, 59, 55, tzinfo=utc))
+
 if __name__ == "__main__":
     unittest.main()

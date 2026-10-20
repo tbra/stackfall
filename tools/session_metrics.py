@@ -308,6 +308,13 @@ def render(m):
     return "\n".join(lines)
 
 
+def parse_since(stamp):
+    """ISO time to an aware local datetime; accepts the trailing Z that Python 3.8 fromisoformat rejects."""
+    if stamp.endswith("Z"):
+        stamp = stamp[:-1] + "+00:00"
+    return datetime.datetime.fromisoformat(stamp).astimezone()
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--since", required=True, help="main revision the session started from")
@@ -320,7 +327,7 @@ def main(argv):
     repo = os.path.abspath(args.path)
     stamp = args.since_time or git(repo, "show", "-s", "--format=%cI", args.since).strip()
     try:
-        since = datetime.datetime.fromisoformat(stamp).astimezone()
+        since = parse_since(stamp)
     except ValueError:
         print("session_metrics: cannot resolve the start time of %s" % args.since, file=sys.stderr)
         return 2
