@@ -23,8 +23,7 @@ const _FLOAT: String = "%.4f"
 const _LIST_SEP: String = ";"
 const _PAIR_SEP: String = ":"
 const _COMPONENT_SEP: String = ","
-const _WHITESPACE: PackedStringArray = [" ", "	", "
-", ""]
+const _WHITESPACE: PackedStringArray = [" ", "\t", "\n", "\r"]
 
 
 ## SOAK_VIOLATION: one broken invariant at a sample.
@@ -127,7 +126,7 @@ static func _value(v: Variant) -> String:
 			for key: Variant in keys:
 				pairs.append(_value(key) + _PAIR_SEP + _value(d[key]))
 			return _LIST_SEP.join(pairs)
-		TYPE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY, 		TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, TYPE_PACKED_STRING_ARRAY:
+		TYPE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY, TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, TYPE_PACKED_STRING_ARRAY:
 			var items: PackedStringArray = []
 			for item: Variant in v:
 				items.append(_value(item))
