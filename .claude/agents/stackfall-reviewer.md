@@ -43,7 +43,9 @@ directly or the full suite; the hook denies other commands.
 Rank findings in this order: correct (wrong result, crash, missed edge case such as
 empty, zero or last item, a caller the change breaks, a fix in one caller while the
 shared function stays broken, spec deviations, lifecycle regressions); safe (host/client
-trust boundaries, lost or desynced state); holds at the spec's 8 players and 60 ticks
+trust boundaries, lost or desynced state, silent failures: an ignored `Error` return, an
+unchecked `get_node_or_null`/`load()` result, a fallback value or early return that hides
+a broken invariant instead of reporting it); holds at the spec's 8 players and 60 ticks
 (per-tick allocation, O(n²) over blocks or peers, lists that only grow, work every peer
 repeats); tested (risky new logic with no test that fails when it breaks; one good test,
 not coverage); fast; then deviations from the Godot best-practices rule in CLAUDE.md in
