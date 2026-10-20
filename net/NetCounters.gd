@@ -17,8 +17,6 @@ var auto_drops: Dictionary = {}
 ## Cursor updates the host dropped as malformed. Not an intent, so not part of the
 ## sent == accepted + refused identity.
 var cursors_refused: Dictionary = {}
-## A net_id arriving twice is a hard failure of the "never duplicated" criterion.
-var duplicate_net_ids: int = 0
 
 # --- Per-match test tallies (cleared by reset()) -------------------------------
 
@@ -40,10 +38,7 @@ var last_reject_reply: Array = []
 ## The same pair for placement_relocated: [peer_id, slot_id, point].
 var relocate_replies_by_peer: Dictionary = {}
 var last_relocate_reply: Array = []
-## Mid-match join replay bookkeeping.
-var replays_started: int = 0
-var replays_timed_out: int = 0
-var replays_acknowledged: int = 0
+## Host: replay-pending refusals.
 var intents_refused_before_replay_ack: int = 0
 ## Impact replication: batches a client dropped as malformed, events it re-emitted, and
 ## events a well-formed batch carried that were not played.
@@ -113,7 +108,6 @@ func reset() -> void:
 	refused.clear()
 	auto_drops.clear()
 	cursors_refused.clear()
-	duplicate_net_ids = 0
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
 	replicated_dissolve_starts.clear()
