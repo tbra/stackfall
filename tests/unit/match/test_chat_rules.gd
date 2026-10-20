@@ -133,3 +133,14 @@ func test_validate_treats_a_negative_name_cap_as_zero() -> void:
 	assert_true(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "", 0, "hi"), cfg, -5), "an empty name fits a zero cap")
 	assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "n", 0, "hi"), cfg, 0), "one character exceeds a zero cap")
 	assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "n", 0, "hi"), cfg, -5))
+
+
+func test_history_capacity_below_one_clamps_to_one_and_keeps_the_newest_line() -> void:
+	for capacity: int in [1, 0, -3]:
+		var hist: ChatRules.History = ChatRules.History.new(capacity)
+		hist.push(ChatRules.make_line(1, 1, 0, "A", 0, "old"))
+		hist.push(ChatRules.make_line(2, 1, 0, "A", 0, "new"))
+		var lines: Array[Dictionary] = hist.lines()
+		assert_eq(lines.size(), 1, "capacity %d keeps one line" % capacity)
+		if lines.size() == 1:
+			assert_eq(lines[0][ChatRules.KEY_SEQ], 2, "capacity %d keeps the newest" % capacity)
