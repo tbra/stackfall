@@ -32,10 +32,6 @@ extends RefCounted
 ## all four fragments would buy nothing an unreliable link can use, and
 ## bodies_per_fragment() already sizes every fragment against the larger
 ## header so the cap is uniform.
-##
-## net/SnapshotSync.gd re-exports every constant and the three statics under
-## their old names (the golden test reads the constants off that script, and
-## tests and benches call the statics through it).
 
 ## Bumped whenever the layout above changes. A mismatched version is dropped
 ## rather than misread; the build-version handshake in Net should already have

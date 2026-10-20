@@ -104,7 +104,6 @@
    "net/MatchNet.gd:submit_place",
    "net/MatchNet.gd:submit_throw",
    "net/MatchNet.gd:submit_use_gift_slot",
-   "net/SnapshotSync.gd:encode_fragment",
    "net/SnowNet.gd:bind",
    "net/SnowNet.gd:set_providers",
    "net/WeatherNet.gd:bind",
