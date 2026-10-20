@@ -60,6 +60,7 @@ script = ExtResource("4_registry")
 [node name="CloudShadows" type="Node3D" parent="."]
 script = ExtResource("8_cloudshadows")
 field_path = NodePath("../Field")
+skybox_path = NodePath("../Skybox")
 
 [node name="SunFlare" type="CanvasLayer" parent="."]
 script = ExtResource("7_sunflare")
