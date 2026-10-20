@@ -906,3 +906,35 @@ func test_memory_growth_without_new_bodies_is_not_judged_per_body() -> void:
 func test_a_single_new_body_that_cost_too_much_is_a_violation() -> void:
 	var found: Array[SoakCheck.Violation] = _memory(100.0, 100.5, 7, 8)
 	assert_eq(_count(found, &"budget.memory_per_body"), 1)
+
+
+# --- shares / owned-cells size mismatch ---------------------------------------------------------
+
+
+func test_more_shares_than_owned_cells_is_reported_as_a_size_mismatch() -> void:
+	var found: Array[SoakCheck.Violation] = _territory(_board([0.3, 0.2, 0.1], [3000, 2000], 10000))
+	assert_eq(found.size(), 1)
+	if found.is_empty():
+		return
+	assert_eq(found[0].invariant, &"territory.owned_cells_recount")
+	assert_eq(found[0].subject, "size")
+	assert_almost_eq(found[0].value, 2.0, 0.001, "The owned-cell count.")
+	assert_almost_eq(found[0].limit, 3.0, 0.001, "The share count.")
+
+
+func test_more_owned_cells_than_shares_is_reported_as_a_size_mismatch() -> void:
+	var found: Array[SoakCheck.Violation] = _territory(_board([0.3], [3000, 2000], 10000))
+	assert_eq(found.size(), 1)
+	if found.is_empty():
+		return
+	assert_eq(found[0].subject, "size")
+	assert_almost_eq(found[0].value, 2.0, 0.001)
+	assert_almost_eq(found[0].limit, 1.0, 0.001)
+
+
+func test_equal_sizes_are_not_a_size_mismatch() -> void:
+	assert_eq(_count(_territory(_clean_board()), &"territory.owned_cells_recount"), 0)
+
+
+func test_a_size_mismatch_is_not_judged_without_in_disk_cells() -> void:
+	assert_eq(_territory(_board([0.3, 0.2, 0.1], [3000], 0)).size(), 0)
