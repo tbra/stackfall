@@ -90,6 +90,14 @@ func territory_share(team_id: int) -> float:
 	return _raster.team_share(team_id) if _raster != null else 0.0
 
 
+## Soak audit (SOAK_PLAN 6.3). True when the board is not clean (nothing to
+## compare), or when an uncached fresh solve's owner bytes equal the live raster's
+## owner bytes, ignoring live hole and contested cells. Read-only: no raster,
+## cache or revision state changes. Stub: always false until the body lands.
+func fresh_solve_matches_live() -> bool:
+	return false
+
+
 ## The winning team, or -1.
 func winner_team() -> int:
 	return _objective.winner() if _objective != null else WinChecker.NO_TEAM

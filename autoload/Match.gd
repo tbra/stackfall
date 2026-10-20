@@ -954,6 +954,13 @@ func cell_grid() -> CellGrid:
 	return _territory.cell_grid()
 
 
+## Soak audit: fresh uncached solve matches the live raster (see MatchTerritory).
+func fresh_solve_matches_live() -> bool:
+	if not _late_active:
+		return false
+	return _territory.fresh_solve_matches_live()
+
+
 ## Fraction of the disk a team owns, 0..1.
 func territory_share(team_id: int) -> float:
 	if not _late_active:
