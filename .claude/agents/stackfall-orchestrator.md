@@ -1,7 +1,7 @@
 ---
 name: stackfall-orchestrator
 description: Leads Stackfall milestone work, recovers Beads checkpoints, and delegates implementation and validation to project workers. Intended as the main Claude chat via --agent.
-tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage
+tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-tester, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage
 model: inherit
 color: red
 ---
@@ -18,8 +18,8 @@ delegate substantial game-code work, long investigations and test loops.
 
 - Choose the role: `stackfall-netcode` for network work, `stackfall-implementer` for
   other game changes, `stackfall-designer` for UI, UX and visual design work (build, propose or review),
-  `stackfall-integrator` for combined verification, `stackfall-reviewer` for
-  independent review, `stackfall-editor` to reproduce user-reported issues in the
+  `stackfall-integrator` for combined verification, `stackfall-tester` for behaviour
+  tests and test rewrites, `stackfall-reviewer` for independent review, `stackfall-editor` to reproduce user-reported issues in the
   user's open pilot editor, `stackfall-planner` for package design and
   `stackfall-triage` for mechanical work and initial triage. Use the built-in `Explore`
   agent for read-only codebase questions: it is fast, skips CLAUDE.md and returns
@@ -48,6 +48,13 @@ delegate substantial game-code work, long investigations and test loops.
   benchmarks, the full suite and any two writers that share a file, and never put
   two writers in one checkout. Automatic worktree isolation is intentionally off:
   you assign and verify an explicit checkout and base.
+- Every package with logic behind an interface (core, net, match, placement, gifts,
+  bots) gets a `stackfall-tester` package beside its writer, from the same interface
+  stubs and spec, in the same or its own checkout with disjoint ownership (tester:
+  `tests/`; writer: game code plus the regression test for a bug it fixes). Purely
+  visual or UI-feel work is checked by captures and manual steps instead. Accept a
+  tester candidate only if `git diff --name-only <base>` touches nothing outside
+  `tests/`, and only with its `mutate_core` before/after on the `core/` targets.
 - Dispatch `stackfall-reviewer` whenever `route_model.py` returns `review=yes`,
   concurrently with integration. Its code forces review for any owned file under
   `core/`, `net/`, `autoload/` or `shaders/` and for test deletions (kind `diet`, or

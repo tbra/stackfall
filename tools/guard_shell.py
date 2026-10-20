@@ -42,7 +42,7 @@ FULL_SUITE = re.compile(
     re.IGNORECASE)
 WRITER_ROLES = frozenset((
     "stackfall-implementer", "stackfall-netcode", "stackfall-designer", "stackfall-triage",
-    "stackfall-planner", "stackfall-editor",
+    "stackfall-planner", "stackfall-editor", "stackfall-tester",
 ))
 
 REASON_WINDOW = (
