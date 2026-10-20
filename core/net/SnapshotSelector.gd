@@ -5,37 +5,64 @@ extends RefCounted
 ## tick. Pure rule logic with no scene tree.
 
 var _config: NetConfig = null
+## net_id -> SentState, the last SENT pose and sleeping flag.
+var _sent: Dictionary = {}
+var _disc: Transform3D = Transform3D.IDENTITY
+var _has_disc: bool = false
+var _disc_changed: bool = true
+
+
+class SentState:
+	var position: Vector3 = Vector3.ZERO
+	var rotation: Quaternion = Quaternion.IDENTITY
+	var sleeping: bool = false
 
 
 func _init(net_config: NetConfig = null) -> void:
-	_config = net_config
+	_config = net_config if net_config != null else NetConfig.new()
 
 
 ## Starts a tick. `disc` is compared exactly with the previous call's disc; the
 ## first call after construction or reset() counts as changed.
-func begin_tick(_disc: Transform3D) -> void:
-	push_error("SnapshotSelector.begin_tick: not implemented")
+func begin_tick(disc: Transform3D) -> void:
+	_disc_changed = not _has_disc or disc != _disc
+	_disc = disc
+	_has_disc = true
 
 
-## True when this body must be drift-tested this tick.
-func needs_check(_net_id: int, _sleeping: bool) -> bool:
-	push_error("SnapshotSelector.needs_check: not implemented")
-	return true
+## True when this body must be drift-tested this tick: never sent, its sleeping
+## flag differs from the last sent one, or the disc moved this tick.
+func needs_check(net_id: int, sleeping: bool) -> bool:
+	var state: SentState = _sent.get(net_id) as SentState
+	return state == null or state.sleeping != sleeping or _disc_changed
 
 
-## True when the pose passed the resend epsilon against the last SENT pose.
-func moved_since_sent(_net_id: int, _position: Vector3, _rotation: Quaternion) -> bool:
-	push_error("SnapshotSelector.moved_since_sent: not implemented")
-	return true
+## True when the pose passed the resend epsilon against the last SENT pose
+## (never sent counts as moved).
+func moved_since_sent(net_id: int, position: Vector3, rotation: Quaternion) -> bool:
+	var state: SentState = _sent.get(net_id) as SentState
+	if state == null:
+		return true
+	if position.distance_to(state.position) > _config.resend_position_epsilon:
+		return true
+	return rad_to_deg(rotation.angle_to(state.rotation)) > _config.resend_angle_epsilon
 
 
-func remember_sent(_net_id: int, _position: Vector3, _rotation: Quaternion, _sleeping: bool) -> void:
-	push_error("SnapshotSelector.remember_sent: not implemented")
+func remember_sent(net_id: int, position: Vector3, rotation: Quaternion, sleeping: bool) -> void:
+	var state: SentState = _sent.get(net_id) as SentState
+	if state == null:
+		state = SentState.new()
+		_sent[net_id] = state
+	state.position = position
+	state.rotation = rotation
+	state.sleeping = sleeping
 
 
-func forget(_net_id: int) -> void:
-	push_error("SnapshotSelector.forget: not implemented")
+func forget(net_id: int) -> void:
+	_sent.erase(net_id)
 
 
 func reset() -> void:
-	push_error("SnapshotSelector.reset: not implemented")
+	_sent.clear()
+	_has_disc = false
+	_disc_changed = true

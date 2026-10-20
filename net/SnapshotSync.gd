@@ -73,9 +73,9 @@ const SESSION_METHODS: PackedStringArray = ["is_host", "is_client", "is_offline"
 ## matter.
 var _bodies: Dictionary = {}
 
-## net_id (int) -> [position: Vector3, rotation: Quaternion], what each body
-## looked like the last time it went out, for the resend epsilon test.
-var _last_sent: Dictionary = {}
+## The resend decision for sleeping bodies: what each body looked like the last
+## time it went out, and whether the disc moved. Rebuilt per match with the live config.
+var _selector: SnapshotSelector = SnapshotSelector.new()
 
 var _send_accumulator: float = 0.0
 var _sequence: int = 0
@@ -101,6 +101,7 @@ var _disk: Node3D = null
 # --- Client state -----------------------------------------------------------
 
 var _interpolator: Interpolator = null
+var _pose: Interpolator.Pose = Interpolator.Pose.new()
 var _last_noted_sequence: int = -1
 var _stats_accumulator: float = 0.0
 
@@ -135,6 +136,7 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 	end_match()
 	_registry = registry
 	_bounds = config.position_bounds(map_def)
+	_selector = SnapshotSelector.new(config)
 	_running = true
 	_sequence = 0
 	_host_clock_ms = 0.0
@@ -171,7 +173,7 @@ func end_match() -> void:
 	_running = false
 	_registry = null
 	_bodies.clear()
-	_last_sent.clear()
+	_selector.reset()
 	if _disk_smoother != null:
 		_disk_smoother.reset()
 	_disk_smoother = null
@@ -192,7 +194,7 @@ func is_running() -> bool:
 ## calls it once a mid-match joiner acknowledges its world replay: the joiner
 ## connected (and was "new" here) before it had a world to apply snapshots to.
 func request_full_snapshot() -> void:
-	_last_sent.clear()
+	_selector.reset()
 
 
 ## The disk, so its tilt can ride every snapshot (spec 2.6 "Disk state"). Main
@@ -232,7 +234,7 @@ func host_tick(delta: float) -> void:
 		# mid-match join, reconnect) carries every body, not just movers.
 		_known_peer_count = 0
 		_known_peers = PackedInt32Array()
-		_last_sent.clear()
+		_selector.reset()
 		_last_snapshot_bytes = 0
 		_send_accumulator = 0.0
 		return
@@ -242,7 +244,7 @@ func host_tick(delta: float) -> void:
 			has_new_peer = true
 			break
 	if has_new_peer:
-		_last_sent.clear()
+		_selector.reset()
 		_send_accumulator = 1.0 / maxf(config.snapshot_hz, 1.0)
 	_known_peer_count = peer_count
 	_known_peers = peers
@@ -307,27 +309,25 @@ func client_tick(delta: float) -> void:
 	if _disk_smoother != null:
 		_disk_smoother.decay(delta * 1000.0)
 
-	for net_id: int in _interpolator.tracked_ids():
+	for net_id: int in _interpolator.active_ids():
 		var block: BlockBody = _registry.call("block_for_net_id", net_id) as BlockBody if _registry != null else null
 		if block == null or not is_instance_valid(block):
 			continue
 		freeze_body(block)
-		var pose: Dictionary = _interpolator.sample_at_render_time(net_id)
-		if not bool(pose["ok"]):
+		if not _interpolator.pose_into(net_id, _pose):
 			continue
 		# Writing global_transform here and nowhere else is the whole trick:
 		# physics_interpolation smooths this 30 Hz stream up to the display rate
-		# by itself, and a write from _process would fight it.
-		block.global_transform = Transform3D(
-			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
-		)
+		# by itself, and a write from _process would fight it. A body that comes
+		# to rest drops out of active_ids() after this tick's write.
+		block.global_transform = Transform3D(Basis(_pose.rotation), _pose.position)
 		# The "contributing to territory influence" glow
 		# (Block.set_contributing_visual()) is driven from here too: this body is
 		# frozen kinematic (freeze_body() above) and never sleeps for real on a
 		# client, so BlockFactory.build()'s sleeping_state_changed hook never
 		# fires. The newest buffered sample's sleeping flag is applied every tick;
 		# Block's own change-guard keeps identical values cheap.
-		block.set_contributing_visual(bool(pose["sleeping"]))
+		block.set_contributing_visual(_pose.sleeping)
 
 	# the disk rides every snapshot the same way a body does
 	# (spec 2.6 "Disk state ... sent every snapshot"), so it gets the same
@@ -551,6 +551,7 @@ func _remote_peers() -> PackedInt32Array:
 func _select_bodies() -> Dictionary:
 	var awake_or_moved: Array = []
 	var sleepers: Array[BlockBody] = []
+	_selector.begin_tick(_disk_transform())
 
 	for key: Variant in _bodies.keys():
 		var held: Variant = _bodies[key]
@@ -565,7 +566,16 @@ func _select_bodies() -> Dictionary:
 		var carrier: RigidBody3D = block.fused_carrier()
 		if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
 			carrier.call(&"refresh_anchor_pose")
-		if not block.net_sleeping() or _moved_since_sent(block):
+		var sleeping: bool = block.net_sleeping()
+		var pose_rotation: Quaternion = block.global_basis.get_rotation_quaternion()
+		# SHORTCUT: a sleeping body that moved with no disc change and no sleep flip (a teleport or anchored-group pose edit that leaves it asleep) is resent only by its keyframe slice, upgrade when a playtest or the session-close soak shows a stale sleeper
+		if (
+			not sleeping
+			or (
+				_selector.needs_check(block.net_id, sleeping)
+				and _selector.moved_since_sent(block.net_id, block.global_position, pose_rotation)
+			)
+		):
 			awake_or_moved.append(_record(block))
 		else:
 			sleepers.append(block)
@@ -590,26 +600,15 @@ func _record(block: BlockBody) -> Dictionary:
 	}
 
 
-## True when a sleeping body drifted past config.resend_position_epsilon or
-## resend_angle_epsilon since it was last sent, so a body that only wobbled
-## inside its own quantization bucket never costs a packet.
-func _moved_since_sent(block: BlockBody) -> bool:
-	var previous: Variant = _last_sent.get(block.net_id)
-	if previous == null:
-		return true
-	var state: Array = previous as Array
-	var last_position: Vector3 = state[0] as Vector3
-	if block.global_position.distance_to(last_position) > config.resend_position_epsilon:
-		return true
-	var last_rotation: Quaternion = state[1] as Quaternion
-	var current: Quaternion = block.global_basis.get_rotation_quaternion()
-	return rad_to_deg(current.angle_to(last_rotation)) > config.resend_angle_epsilon
-
-
 func _remember_sent(bodies: Array) -> void:
 	for entry: Variant in bodies:
 		var body: Dictionary = entry as Dictionary
-		_last_sent[int(body["net_id"])] = [body["position"], body["rotation"]]
+		_selector.remember_sent(
+			int(body["net_id"]),
+			body["position"] as Vector3,
+			body["rotation"] as Quaternion,
+			bool(body["sleeping"])
+		)
 
 
 func _disk_transform() -> Transform3D:
@@ -641,6 +640,6 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
-	_last_sent.erase(typed.net_id)
+	_selector.forget(typed.net_id)
 	if _interpolator != null:
 		_interpolator.forget(typed.net_id)
