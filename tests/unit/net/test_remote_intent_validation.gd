@@ -1,8 +1,8 @@
 extends GutTest
 ## The host's validation of what arrives over the wire (spec 2.6: "The host
 ## checks every intent before acting on it"). These are the regression cases
-## for three review findings against net/MatchNet.gd's remote boundary
-## Beads .5, .6:
+## for three review findings against the host's remote boundary
+## (MatchIntentGateway):
 ##
 ##   .4  a remote intent quoting a negative feed_seq slipped past Match's
 ##       "-1 means don't check" local sentinel and so past replay protection;
@@ -14,29 +14,38 @@ extends GutTest
 ##       unit check, and request_place() preserved the supplied Y while
 ##       territory only validates X/Z.
 ##
-## As in test_match_net.gd, these drive the **real** Match through MatchNet
-## with a faked Net, so every assertion is about what actually happened to
-## the block feed: a refused intent must leave the block count, the slot's
-## feed_seq and intents_accepted untouched, and must be counted as refused so
-## the debug overlay shows it.
+## These drive the **real** Match through a real MatchIntentGateway (a FakeNet
+## session and spy Seams), so every assertion is about what actually happened to
+## the block feed: a refused intent must leave the block count and the slot's
+## feed_seq untouched, and must be counted as refused (accepted + refused ==
+## sent) so the debug overlay shows it.
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
-
-## The peer ids _make_net() hands out: peer 1 is the listen-server host on
+## The peer ids the fake session hands out: peer 1 is the listen-server host on
 ## slot 0, peer 2 a remote client on slot 1.
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
 const REMOTE_SLOT: int = 1
+const FLOOD_FACTOR: int = 3
+const FLOOD_TIME_S: float = 5.0
+const GOOD_ORIENTATION: int = 3
+const TIGHT_BURST: int = 2
 
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
-var _net: MatchNetScript
 var _fake_net: FakeNet
+var _gateway: MatchIntentGateway
+var _counters: NetCounters
 var _net_config: NetConfig = preload("res://config/net/net_config.tres")
+var _now_s: float = 0.0
+## What the gateway pushed out through its Seams, and what reached the ghost.
+var _replies: Array[Array] = []
+var _broadcasts: int = 0
+var _stored_cursors: Array[Dictionary] = []
+var _ghost_updates: int = 0
 
 ## DECISION: see test_match_flow.gd's own `_tiny_map` comment.
-## Same real Field/Match world built fresh in every one of this file's 18
+## Same real Field/Match world built fresh in every one of this file's
 ## tests' before_each, same ~11 s round_medium.tres (45 m, ~6300 cells)
 ## collision build paid for nothing every time; same TinyMapMatchConfig seam.
 var _tiny_map: MapDef
@@ -58,29 +67,46 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
-	Match._net_provider = null
+	if Events.remote_cursor_updated.is_connected(_on_ghost_update):
+		Events.remote_cursor_updated.disconnect(_on_ghost_update)
+	_gateway = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
 
 
-## A listen-server host (peer 1, slot 0) with one remote client (peer 2,
-## slot 1), bound to the real Match. Same shape as test_match_net.gd's.
-func _make_host_net() -> MatchNetScript:
-	var peer_slots: Dictionary = {HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}
-	_fake_net = FakeNet.host(peer_slots, [0])
-	_fake_net.slots_by_peer = peer_slots
-	Match._net_provider = _fake_net
-	var node: MatchNetScript = MatchNetScript.new()
-	node.set_process(false)
-	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
-	_net = node
-	return node
+func _on_ghost_update(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void:
+	_ghost_updates += 1
+
+
+## A listen-server host (peer 1, slot 0) with one remote client (peer 2, slot 1), bound to the real
+## Match through the gateway's real constructor.
+func _make_gateway(config: NetConfig = _net_config) -> MatchIntentGateway:
+	_fake_net = FakeNet.host({HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}, [0])
+	_counters = NetCounters.new()
+	_now_s = 0.0
+	_replies.clear()
+	_broadcasts = 0
+	_stored_cursors.clear()
+	_ghost_updates = 0
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return true
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+		_replies.append([peer_id, method, args])
+		return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: _broadcasts += 1
+	seams.now_s = func() -> float: return _now_s
+	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
+	seams.store_cursor = func(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
+		_stored_cursors.append({
+			"slot_id": slot_id, "origin": origin, "orientation_index": orientation_index, "free_quat": free_quat,
+		})
+	_gateway = MatchIntentGateway.new(_fake_net, Match, config, _counters, seams)
+	assert_true(_gateway.is_valid(), "fixture: the gateway bound the fake session and the real Match")
+	Events.remote_cursor_updated.connect(_on_ghost_update)
+	return _gateway
 
 
 func _config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
@@ -115,30 +141,25 @@ func _block_count() -> int:
 
 
 ## The remote client (peer 2) sends an intent for its own slot.
-func _remote_place(
-	net: MatchNetScript, origin: Vector3, orientation_index: int, free_quat: Quaternion, feed_seq: int
-) -> void:
-	net._handle_place_intent(REMOTE_PEER, REMOTE_SLOT, origin, orientation_index, free_quat, feed_seq)
+func _remote_place(origin: Vector3, orientation_index: int, free_quat: Quaternion, feed_seq: int) -> void:
+	_gateway.handle_place(REMOTE_PEER, REMOTE_SLOT, origin, orientation_index, free_quat, feed_seq)
 
 
-## The remote client (peer 2) sends a cursor update for its own slot, through
-## the same host-side handler net_update_cursor() runs.
-func _remote_cursor(net: MatchNetScript, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
-	net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, origin, orientation_index, free_quat)
+## The remote client (peer 2) sends a cursor update for its own slot.
+func _remote_cursor(origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
+	_gateway.handle_cursor(REMOTE_PEER, REMOTE_SLOT, origin, orientation_index, free_quat)
 
 
 ## Everything a refused remote intent must leave alone, plus the refusal
-## itself being visible in the counters.
-func _assert_nothing_was_spent(
-	net: MatchNetScript, seq_before: int, blocks_before: int, refused_before: int, what: String
-) -> void:
-	assert_eq(_block_count(), blocks_before, "%s: no block may be spawned" % what)
+## itself being visible in the per-slot identity (accepted + refused == sent).
+func _assert_nothing_was_spent(seq_before: int, refused_before: int, what: String) -> void:
+	assert_eq(_block_count(), 0, "%s: no block may be spawned" % what)
 	assert_eq(Match.feed_seq(REMOTE_SLOT), seq_before, "%s: the held block must not be consumed" % what)
-	assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "%s: nothing was accepted" % what)
-	assert_eq(net.intents_refused(REMOTE_SLOT), refused_before + 1, "%s: the refusal is counted" % what)
+	assert_eq(_counters.accepted_count(REMOTE_SLOT), 0, "%s: nothing was accepted" % what)
+	assert_eq(_counters.refused_count(REMOTE_SLOT), refused_before + 1, "%s: the refusal is counted" % what)
 	assert_eq(
-		net.intents_accepted(REMOTE_SLOT) + net.intents_refused(REMOTE_SLOT),
-		net.intents_sent(REMOTE_SLOT),
+		_counters.accepted_count(REMOTE_SLOT) + _counters.refused_count(REMOTE_SLOT),
+		_counters.sent_count(REMOTE_SLOT),
 		"%s: accepted + refused must still equal sent" % what
 	)
 
@@ -147,39 +168,39 @@ func _assert_nothing_was_spent(
 
 
 func test_a_remote_intent_with_the_local_minus_one_sentinel_is_refused() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 
-	_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
 
-	_assert_nothing_was_spent(net, seq, 0, 0, "feed_seq -1 from the wire")
+	_assert_nothing_was_spent(seq, 0, "feed_seq -1 from the wire")
 
 
 func test_every_negative_remote_feed_seq_is_refused() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var refused: int = 0
 
 	for bad_seq: int in [-2, -7, -(1 << 40)]:
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, bad_seq)
-		_assert_nothing_was_spent(net, seq, 0, refused, "feed_seq %d from the wire" % bad_seq)
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, bad_seq)
+		_assert_nothing_was_spent(seq, refused, "feed_seq %d from the wire" % bad_seq)
 		refused += 1
 
 
 func test_a_replayed_remote_intent_places_exactly_one_block() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var where: Vector3 = _home_world_position(REMOTE_SLOT)
 
-	_remote_place(net, where, 0, Quaternion.IDENTITY, seq)
-	_remote_place(net, where, 0, Quaternion.IDENTITY, seq)
+	_remote_place(where, 0, Quaternion.IDENTITY, seq)
+	_remote_place(where, 0, Quaternion.IDENTITY, seq)
 
 	assert_eq(_block_count(), 1, "One held block, one spawned block, however often the intent arrives.")
-	assert_eq(net.intents_accepted(REMOTE_SLOT), 1)
-	assert_eq(net.intents_refused(REMOTE_SLOT), 1)
+	assert_eq(_counters.accepted_count(REMOTE_SLOT), 1)
+	assert_eq(_counters.refused_count(REMOTE_SLOT), 1)
 	assert_eq(Match.feed_seq(REMOTE_SLOT), seq + 1)
 
 
@@ -187,7 +208,7 @@ func test_a_replayed_remote_intent_places_exactly_one_block() -> void:
 
 
 func test_out_of_range_remote_orientations_are_refused_without_spending_a_block() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var refused: int = 0
@@ -196,35 +217,46 @@ func test_out_of_range_remote_orientations_are_refused_without_spending_a_block(
 	# without a check it silently aliases entry 23 and places. -25 and 24 are
 	# one past each end; 1 << 40 is what a 64-bit int on the wire allows.
 	for bad_index: int in [-1, -25, BlockOrientations.ORIENTATION_COUNT, 1 << 40]:
-		_remote_place(net, _home_world_position(REMOTE_SLOT), bad_index, Quaternion.IDENTITY, seq)
-		_assert_nothing_was_spent(net, seq, 0, refused, "orientation %d from the wire" % bad_index)
+		_remote_place(_home_world_position(REMOTE_SLOT), bad_index, Quaternion.IDENTITY, seq)
+		_assert_nothing_was_spent(seq, refused, "orientation %d from the wire" % bad_index)
 		refused += 1
 
 
 func test_a_cursor_with_an_out_of_range_orientation_is_dropped_and_auto_drop_still_lands() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var where: Vector3 = _home_world_position(REMOTE_SLOT)
-	_remote_cursor(net, where, 3, Quaternion.IDENTITY)
+	_remote_cursor(where, GOOD_ORIENTATION, Quaternion.IDENTITY)
 
 	for bad_index: int in [-1, -25, BlockOrientations.ORIENTATION_COUNT, 1 << 40]:
-		_remote_cursor(net, where, bad_index, Quaternion.IDENTITY)
+		_remote_cursor(where, bad_index, Quaternion.IDENTITY)
 
-	var cursor: Dictionary = net.cursor_for_slot(REMOTE_SLOT)
-	assert_eq(cursor["orientation_index"], 3, "The last well-formed cursor is what the host keeps.")
-	assert_eq(net.cursors_refused(REMOTE_SLOT), 4, "Every dropped cursor is counted for the overlay.")
+	assert_eq(_stored_cursors.size(), 1, "Only the well-formed cursor is kept.")
+	assert_eq(_stored_cursors[0]["orientation_index"], GOOD_ORIENTATION, "The last well-formed cursor is what the host keeps.")
+	assert_eq(_ghost_updates, 1, "A malformed cursor never reaches the remote ghost.")
+	assert_eq(_broadcasts, 1, "Nor is it rebroadcast.")
+	assert_eq(_replies.size(), 0, "A dropped cursor is not answered.")
 
-	Events.feed_timer_expired.emit(REMOTE_SLOT)
+	var kept: Dictionary = _stored_cursors[0]
+	var reason: StringName = _gateway.apply_place(
+		REMOTE_SLOT,
+		kept["origin"] as Vector3,
+		kept["orientation_index"] as int,
+		kept["free_quat"] as Quaternion,
+		true,
+		Match.feed_seq(REMOTE_SLOT)
+	)
 
+	assert_eq(reason, PlacementRules.REASON_OK, "The timer path drops from the kept pose.")
 	assert_eq(_block_count(), 1, "The timer path never sees the malformed pose and still drops.")
-	assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "the timer drop is not an accepted intent")
+	assert_eq(_counters.accepted_count(REMOTE_SLOT), 0, "the timer drop is not an accepted intent")
 
 
 # --- .6  Origin, free quaternion and height ----------------------------------
 
 
 func test_non_finite_remote_origins_are_refused() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var home: Vector3 = _home_world_position(REMOTE_SLOT)
@@ -236,13 +268,13 @@ func test_non_finite_remote_origins_are_refused() -> void:
 		Vector3(home.x, home.y, -INF),
 		Vector3(NAN, NAN, NAN),
 	]:
-		_remote_place(net, bad_origin, 0, Quaternion.IDENTITY, seq)
-		_assert_nothing_was_spent(net, seq, 0, refused, "origin %s from the wire" % bad_origin)
+		_remote_place(bad_origin, 0, Quaternion.IDENTITY, seq)
+		_assert_nothing_was_spent(seq, refused, "origin %s from the wire" % bad_origin)
 		refused += 1
 
 
 func test_malformed_remote_quaternions_are_refused() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var refused: int = 0
@@ -254,13 +286,13 @@ func test_malformed_remote_quaternions_are_refused() -> void:
 		Quaternion(1.0, 1.0, 1.0, 1.0),
 		Quaternion(INF, 0.0, 0.0, 0.0),
 	]:
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, bad_quat, seq)
-		_assert_nothing_was_spent(net, seq, 0, refused, "quaternion %s from the wire" % bad_quat)
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, bad_quat, seq)
+		_assert_nothing_was_spent(seq, refused, "quaternion %s from the wire" % bad_quat)
 		refused += 1
 
 
 func test_remote_heights_outside_the_replicable_band_are_refused() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
 	var refused: int = 0
@@ -273,19 +305,18 @@ func test_remote_heights_outside_the_replicable_band_are_refused() -> void:
 		_net_config.pos_min_y - 1.0,
 		-1.0e9,
 	]:
-		_remote_place(net, _home_world_position(REMOTE_SLOT, bad_height), 0, Quaternion.IDENTITY, seq)
-		_assert_nothing_was_spent(net, seq, 0, refused, "height %f from the wire" % bad_height)
+		_remote_place(_home_world_position(REMOTE_SLOT, bad_height), 0, Quaternion.IDENTITY, seq)
+		_assert_nothing_was_spent(seq, refused, "height %f from the wire" % bad_height)
 		refused += 1
 
 
 ## A well-formed but far-off-disk manual release used to burn the block from an
-## origin clamped inside the kill plane. Since
-## a manual release outside the
+## origin clamped inside the kill plane. Now a manual release outside the
 ## player's territory is refused instead: nothing spawns, the piece stays
 ## held, feed_seq does not move, and the client can retry. The burn clamp is
 ## still exercised for auto-drops in tests/unit/match/test_match_flow.gd.
 func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 	var far_origins: Array[Vector3] = [
@@ -300,8 +331,8 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	var seq_before: int = Match.feed_seq(REMOTE_SLOT)
 	var held_before: BlockShape = Match.held_shape(REMOTE_SLOT)
 	for i: int in range(far_origins.size()):
-		_remote_place(net, far_origins[i], 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
-		assert_eq(net.intents_accepted(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed.")
+		_remote_place(far_origins[i], 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT))
+		assert_eq(_counters.accepted_count(REMOTE_SLOT), 0, "A far-off-disk release is refused, not consumed.")
 		assert_eq(_block_count(), 0, "Nothing spawns for a refused release.")
 		assert_eq(Match.feed_seq(REMOTE_SLOT), seq_before, "A refusal never advances the cadence.")
 		assert_eq(Match.held_shape(REMOTE_SLOT), held_before, "The refused piece stays in hand.")
@@ -311,93 +342,77 @@ func test_a_far_off_disk_remote_intent_is_refused_and_keeps_the_piece() -> void:
 	assert_eq(rejections.count(REMOTE_SLOT), far_origins.size(), "The rejection names the releasing slot.")
 
 
-
-# --- wire id limits and the counter identity (the WireLimits / NetCounters split) ---
-
-
-func test_special_id_wire_check_follows_the_configured_length() -> void:
-	var net: MatchNetScript = _make_host_net()
-	net.config = net.config.duplicate() as NetConfig
-	var at_cap: String = "a".repeat(net.config.special_id_max_length)
-	assert_true(net._special_id_wire_ok(at_cap), "an id of exactly the cap is trusted")
-	assert_false(net._special_id_wire_ok(at_cap + "a"), "one character past the cap is not")
-	assert_false(net._special_id_wire_ok(""), "an empty id is not")
-	assert_false(net._special_id_wire_ok("bad id"), "nor is one with a space")
-	net.config.special_id_max_length = 6
-	assert_false(net._special_id_wire_ok("rocket1"), "the cap is NetConfig's, not a literal")
+# --- the counter identity ---------------------------------------------------------------------
 
 
-func test_a_refused_remote_intent_is_tallied_in_the_counters_object() -> void:
-	var net: MatchNetScript = _make_host_net()
+func test_a_refused_remote_intent_is_tallied_against_the_senders_slot() -> void:
+	_make_gateway()
 	_start_playing()
-	_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -5)
-	assert_eq(net.counters.sent_count(REMOTE_SLOT), 1)
-	assert_eq(net.counters.refused_count(REMOTE_SLOT), 1)
-	assert_eq(net.counters.accepted_count(REMOTE_SLOT), 0)
-	assert_eq(net.intents_refused(REMOTE_SLOT), 1, "the public accessor reads the same object")
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -5)
+	assert_eq(_counters.sent_count(REMOTE_SLOT), 1)
+	assert_eq(_counters.refused_count(REMOTE_SLOT), 1)
+	assert_eq(_counters.accepted_count(REMOTE_SLOT), 0)
 
 
 # --- per-peer intent flood limits (MatchIntentGateway) -----------------------------------------
 
 
-func test_a_flood_of_refused_place_intents_is_answered_only_up_to_the_burst() -> void:
-	var net: MatchNetScript = _make_host_net()
+func test_a_flood_of_refused_placements_are_answered_only_up_to_the_burst() -> void:
+	_make_gateway()
 	_start_playing()
 	var burst: int = _net_config.flood_place_burst
-	for _i: int in range(3 * burst):
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-	# Real time passes between the calls, so the bucket may have refilled by a token.
-	assert_between(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), burst, burst + 1, "no reply for a flooded intent")
-	assert_between(net.intents_sent(REMOTE_SLOT), burst, burst + 1, "a flooded intent is not even counted as sent")
-	assert_gte(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 2 * burst - 1)
+	_now_s = FLOOD_TIME_S
+	for _i: int in range(FLOOD_FACTOR * burst):
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst, "no reply for a flooded intent")
+	assert_eq(_counters.sent_count(REMOTE_SLOT), burst, "a flooded intent is not even counted as sent")
 	assert_eq(_block_count(), 0)
+	assert_eq(_broadcasts, 0, "a dropped intent is not rebroadcast")
 	assert_eq(_fake_net.kick_peer_calls.size(), 0, "a flooder is dropped, never kicked")
 
 
 func test_a_single_normal_refusal_is_still_answered_once() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
-	_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1)
-	assert_eq(net.last_reject_reply[0], REMOTE_PEER)
-	assert_eq(net.last_reject_reply[1], REMOTE_SLOT)
-	assert_eq(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0)
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), 1)
+	assert_eq(_replies[0][0], REMOTE_PEER)
+	assert_eq(_replies[0][1], &"net_match_event")
+	assert_eq(_replies[0][2], [MatchWireEvents.PLACEMENT_REJECTED, [REMOTE_SLOT, PlacementRules.REASON_NO_BLOCK]])
 
 
 func test_a_flood_of_remote_cursors_updates_the_ghost_only_up_to_the_burst() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
-	var seen: Array[int] = [0]
-	var on_cursor: Callable = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: seen[0] += 1
-	Events.remote_cursor_updated.connect(on_cursor)
 	var burst: int = _net_config.flood_cursor_burst
-	for _i: int in range(3 * burst):
-		_remote_cursor(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
-	Events.remote_cursor_updated.disconnect(on_cursor)
-	assert_between(seen[0], burst, burst + 1, "only what the bucket let through reaches the ghost")
+	_now_s = FLOOD_TIME_S
+	for _i: int in range(FLOOD_FACTOR * burst):
+		_remote_cursor(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
+	assert_eq(_ghost_updates, burst, "only what the bucket let through reaches the ghost")
+	assert_eq(_stored_cursors.size(), burst, "and only that is kept for the auto-drop")
+	assert_eq(_broadcasts, burst, "and only that is rebroadcast")
 
 
 func test_a_peer_leaving_gives_a_rejoin_full_buckets() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_gateway()
 	_start_playing()
 	var burst: int = _net_config.flood_place_burst
+	_now_s = FLOOD_TIME_S
 	for _i: int in range(2 * burst):
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-	assert_gt(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0)
-	Events.net_peer_left.emit(REMOTE_PEER, REMOTE_SLOT, 0)
-	assert_eq(net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_PLACE), 0, "buckets and counters are forgotten")
-	var replies_before: int = int(net.reject_replies_by_peer.get(REMOTE_PEER, 0))
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst, "fixture: the bucket is drained")
+	_gateway.forget_peer(REMOTE_PEER)
 	for _i: int in range(burst):
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), replies_before + burst, "a full bucket again")
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), 2 * burst, "a full bucket again")
 
 
-func test_swapping_the_net_config_rebinds_the_gateway_limits() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
+func test_the_net_config_a_gateway_is_built_with_sets_its_limits() -> void:
 	var tight: NetConfig = _net_config.duplicate() as NetConfig
-	tight.flood_place_burst = 2
-	net.config = tight
-	for _i: int in range(6):
-		_remote_place(net, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
-	assert_between(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 2, 3, "the new burst of 2 applies")
+	tight.flood_place_burst = TIGHT_BURST
+	_make_gateway(tight)
+	_start_playing()
+	_now_s = FLOOD_TIME_S
+	for _i: int in range(2 * TIGHT_BURST + 2):
+		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), TIGHT_BURST, "the burst of the config it was built with applies")

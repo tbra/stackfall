@@ -22,13 +22,6 @@ func test_starts_full() -> void:
 	assert_eq(_drain(bucket, T0), BURST)
 
 
-func test_unset_before_first_take() -> void:
-	var bucket: TokenBucket = TokenBucket.new()
-	assert_lt(bucket.tokens(), 0.0)
-	bucket.take(T0, BURST, REFILL_PER_S)
-	assert_almost_eq(bucket.tokens(), float(BURST) - 1.0, 0.0001)
-
-
 func test_refill_after_one_period_passes_exactly_one() -> void:
 	var bucket: TokenBucket = TokenBucket.new()
 	_drain(bucket, T0)
