@@ -224,7 +224,7 @@ func advance(delta: float) -> void:
 	_render_time_ms += clampf(error_ms, -budget_ms, budget_ms)
 
 
-## The pose to draw for `net_id` right now: interpolated between the two
+## The pose to draw right now: interpolated between the two
 ## samples bracketing the render clock, extrapolated from the last two for at
 ## most NetConfig.max_extrapolation_ms past the newest, then held. `ok` is
 ## false when the body has no usable samples, and the caller must then leave
@@ -237,9 +237,9 @@ func advance(delta: float) -> void:
 ## out over max_extrapolation_ms — the same window that opened it (spec 2.6's
 ## "extrapolate for at most 100 ms" says nothing about the way back, and a
 ## teleport is exactly the artefact the acceptance criterion tests for).
-## Writes the pose into `out` without allocating; false (and `out` untouched)
-## when the body has no samples, and the caller must then leave the body where it is. A track that is at
-## rest returns its held pose without re-evaluating.
+## Writes the pose to draw into `out` without allocating, and returns false
+## (leaving `out` untouched) when the body has no samples. A track at rest
+## returns its held pose without re-evaluating.
 func pose_into(net_id: int, out: Pose) -> bool:
 	var track: Track = _buffers.get(net_id) as Track
 	if track == null or track.samples.is_empty():
@@ -260,9 +260,9 @@ func pose_into(net_id: int, out: Pose) -> bool:
 	elif _render_time_ms >= float(newest.host_time_ms):
 		var ahead_ms: float = _render_time_ms - float(newest.host_time_ms)
 		clamped = ahead_ms > _config.max_extrapolation_ms
-		var extrapolated: Dictionary = _extrapolate(track.samples, newest)
-		raw_position = extrapolated["position"] as Vector3
-		raw_rotation = extrapolated["rotation"] as Quaternion
+		_extrapolate(track.samples, newest, out)
+		raw_position = out.position
+		raw_rotation = out.rotation
 	else:
 		for index: int in range(track.samples.size() - 1):
 			var a: Sample = track.samples[index]
@@ -391,10 +391,6 @@ func _write_held(track: Track, out: Pose) -> void:
 	out.sleeping = true
 
 
-func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> Dictionary:
-	return {"ok": true, "position": position, "rotation": rotation, "sleeping": sleeping}
-
-
 ## Relaxes every body's convergence offset toward zero with a time constant of
 ## NetConfig.max_extrapolation_ms, so the pose catches up over roughly the same
 ## window the hold froze it for. Exponential, so it is frame-rate independent
@@ -416,19 +412,22 @@ func _decay_errors(delta_ms: float) -> void:
 ## NetConfig.max_extrapolation_ms, then hold. Clamping the elapsed time rather
 ## than the result is what makes the hold exact — the pose simply stops
 ## advancing instead of drifting, and there is no snap when it stops.
-func _extrapolate(buffer: Array[Sample], newest: Sample) -> Dictionary:
+func _extrapolate(buffer: Array[Sample], newest: Sample, out: Pose) -> void:
 	var ahead_ms: float = clampf(
 		_render_time_ms - float(newest.host_time_ms), 0.0, _config.max_extrapolation_ms
 	)
 	if buffer.size() < 2 or newest.sleeping or ahead_ms <= 0.0:
-		return _pose(newest.position, newest.rotation)
+		out.position = newest.position
+		out.rotation = newest.rotation
+		return
 
 	var previous: Sample = buffer[buffer.size() - 2]
 	var span_ms: float = float(newest.host_time_ms - previous.host_time_ms)
 	if span_ms <= 0.0:
-		return _pose(newest.position, newest.rotation)
+		out.position = newest.position
+		out.rotation = newest.rotation
+		return
 
 	var t: float = ahead_ms / span_ms
-	var position: Vector3 = newest.position + (newest.position - previous.position) * t
-	var rotation: Quaternion = previous.rotation.slerp(newest.rotation, 1.0 + t).normalized()
-	return _pose(position, rotation)
+	out.position = newest.position + (newest.position - previous.position) * t
+	out.rotation = previous.rotation.slerp(newest.rotation, 1.0 + t).normalized()
