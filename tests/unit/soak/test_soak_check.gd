@@ -796,3 +796,113 @@ func test_the_orphan_limit_comes_from_the_config() -> void:
 	var lenient: SoakConfig = _config_with({"orphan_nodes_max": 5})
 	assert_eq(_memory(100.0, 100.0, 0, 0, 5, lenient).size(), 0)
 	assert_eq(_memory(100.0, 100.0, 0, 0, 6, lenient).size(), 1)
+
+
+# --- defaults, the equality edges and the counter-decrease detail ------------------------------
+
+
+func test_an_untouched_intent_observation_is_sound() -> void:
+	var slots: Array[SoakCheck.IntentObs] = [SoakCheck.IntentObs.new()]
+	assert_eq(_authority(slots).size(), 0, "All counters start at zero and agree.")
+
+
+func test_an_untouched_observation_reports_its_default_subject() -> void:
+	var obs: SoakCheck.IntentObs = SoakCheck.IntentObs.new()
+	obs.blocks_placed = 1
+	var slots: Array[SoakCheck.IntentObs] = [obs]
+	var found: Array[SoakCheck.Violation] = _authority(slots)
+	assert_eq(found.size(), 1)
+	if not found.is_empty():
+		assert_eq(found[0].subject, "-1", "An unset slot reads as -1.")
+
+
+func test_accepted_beyond_the_default_sent_is_a_counter_violation() -> void:
+	var obs: SoakCheck.IntentObs = SoakCheck.IntentObs.new()
+	obs.accepted = 1
+	obs.blocks_placed = 1
+	var slots: Array[SoakCheck.IntentObs] = [obs]
+	assert_has(_ids(_authority(slots)), &"authority.counter_identity")
+
+
+func test_a_decreased_counter_names_itself_with_both_readings() -> void:
+	var obs: SoakCheck.IntentObs = _intents(2, 10, 0, 0, 0, 0)
+	obs.prev_sent = 14
+	var slots: Array[SoakCheck.IntentObs] = [obs]
+	var found: Array[SoakCheck.Violation] = _authority(slots)
+	assert_eq(found.size(), 1)
+	if found.is_empty():
+		return
+	assert_eq(found[0].detail, "sent_decreased")
+	assert_almost_eq(found[0].value, 10.0, 0.001)
+	assert_almost_eq(found[0].limit, 14.0, 0.001)
+	var accepted: SoakCheck.IntentObs = _intents(2, 10, 3, 0, 0, 3)
+	accepted.prev_accepted = 5
+	var accepted_slots: Array[SoakCheck.IntentObs] = [accepted]
+	var accepted_found: Array[SoakCheck.Violation] = _authority(accepted_slots)
+	assert_eq(accepted_found.size(), 1)
+	if not accepted_found.is_empty():
+		assert_eq(accepted_found[0].detail, "accepted_decreased")
+		assert_almost_eq(accepted_found[0].value, 3.0, 0.001)
+		assert_almost_eq(accepted_found[0].limit, 5.0, 0.001)
+	var refused: SoakCheck.IntentObs = _intents(2, 10, 0, 4, 0, 0)
+	refused.prev_refused = 9
+	var refused_slots: Array[SoakCheck.IntentObs] = [refused]
+	var refused_found: Array[SoakCheck.Violation] = _authority(refused_slots)
+	assert_eq(refused_found.size(), 1)
+	if not refused_found.is_empty():
+		assert_eq(refused_found[0].detail, "refused_decreased")
+
+
+func test_an_untouched_body_observation_reports_its_defaults() -> void:
+	var body: SoakCheck.BodyObs = SoakCheck.BodyObs.new()
+	body.transform = Transform3D(Basis.IDENTITY, Vector3(0.0, -100.0, 0.0))
+	var bodies: Array[SoakCheck.BodyObs] = [body]
+	var found: Array[SoakCheck.Violation] = _physics(bodies, 0, 1)
+	assert_eq(found.size(), 1)
+	if not found.is_empty():
+		assert_eq(found[0].subject, "0", "An unset id reads as 0.")
+		assert_eq(found[0].detail, "owner=-1", "An unset owner reads as -1.")
+
+
+func test_an_untouched_home_observation_reports_its_defaults() -> void:
+	var home: SoakCheck.HomeObs = SoakCheck.HomeObs.new()
+	home.foreign_for_s = 5.0
+	var homes: Array[SoakCheck.HomeObs] = [home]
+	var found: Array[SoakCheck.Violation] = _territory(_board([], [], 0), homes)
+	assert_eq(found.size(), 1)
+	if not found.is_empty():
+		assert_eq(found[0].subject, "-1")
+		assert_eq(found[0].detail, "team=-1")
+
+
+func test_a_board_without_in_disk_cells_skips_the_recount() -> void:
+	var board: SoakCheck.TerritoryObs = _board([0.5], [3], 0)
+	assert_eq(_territory(board).size(), 0, "No in-disk cells means nothing to recount.")
+
+
+func test_an_untouched_board_has_no_in_disk_cells_to_recount() -> void:
+	var board: SoakCheck.TerritoryObs = SoakCheck.TerritoryObs.new()
+	board.shares = PackedFloat32Array([0.5])
+	board.owned_cells = PackedInt32Array([0])
+	assert_eq(_territory(board).size(), 0)
+
+
+func test_a_single_in_disk_cell_is_recounted() -> void:
+	var board: SoakCheck.TerritoryObs = _board([0.0], [1], 1)
+	assert_has(_ids(_territory(board)), &"territory.owned_cells_recount")
+
+
+func test_a_band_p99_exactly_on_the_limit_is_sound() -> void:
+	var curve: TickBudgetCurve = _curve()
+	_fill(curve, 1000, 600, _config.tick_budget_fraction * 1000.0 / float(PHYSICS_HZ))
+	assert_eq(_budget(HOST, curve).size(), 0, "Only a p99 above the limit is a violation.")
+
+
+func test_memory_growth_without_new_bodies_is_not_judged_per_body() -> void:
+	assert_eq(_memory(100.0, 300.0, 50, 50).size(), 0)
+	assert_eq(_memory(100.0, 300.0, 50, 40).size(), 0)
+
+
+func test_a_single_new_body_that_cost_too_much_is_a_violation() -> void:
+	var found: Array[SoakCheck.Violation] = _memory(100.0, 100.5, 7, 8)
+	assert_eq(_count(found, &"budget.memory_per_body"), 1)

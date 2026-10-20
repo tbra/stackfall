@@ -276,3 +276,37 @@ func test_a_new_batch_does_not_reuse_the_previous_intents() -> void:
 	for _i: int in 20:
 		plan.next_batch(OWN_SLOT, FEED_SEQ, DISC_RADIUS_M)
 	assert_eq(_signature(first[0]), before, "A returned intent is not rewritten by later calls.")
+
+
+func test_intents_carry_the_default_orientation() -> void:
+	var plan: SoakFuzzPlan = _plan()
+	var checked: int = 0
+	for _i: int in 200:
+		for intent: SoakFuzzPlan.Intent in plan.next_batch(OWN_SLOT, FEED_SEQ, DISC_RADIUS_M):
+			checked += 1
+			assert_eq(intent.orientation_index, 0)
+			assert_eq(intent.free_quat, Quaternion.IDENTITY)
+	assert_gt(checked, 0)
+
+
+func test_out_of_disc_intents_use_every_corner() -> void:
+	var corners: Dictionary = {}
+	var plan: SoakFuzzPlan = _plan()
+	for _i: int in BATCHES:
+		for intent: SoakFuzzPlan.Intent in plan.next_batch(OWN_SLOT, FEED_SEQ, DISC_RADIUS_M):
+			if intent.kind == SoakFuzzPlan.Kind.OUT_OF_DISC:
+				corners[Vector2(signf(intent.origin.x), signf(intent.origin.z))] = true
+	assert_eq(corners.size(), 4, "All four corners of the bounding square are used.")
+
+
+func test_non_finite_poses_spoil_every_axis() -> void:
+	var axes: Dictionary = {}
+	var plan: SoakFuzzPlan = _plan()
+	for _i: int in BATCHES:
+		for intent: SoakFuzzPlan.Intent in plan.next_batch(OWN_SLOT, FEED_SEQ, DISC_RADIUS_M):
+			if intent.kind != SoakFuzzPlan.Kind.NON_FINITE_POSE:
+				continue
+			for axis: int in 3:
+				if is_nan(intent.origin[axis]):
+					axes[axis] = true
+	assert_eq(axes.size(), 3, "x, y and z each get spoiled sometimes.")
