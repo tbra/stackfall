@@ -187,7 +187,7 @@ const LATE_JOIN_ACK_TIMEOUT_SECONDS: float = 8.0
 ## --reconnect-pass. The client holding RECONNECT_SLOT_ID closes
 ## its ENet connection mid-match (Net.leave(false) keeps its rejoin token),
 ## stays away RECONNECT_DOWN_SECONDS, then joins the same host again. Spec 2.6
-## "Late join / reconnect" + Net._handshake_mid_match: a returning peer quoting
+## "Late join / reconnect": a returning peer quoting
 ## its token inside NetConfig.disconnect_grace gets its OWN slot back and a full
 ## world replay. Needs >= 2 players (slot 1 is a client).
 const RECONNECT_SLOT_ID: int = 1
@@ -217,6 +217,12 @@ var _failures: Array[String] = []
 ## with no ps1/sh changes needed for that part).
 var _throw_failures: Array[String] = []
 var _blocks_spawned: int = 0
+## Events.feed_timer_expired count per slot.
+var _expired_by_slot: Dictionary = {}
+## The field, blocks parent and registry this instance registered with Match.
+var _world_nodes: Array[Node] = []
+## Client: set when Events.match_state_changed reports PLAYING after a rejoin.
+var _rejoin_playing: bool = false
 var _seen_net_ids: Dictionary = {}
 var _duplicate_net_id: bool = false
 
@@ -305,6 +311,7 @@ func _ready() -> void:
 		Events.net_peer_joined.connect(_on_rc_peer_joined)
 
 	Events.block_placed.connect(_on_block_placed)
+	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.block_replicated.connect(_on_block_replicated)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.special_consumed.connect(_on_special_consumed)
@@ -327,6 +334,7 @@ func _ready() -> void:
 	if Net.mode() == Net.Mode.HOST:
 		await _run_host()
 	else:
+		_build_world((load("res://config/match/match_defaults.tres") as MatchConfig).map_def())
 		await _run_client()
 
 	# Review item 2: opt-in, after the placement phase's own checks are
@@ -389,12 +397,43 @@ func _intents_refused(slot_id: int) -> int:
 ## on is force-released by the host's own timer -- a genuine, spec-2.5
 ## auto-drop, not a bug, and it must count here or the invariant it is
 ## proving would be checked with a term missing.
-func _auto_drops(slot_id: int) -> int:
-	return int((_match_net.get(&"_auto_drops") as Dictionary).get(slot_id, 0))
+func _forced_releases(slot_id: int) -> int:
+	# The host forces a release only for a seat it does not control itself, and
+	# announces each forced release as Events.feed_timer_expired.
+	if slot_id == Net.local_slot():
+		return 0
+	return int(_expired_by_slot.get(slot_id, 0))
 
 
+func _on_feed_timer_expired(slot_id: int) -> void:
+	_expired_by_slot[slot_id] = int(_expired_by_slot.get(slot_id, 0)) + 1
+
+
+## The blocks this instance's BlockRegistry holds: on a client, the world its
+## replicated spawns built.
 func _replicated_block_count() -> int:
-	return (_match_net.get(&"_spawned_net_ids") as Dictionary).size()
+	return _live_blocks().size()
+
+
+## What Main does for every instance before the match starts: a world to build
+## into. Returns the field.
+func _build_world(map_def: MapDef) -> Field:
+	var field: Field = (load("res://game/field/Field.tscn") as PackedScene).instantiate() as Field
+	field.map_def = map_def
+	add_child(field)
+	var blocks: Node3D = Node3D.new()
+	add_child(blocks)
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child(registry)
+	_world_nodes = [field, blocks, registry]
+	Match.register_world(field, registry, blocks)
+	return field
+
+
+func _discard_world() -> void:
+	for node: Node in _world_nodes:
+		node.queue_free()
+	_world_nodes.clear()
 
 
 func _feed_seq_for(slot_id: int) -> int:
@@ -461,15 +500,7 @@ func _run_host() -> void:
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 20260918
 
-	var field: Field = (load("res://game/field/Field.tscn") as PackedScene).instantiate() as Field
-	field.map_def = config.map_def()
-	add_child(field)
-	var blocks: Node3D = Node3D.new()
-	add_child(blocks)
-	var registry: BlockRegistry = BlockRegistry.new()
-	add_child(registry)
-
-	Match.register_world(field, registry, blocks)
+	var field: Field = _build_world(config.map_def())
 	if _reconnect_pass:
 		# Mirrors game/main/Main.gd: Net must know a match runs and how to seat a
 		# returning peer (this bare scene has no Main to do it).
@@ -509,7 +540,7 @@ func _run_host() -> void:
 		var sent: int = _intents_sent(slot_id)
 		var accepted: int = _intents_accepted(slot_id)
 		var refused: int = _intents_refused(slot_id)
-		var auto_dropped: int = _auto_drops(slot_id)
+		var auto_dropped: int = _forced_releases(slot_id)
 		accepted_total += accepted
 		auto_drop_total += auto_dropped
 		_check(
@@ -518,7 +549,7 @@ func _run_host() -> void:
 		)
 	# The full invariant, not the "auto_drops is always 0"
 	# simplification this script used while block_timer sat at BLOCK_TIMER_MAX
-	# (see INTENT_SPACING_SECONDS' and _auto_drops()'s own comments on why
+	# (see INTENT_SPACING_SECONDS' and _forced_releases()'s own comments on why
 	# that assumption no longer holds under the fixed-interval cadence).
 	_check(
 		"blocks_spawned_matches_accepted", _blocks_spawned == accepted_total + auto_drop_total,
@@ -1113,7 +1144,6 @@ func _on_rc_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> voi
 		"slot_peer": Net.peer_of_slot(slot_id),
 		"grace": Match.disconnect_grace_left(slot_id) if slot_id >= 0 else -2.0,
 		"blocks": _live_blocks().size(),
-		"acked_before": int(_match_net.get(&"replays_acknowledged")),
 	}
 
 
@@ -1150,7 +1180,7 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 		_check("reconnect_peer_rejoined_seen", false, "no net_peer_joined after the drop (left=%s)" % [_rc_left])
 		return
 	_check("reconnect_same_slot", int(_rc_joined["slot"]) == RECONNECT_SLOT_ID,
-		"rejoined slot=%d expected=%d (Net._handshake_mid_match token reclaim)" % [int(_rc_joined["slot"]), RECONNECT_SLOT_ID])
+		"rejoined slot=%d expected=%d (token reclaim)" % [int(_rc_joined["slot"]), RECONNECT_SLOT_ID])
 	_check("reconnect_new_connection", int(_rc_joined["peer"]) != old_peer and int(_rc_joined["slot_peer"]) == int(_rc_joined["peer"]),
 		"old_peer=%d joined=%s" % [old_peer, _rc_joined])
 	_check("reconnect_grace_cleared", is_equal_approx(float(_rc_joined["grace"]), -1.0), "grace_left=%.2f" % float(_rc_joined["grace"]))
@@ -1159,10 +1189,6 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 		int(_rc_joined["blocks"]) + _rc_removed_during_drop >= int(_rc_left["blocks"]),
 		"blocks at drop=%d at rejoin=%d host_removals_during_drop=%d" % [
 			int(_rc_left["blocks"]), int(_rc_joined["blocks"]), _rc_removed_during_drop])
-	var replayed: bool = await _wait_for_condition(
-		func() -> bool: return int(_match_net.get(&"replays_acknowledged")) > int(_rc_joined["acked_before"]),
-		LATE_JOIN_ACK_TIMEOUT_SECONDS)
-	_check("reconnect_replay_acknowledged", replayed, "replays_acknowledged=%d" % int(_match_net.get(&"replays_acknowledged")))
 	await get_tree().create_timer(RECONNECT_SETTLE_SECONDS).timeout
 	_check("reconnect_match_continues", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
 	var peer_now: int = int(_rc_joined["peer"])
@@ -1177,9 +1203,9 @@ func _run_host_reconnect_phase(initial_player_count: int) -> void:
 		return
 	_check("reconnect_client_verdict", bool(_rc_client_done["ok"]), String(_rc_client_done["detail"]))
 	_check("reconnect_post_rejoin_place_accepted", _intents_accepted(RECONNECT_SLOT_ID) > accepted_before,
-		"accepted before=%d now=%d host sent=%d refused=%d refused_before_replay_ack=%d" % [
+		"accepted before=%d now=%d host sent=%d refused=%d" % [
 			accepted_before, _intents_accepted(RECONNECT_SLOT_ID), _intents_sent(RECONNECT_SLOT_ID),
-			_intents_refused(RECONNECT_SLOT_ID), int(_match_net.get(&"intents_refused_before_replay_ack"))])
+			_intents_refused(RECONNECT_SLOT_ID)])
 	_check("reconnect_host_no_new_orphans", _orphans() <= orphans_before, "orphans %d -> %d" % [orphans_before, _orphans()])
 	print("M3A_ACCEPT (reconnect_pass) host done: left=%s joined=%s" % [_rc_left, _rc_joined])
 
@@ -1203,17 +1229,21 @@ func _run_client_reconnect_phase(slot_before: int) -> void:
 	# The client world is gone with its connection: a rejoin replays from zero.
 	_seen_net_ids.clear()
 	_duplicate_net_id = false
+	_discard_world()
 	await get_tree().create_timer(RECONNECT_DOWN_SECONDS).timeout
+	_build_world((load("res://config/match/match_defaults.tres") as MatchConfig).map_def())
+	_rejoin_playing = false
+	Events.match_state_changed.connect(_on_rejoin_state_changed)
 	Net.join_game(address, port)
 	var back: bool = await _wait_for_condition(
 		func() -> bool: return Net.mode() == Net.Mode.CLIENT and Net.local_slot() == slot_before and Net.peer_ids().size() >= 2,
 		CONNECT_TIMEOUT_SECONDS)
 	_check("reconnect_client_rejoined_slot", back, "mode=%d local_slot=%d expected=%d" % [Net.mode(), Net.local_slot(), slot_before])
 	_check("reconnect_client_token_kept", Net.rejoin_token() == token, "token changed across rejoin")
+	# The replay's effect: the match state reaches PLAYING again and the world is rebuilt.
 	var replayed: bool = await _wait_for_condition(
-		func() -> bool: return int(_match_net.get(&"last_replay_acknowledged")) > 0, LATE_JOIN_ACK_TIMEOUT_SECONDS)
-	_check("reconnect_client_replay_acked", replayed, "last_replay_acknowledged=%d" % int(_match_net.get(&"last_replay_acknowledged")))
-	var at_ack: int = _replicated_block_count()
+		func() -> bool: return _rejoin_playing and _replicated_block_count() > 0, LATE_JOIN_ACK_TIMEOUT_SECONDS)
+	_check("reconnect_client_world_rebuilt", replayed, "playing=%s blocks=%d" % [_rejoin_playing, _replicated_block_count()])
 	_check("reconnect_client_playing", Match.state() == Match.State.PLAYING, "state=%d" % Match.state())
 	_check("reconnect_client_no_duplicate_net_id", not _duplicate_net_id, "a net_id was replicated twice in the replay")
 	if not await _wait_for_condition(func() -> bool: return not _rc_expect.is_empty(), RECONNECT_EVENT_TIMEOUT_SECONDS):
@@ -1221,8 +1251,10 @@ func _run_client_reconnect_phase(slot_before: int) -> void:
 		return
 	var lo: int = int(_rc_expect["lo"])
 	var hi: int = int(_rc_expect["hi"])
-	_check("reconnect_client_world_block_count", at_ack >= lo and at_ack <= hi,
-		"client blocks at replay ack=%d, host at rejoin=%d .. at verdict=%d" % [at_ack, lo, hi])
+	var at_verdict: bool = await _wait_for_condition(
+		func() -> bool: return _replicated_block_count() >= lo and _replicated_block_count() <= hi, RECONNECT_TERRITORY_POLL_SECONDS)
+	_check("reconnect_client_world_block_count", at_verdict,
+		"client blocks=%d, host at rejoin=%d .. at verdict=%d" % [_replicated_block_count(), lo, hi])
 	var want_hash: int = int(_rc_expect["hash"])
 	var hash_ok: bool = await _wait_for_condition(func() -> bool: return _owner_hash() == want_hash, RECONNECT_TERRITORY_POLL_SECONDS)
 	_check("reconnect_client_territory_hash", hash_ok, "client owner hash=%d host=%d" % [_owner_hash(), want_hash])
@@ -1248,6 +1280,11 @@ func _run_client_reconnect_phase(slot_before: int) -> void:
 			mine_ok = false
 	_rpc_reconnect_done.rpc_id(Net.HOST_PEER_ID, mine_ok, "client reconnect checks ok" if mine_ok else "client FAILED: %s" % [_failures])
 	await get_tree().create_timer(1.0).timeout
+
+
+func _on_rejoin_state_changed(_from_state: int, to_state: int) -> void:
+	if to_state == Match.State.PLAYING:
+		_rejoin_playing = true
 
 
 func _late_join_flag_was_given() -> bool:
