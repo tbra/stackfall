@@ -90,7 +90,9 @@ func _render(seconds: float) -> void:
 
 
 func _pose() -> Dictionary:
-	return _interp.sample_at_render_time(NET_ID)
+	var out: Interpolator.Pose = Interpolator.Pose.new()
+	var ok: bool = _interp.pose_into(NET_ID, out)
+	return {"ok": ok, "position": out.position, "rotation": out.rotation, "sleeping": out.sleeping}
 
 
 func _drawn_x() -> float:
@@ -218,7 +220,7 @@ func test_a_reordered_sample_is_rejected() -> void:
 		_interp.push_sample(NET_ID, 1033, Vector3.ZERO, Quaternion.IDENTITY, false),
 		"and so is a duplicate of it"
 	)
-	assert_eq(Array(_interp.tracked_ids()), [NET_ID], "the body is still tracked")
+	assert_true(_interp.pose_into(NET_ID, Interpolator.Pose.new()), "the body is still tracked")
 
 
 # --- Unknown net_ids --------------------------------------------------------
@@ -238,7 +240,7 @@ func test_an_unknown_net_id_is_counted_and_changes_nothing() -> void:
 		"a body whose spawn has not arrived is dropped"
 	)
 	assert_eq(_interp.dropped_unknown_count(), 1, "and counted")
-	assert_eq(Array(_interp.tracked_ids()), [NET_ID], "and is not tracked")
+	assert_false(_interp.pose_into(OTHER_ID, Interpolator.Pose.new()), "and is not tracked")
 
 	# Once the spawn lands, the next snapshot picks it up — at most one
 	# interval later, which is the whole cost of dropping instead of buffering.

@@ -239,34 +239,84 @@ func test_bind_net_shim_wraps_the_node_in_a_port() -> void:
 	assert_true(session.is_valid(), "the shim's port is valid")
 
 
-# --- Host peer gating ------------------------------------
+# --- Host peer gating and the resend memory ----------------------------------
 
 ## Test seam: overriding _remote_peers() replaces the live multiplayer peer
-## list; _select_bodies() is counted so "no selection/build" is observable.
+## list, and _send_packet() (the one network send) collects what would go out.
 class PeerStubSync:
 	extends "res://net/SnapshotSync.gd"
 	var peers: PackedInt32Array = PackedInt32Array()
-	var selections: int = 0
+	var sent: Array[PackedByteArray] = []
 
 	func _remote_peers() -> PackedInt32Array:
 		return peers
 
-	func _select_bodies() -> Dictionary:
-		selections += 1
-		return super._select_bodies()
+	func _send_packet(packet: PackedByteArray) -> void:
+		sent.append(packet)
 
-	var sends: int = 0
 
-	func _send_packet(_packet: PackedByteArray) -> void:
-		sends += 1
+## A narrow host session: a networked host that is not offline.
+class HostSession:
+	extends RefCounted
+
+	func is_host() -> bool:
+		return true
+
+	func is_client() -> bool:
+		return false
+
+	func is_offline() -> bool:
+		return false
+
+	func report_stats(_source: StringName, _values: Dictionary) -> void:
+		pass
+
+
+const HOST_PEER: int = 2
+const OTHER_PEER: int = 3
+const FIRST_NET_ID: int = 600
+const BODY_COUNT: int = 12
+## Ticks that always cover at least one snapshot interval (30 Hz at 60 Hz ticks).
+const TICKS_PER_SNAPSHOT: int = 2
+
+var _host_bodies: Array[Block] = []
+var _host_disk: Node3D = null
 
 
 func _host_stub() -> PeerStubSync:
-	Net._mode = Net.Mode.HOST
 	var stub: PeerStubSync = PeerStubSync.new()
 	add_child_autofree(stub)
+	stub.bind_session(SessionPort.new(HostSession.new(), SnapshotSync.SESSION_METHODS))
 	stub.begin_match(_client_registry, _map)
+	_host_disk = Node3D.new()
+	add_child_autofree(_host_disk)
+	stub.set_disk(_host_disk)
 	return stub
+
+
+func _make_block(net_id: int, sleeping: bool, at: Vector3) -> Block:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+	var block: Block = BlockFactory.build(shape, physics, 0)
+	block.net_id = net_id
+	add_child_autofree(block)
+	block.global_position = at
+	block.sleeping = sleeping
+	return block
+
+
+func _track_block(block: Block) -> void:
+	Events.block_replicated.emit(block, block.net_id)
+
+
+## BODY_COUNT sleepers, tracked by the stub the way a replicated body is.
+func _sleepers() -> void:
+	_host_bodies.clear()
+	for index: int in range(BODY_COUNT):
+		var block: Block = _make_block(FIRST_NET_ID + index, true, Vector3(float(index) * 1.5, 1.0, 0.0))
+		assert_true(block.net_sleeping(), "fixture: body %d sleeps" % index)
+		_host_bodies.append(block)
+		_track_block(block)
 
 
 func _tick_for(stub: PeerStubSync, seconds: float) -> void:
@@ -274,19 +324,163 @@ func _tick_for(stub: PeerStubSync, seconds: float) -> void:
 		stub.host_tick(TICK)
 
 
-func test_gating_zero_peers_skips_selection_and_clears_sent_state() -> void:
+## Ticks until a snapshot goes out and returns the net_ids it carried.
+func _next_snapshot_ids(stub: PeerStubSync) -> Array[int]:
+	stub.sent.clear()
+	for _i: int in range(TICKS_PER_SNAPSHOT + 1):
+		stub.host_tick(TICK)
+		if not stub.sent.is_empty():
+			break
+	assert_false(stub.sent.is_empty(), "fixture: a snapshot was sent")
+	var ids: Array[int] = []
+	for packet: PackedByteArray in stub.sent:
+		var fragment: Dictionary = SnapshotWire.decode_fragment(packet, _bounds())
+		for entry: Variant in fragment["bodies"] as Array:
+			ids.append(int((entry as Dictionary)["net_id"]))
+	return ids
+
+
+func _all_ids() -> Array[int]:
+	var ids: Array[int] = []
+	for block: Block in _host_bodies:
+		ids.append(block.net_id)
+	return ids
+
+
+## Quiet snapshots until the stream settles: only the keyframe slice goes out.
+func _settle_to_quiet(stub: PeerStubSync) -> void:
+	for _i: int in range(3):
+		_next_snapshot_ids(stub)
+	assert_lt(_next_snapshot_ids(stub).size(), BODY_COUNT, "fixture: unmoved sleepers are not all resent")
+
+
+func test_gating_zero_peers_sends_nothing() -> void:
 	var stub: PeerStubSync = _host_stub()
-	stub._last_sent[1] = [Vector3.ZERO, Quaternion.IDENTITY]
+	_sleepers()
 	_tick_for(stub, 1.0)
-	assert_eq(stub.selections, 0, "no selection with nobody to send to")
-	assert_eq(stub._sequence, 0, "no snapshot built")
-	assert_true(stub._last_sent.is_empty(), "sent memory forgotten")
+	assert_eq(stub.sent.size(), 0, "no packet with nobody to send to")
+
+
+func test_the_first_snapshot_to_a_peer_carries_every_body() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	ids.sort()
+	assert_eq(ids, _all_ids(), "never-sent sleepers all go out")
+
+
+func test_unmoved_sleepers_are_not_all_resent_once_sent() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+
+func test_a_peer_leaving_to_zero_then_one_joining_gets_every_body_again() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	stub.peers = PackedInt32Array()
+	_tick_for(stub, 0.5)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	ids.sort()
+	assert_eq(ids, _all_ids(), "the no-peers site forgot what was sent")
+
+
+func test_a_new_peer_makes_the_next_snapshot_carry_every_body() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	stub.peers = PackedInt32Array([HOST_PEER, OTHER_PEER])
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	ids.sort()
+	assert_eq(ids, _all_ids(), "the new-peer site forgot what was sent")
+
+
+func test_request_full_snapshot_makes_the_next_snapshot_carry_every_body() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	stub.request_full_snapshot()
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	ids.sort()
+	assert_eq(ids, _all_ids(), "request_full_snapshot forgot what was sent")
+	assert_lt(_next_snapshot_ids(stub).size(), BODY_COUNT, "and only once")
+
+
+func test_a_new_match_makes_the_next_snapshot_carry_every_body() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	stub.begin_match(_client_registry, _map) # ends the old match first
+	for block: Block in _host_bodies:
+		_track_block(block)
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	ids.sort()
+	assert_eq(ids, _all_ids(), "the end-of-match site forgot what was sent")
+
+
+func test_a_moving_disc_resends_a_sleeper_that_drifted() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	var drifted: Block = _host_bodies[BODY_COUNT - 1]
+	drifted.global_position += Vector3(0.0, 0.0, 1.0)
+	_host_disk.global_position += Vector3(0.0, 0.2, 0.0)
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	assert_true(ids.has(drifted.net_id), "the disc moved, so the drifted sleeper is drift-tested and resent")
+	assert_lt(ids.size(), BODY_COUNT, "bodies that did not move past the epsilon stay out")
+
+
+func test_an_awake_body_goes_out_every_snapshot() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	var awake: Block = _make_block(FIRST_NET_ID + BODY_COUNT, false, Vector3(0.0, 3.0, 0.0))
+	_host_bodies.append(awake)
+	_track_block(awake)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	for _i: int in range(4):
+		assert_true(_next_snapshot_ids(stub).has(awake.net_id), "the awake body is in every snapshot")
+
+
+func test_a_removed_body_that_returns_is_sent_in_full_again() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	var gone: Block = _host_bodies[0]
+	Events.block_removed.emit(gone, "test")
+	assert_false(_next_snapshot_ids(stub).has(gone.net_id), "a removed body is not sent")
+	_track_block(gone)
+	assert_true(_next_snapshot_ids(stub).has(gone.net_id), "a body re-tracked under the same id counts as never sent")
 
 
 func test_fused_carrier_is_never_selected_only_its_followers() -> void:
 	var tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+	var stub: PeerStubSync = _host_stub()
 	var root: Node3D = autofree(Node3D.new())
 	add_child_autofree(root)
 	var blocks: Array[Block] = []
@@ -300,10 +494,8 @@ func test_fused_carrier_is_never_selected_only_its_followers() -> void:
 	assert_not_null(carrier)
 	assert_lte(carrier.net_id, 0, "the carrier never gets a net_id")
 	for body: Block in [carrier, blocks[0], blocks[1]]:
-		_client_sync.call("_track", body)
-	var selection: Dictionary = _client_sync.call("_select_bodies")
-	var ids: Array[int] = []
-	for entry: Variant in (selection["bodies"] as Array):
-		ids.append(int((entry as Dictionary)["net_id"]))
+		_track_block(body)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	var ids: Array[int] = _next_snapshot_ids(stub)
 	assert_false(ids.has(carrier.net_id) or ids.has(-1) or ids.has(0), "carrier is not replicated as its own body")
 	assert_true(ids.has(500) and ids.has(501), "followers are")
