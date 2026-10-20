@@ -69,11 +69,11 @@ func on_pong(sender: int, sent_at_ms: int, now_ms: int) -> void:
 	while samples.size() > _config.ping_history:
 		samples.pop_front()
 	_samples[sender] = samples
-	ping_changed.emit(sender, ping_ms(sender))
+	ping_changed.emit(sender, _average_ms(sender))
 
 
 ## Averaged RTT in ms for `peer_id`, 0.0 when it has no sample.
-func ping_ms(peer_id: int) -> float:
+func _average_ms(peer_id: int) -> float:
 	var samples: Array = _samples.get(peer_id, [])
 	if samples.is_empty():
 		return 0.0
