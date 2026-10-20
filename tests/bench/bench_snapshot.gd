@@ -32,22 +32,17 @@ const RNG_SEED: int = 20260918
 
 var _config: NetConfig = preload("res://config/net/net_config.tres")
 var _map: MapDef = preload("res://config/match/maps/round.tres")
-var _sync: Node = null
-var _constants: Dictionary = {}
 var _bounds: AABB = AABB()
 var _rng: RandomNumberGenerator = null
 
 
 func _ready() -> void:
-	var script: GDScript = load("res://net/SnapshotSync.gd") as GDScript
-	_sync = script.new() as Node
-	_constants = script.get_script_constant_map()
 	_bounds = _config.position_bounds(_map)
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = RNG_SEED
 
 	var per_fragment: int = _config.bodies_per_fragment(
-		int(_constants["HEADER_BYTES"]) + int(_constants["DISK_STATE_BYTES"]),
+		SnapshotWire.HEADER_BYTES + SnapshotWire.DISK_STATE_BYTES,
 		Quantize.BODY_RECORD_BYTES
 	)
 	print(
@@ -65,7 +60,6 @@ func _ready() -> void:
 		_measure(count, false)
 
 	print("BENCH_SNAPSHOT result=%s" % ["PASS" if passed else "FAIL"])
-	_sync.free()
 	get_tree().quit(0 if passed else 1)
 
 
@@ -76,12 +70,12 @@ func _measure(count: int, graded: bool) -> bool:
 	var disk: Transform3D = Transform3D(
 		Basis(Quaternion(Vector3.RIGHT, 0.05)), Vector3(0.0, 0.1, 0.0)
 	)
-	var flags: int = int(_constants["FLAG_DISK_STATE"])
+	var flags: int = SnapshotWire.FLAG_DISK_STATE
 
 	# One untimed cycle so the first run does not pay for the buffers growing.
 	var warm: Array = _build(flags, bodies, disk)
 	for packet: Variant in warm:
-		_sync.call("decode_fragment", packet as PackedByteArray, _bounds)
+		SnapshotWire.decode_fragment(packet as PackedByteArray, _bounds)
 
 	var encode_start: int = Time.get_ticks_usec()
 	var packets: Array = []
@@ -92,7 +86,7 @@ func _measure(count: int, graded: bool) -> bool:
 	var decode_start: int = Time.get_ticks_usec()
 	for run: int in range(RUNS):
 		for packet: Variant in packets:
-			_sync.call("decode_fragment", packet as PackedByteArray, _bounds)
+			SnapshotWire.decode_fragment(packet as PackedByteArray, _bounds)
 	var decode_ms: float = float(Time.get_ticks_usec() - decode_start) / 1000.0 / float(RUNS)
 
 	var total_bytes: int = 0
@@ -161,9 +155,7 @@ func _report_quantization_error() -> void:
 
 
 func _build(flags: int, bodies: Array, disk: Transform3D) -> Array:
-	return _sync.call(
-		"build_snapshot", 1, 1000, flags, bodies, disk, _bounds, _config
-	) as Array
+	return SnapshotWire.build_snapshot(1, 1000, flags, bodies, disk, _bounds, _config)
 
 
 ## Bodies spread over the disk and the tower volume above it, the shape a real
