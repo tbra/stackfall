@@ -412,7 +412,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 - `net_request_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)`: the host ignores `auto_drop` from the wire (only the host's own timer may relocate); a negative `feed_seq` is refused.
 - `net_request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)`: `velocity` carries the camera forward; the host validates and normalizes it and derives the launch from `core/gifts/GiftAim.gd`.
 - `net_request_use_gift_slot`, `net_update_cursor` (unreliable, `cursor_hz` = 15, includes aim), `net_cat_target`, `net_request_replay`, `net_request_return_to_lobby`.
-- Lobby and session intents: handshake, ready, loading ready, seat preference (color and team, rate-limited), chat submit, pong.
+- Lobby and session intents: handshake, ready, loading ready, seat preference (color and team, rate-limited), chat submit, pong. Every one is accepted only from a known (roster or seated) peer and passes a per-peer flood limit (`NetConfig` buckets); per-peer limiter state is dropped when the peer leaves, is kicked or disconnects, so a never-handshaked peer allocates nothing.
 
 **Intent checks.** The host checks the match state, slot range, `feed_seq` (a replay or a double click is refused), the seat's home alive, the turn gate, the held piece, the one-release-per-interval lock, then pose well-formedness and placement legality (§1.4). Refused deliberate placements consume nothing.
 
@@ -431,7 +431,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Impacts.** The host batches block impact events (`core/net/ImpactWire.gd`, `impact_batch_hz` 30, rate-limited) so clients can play impact sounds and puffs.
 
-**Late join and reconnect.** A peer that drops keeps its seat for `disconnect_grace`; rejoining with its token (`REJOIN_TOKEN_BYTES` 16) inside that window restores it. With `allow_mid_match_join` on, the host admits a new peer mid-match (an open human seat, else a spectator) and replays the world to it in chunks (bodies, territory, match state) with an acknowledgement (`replay_ack_timeout` 15 s). With it off the match is lobby-only.
+**Late join and reconnect.** A peer that drops keeps its seat for `disconnect_grace`; rejoining with its token (`REJOIN_TOKEN_BYTES` 16) inside that window restores it. With `allow_mid_match_join` on, the host admits a new peer mid-match (an open human seat, else a spectator) and replays the world to it in chunks (bodies, territory, match state) with an acknowledgement (`replay_ack_timeout` 15 s; a joiner that never acks is kicked once). The ack is rate-limited per peer, and the joiner's intents are refused until it has acked. With it off the match is lobby-only.
 
 **Network simulation.** `NetConfig.sim_lag_ms`, `sim_jitter_ms`, `sim_loss` and the preset values add artificial lag, jitter and loss for testing (`core/net/NetSim.gd`).
 
