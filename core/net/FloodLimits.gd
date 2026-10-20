@@ -25,25 +25,7 @@ const INTENT_PONG: StringName = &"pong"
 const INTENT_HANDSHAKE: StringName = &"handshake"
 
 
-## Every limited intent, in table order.
-static func intents() -> Array[StringName]:
-	return [
-		INTENT_PLACE,
-		INTENT_THROW,
-		INTENT_CURSOR,
-		INTENT_CAT_TARGET,
-		INTENT_GIFT_SLOT,
-		INTENT_SET_READY,
-		INTENT_LOADING_READY,
-		INTENT_REPLAY_REQUEST,
-		INTENT_RETURN_LOBBY,
-		INTENT_REPLAY_ACK,
-		INTENT_PONG,
-		INTENT_HANDSHAKE,
-	]
-
-
-## StringName intent -> Vector2(burst, refill_per_s), one row per intent(). The
+## StringName intent -> Vector2(burst, refill_per_s), one row per INTENT_*. The
 ## values are read as they are in `config`; call config.sanitize() first when
 ## the config did not come from the shipped net_config.tres.
 static func from_config(config: NetConfig) -> Dictionary:

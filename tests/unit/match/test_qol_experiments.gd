@@ -179,30 +179,30 @@ func test_claim_radius_captures_when_territory_reaches_radius_not_flag_cell() ->
 func test_late_join_replay_carries_qol_feed_state_only_when_set() -> void:
 	var fake: FakeNet = FakeNet.host({}, [0, 1])
 	Match._net_provider = fake
-	var net: Node = (load("res://net/MatchNet.gd") as GDScript).new() as Node
-	net.set_process(false)
-	add_child_autofree(net)
-	net.call("set_providers", fake, Match)
+	var replay: MatchWorldReplay = MatchWorldReplay.new(
+		fake, Match, preload("res://config/net/net_config.tres"),
+		WorldReplaySeams.make(func(_peer: int, _method: StringName, _args: Array) -> bool: return true, func() -> float: return 0.0)
+	)
 	var on: QolExperiments = QolExperiments.new()
 	on.backlog_enabled = true
 	_start(on)
-	var quiet: Array = _qol_replay_events(net)
+	var quiet: Array = _qol_replay_events(replay)
 	assert_eq(quiet.size(), 0, "nothing queued: nothing replayed")
 	_interval()
 	assert_eq(Match.qol_backlog_count(0), 1)
-	var events: Array = _qol_replay_events(net)
+	var events: Array = _qol_replay_events(replay)
 	assert_true(events.has([0, 1, false]) or events.has([1, 1, false]), "slot with a queued block replays its backlog")
 	Match.abort_match()
 	Match._net_provider = null
 
 
-func _qol_replay_events(net: Node) -> Array:
+func _qol_replay_events(replay: MatchWorldReplay) -> Array:
 	var out: Array = []
-	for message: Array in net.call("build_world_replay"):
+	for message: Array in replay.build_replay(2, 1):
 		if message[0] != &"net_match_event":
 			continue
 		var args: Array = message[1]
-		if args.size() >= 2 and args[0] == net.get("EVENT_QOL_FEED"):
+		if args.size() >= 2 and args[0] == MatchWireEvents.QOL_FEED:
 			out.append(args[1])
 	return out
 

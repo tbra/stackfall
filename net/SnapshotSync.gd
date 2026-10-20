@@ -13,9 +13,7 @@ extends Node
 ## transport). Steam's peer carries it unchanged.
 ##
 ## **Wire layout** lives in core/net/SnapshotWire.gd (version, header, flags,
-## fragmentation); the constants and the three statics are re-exported below
-## under their old names because the contract golden, the benches and the tests
-## read them off this script.
+## fragmentation); callers name SnapshotWire directly.
 ##
 ## **Client side** it owns net/Interpolator.gd: buffer, render 100 ms behind
 ## with a jitter-adaptive delay, extrapolate at most 100 ms, and write every
@@ -23,29 +21,10 @@ extends Node
 ## writes fight Godot's own physics interpolation (project.godot has
 ## physics_interpolation on).
 
-## The wire constants, re-exported from core/net/SnapshotWire.gd (the layout
-## and the PACKET_VERSION rule are documented there). @rpc needs the channel as
-## a compile-time constant on this script.
-const PACKET_VERSION: int = SnapshotWire.PACKET_VERSION
-
-const HEADER_BYTES: int = SnapshotWire.HEADER_BYTES
-const DISK_STATE_BYTES: int = SnapshotWire.DISK_STATE_BYTES
-
-const FLAG_DISK_STATE: int = SnapshotWire.FLAG_DISK_STATE
-const FLAG_KEYFRAME: int = SnapshotWire.FLAG_KEYFRAME
-
+## The channel, read from core/net/SnapshotWire.gd (the layout and the
+## PACKET_VERSION rule are documented there). @rpc needs it as a compile-time
+## constant on this script.
 const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
-
-const OFFSET_VERSION: int = SnapshotWire.OFFSET_VERSION
-const OFFSET_SEQUENCE: int = SnapshotWire.OFFSET_SEQUENCE
-const OFFSET_FRAGMENT_INDEX: int = SnapshotWire.OFFSET_FRAGMENT_INDEX
-const OFFSET_FRAGMENT_COUNT: int = SnapshotWire.OFFSET_FRAGMENT_COUNT
-const OFFSET_HOST_TIME: int = SnapshotWire.OFFSET_HOST_TIME
-const OFFSET_FLAGS: int = SnapshotWire.OFFSET_FLAGS
-const OFFSET_BODY_COUNT: int = SnapshotWire.OFFSET_BODY_COUNT
-
-const SEQUENCE_MODULUS: int = SnapshotWire.SEQUENCE_MODULUS
-const MAX_FRAGMENTS: int = SnapshotWire.MAX_FRAGMENTS
 
 @export var config: NetConfig = preload("res://config/net/net_config.tres")
 
@@ -258,12 +237,12 @@ func host_tick(delta: float) -> void:
 
 	var selection: Dictionary = _select_bodies()
 	var bodies: Array = selection["bodies"] as Array
-	var flags: int = FLAG_DISK_STATE
+	var flags: int = SnapshotWire.FLAG_DISK_STATE
 	if bool(selection["keyframe"]):
-		flags |= FLAG_KEYFRAME
+		flags |= SnapshotWire.FLAG_KEYFRAME
 
-	_sequence = (_sequence + 1) % SEQUENCE_MODULUS
-	var packets: Array[PackedByteArray] = build_snapshot(
+	_sequence = (_sequence + 1) % SnapshotWire.SEQUENCE_MODULUS
+	var packets: Array[PackedByteArray] = SnapshotWire.build_snapshot(
 		_sequence, int(_host_clock_ms), flags, bodies, _disk_transform(), _bounds, config
 	)
 	_last_snapshot_bytes = 0
@@ -382,42 +361,6 @@ static func freeze_body(body: RigidBody3D) -> void:
 	body.angular_velocity = Vector3.ZERO
 
 
-# --- Wire (pure forwarders to core/net/SnapshotWire.gd) ----------------------
-
-## See SnapshotWire.encode_fragment().
-static func encode_fragment(
-	sequence: int,
-	fragment_index: int,
-	fragment_count: int,
-	host_time_ms: int,
-	flags: int,
-	bodies: Array,
-	disk_transform: Transform3D,
-	bounds: AABB
-) -> PackedByteArray:
-	return SnapshotWire.encode_fragment(
-		sequence, fragment_index, fragment_count, host_time_ms, flags, bodies, disk_transform, bounds
-	)
-
-
-## See SnapshotWire.decode_fragment().
-static func decode_fragment(packet: PackedByteArray, bounds: AABB) -> Dictionary:
-	return SnapshotWire.decode_fragment(packet, bounds)
-
-
-## See SnapshotWire.build_snapshot().
-static func build_snapshot(
-	sequence: int,
-	host_time_ms: int,
-	flags: int,
-	bodies: Array,
-	disk_transform: Transform3D,
-	bounds: AABB,
-	net_config: NetConfig
-) -> Array[PackedByteArray]:
-	return SnapshotWire.build_snapshot(sequence, host_time_ms, flags, bodies, disk_transform, bounds, net_config)
-
-
 # --- RPC --------------------------------------------------------------------
 
 ## Host -> clients. Unreliable on config.snapshot_channel; the sequence number
@@ -459,7 +402,7 @@ func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 # --- Internals --------------------------------------------------------------
 
 func _apply_packet(packet: PackedByteArray) -> void:
-	var fragment: Dictionary = decode_fragment(packet, _bounds)
+	var fragment: Dictionary = SnapshotWire.decode_fragment(packet, _bounds)
 	if fragment.is_empty():
 		return
 
@@ -470,7 +413,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 		_last_noted_sequence = sequence
 		_interpolator.note_snapshot(sequence, host_time_ms, now())
 
-	if (int(fragment["flags"]) & FLAG_DISK_STATE) != 0:
+	if (int(fragment["flags"]) & SnapshotWire.FLAG_DISK_STATE) != 0:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
 		_disk_smoother.push_sample(
 			host_time_ms, disk_transform.origin, disk_transform.basis.get_rotation_quaternion()
