@@ -113,25 +113,6 @@ static func validate_line(line: Variant, cfg: ChatConfig, max_name_len: int) -> 
 	return true
 
 
-## Token bucket: starts full at `burst`, refills `refill_per_s` per second.
-class Bucket extends RefCounted:
-	var _tokens: float = -1.0
-	var _last: float = 0.0
-
-	## True (and one token spent) when a line may pass at time `now` seconds.
-	func take(now: float, burst: int, refill_per_s: float) -> bool:
-		var cap: float = float(maxi(burst, 1))
-		if _tokens < 0.0:
-			_tokens = cap
-		else:
-			_tokens = minf(cap, _tokens + maxf(now - _last, 0.0) * maxf(refill_per_s, 0.0))
-		_last = now
-		if _tokens >= 1.0:
-			_tokens -= 1.0
-			return true
-		return false
-
-
 ## Ring of the most recent lines (oldest dropped first).
 class History extends RefCounted:
 	var _capacity: int
