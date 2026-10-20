@@ -73,8 +73,6 @@ var _peers: Dictionary:
 		return net_roster.peers
 	set(value):
 		net_roster.peers = value
-## peer_id -> RTT samples (ms), host only, averaged into _peers[id].ping_ms.
-var _ping_samples: Dictionary = {}
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
@@ -89,28 +87,16 @@ var transport: NetTransport = NetTransport.new()
 var _disconnecting_peers: Dictionary:
 	get:
 		return transport.disconnecting_marks()
-## Host only: peer_id -> {"tokens": float, "at": float}, the
-## request_seat_pref flood bucket of each peer that sent one (size and refill:
-## NetConfig.seat_pref_burst / seat_pref_refill_per_s). Dropped with the
-## peer (_on_peer_disconnected) and with the session (_reset_rejoin_state).
-var _seat_pref_buckets: Dictionary = {}
+## The host-side collaborators (net/session): lobby intents, chat and ping share one
+## flood gate built from NetConfig in _ready, so a leaver is forgotten once.
+var _flood: PeerFloodGate = null
+var _lobby: NetLobbyIntents = null
+var _chat: NetChatService = null
+var _ping: NetPing = null
 
 ## -- Player chat ----------------------------------------------------------------
 ## Tunables (clamped in _ready like `config`).
 var chat_config: ChatConfig = preload("res://config/net/chat_config.tres")
-## Host only: peer_id -> ChatRules.Bucket (flood), peer_id -> {"text", "at"} (duplicate
-## guard), peer_id -> time of the last notice sent, and the ring of recent lines.
-var _chat_buckets: Dictionary = {}
-var _chat_last: Dictionary = {}
-var _chat_notice_at: Dictionary = {}
-var _chat_history: ChatRules.History = null
-## Host: sequence number of the next line. Client: highest seq accepted (monotonic).
-var _chat_next_seq: int = 0
-var _chat_seen_seq: int = -1
-## Test and UI seam beside the Events chat signals (a second Net instance in one
-## process shares the global Events bus, so tests listen here per instance).
-signal chat_line_accepted(line: Dictionary)
-signal chat_history_accepted(lines: Array)
 ## The lobby seat table key inside the published lobby data (ui/lobby/Lobby.gd SEATS_KEY).
 const _CHAT_LOBBY_SEATS_KEY: String = "seats"
 const _CHAT_JOINED_FORMAT: String = "%s joined"
@@ -298,7 +284,6 @@ var _sim: NetSim = NetSim.new()
 ## Cross-package stats reported via report_stats(), folded into stats().
 var _report: Dictionary = {}
 
-var _ping_accum: float = 0.0
 var _stats_accum: float = 0.0
 
 
@@ -334,6 +319,7 @@ func _ready() -> void:
 	Events.loading_ready_changed.connect(_on_loading_ready_changed)
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	chat_config.sanitize()
+	_build_session_services()
 	# Only the real autoload listens to the UI bus; test instances call send_chat().
 	if get_parent() == get_tree().root:
 		Events.chat_send_requested.connect(send_chat)
@@ -355,7 +341,7 @@ func _process(delta: float) -> void:
 	var now: float = _now()
 	if _mode == Mode.HOST:
 		_tick_handshake_timeouts(now)
-		_tick_ping(delta)
+		_ping.tick(Time.get_ticks_msec())
 	elif _mode == Mode.CLIENT:
 		if not net_roster.joined_accepted and now > _join_deadline:
 			_fail_join(JoinError.TIMEOUT, "no response from host")
@@ -471,7 +457,7 @@ func leave(forget_rejoin: bool = true) -> void:
 	_peer = null
 	_mode = Mode.OFFLINE
 	net_roster.end_session()
-	_ping_samples.clear()
+	_ping.reset()
 	_pending_handshake.clear()
 	_local_slot = 0
 	_own_ping_ms = 0.0
@@ -618,9 +604,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	var kicked_name: String = net_roster.name_of_peer(peer_id)
 	# A kicked peer forfeits its rejoin token: no reservation is made for it.
 	var slot_id: int = net_roster.remove(peer_id, false)
-	net_roster.forget_flood(peer_id)
-	_ping_samples.erase(peer_id)
-	_chat_forget_peer(peer_id)
+	_forget_peer_services(peer_id)
 	_pending_handshake.erase(peer_id)
 	# ENet keeps a disconnecting peer in get_peers() until the
 	# disconnect completes a poll later, and a send to it logs an engine error.
@@ -637,7 +621,7 @@ func kick_peer(peer_id: int, reason: LeaveReason = LeaveReason.KICKED) -> void:
 	net_roster.compact()
 	Events.net_peer_left.emit(peer_id, slot_id, reason)
 	_broadcast_roster()
-	_chat_system_line(_CHAT_LEFT_FORMAT % kicked_name)
+	_chat.system_line(_CHAT_LEFT_FORMAT % kicked_name)
 
 
 ## Client: tells the host this instance is ready to start.
@@ -1323,16 +1307,13 @@ func _on_peer_connected(id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	transport.unmark_disconnecting(id)
 	_pending_handshake.erase(id)
-	_seat_pref_buckets.erase(id)
-	_chat_forget_peer(id)
-	# A handshake bucket outlives no connection: a rejoin starts full.
-	net_roster.forget_flood(id)
+	# No bucket outlives its connection: a rejoin starts full.
+	_forget_peer_services(id)
 	if _mode != Mode.HOST:
 		return
 	if not net_roster.has_peer(id):
 		return
 	var left_name: String = net_roster.name_of_peer(id)
-	_ping_samples.erase(id)
 	# A seated peer dropping mid-match keeps a reservation on
 	# its slot for as long as the seat policy calls it reclaimable (its
 	# disconnect grace); quoting the token on the next handshake gets it back.
@@ -1341,7 +1322,7 @@ func _on_peer_disconnected(id: int) -> void:
 	# same roster broadcast (a no-op mid-match).
 	net_roster.compact()
 	_broadcast_roster()
-	_chat_system_line(_CHAT_LEFT_FORMAT % left_name)
+	_chat.system_line(_CHAT_LEFT_FORMAT % left_name)
 	# DECISION: ENet's peer_disconnected carries no reason, and distinguishing
 	# a graceful client leave() from a dropped connection would need its own
 	# wire message. Reported uniformly as TIMEOUT; the grace period
@@ -1437,13 +1418,12 @@ func _handshake_mid_match(sender: int, build: String, player_name: String, rejoi
 func _accept_peer(peer_id: int, build: String, player_name: String, slot_id: int, token: String = "") -> void:
 	net_roster.accept(peer_id, build, player_name, slot_id, token)
 	var checked_name: String = net_roster.name_of_peer(peer_id)
-	_ping_samples[peer_id] = []
 	_pending_handshake.erase(peer_id)
 	_rpc_join_accepted.rpc_id(peer_id, slot_id, HOST_PEER_ID, net_roster.token_of(peer_id))
 	_broadcast_roster()
 	Events.net_peer_joined.emit(peer_id, slot_id, checked_name)
-	_chat_send_history(peer_id)
-	_chat_system_line(_CHAT_JOINED_FORMAT % checked_name)
+	_chat.send_history(peer_id)
+	_chat.system_line(_CHAT_JOINED_FORMAT % checked_name)
 
 
 func _reject_peer(peer_id: int, error: int) -> void:
@@ -1621,8 +1601,8 @@ func _reset_rejoin_state() -> void:
 	net_roster.reset_rejoin_state()
 	# Per-session host state that must not outlive its peers (called wherever a
 	# session starts or ends: host_game, the Steam lobby host, leave).
-	_seat_pref_buckets.clear()
-	_chat_reset()
+	_lobby.reset()
+	_chat.reset()
 	ChatMute.clear()
 	transport.clear_disconnecting()
 
@@ -1631,9 +1611,7 @@ func _reset_rejoin_state() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_set_ready(ready: bool) -> void:
-	if not is_host():
-		return
-	set_peer_ready(multiplayer.get_remote_sender_id(), ready)
+	_lobby.on_set_ready(multiplayer.get_remote_sender_id(), ready)
 
 
 # --- Loading-screen ready gate ----------------------------------------------
@@ -1662,18 +1640,7 @@ func request_loading_ready() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_loading_ready() -> void:
-	_handle_loading_ready(multiplayer.get_remote_sender_id())
-
-
-## Host only. A ready intent from `sender` (the transport's peer id): refused
-## unless it is a seated peer -- an unknown id, a peer still in the handshake and
-## a spectator (slot -1) never reach the lifecycle. Phase, the required set and
-## idempotence are the lifecycle's checks. Returns whether it was forwarded.
-func _handle_loading_ready(sender: int) -> bool:
-	if _mode != Mode.HOST or not net_roster.peers.has(sender) or slot_of_peer(sender) < 0:
-		return false
-	Events.net_loading_ready_received.emit(sender)
-	return true
+	_lobby.on_loading_ready(multiplayer.get_remote_sender_id())
 
 
 ## Host: mirrors the lifecycle's ready sets to every client.
@@ -1735,13 +1702,13 @@ func _rpc_loading_gate_open() -> void:
 ## HOST_PEER_ID, the one local human), without the flood limit.
 func request_seat_pref(color_index: int = LobbySeats.UNCHANGED, team_pick: int = LobbySeats.UNCHANGED) -> void:
 	if is_client():
-		if not _seat_pref_in_range(color_index, team_pick):
+		if not NetLobbyIntents.seat_pref_in_range(color_index, team_pick):
 			return
 		if not transport.is_link_up(multiplayer):
 			return
 		_rpc_request_seat_pref.rpc_id(HOST_PEER_ID, color_index, team_pick)
 		return
-	_handle_seat_pref(local_peer_id(), color_index, team_pick, false)
+	_lobby.on_local_seat_pref(local_peer_id(), color_index, team_pick)
 
 
 ## `Variant` parameters on purpose: this is an any_peer RPC, so the arguments are
@@ -1751,60 +1718,7 @@ func request_seat_pref(color_index: int = LobbySeats.UNCHANGED, team_pick: int =
 ## nothing to spoof.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_seat_pref(color_index: Variant, team_pick: Variant) -> void:
-	_handle_seat_pref(multiplayer.get_remote_sender_id(), color_index, team_pick, true)
-
-
-## Host only. A seat-preference intent from `sender` (the transport's peer id, or
-## local_peer_id() for `remote` = false). Refused, in this order: not the host; a
-## remote sender that is not a seated peer (an unknown id, a peer still in the
-## handshake, a spectator at slot -1, a peer that already left); a match in
-## progress; the sender's flood bucket is empty (every request from a seated peer
-## drains it, valid or not); a non-int, out-of-range or no-op payload (nothing is
-## clamped). Returns whether the event was emitted. `now` (seconds) is the clock
-## for the bucket, a seam for tests; < 0 reads _now().
-func _handle_seat_pref(sender: int, color_index: Variant, team_pick: Variant, remote: bool = true, now: float = -1.0) -> bool:
-	if _mode == Mode.CLIENT:
-		return false
-	if remote and (_mode != Mode.HOST or not net_roster.peers.has(sender) or slot_of_peer(sender) < 0):
-		return false
-	if net_roster.match_in_progress:
-		return false
-	if remote and not _seat_pref_take_token(sender, now if now >= 0.0 else _now()):
-		return false
-	if typeof(color_index) != TYPE_INT or typeof(team_pick) != TYPE_INT:
-		return false
-	if not _seat_pref_in_range(int(color_index), int(team_pick)):
-		return false
-	Events.net_seat_pref_requested.emit(sender, int(color_index), int(team_pick))
-	return true
-
-
-## Wire sanity, not lobby rules: each field is UNCHANGED or inside the largest range
-## it can ever take, and at least one field asks for something. The lobby applies
-## the exact team cap (LobbySeats.apply_human_pref).
-func _seat_pref_in_range(color_index: int, team_pick: int) -> bool:
-	if color_index == LobbySeats.UNCHANGED and team_pick == LobbySeats.UNCHANGED:
-		return false
-	if color_index != LobbySeats.UNCHANGED and (color_index < 0 or color_index >= LobbySeats.palette_size()):
-		return false
-	if team_pick != LobbySeats.UNCHANGED and (team_pick < MatchConfig.TEAM_PICK_RANDOM or team_pick > MatchConfig.TEAM_PICK_MAX):
-		return false
-	return true
-
-
-## Spends one token of `peer_id`'s bucket (a new peer starts full). False = empty.
-func _seat_pref_take_token(peer_id: int, now: float) -> bool:
-	var burst: float = float(config.seat_pref_burst)
-	var tokens: float = burst
-	if _seat_pref_buckets.has(peer_id):
-		var bucket: Dictionary = _seat_pref_buckets[peer_id]
-		var elapsed: float = maxf(now - float(bucket["at"]), 0.0)
-		tokens = minf(burst, float(bucket["tokens"]) + elapsed * config.seat_pref_refill_per_s)
-	var allowed: bool = tokens >= 1.0
-	if allowed:
-		tokens -= 1.0
-	_seat_pref_buckets[peer_id] = {"tokens": tokens, "at": now}
-	return allowed
+	_lobby.on_seat_pref(multiplayer.get_remote_sender_id(), color_index, team_pick)
 
 
 # --- Player chat ---------------------------------------------------------------
@@ -1814,7 +1728,7 @@ func _seat_pref_take_token(peer_id: int, now: float) -> bool:
 ## line. Offline and the private local bot host send nothing.
 func send_chat(text: String) -> void:
 	if _mode == Mode.HOST:
-		_handle_chat(local_peer_id(), text, false)
+		_chat.on_submit(local_peer_id(), text)
 	elif _mode == Mode.CLIENT and net_roster.joined_accepted and _client_connected():
 		var cleaned: String = ChatRules.clean(text, chat_config.max_chars)
 		if cleaned != "":
@@ -1829,194 +1743,22 @@ func _client_connected() -> bool:
 ## the host can refuse it. The sender is the transport's id; the payload names nobody.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_chat_submit(payload: Variant) -> void:
-	_handle_chat(multiplayer.get_remote_sender_id(), payload, true)
-
-
-## Host only. A chat line from `sender`, refused in this order: not the host;
-## a remote sender that is not in the roster or is being disconnected (spectators may
-## chat); chat disabled or the private local bot host; the sender's flood bucket is
-## empty (every attempt drains it; a notice goes to the sender only, throttled); a
-## non-String payload; nothing printable left after ChatRules.clean; the same text
-## again inside the duplicate window (notice). Returns whether a line was relayed.
-## `now` (seconds) is the clock seam; < 0 reads _now().
-func _handle_chat(sender: int, payload: Variant, remote: bool, now: float = -1.0) -> bool:
-	if _mode != Mode.HOST or _private_session or not chat_config.enabled:
-		return false
-	if not net_roster.peers.has(sender) or (remote and transport.is_marked_disconnecting(sender)):
-		return false
-	var clock: float = now if now >= 0.0 else _now()
-	var bucket: ChatRules.Bucket = _chat_buckets.get(sender) as ChatRules.Bucket
-	if bucket == null:
-		bucket = ChatRules.Bucket.new()
-		_chat_buckets[sender] = bucket
-	if not bucket.take(clock, chat_config.burst, chat_config.refill_per_s):
-		_chat_notify(sender, ChatRules.NOTICE_RATE, clock)
-		return false
-	if typeof(payload) != TYPE_STRING:
-		return false
-	var text: String = ChatRules.clean(payload, chat_config.max_chars)
-	if text == "":
-		return false
-	var previous: Dictionary = _chat_last.get(sender, {})
-	if not previous.is_empty() and String(previous["text"]) == text \
-			and clock - float(previous["at"]) < chat_config.duplicate_window_s:
-		_chat_notify(sender, ChatRules.NOTICE_DUPLICATE, clock)
-		return false
-	_chat_last[sender] = {"text": text, "at": clock}
-	var entry: Dictionary = net_roster.peers[sender]
-	var slot_id: int = int(entry.get(LobbySeats.FIELD_SLOT_ID, -1))
-	_chat_publish(ChatRules.make_line(
-		_chat_take_seq(), sender, slot_id, String(entry.get(LobbySeats.FIELD_NAME, "")),
-		_chat_color_of(sender, slot_id), text
-	))
-	return true
-
-
-## Host only: a host-generated KIND_SYSTEM line, lobby only (nothing mid-match or in
-## the private bot session).
-func _chat_system_line(text: String) -> void:
-	if _mode != Mode.HOST or _private_session or net_roster.match_in_progress or not chat_config.enabled:
-		return
-	var cleaned: String = ChatRules.clean(text, chat_config.max_chars)
-	if cleaned == "":
-		return
-	_chat_publish(ChatRules.make_line(
-		_chat_take_seq(), 0, LobbySeats.SPECTATOR_SLOT, "", 0, cleaned, ChatRules.KIND_SYSTEM
-	))
-
-
-func _chat_take_seq() -> int:
-	var seq: int = _chat_next_seq
-	_chat_next_seq += 1
-	return seq
-
-
-## Host only: ring, local listeners, then every sendable remote peer.
-func _chat_publish(line: Dictionary) -> void:
-	if _chat_history == null:
-		_chat_history = ChatRules.History.new(chat_config.history_lines)
-	_chat_history.push(line)
-	Events.chat_line_received.emit(line)
-	chat_line_accepted.emit(line)
-	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
-		_rpc_chat_line.rpc_id(peer_id, line)
-
-
-## Palette index of the sender's lobby seat; the slot (or 0) when none is published.
-func _chat_color_of(peer_id: int, slot_id: int) -> int:
-	var seats: Variant = _lobby_data.get(_CHAT_LOBBY_SEATS_KEY)
-	if typeof(seats) == TYPE_DICTIONARY:
-		var index: int = LobbySeats.color_of(seats as Dictionary, peer_id)
-		if index >= 0:
-			return index
-	return maxi(slot_id, 0)
-
-
-## Host only: tells `peer_id` why its line was refused, at most once per
-## notice_min_interval_s. The host's own refusal goes straight to the local UI.
-func _chat_notify(peer_id: int, code: int, clock: float) -> void:
-	if _chat_notice_at.has(peer_id) and clock - float(_chat_notice_at[peer_id]) < chat_config.notice_min_interval_s:
-		return
-	_chat_notice_at[peer_id] = clock
-	if peer_id == local_peer_id():
-		Events.chat_notice.emit(code)
-	elif transport.broadcast_targets(multiplayer, is_host()).has(peer_id):
-		_rpc_chat_notice.rpc_id(peer_id, code)
-
-
-## Host only: the last history_lines lines, to a peer that just joined (not re-broadcast).
-func _chat_send_history(peer_id: int) -> void:
-	if _chat_history == null or _private_session or not transport.broadcast_targets(multiplayer, is_host()).has(peer_id):
-		return
-	var lines: Array = _chat_history.lines()
-	if lines.is_empty():
-		return
-	_rpc_chat_history.rpc_id(peer_id, lines)
+	_chat.on_submit(multiplayer.get_remote_sender_id(), payload)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_chat_line(line: Dictionary) -> void:
-	_accept_chat_line(multiplayer.get_remote_sender_id(), line)
-
-
-## Client only. Accepts a line only from the host, shape- and cap-checked by
-## ChatRules.validate_line, with a seq above the last accepted one.
-func _accept_chat_line(sender: int, line: Variant) -> bool:
-	if _mode != Mode.CLIENT or sender != HOST_PEER_ID:
-		return false
-	if not ChatRules.validate_line(line, chat_config, config.max_player_name_length):
-		return false
-	var dict: Dictionary = line
-	var seq: int = dict[ChatRules.KEY_SEQ]
-	if seq <= _chat_seen_seq:
-		return false
-	_chat_seen_seq = seq
-	Events.chat_line_received.emit(dict)
-	chat_line_accepted.emit(dict)
-	return true
+	_chat.accept_line(multiplayer.get_remote_sender_id(), line)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_chat_history(lines: Array) -> void:
-	_accept_chat_history(multiplayer.get_remote_sender_id(), lines)
-
-
-## Client only: replaces the local log. Host sender only; at most history_lines
-## entries (more is refused whole), each valid with strictly rising seq.
-func _accept_chat_history(sender: int, lines: Variant) -> bool:
-	if _mode != Mode.CLIENT or sender != HOST_PEER_ID or typeof(lines) != TYPE_ARRAY:
-		return false
-	var raw: Array = lines
-	if raw.size() > chat_config.history_lines:
-		return false
-	var accepted: Array[Dictionary] = []
-	var last: int = -1
-	for item: Variant in raw:
-		if not ChatRules.validate_line(item, chat_config, config.max_player_name_length):
-			return false
-		var dict: Dictionary = item
-		var seq: int = dict[ChatRules.KEY_SEQ]
-		if seq <= last:
-			return false
-		last = seq
-		accepted.append(dict)
-	if accepted.is_empty():
-		return false
-	_chat_seen_seq = maxi(_chat_seen_seq, last)
-	Events.chat_history_received.emit(accepted)
-	chat_history_accepted.emit(accepted)
-	return true
+	_chat.accept_history(multiplayer.get_remote_sender_id(), lines)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_chat_notice(code: int) -> void:
-	_accept_chat_notice(multiplayer.get_remote_sender_id(), code)
-
-
-func _accept_chat_notice(sender: int, code: int) -> bool:
-	if _mode != Mode.CLIENT or sender != HOST_PEER_ID:
-		return false
-	if code != ChatRules.NOTICE_RATE and code != ChatRules.NOTICE_DUPLICATE:
-		return false
-	Events.chat_notice.emit(code)
-	return true
-
-
-## A peer left: its flood, duplicate and notice state goes with it.
-func _chat_forget_peer(peer_id: int) -> void:
-	_chat_buckets.erase(peer_id)
-	_chat_last.erase(peer_id)
-	_chat_notice_at.erase(peer_id)
-
-
-## Session start/end: everything chat holds.
-func _chat_reset() -> void:
-	_chat_buckets.clear()
-	_chat_last.clear()
-	_chat_notice_at.clear()
-	_chat_history = null
-	_chat_next_seq = 0
-	_chat_seen_seq = -1
+	_chat.accept_notice(multiplayer.get_remote_sender_id(), code)
 
 
 # --- Lobby data RPC ----------------------------------------------------------
@@ -2030,21 +1772,6 @@ func _rpc_lobby_data(data: Dictionary) -> void:
 
 
 # --- Ping -------------------------------------------------------------------
-
-func _tick_ping(delta: float) -> void:
-	_ping_accum += delta
-	var interval: float = 1.0 / maxf(config.ping_hz, 0.001)
-	if _ping_accum < interval:
-		return
-	_ping_accum = fmod(_ping_accum, interval)
-	var now_ms: int = Time.get_ticks_msec()
-	# Same teardown hazard as _broadcast_roster().
-	if not transport.can_broadcast(multiplayer, is_host()):
-		return
-	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
-		if peer_id != HOST_PEER_ID and net_roster.peers.has(peer_id):
-			_rpc_ping.rpc_id(peer_id, now_ms)
-
 
 @rpc("authority", "call_remote", "unreliable")
 func _rpc_ping(sent_at_ms: int) -> void:
@@ -2060,11 +1787,7 @@ func _rpc_pong(sent_at_ms: int) -> void:
 	var sender: int = multiplayer.get_remote_sender_id()
 	if not net_roster.peers.has(sender):
 		return
-	var rtt: float = float(Time.get_ticks_msec() - sent_at_ms)
-	_record_ping_sample(sender, rtt)
-	if is_peer_disconnecting(sender):
-		return
-	_rpc_report_ping.rpc_id(sender, float(net_roster.peers[sender][LobbySeats.FIELD_PING_MS]))
+	_ping.on_pong(sender, sent_at_ms, Time.get_ticks_msec())
 
 
 @rpc("authority", "call_remote", "unreliable")
@@ -2074,19 +1797,92 @@ func _rpc_report_ping(value: float) -> void:
 	_own_ping_ms = value
 
 
-func _record_ping_sample(peer_id: int, rtt: float) -> void:
-	var samples: Array = _ping_samples.get(peer_id, [])
-	samples.append(rtt)
-	while samples.size() > config.ping_history:
-		samples.pop_front()
-	_ping_samples[peer_id] = samples
-	var total: float = 0.0
-	for sample: float in samples:
-		total += sample
-	net_roster.peers[peer_id][LobbySeats.FIELD_PING_MS] = total / samples.size()
+## NetPing measured a new average for `peer_id`: the roster mirrors it and the peer hears it.
+func _on_ping_changed(peer_id: int, ms: float) -> void:
+	if not net_roster.peers.has(peer_id):
+		return
+	net_roster.peers[peer_id][LobbySeats.FIELD_PING_MS] = ms
+	if not is_peer_disconnecting(peer_id):
+		_rpc_report_ping.rpc_id(peer_id, ms)
 
 
 # --- Internal helpers -------------------------------------------------------
+
+## Builds the three collaborators over one flood gate; each sends through a Callable
+## that names the RPC, so none holds the MultiplayerAPI.
+func _build_session_services() -> void:
+	_flood = PeerFloodGate.new(FloodLimits.from_config(config))
+	var lobby_seams: NetLobbyIntents.Seams = NetLobbyIntents.Seams.new()
+	lobby_seams.now_s = _now
+	lobby_seams.is_host = is_host
+	lobby_seams.broadcast_roster = _broadcast_roster
+	lobby_seams.loading_ready = func(peer_id: int) -> void: Events.net_loading_ready_received.emit(peer_id)
+	lobby_seams.seat_pref = func(peer_id: int, color_index: int, team_pick: int) -> void:
+		Events.net_seat_pref_requested.emit(peer_id, color_index, team_pick)
+	_lobby = NetLobbyIntents.new(net_roster, config, _flood, lobby_seams)
+	var chat_seams: NetChatService.Seams = NetChatService.Seams.new()
+	chat_seams.is_chat_host = func() -> bool: return _mode == Mode.HOST and not _private_session
+	chat_seams.is_chat_client = func() -> bool: return _mode == Mode.CLIENT
+	chat_seams.now_s = _now
+	chat_seams.peer_info = func(peer_id: int) -> Dictionary: return net_roster.peers.get(peer_id, {})
+	chat_seams.send_to_peer = _send_chat
+	chat_seams.targets = func() -> Array: return Array(transport.broadcast_targets(multiplayer, is_host()))
+	chat_seams.is_peer_disconnecting = transport.is_marked_disconnecting
+	chat_seams.color_of = _chat_color_of
+	chat_seams.local_peer_id = local_peer_id
+	chat_seams.in_match = func() -> bool: return net_roster.match_in_progress
+	chat_seams.max_name_length = config.max_player_name_length
+	_chat = NetChatService.new(chat_config, chat_seams)
+	_chat.line_accepted.connect(Events.chat_line_received.emit)
+	_chat.history_accepted.connect(Events.chat_history_received.emit)
+	_chat.notice_accepted.connect(Events.chat_notice.emit)
+	var ping_seams: NetPing.Seams = NetPing.Seams.new()
+	ping_seams.targets = _ping_targets
+	ping_seams.send_ping = func(peer_id: int, sent_at_ms: int) -> void: _rpc_ping.rpc_id(peer_id, sent_at_ms)
+	_ping = NetPing.new(config, _flood, ping_seams)
+	_ping.ping_changed.connect(_on_ping_changed)
+
+
+## A leaver (or kicked peer) is forgotten once by every collaborator and the roster gate.
+func _forget_peer_services(peer_id: int) -> void:
+	_flood.forget_peer(peer_id)
+	net_roster.forget_flood(peer_id)
+	_lobby.forget_peer(peer_id)
+	_chat.forget_peer(peer_id)
+	_ping.forget_peer(peer_id)
+
+
+func _send_chat(peer_id: int, method: StringName, args: Array) -> void:
+	match method:
+		NetChatService.METHOD_LINE:
+			_rpc_chat_line.rpc_id(peer_id, args[0])
+		NetChatService.METHOD_HISTORY:
+			_rpc_chat_history.rpc_id(peer_id, args[0])
+		NetChatService.METHOD_NOTICE:
+			_rpc_chat_notice.rpc_id(peer_id, args[0])
+
+
+## Palette index of the sender's lobby seat; the slot (or 0) when none is published.
+func _chat_color_of(peer_id: int, slot_id: int) -> int:
+	var seats: Variant = _lobby_data.get(_CHAT_LOBBY_SEATS_KEY)
+	if typeof(seats) == TYPE_DICTIONARY:
+		var index: int = LobbySeats.color_of(seats as Dictionary, peer_id)
+		if index >= 0:
+			return index
+	return maxi(slot_id, 0)
+
+
+## Seated remote peers, none while the transport cannot be addressed (same teardown
+## hazard as _broadcast_roster()).
+func _ping_targets() -> Array:
+	var result: Array = []
+	if not transport.can_broadcast(multiplayer, is_host()):
+		return result
+	for peer_id: int in transport.broadcast_targets(multiplayer, is_host()):
+		if peer_id != HOST_PEER_ID and net_roster.peers.has(peer_id):
+			result.append(peer_id)
+	return result
+
 
 func _tick_handshake_timeouts(now: float) -> void:
 	if _pending_handshake.is_empty():
