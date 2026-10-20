@@ -179,8 +179,11 @@ func _run_late_joiner() -> void:
 		get_tree().quit(2)
 		return
 	# The replay's effect is the gate mirror: wait until the required set is populated,
-	# then read it before any later ready press or roster change can re-publish it.
-	while Match._lifecycle.loading_required_peers().size() < LATE_SEATS and Time.get_ticks_msec() < deadline:
+	# then read it before any later ready press or roster change can re-publish it. The
+	# host holds its own press LATE_SETTLE_S after seating this joiner, so a mirror that
+	# fills inside that bound can only come from the replay; an empty one fails.
+	var replay_deadline: int = Time.get_ticks_msec() + int(LATE_SETTLE_S * 1000.0)
+	while Match._lifecycle.loading_required_peers().size() < LATE_SEATS and Time.get_ticks_msec() < replay_deadline:
 		await _wait(0.005)
 	var replay_required: PackedInt32Array = Match._lifecycle.loading_required_peers()
 	_late_replay_mirror_ok = replay_required.size() == LATE_SEATS and replay_required.has(Net.local_peer_id()) and replay_required.has(Net.HOST_PEER_ID) and Match._lifecycle.loading_gate_blocking()
