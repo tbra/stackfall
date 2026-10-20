@@ -188,6 +188,9 @@ var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tun
 var arena_side_style: ArenaSideStyle = preload("res://config/territory/arena_side_style.tres")
 ## Opt-in QoL experiments (host snapshots them at match start).
 var qol_experiments: QolExperiments = preload("res://config/match/qol_experiments.tres")
+## The bots' tower-statics tunables: the same cached instance core/ai/BotEvaluator.stack_tuning reads
+## on every think, so an edit here reaches the next bot evaluation.
+var bot_stack_tuning: BotStackTuning = preload("res://config/bots/bot_stack_tuning.tres")
 ## the SFX tab edits the live AudioConfig autoload/Sfx.gd reads (the same cached
 ## preload instance, so no copy step; Reset/tests restore the shipped file values).
 var audio_config: AudioConfig = preload("res://config/audio/audio_config.tres")
@@ -506,6 +509,7 @@ func _base_tab_plan() -> Array[Dictionary]:
 		{"name": "Territory rules", "resources": [territory_tuning]},
 		{"name": "Block bag", "resources": [block_feed_config]},
 		{"name": "QoL", "resources": [qol_experiments]},
+		{"name": "Bots", "resources": [bot_stack_tuning]},
 	]
 
 
@@ -1589,6 +1593,7 @@ func reset_all() -> void:
 	_reset_resource(territory_visuals)
 	_reset_resource(arena_side_style)
 	_reset_resource(block_feed_config)
+	_reset_resource(bot_stack_tuning)
 	_reset_resource(skybox_config)
 	TuningSfxTab.reset_fields(audio_config)
 	# The sky resources are reset too; Save/Copy/TuningOverrides.apply_saved still skip them.
