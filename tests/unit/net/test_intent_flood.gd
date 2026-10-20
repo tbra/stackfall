@@ -700,3 +700,29 @@ func test_trust_boundary_cat_target_and_gift_slot_refuse_an_unacknowledged_sende
 	assert_true(rig.gateway.handle_gift_slot(CLIENT_PEER, CLIENT_SLOT), "once it acknowledged, the same intents apply")
 	assert_eq(rig.spy.cat_calls, 1)
 	assert_eq(rig.spy.gift_calls, 1)
+
+
+# --- cursor intents that must be refused ---------------------------------------------------------
+
+func test_a_malformed_or_over_limit_cursor_is_refused_without_a_trace() -> void:
+	var rig: Rig = _host_rig()
+	var burst: int = roundi(_limit(FloodLimits.INTENT_CURSOR).x)
+	rig.now = 5.0
+	rig.spy.pose_ok = false
+	_cursor(rig)
+	rig.spy.pose_ok = true
+	rig.gateway.handle_cursor(CLIENT_PEER, CLIENT_SLOT, Vector3(0.0, _config.pos_max_y + 1.0, 0.0), 0, Quaternion.IDENTITY)
+	rig.gateway.handle_cursor(CLIENT_PEER, CLIENT_SLOT, Vector3(0.0, _config.pos_min_y - 1.0, 0.0), 0, Quaternion.IDENTITY)
+	assert_eq(rig.stored_cursors, 0, "a malformed cursor is not stored for the auto-drop")
+	assert_eq(rig.cursor_events, 0, "does not reach the ghost")
+	assert_eq(rig.broadcasts.size(), 0, "is not rebroadcast")
+	assert_eq(rig.to_peer.size(), 0, "and is not answered")
+	_cursor(rig)
+	assert_eq(rig.stored_cursors, 1, "a well-formed one right after still passes")
+	# Past the bucket the same well-formed cursor is refused too.
+	for _i: int in range(FLOOD_FACTOR * burst):
+		_cursor(rig)
+	assert_eq(rig.stored_cursors, burst - 3, "the three malformed ones spent tokens, the excess is refused")
+	assert_eq(rig.cursor_events, rig.stored_cursors)
+	assert_eq(rig.broadcasts.size(), rig.stored_cursors)
+	assert_eq(rig.to_peer.size(), 0)
