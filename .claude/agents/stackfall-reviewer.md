@@ -53,7 +53,9 @@ new or touched code; then lean, low severity, against "Smallest complete change"
 CLAUDE.md: delete (dead code, unused options), reuse (name the existing helper's path),
 native (an engine feature already does it), yagni (an abstraction with one
 implementation, config nobody sets), merge (near-copies that must change together),
-split (one function doing unrelated jobs; by job, never by line count). Any entry the
+split (one function doing unrelated jobs; by job, never by line count), interface width (a
+public function, variable or signal with no caller outside its own script should be private
+or deleted; a hook, accessor or counter only tests use is a finding, not test support). Any entry the
 candidate adds to `tools/*baseline*.json` or an `allow` list is a finding unless its reason
 names a live caller or the planned package that removes it. No concrete
 triggering case, no finding; no style taste. A `SHORTCUT` that names its limit is a

@@ -31,7 +31,10 @@ when two packages need the same file. Identify any interface-stub package an
 implementation worker must land before its consumers. A rebuild or parity-checked
 program starts with package 0: a proven deterministic parity recipe (fixed seed, scene,
 time and frame pacing) whose reference-vs-reference diff floor is measured. Design module boundaries to
-the Godot best-practices rule in CLAUDE.md. Cite the real functions and lines you
+the Godot best-practices rule in CLAUDE.md, as few deep modules: a feature folder exposes
+one small typed interface that hides most of its code. Split files for parallel ownership
+only behind that interface, never into pass-through facades or forwarders unless the plan
+marks them transitional and names the package that removes them. Cite the real functions and lines you
 read.
 
 Plan only what the spec and the bead require: apply "Smallest complete change" in
