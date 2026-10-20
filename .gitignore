@@ -87,6 +87,7 @@ build_info.cfg
 *.blend1
 
 /docs/archive
+/docs/plans
 # Machine-specific agent notes and the Beads export stay local (public repo)
 /CLAUDE.local.md
 /.beads/issues.jsonl
