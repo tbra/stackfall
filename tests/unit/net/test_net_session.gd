@@ -638,15 +638,15 @@ func test_seat_pref_from_a_client_still_in_the_handshake_is_refused() -> void:
 
 func test_take_next_lobby_slot_reuses_the_lowest_free_slot_in_the_lobby() -> void:
 	_host_with_peers({5: 1, 6: 2, 7: 3, 8: -1})
-	assert_eq(_host._take_next_lobby_slot(), 4, "no hole: the next slot up; a spectator holds nothing")
+	assert_eq(_host.net_roster.take_next_lobby_slot(), 4, "no hole: the next slot up; a spectator holds nothing")
 	_host._peers.erase(6)
-	assert_eq(_host._take_next_lobby_slot(), 2, "a hole below the top is filled first")
+	assert_eq(_host.net_roster.take_next_lobby_slot(), 2, "a hole below the top is filled first")
 	_host._peers.erase(5)
-	assert_eq(_host._take_next_lobby_slot(), 1, "the lowest hole wins")
-	_host._reservations["token"] = 1
-	assert_eq(_host._take_next_lobby_slot(), 2, "a slot a rejoin reservation names is not free")
+	assert_eq(_host.net_roster.take_next_lobby_slot(), 1, "the lowest hole wins")
+	_host.net_roster.reservations["token"] = 1
+	assert_eq(_host.net_roster.take_next_lobby_slot(), 2, "a slot a rejoin reservation names is not free")
 	_host._peers.erase(Net.HOST_PEER_ID)
-	assert_eq(_host._take_next_lobby_slot(), 0, "slot 0 comes back too once nobody holds it (the host never leaves in practice)")
+	assert_eq(_host.net_roster.take_next_lobby_slot(), 0, "slot 0 comes back too once nobody holds it (the host never leaves in practice)")
 
 
 # --- Lobby slot compaction (P2 review finding 1) -----------------------------------
@@ -725,7 +725,7 @@ func test_a_lobby_leave_re_derives_the_auto_names_of_the_peers_that_move() -> vo
 	assert_eq(_slots_of(_host, [6, 7] as Array[int]), [1, 2] as Array[int])
 	assert_eq(_names_of(_host, [6, 7] as Array[int]), ["Player 2", "Player 3"] as Array[String], "the moved peers read the seat they now hold")
 	# What the next arrival, or a bot, would be called for the slot above the table.
-	var next_label: String = PlayerNames.fallback_for_slot(_host._take_next_lobby_slot())
+	var next_label: String = PlayerNames.fallback_for_slot(_host.net_roster.take_next_lobby_slot())
 	var taken: Array[String] = _names_of(_host, [Net.HOST_PEER_ID, 6, 7] as Array[int])
 	assert_eq(next_label, "Player 4")
 	assert_false(taken.has(next_label), "no seated human already carries the label the next seat gets")
@@ -803,3 +803,145 @@ func test_leave_from_either_side_returns_both_to_offline_and_is_idempotent() -> 
 	assert_eq(_host.mode(), Net.Mode.OFFLINE)
 	_host.leave()
 	assert_eq(_host.mode(), Net.Mode.OFFLINE)
+
+
+# --- NetRoster: compaction, reservations and tokens (no sockets) -------------------
+
+const _ROSTER_BUILD: String = "9.9.9"
+const _ROSTER_TOKEN_CHARS: int = NetRoster.REJOIN_TOKEN_BYTES * 2
+
+
+func _roster_with(seats: Dictionary) -> NetRoster:
+	var roster: NetRoster = NetRoster.new(NetConfig.new())
+	roster.add_host("Hostie", _ROSTER_BUILD, true)
+	for peer_id: int in seats.keys():
+		roster.accept(peer_id, _ROSTER_BUILD, "P%d" % peer_id, int(seats[peer_id]))
+	return roster
+
+
+func test_roster_compact_closes_holes_in_slot_order_and_leaves_spectators() -> void:
+	var roster: NetRoster = _roster_with({5: 1, 6: 3, 7: 4, 8: -1})
+	assert_eq(roster.compact(), 2, "the two peers above the hole moved down")
+	assert_eq(roster.slot_of_peer(5), 1)
+	assert_eq(roster.slot_of_peer(6), 2)
+	assert_eq(roster.slot_of_peer(7), 3)
+	assert_eq(roster.slot_of_peer(8), -1, "a spectator holds no seat and is left alone")
+	assert_eq(roster.slot_of_peer(Net.HOST_PEER_ID), 0, "the host never moves")
+	assert_eq(roster.compact(), 0, "already closed up")
+
+
+func test_roster_compact_is_a_no_op_mid_match_and_when_not_hosting() -> void:
+	var roster: NetRoster = _roster_with({5: 2})
+	roster.set_match_phase(true)
+	assert_eq(roster.compact(), 0, "a mid-match slot id is a PlayerSlot index the match built")
+	assert_eq(roster.slot_of_peer(5), 2)
+	var client_mirror: NetRoster = NetRoster.new(NetConfig.new())
+	client_mirror.begin_client("Me")
+	assert_eq(client_mirror.compact(), 0)
+
+
+func test_roster_compact_rederives_only_auto_names() -> void:
+	var roster: NetRoster = NetRoster.new(NetConfig.new())
+	roster.add_host("Hostie", _ROSTER_BUILD, true)
+	roster.accept(5, _ROSTER_BUILD, "", 2)
+	roster.accept(6, _ROSTER_BUILD, "Player 4", 3)
+	roster.compact()
+	assert_eq(roster.name_of_peer(5), PlayerNames.fallback_for_slot(1), "an auto name follows its seat")
+	assert_eq(roster.name_of_peer(6), "Player 4", "a name the player chose is never touched")
+
+
+func test_roster_disconnect_mid_match_reserves_the_slot_for_the_token() -> void:
+	var roster: NetRoster = _roster_with({5: 1})
+	var token: String = roster.token_of(5)
+	assert_eq(token.length(), _ROSTER_TOKEN_CHARS)
+	roster.set_match_phase(true)
+	assert_eq(roster.remove(5, roster.match_in_progress), 1)
+	assert_eq(roster.reservations.get(token), 1)
+	assert_false(roster.has_peer(5))
+	assert_eq(roster.token_of(5), "", "the departed peer's bearer token left the table")
+
+
+func test_roster_kick_and_lobby_leave_make_no_reservation() -> void:
+	var roster: NetRoster = _roster_with({5: 1, 6: 2})
+	assert_eq(roster.remove(5, false), 1)
+	assert_true(roster.reservations.is_empty(), "a kicked peer forfeits its token")
+	roster.set_match_phase(true)
+	assert_eq(roster.remove(9, true), -1, "an unknown peer")
+	var spectator: NetRoster = _roster_with({7: -1})
+	spectator.set_match_phase(true)
+	spectator.remove(7, true)
+	assert_true(spectator.reservations.is_empty(), "a spectator holds no seat to reserve")
+
+
+func test_roster_reclaim_consumes_the_reservation_and_reuses_the_token() -> void:
+	var roster: NetRoster = _roster_with({5: 1})
+	var token: String = roster.token_of(5)
+	roster.set_match_phase(true)
+	roster.remove(5, true)
+	var seat_ok: Callable = func(_slot_id: int) -> bool: return true
+	roster.can_reclaim_seat = seat_ok
+	var back: HandshakePolicy.Decision = roster.handle_handshake(6, _ROSTER_BUILD, "Back", token, 0.0)
+	assert_eq(back.kind, HandshakePolicy.Decision.Kind.RECLAIM)
+	assert_eq(back.slot_id, 1)
+	assert_eq(roster.accept(6, _ROSTER_BUILD, "Back", 1, token), 1)
+	assert_true(roster.reservations.is_empty(), "reclaiming spends the reservation")
+	assert_eq(roster.token_of(6), token, "the same token, so a second drop also works")
+	var again: HandshakePolicy.Decision = roster.handle_handshake(7, _ROSTER_BUILD, "Other", token, 0.0)
+	assert_ne(again.kind, HandshakePolicy.Decision.Kind.RECLAIM, "nothing is left to reclaim")
+
+
+func test_roster_reservations_do_not_survive_a_phase_change() -> void:
+	var roster: NetRoster = _roster_with({5: 1})
+	roster.set_match_phase(true)
+	roster.remove(5, true)
+	roster.set_match_phase(false)
+	assert_true(roster.reservations.is_empty())
+	assert_eq(roster.take_next_lobby_slot(), 1, "the slot is free again")
+
+
+func test_roster_return_to_lobby_reseats_spectators_closes_holes_and_clears_ready() -> void:
+	var roster: NetRoster = _roster_with({5: 3, 6: -1})
+	roster.set_match_phase(true)
+	roster.set_ready(5, true)
+	roster.set_match_phase(false)
+	assert_true(roster.return_to_lobby())
+	assert_eq(roster.slot_of_peer(6), 1, "the spectator is a player again, in the lowest free slot")
+	assert_eq(roster.slot_of_peer(5), 2, "and the hole above it closed")
+	assert_false(bool(roster.peer_info(5).get("ready")), "nobody is ready back in the lobby")
+	assert_false(roster.return_to_lobby(), "a second call changes nothing")
+
+
+func test_roster_set_ready_reports_a_change_and_all_ready_ignores_the_host() -> void:
+	var roster: NetRoster = _roster_with({5: 1})
+	assert_false(roster.all_ready())
+	assert_true(roster.set_ready(5, true))
+	assert_false(roster.set_ready(5, true), "unchanged")
+	assert_false(roster.set_ready(99, true), "unknown peer")
+	assert_true(roster.all_ready(), "the host's own flag is not required")
+
+
+func test_roster_peer_ids_run_in_slot_order() -> void:
+	var roster: NetRoster = _roster_with({9: 2, 4: 1, 6: -1})
+	assert_eq(roster.peer_ids(), PackedInt32Array([6, Net.HOST_PEER_ID, 4, 9]))
+
+
+# --- The handshake gate over ENet ---------------------------------------------------
+
+func test_an_oversize_handshake_name_over_enet_is_dropped_without_a_reply() -> void:
+	var port: int = _take_port()
+	assert_eq(_host.host_game(port, "Hostie", false), OK)
+	_host.set_accepting_joins(true)
+	watch_signals(Events)
+	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
+	# A tampered client skips its own cleaning and sends a name past the raw cap.
+	_client._pending_join_name = "Z".repeat(_host.config.handshake_name_max_length + 1)
+	var connected: bool = await _wait_until(func() -> bool:
+		return _host.multiplayer.get_peers().size() == 1
+	)
+	assert_true(connected, "the transport connection itself came up")
+	# Give the handshake RPC time to arrive and be (not) answered.
+	for _i: int in range(60):
+		await get_tree().process_frame
+	assert_eq(_host.peer_ids().size(), 1, "the oversize handshake seated nobody")
+	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0, "and drew no refusal reply")
+	assert_false(_client._joined_accepted)
