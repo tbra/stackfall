@@ -23,7 +23,10 @@ var _ping: NetPing
 func before_each() -> void:
 	_config = (load("res://config/net/net_config.tres") as NetConfig).duplicate() as NetConfig
 	_config.sanitize()
-	_ping = NetPing.new(_config, PeerFloodGate.new(FloodLimits.from_config(_config)))
+	var seams: NetPing.Seams = NetPing.Seams.new()
+	seams.targets = func() -> Array: return [PEER, OTHER_PEER]
+	seams.send_ping = func(_peer_id: int, _sent_at_ms: int) -> void: pass
+	_ping = NetPing.new(_config, PeerFloodGate.new(FloodLimits.from_config(_config)), seams)
 
 
 ## One honest round trip: a ping goes out at `sent_ms`, the echo returns `rtt_ms` later.

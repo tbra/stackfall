@@ -26,6 +26,7 @@ var _clock: float = START_CLOCK_S
 var _is_host: bool = true
 var _broadcasts: int = 0
 var _loading: Array[int] = []
+var _prefs: Array = []
 
 var _host: Variant
 var _client: Variant
@@ -37,6 +38,7 @@ func before_each() -> void:
 	_is_host = true
 	_broadcasts = 0
 	_loading.clear()
+	_prefs.clear()
 	_config = (load("res://config/net/net_config.tres") as NetConfig).duplicate() as NetConfig
 	_config.sanitize()
 	_roster = NetRoster.new(_config)
@@ -50,6 +52,7 @@ func before_each() -> void:
 	seams.is_host = func() -> bool: return _is_host
 	seams.broadcast_roster = func() -> void: _broadcasts += 1
 	seams.loading_ready = func(peer_id: int) -> void: _loading.append(peer_id)
+	seams.seat_pref = func(peer_id: int, color_index: int, team_pick: int) -> void: _prefs.append([peer_id, color_index, team_pick])
 	_intents = NetLobbyIntents.new(_roster, _config, _flood, seams)
 
 
@@ -207,11 +210,11 @@ func test_a_loading_ready_flood_does_not_spend_the_set_ready_bucket() -> void:
 # --- Seat preferences --------------------------------------------------------------
 
 func _pref_events() -> Array:
-	return get_signal_parameters(Events, "net_seat_pref_requested", 0) as Array
+	return _prefs[0] as Array
 
 
 func _pref_count() -> int:
-	return get_signal_emit_count(Events, "net_seat_pref_requested")
+	return _prefs.size()
 
 
 func test_a_seated_peers_in_range_seat_pref_reaches_the_lobby_with_its_own_id() -> void:

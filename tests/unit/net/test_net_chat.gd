@@ -6,9 +6,9 @@ extends GutTest
 ## bus once per instance.
 
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
-const METHOD_LINE: StringName = &"_rpc_chat_line"
-const METHOD_HISTORY: StringName = &"_rpc_chat_history"
-const METHOD_NOTICE: StringName = &"_rpc_chat_notice"
+const METHOD_LINE: StringName = NetChatService.METHOD_LINE
+const METHOD_HISTORY: StringName = NetChatService.METHOD_HISTORY
+const METHOD_NOTICE: StringName = NetChatService.METHOD_NOTICE
 const HOST_ID: int = 1
 const ALICE: int = 2
 const BOB: int = 3
@@ -318,10 +318,9 @@ func test_history_is_not_sent_to_a_peer_the_session_cannot_address() -> void:
 	assert_true(_sent.is_empty(), "not the host")
 
 
-func test_publish_stamps_stores_emits_and_fans_out_a_system_line() -> void:
+func test_a_system_line_is_stamped_stored_emitted_and_fanned_out() -> void:
 	_submit_fresh(ALICE, "first")
-	var system: Dictionary = ChatRules.make_line(0, 0, -1, "", 0, "Bob joined", ChatRules.KIND_SYSTEM)
-	_service.publish(system)
+	_service.system_line("Bob joined")
 	assert_eq(_accepted.size(), 2)
 	if _accepted.size() < 2:
 		return
