@@ -812,7 +812,9 @@ def main(argv):
     ap.add_argument("--force-close", action="store_true",
                     help="pass --force to bd close (reviewed handoffs whose claim another agent holds)")
     args = ap.parse_args(argv)
-    log_dir = args.log_dir or tempfile.mkdtemp(prefix="integrate_batch_")
+    # A fixed home (not a temp dir) so tools/session_metrics.py can count gate results per session.
+    log_dir = args.log_dir or os.path.join(repo_paths.scratch_root(), "_orchestrator", "integrate",
+                                           datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
     os.makedirs(log_dir, exist_ok=True)
     ctx = Ctx(log_dir)
     res = {}

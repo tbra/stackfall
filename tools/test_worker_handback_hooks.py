@@ -1,6 +1,8 @@
 """Focused tests for the project Claude worker handback hooks."""
 
 import json
+import os
+import tempfile
 import subprocess
 import sys
 import unittest
@@ -14,14 +16,36 @@ W = repo_paths.worktrees_root()
 
 
 ROOT = Path(__file__).resolve().parent
+LOG_DIR = tempfile.mkdtemp(prefix="handback_log_")
+LOG = os.path.join(LOG_DIR, "handbacks.jsonl")
 
 
 def run_hook(script, event):
+    env = dict(os.environ, STACKFALL_HANDBACK_LOG=LOG)
     result = subprocess.run(
         [sys.executable, str(ROOT / script)],
-        input=json.dumps(event), text=True, capture_output=True, check=True,
+        input=json.dumps(event), text=True, capture_output=True, check=True, env=env,
     )
     return json.loads(result.stdout) if result.stdout.strip() else None
+
+
+class HandbackLogTests(unittest.TestCase):
+    def test_accepted_and_denied_attempts_are_logged(self):
+        if os.path.exists(LOG):
+            os.remove(LOG)
+        good = json.dumps({"bead": "Bontago-9", "verdict": "review", "candidate": "/work/wt/a@abc",
+                           "files": "a.gd", "checks": "test_a: 1/1 PASS", "finding": "CHANGES: one HIGH",
+                           "next": "fix", "record": "bd:Bontago-9"})
+        run_hook("validate_worker_handback.py", {"hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                                                 "agent_type": "stackfall-reviewer", "tool_input": {"message": good}})
+        run_hook("validate_worker_handback.py", {"hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                                                 "tool_input": {"message": "prose"}})
+        with open(LOG, encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh]
+        self.assertEqual([r["accepted"] for r in rows], [True, False])
+        self.assertEqual((rows[0]["agent"], rows[0]["verdict"], rows[0]["finding"]),
+                         ("stackfall-reviewer", "review", "CHANGES: one HIGH"))
+        self.assertIn("JSON", rows[1]["issue"])
 
 
 class HandbackTests(unittest.TestCase):

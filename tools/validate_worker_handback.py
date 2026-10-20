@@ -4,9 +4,14 @@ Registered in project subagent frontmatter, not globally: built-in agents and th
 main orchestrator must not be forced into this worker-only report contract.
 """
 
+import datetime
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import repo_paths  # noqa: E402
 
 
 REQUIRED = ("bead", "verdict", "candidate", "files", "checks", "finding", "next", "record")
@@ -126,6 +131,34 @@ def used_handback(path):
         return False
 
 
+HANDBACK_LOG = ("_orchestrator", "handbacks.jsonl")
+HANDBACK_LOG_ENV = "STACKFALL_HANDBACK_LOG"  # tests point the log at a temp file
+FINDING_HEAD = 80
+
+
+def log_handback(event, message, issue, log_path=None):
+    """Append one line per validated handback attempt (accepted or denied) for tools/session_metrics.py.
+    Never raises: logging must not trap a worker."""
+    try:
+        report = {}
+        try:
+            report = json.loads(message) if isinstance(message, str) else {}
+        except ValueError:
+            pass
+        report = report if isinstance(report, dict) else {}
+        row = {"ts": datetime.datetime.now().isoformat(timespec="seconds"),
+               "agent": event.get("agent_type") or "", "accepted": issue is None,
+               "bead": str(report.get("bead", ""))[:120], "verdict": str(report.get("verdict", "")).lower(),
+               "finding": str(_field(report, "finding") or "")[:FINDING_HEAD], "issue": (issue or "")[:FINDING_HEAD]}
+        path = (log_path or os.environ.get(HANDBACK_LOG_ENV)
+                or os.path.join(repo_paths.scratch_root(), *HANDBACK_LOG))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+    except Exception:  # noqa: BLE001 - see docstring
+        pass
+
+
 def main():
     try:
         event = json.load(sys.stdin)
@@ -135,6 +168,7 @@ def main():
     if kind == "PreToolUse" and event.get("tool_name") == "SubagentHandback":
         message = event.get("tool_input", {}).get("message", "")
         issue = problem(message)
+        log_handback(event, message, issue)
         if issue:
             print(json.dumps({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -148,6 +182,7 @@ def main():
             return 0
         message = event.get("last_assistant_message", "")
         issue = problem(message) if message and message.strip() else "Missing worker handback."
+        log_handback(event, message, issue)
         if issue:
             print(json.dumps({"decision": "block", "reason": issue + " Return the compact JSON handback specified in the stackfall-worker skill."}))
     return 0
