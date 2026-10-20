@@ -167,9 +167,9 @@ validation, outstanding gates and the next action.
   or of their subject epic.
 - An open epic must have at least one open child. When the last child closes, close
   the epic; if something still keeps it open, that reason is its own bead. Plans an
-  open Bead still drives live in the untracked `docs/plans/` (briefs cite them by
-  absolute path in the main checkout); when the program closes, move its plan to
-  `docs/archive/` in the same step.
+  open Bead still drives live in the untracked `plans` folder under `docs/` (briefs
+  cite them by absolute path in the main checkout); when the program closes, move its
+  plan to the `archive` folder beside it in the same step.
 - File work under the subject epic it belongs to; avoid grab-bag "follow-ups" or
   "decisions" epics. Decision issues live under the epic of the work they gate.
 - Close stale or superseded beads with a reason that names what replaced them.
