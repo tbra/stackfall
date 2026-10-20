@@ -4,7 +4,7 @@ extends GutTest
 ## addresses it logs an engine error. Net's own fan-outs are already filtered; this
 ## covers every other host broadcast: MatchNet, SnapshotSync and the
 ## weather / snow / breeze relays. The only production kick is
-## MatchNet._tick_replay_timeouts (a mid-match joiner that never acked its replay).
+## MatchWorldReplay.tick_timeouts (a mid-match joiner that never acked its replay).
 ##
 ## Real ENet over loopback, one host and two clients in this process, each a full
 ## Net instance on its own MultiplayerAPI (the test_net_session.gd pattern) with
@@ -15,6 +15,9 @@ extends GutTest
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const _MATCH_NET_SCRIPT: GDScript = preload("res://net/MatchNet.gd")
 const _SNAPSHOT_SCRIPT: GDScript = preload("res://net/SnapshotSync.gd")
+const JOINER_NAME: String = "Latey"
+const HOST_PEER: int = 1
+const ONE_SNAPSHOT_S: float = 1.0
 
 
 ## One instance's worth of nodes. `net` and `match_net` are Variant-typed for the
@@ -75,6 +78,8 @@ func after_each() -> void:
 			side.net.leave()
 	Match.set_replicator(null)
 	Match.abort_match()
+	Match.set_process(true)
+	MatchTestReset.clear_world()
 	_sides.clear()
 	# Net._reject_peer() waits two frames before closing a refused connection.
 	await get_tree().process_frame
@@ -122,17 +127,19 @@ func _fire_match_net(rig: Rig) -> void:
 	rig.match_net.submit_cursor(0, Vector3.ZERO, 0, Quaternion.IDENTITY)
 
 
-## the per-peer (rpc_id) senders, aimed at every listed peer.
+## The per-peer (rpc_id) senders, aimed at every listed peer: the host's join handlers (MatchNet,
+## weather, snow) each answer a seated peer with its own state, addressed to it alone.
 func _fire_per_peer(rig: Rig) -> void:
 	for peer_id: int in _peers_of(rig):
-		rig.match_net._reject_to_peer(peer_id, 0, &"test")
-		rig.match_net._send_replay(peer_id, &"net_replay_end", [1])
-		rig.snow._on_net_peer_joined(peer_id, 0, "x")
-		rig.weather._on_net_peer_joined(peer_id, 0, "x")
+		Events.net_peer_joined.emit(peer_id, rig.net.slot_of_peer(peer_id), JOINER_NAME)
 
 
+## One snapshot, through the production host tick (it addresses every listed peer).
 func _fire_snapshot(rig: Rig) -> void:
-	rig.snapshot._send_packet(PackedByteArray([1, 2, 3, 4]))
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	rig.snapshot.begin_match(registry, MapDef.base())
+	rig.snapshot.host_tick(ONE_SNAPSHOT_S)
 
 
 func _fire_relays(rig: Rig) -> void:
@@ -151,7 +158,7 @@ func _fire_every_broadcast(rig: Rig) -> void:
 ## Kicks the first client, fires `fire` while ENet still lists it (the window the
 ## engine errors come from), lets one transport poll pass and fires again if it is
 ## still listed, then waits for the disconnect to finish and checks nothing is left
-## marked. GUT fails the test on any engine error raised along the way.
+## on the roster. GUT fails the test on any engine error raised along the way.
 func _kick_then_fire(fire: Callable) -> int:
 	var clients: Array[Rig] = await _connect(1)
 	var kicked_id: int = clients[0].net.local_peer_id()
@@ -163,7 +170,7 @@ func _kick_then_fire(fire: Callable) -> int:
 		fire.call(_host)
 	var closed: bool = await _wait_until(func() -> bool: return _peers_of(_host).is_empty(), 120)
 	assert_true(closed, "the disconnect completes")
-	assert_true(_host.net._disconnecting_peers.is_empty(), "and nothing stays marked afterwards")
+	assert_eq(_host.net.peer_ids().size(), 1, "and only the host is left on the roster")
 	return kicked_id
 
 
@@ -173,17 +180,50 @@ func test_every_host_broadcast_skips_a_peer_that_is_being_kicked() -> void:
 	await _kick_then_fire(_fire_every_broadcast)
 
 
-## The production trigger: MatchNet._tick_replay_timeouts kicks a mid-match joiner
-## that never acknowledged its world replay, and the host's next broadcast tick
+## A running match on the real Match with nothing replicated, so a mid-match join can owe a replay.
+func _start_live_match() -> void:
+	Match.set_process(false)
+	Match.set_replicator(null)
+	var field: Field = Field.new()
+	field.map_def = MapDef.base().scaled(0.75)
+	add_child_autofree(field)
+	var blocks_root: Node3D = Node3D.new()
+	add_child_autofree(blocks_root)
+	var registry: BlockRegistry = BlockRegistry.new()
+	add_child_autofree(registry)
+	Match.register_world(field, registry, blocks_root)
+	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
+	config.disc_size_step = 1
+	config.player_count = 3
+	config.ai_count = 0
+	config.hot_seat = false
+	config.rng_seed = 4242
+	config.allow_mid_match_join = true
+	Match.start_match(config)
+	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
+		Match._process(1.0 / 60.0)
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the match is running")
+
+
+## The production trigger: MatchWorldReplay kicks a mid-match joiner that never acknowledged its
+## world replay (time advanced on the clock the test hands it), and the host's next broadcast tick
 ## follows right behind it.
 func test_a_replay_timeout_kick_is_followed_by_silent_broadcasts() -> void:
 	var clients: Array[Rig] = await _connect(1)
 	var kicked_id: int = clients[0].net.local_peer_id()
-	var match_net: Variant = _host.match_net
-	match_net._replay_pending[kicked_id] = 1
-	match_net._replay_age[kicked_id] = 0.0
-	match_net._tick_replay_timeouts(match_net.config.replay_ack_timeout + 1.0)
-	assert_eq(match_net.replays_timed_out, 1, "the replay timed out")
+	_start_live_match()
+	var now_s: Array[float] = [0.0]
+	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
+	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
+	seams.now_s = func() -> float: return now_s[0]
+	var net_config: NetConfig = _host.match_net.config
+	var replay: MatchWorldReplay = MatchWorldReplay.new(_host.net, Match, net_config, seams)
+	replay.on_peer_joined(kicked_id, _host.net.slot_of_peer(kicked_id), JOINER_NAME)
+	assert_true(replay.is_pending(kicked_id), "the joiner owes its replay ack")
+	replay.tick_timeouts(now_s[0] + net_config.replay_ack_timeout * 0.5)
+	assert_false(_host.net.is_peer_disconnecting(kicked_id), "nothing happens inside the timeout")
+	replay.tick_timeouts(now_s[0] + net_config.replay_ack_timeout + 1.0)
+	assert_false(replay.is_pending(kicked_id), "the replay timed out")
 	assert_true(_host.net.is_peer_disconnecting(kicked_id), "and the host is kicking the peer")
 	assert_true(_peers_of(_host).has(kicked_id), "which ENet still lists")
 	_fire_every_broadcast(_host)
@@ -202,7 +242,7 @@ func test_the_peer_that_stays_still_hears_every_broadcast_while_the_other_is_kic
 	assert_true(_peers_of(_host).has(kicked_id), "the window is open")
 	_fire_every_broadcast(_host)
 	# The relay of a kept peer's cursor to everyone else is a broadcast too.
-	_host.match_net._handle_cursor_update(kept_id, _host.net.slot_of_peer(kept_id), Vector3.ZERO, 0, Quaternion.IDENTITY)
+	clients[1].match_net.submit_cursor(clients[1].net.local_slot(), Vector3.ZERO, 0, Quaternion.IDENTITY)
 	var heard: bool = await _wait_until(func() -> bool:
 		return get_signal_emit_count(Events, "match_loading_announced") >= 1
 	)

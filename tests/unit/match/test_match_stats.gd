@@ -159,8 +159,25 @@ const REMOTE_PEER: int = 77
 const REMOTE_SLOT: int = 1
 
 
+var _fake: FakeNet
+
+
+## The host's intent gateway bound the way MatchNet binds it, for requests that name their sender.
+func _gateway() -> MatchIntentGateway:
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return false
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(_peer: int, _method: StringName, _args: Array) -> bool: return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: pass
+	seams.now_s = func() -> float: return 0.0
+	seams.is_replay_pending = func(_peer: int) -> bool: return false
+	seams.store_cursor = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: pass
+	return MatchIntentGateway.new(_fake, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+
+
 func _make_net(peer_slots: Dictionary) -> MatchNetScript:
 	var fake: FakeNet = FakeNet.host(peer_slots, [0])
+	_fake = fake
 	Match._net_provider = fake
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
@@ -187,13 +204,13 @@ func test_replay_request_is_ignored_before_match_end_or_from_an_unseated_peer() 
 
 	# An unseated sender (no slot at all) must be rejected even after the
 	# match has ended.
-	net._handle_replay_request(999)
+	_gateway().handle_replay_request(999)
 	assert_eq(Match.state(), MatchAutoload.State.END, "an unseated peer's replay request must be ignored")
 	assert_eq(Match.stats().blocks_placed(0), placed_before, "no restart happened, so no stats reset happened either")
 
 	# A seated remote peer's request, after the match has actually ended, is
 	# honored: the host restarts with the same MatchConfig for everyone.
-	net._handle_replay_request(REMOTE_PEER)
+	_gateway().handle_replay_request(REMOTE_PEER)
 	assert_eq(Match.state(), MatchAutoload.State.COUNTDOWN, "a valid replay request restarts the match")
 	assert_eq(Match.stats().blocks_placed(0), 0, "the restarted match's stats start over")
 

@@ -9,13 +9,14 @@ extends GutTest
 ## Events.world_replay_changed, and Sfx mutes its one-shot feedback in that span.
 ##
 ## The fixture follows tests/unit/net/test_late_join.gd: host world on the real Match,
-## the replay captured through MatchNet's seam, then Match turns client and the
-## captured messages are applied in order -- the calls the RPC layer makes. A fresh
+## the replay built by MatchWorldReplay, then Match turns client and the rows are applied
+## in order -- the calls the RPC layer makes. A fresh
 ## Sfx instance (not the autoload) is created after the host-side setup, pointed at
 ## a temp folder of tiny wavs, so what it plays is exactly what the replay caused.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
+const SHORT_TIMEOUT_S: float = 0.3
 
 var _blocks_root: Node3D
 var _field: Field
@@ -149,16 +150,19 @@ func _stop_all_players() -> void:
 
 
 ## The host side of a mid-match join: a world with bodies, an eliminated slot and a
-## crate still falling, then the joiner's replay captured exactly as it goes on the
-## wire (the end marker is deferred to the end of the frame). Leaves Match built and
-## running on the host side; call _become_client() before applying the capture.
-func _capture_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[Array]:
+## crate still falling, then the joiner's replay as MatchWorldReplay builds it. Leaves
+## Match built and running on the host side; call _become_client() before applying it.
+func _build_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[Array]:
 	_build_world()
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var host_net: MatchNetScript = _make_net(host_session)
+	Match._net_provider = host_session
+	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
+	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
+	seams.now_s = func() -> float: return 0.0
+	var replay: MatchWorldReplay = MatchWorldReplay.new(host_session, Match, preload("res://config/net/net_config.tres"), seams)
 	_start_playing(_config(4))
-	assert_eq(host_net.submit_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
-	host_net._handle_place_intent(2, 1, _home(1), 0, Quaternion.IDENTITY, Match.feed_seq(1))
+	assert_eq(Match.request_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
+	assert_eq(Match.request_place(1, _home(1), 0, Quaternion.IDENTITY, false, Match.feed_seq(1)), PlacementRules.REASON_OK)
 	for _i: int in range(30):
 		Match._process(1.0 / 60.0)
 	Match._territory.flush_pending()
@@ -169,29 +173,35 @@ func _capture_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[A
 	Match._gifts._spawn_crate_at(Vector2(2.0, 1.0))
 	assert_eq(Match.gift_states().size(), 1, "one crate is in flight")
 	host_session.slots_by_peer[joiner_peer] = joiner_slot
-	host_net.capture_replay = true
-	host_net._on_net_peer_joined(joiner_peer, joiner_slot, "Latey")
-	await get_tree().process_frame
-	var capture: Array[Array] = host_net.replay_capture.duplicate()
-	host_net.queue_free()
-	await get_tree().process_frame
-	return capture
+	replay.on_peer_joined(joiner_peer, joiner_slot, "Latey")
+	return replay.build_replay(joiner_peer, joiner_slot)
 
 
 func _become_client(slot_id: int) -> MatchNetScript:
 	var client_net: MatchNetScript = _make_net(FakeNet.client(slot_id))
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
+	Events.net_mode_changed.emit(Net.Mode.CLIENT)
 	return client_net
 
 
-func _apply(client_net: MatchNetScript, message: Array) -> void:
-	client_net.callv(StringName(message[1]), message[2] as Array)
+func _apply(client_net: MatchNetScript, row: Array) -> void:
+	client_net.callv(StringName(row[0]), row[1] as Array)
+
+
+## The marker the host's sender follows the rows with, unless the rows already close with it.
+func _finish(client_net: MatchNetScript, rows: Array[Array]) -> void:
+	if rows.is_empty():
+		return
+	if StringName(rows[rows.size() - 1][0]) != &"net_replay_end":
+		client_net.net_replay_end(int((rows[0][1] as Array)[2]))
 
 
 # --- The replay is silent --------------------------------------------------------
 
 func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
+	var capture: Array[Array] = _build_host_replay()
+	assert_gt(capture.size(), 1, "the replay has rows")
+	if capture.size() <= 1:
+		return
 	var client_net: MatchNetScript = _become_client(3)
 	_make_sfx()
 
@@ -210,11 +220,12 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 
 	watch_signals(Events)
 	_apply(client_net, capture[0])
-	assert_eq(StringName(capture[0][1]), &"net_match_start")
+	assert_eq(StringName(capture[0][0]), &"net_match_start")
 	assert_true(_sfx._world_replay_silent, "the replay's opening message turns the silence on")
 	for index: int in range(1, capture.size()):
 		_apply(client_net, capture[index])
-		assert_false(_any_player_playing(), "message %d (%s) made a sound" % [index, capture[index][1]])
+		assert_false(_any_player_playing(), "message %d (%s) made a sound" % [index, capture[index][0]])
+	_finish(client_net, capture)
 
 	# The world was still restored through the same events a live match emits.
 	assert_eq(get_signal_emit_count(Events, "block_placed"), 2, "both bodies rebuilt through block_placed")
@@ -229,7 +240,6 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 	assert_eq(get_signal_emit_count(Events, "world_replay_changed"), 2)
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [true])
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 1), [false])
-	assert_eq(client_net.last_replay_acknowledged, int((capture[capture.size() - 1][2] as Array)[0]))
 
 
 # --- The marker ----------------------------------------------------------------------
@@ -237,26 +247,35 @@ func test_the_replay_rebuilds_the_world_without_a_single_sound() -> void:
 # --- A replay that never completes must not mute the match -------------------------
 
 func test_leaving_the_session_mid_replay_lifts_the_silence() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
+	var capture: Array[Array] = _build_host_replay()
+	assert_false(capture.is_empty(), "the replay has rows")
+	if capture.is_empty():
+		return
 	var client_net: MatchNetScript = _become_client(3)
 	_make_sfx()
 	_apply(client_net, capture[0])
 	assert_true(_sfx._world_replay_silent)
 	watch_signals(Events)
-	client_net._on_net_mode_changed(Net.Mode.OFFLINE)
+	Events.net_mode_changed.emit(Net.Mode.OFFLINE)
 	assert_false(_sfx._world_replay_silent, "Sfx hears the end too")
 	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [false])
 
 
 func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
-	var capture: Array[Array] = await _capture_host_replay()
+	var capture: Array[Array] = _build_host_replay()
+	assert_false(capture.is_empty(), "the replay has rows")
+	if capture.is_empty():
+		return
 	var client_net: MatchNetScript = _become_client(3)
+	var short_timeout: NetConfig = client_net.config.duplicate() as NetConfig
+	short_timeout.replay_ack_timeout = SHORT_TIMEOUT_S
+	client_net.config = short_timeout
+	client_net.set_process(true)
 	_make_sfx()
 	_apply(client_net, capture[0])
-	client_net._tick_world_replay_expiry()
+	await get_tree().process_frame
 	assert_true(_sfx._world_replay_silent, "still inside the timeout")
-	client_net._replaying_since_ms -= int(client_net.config.replay_ack_timeout * 1000.0) + 1
-	client_net._tick_world_replay_expiry()
+	await get_tree().create_timer(SHORT_TIMEOUT_S * 2.0).timeout
 	assert_false(_sfx._world_replay_silent, "the host would have dropped this peer by now")
 
 

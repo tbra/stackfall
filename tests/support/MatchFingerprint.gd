@@ -446,7 +446,6 @@ static func _capture_net(out: Dictionary) -> void:
 	if Match.state() != Match.State.LOBBY:
 		out["net.cursors"] = _size_of(_p(MatchNet, &"_cursors"))
 		out["net.spawned_ids"] = _size_of(_p(MatchNet, &"_spawned_net_ids"))
-		out["net.replay_pending"] = _size_of(_p(MatchNet, &"_replay_pending"))
 		out["net.intents"] = [
 			_size_of(_p(MatchNet, &"_intents_sent")), _size_of(_p(MatchNet, &"_intents_accepted")),
 			_size_of(_p(MatchNet, &"_intents_refused")), _size_of(_p(MatchNet, &"_auto_drops")),

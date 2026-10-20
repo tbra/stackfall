@@ -6,9 +6,9 @@ extends GutTest
 ## Two halves, because one process has one Match singleton and one Events
 ## bus (a second in-process Match would see every block_placed/spawn the
 ## first one emits):
-## - the replay itself runs host-then-client on the real Match: MatchNet's
-##   capture seam records the exact ordered rpc_id() messages, the host world
-##   is snapshotted, then Match turns client and the messages are applied in
+## - the replay itself runs host-then-client on the real Match: MatchWorldReplay
+##   builds the exact ordered rows the host sends, the host world is
+##   snapshotted, then Match turns client and the rows are applied in
 ##   order to a client-mode MatchNet -- the same calls the RPC layer makes;
 ## - admission (open seat / spectator / refusal / reconnect) runs over real
 ##   ENet between independent Net nodes, test_net_session.gd's pattern.
@@ -22,6 +22,10 @@ var _registry: BlockRegistry
 var _map: MapDef
 var _nets: Array[MatchNetScript] = []
 var _sessions: Array[Variant] = []
+var _now_s: float = 0.0
+var _sent: Array[Array] = []
+var _stored_cursors: Array[int] = []
+var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 
 
 func before_each() -> void:
@@ -29,6 +33,8 @@ func before_each() -> void:
 	Match.abort_match()
 	_nets.clear()
 	_sessions.clear()
+	_sent.clear()
+	_stored_cursors.clear()
 
 
 func after_each() -> void:
@@ -117,11 +123,65 @@ func _live_blocks() -> Dictionary:
 	return by_id
 
 
-func _methods(capture: Array[Array]) -> Array[StringName]:
+func _methods(rows: Array[Array]) -> Array[StringName]:
 	var methods: Array[StringName] = []
-	for entry: Array in capture:
-		methods.append(StringName(entry[1]))
+	for row: Array in rows:
+		methods.append(StringName(row[0]))
 	return methods
+
+
+## The host side of a mid-match join: MatchWorldReplay over the real Match and `session`, with a
+## spy send seam and a clock the test owns.
+func _make_replay(session: FakeNet) -> MatchWorldReplay:
+	Match._net_provider = session
+	_now_s = 0.0
+	_sent.clear()
+	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
+	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+		_sent.append([peer_id, method, args])
+		return true
+	seams.now_s = func() -> float: return _now_s
+	return MatchWorldReplay.new(session, Match, _net_config, seams)
+
+
+## The intent gateway the host binds, with the replay gate wired to `replay` the way MatchNet wires it.
+func _make_gateway(session: FakeNet, replay: MatchWorldReplay, counters: NetCounters) -> MatchIntentGateway:
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return false
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(_peer: int, _method: StringName, _args: Array) -> bool: return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: pass
+	seams.now_s = func() -> float: return _now_s
+	seams.is_replay_pending = replay.is_pending
+	seams.store_cursor = func(slot_id: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void:
+		_stored_cursors.append(slot_id)
+	return MatchIntentGateway.new(session, Match, _net_config, counters, seams)
+
+
+## The replay id carried by a replay's opening net_match_start.
+func _replay_id_of(rows: Array[Array]) -> int:
+	assert_false(rows.is_empty(), "the replay has rows")
+	if rows.is_empty():
+		return -1
+	var args: Array = rows[0][1]
+	return int(args[2]) if args.size() > 2 else -1
+
+
+## Applies a replay to a client-mode MatchNet row by row, the calls the RPC layer makes, and ends
+## it with the marker the host's sender follows the rows with (the rows may already close with it).
+func _apply_replay(client_net: MatchNetScript, rows: Array[Array]) -> void:
+	if rows.is_empty():
+		return
+	for row: Array in rows:
+		client_net.callv(StringName(row[0]), row[1] as Array)
+	if StringName(rows[rows.size() - 1][0]) != &"net_replay_end":
+		client_net.net_replay_end(_replay_id_of(rows))
+
+
+func _become_client(slot_id: int) -> MatchNetScript:
+	var client_net: MatchNetScript = _make_net(FakeNet.client(slot_id))
+	Events.net_mode_changed.emit(Net.Mode.CLIENT)
+	return client_net
 
 
 # --- The replay: the joiner's world matches the host's ---------------------------
@@ -129,14 +189,14 @@ func _methods(capture: Array[Array]) -> Array[StringName]:
 func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	_build_world(MapDef.base().scaled(0.75))
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var host_net: MatchNetScript = _make_net(host_session)
+	var replay: MatchWorldReplay = _make_replay(host_session)
 	_start_playing(_config(4, MatchConfig.GameMode.ELIMINATION))
 
 	# A world worth replaying: two blocks (one Paintball-converted), slot 2
 	# eliminated, a queued gift for the open seat, glue, a falling and a
 	# landed crate, a solved raster and a running round clock.
-	assert_eq(host_net.submit_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
-	host_net._handle_place_intent(2, 1, _home(1), 0, Quaternion.IDENTITY, Match.feed_seq(1))
+	assert_eq(Match.request_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
+	assert_eq(Match.request_place(1, _home(1), 0, Quaternion.IDENTITY, false, Match.feed_seq(1)), PlacementRules.REASON_OK)
 	for _i: int in range(30):
 		Match._process(1.0 / 60.0)
 	Match._territory.flush_pending()
@@ -154,16 +214,11 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	(Match._gifts._crates[1] as Dictionary)["phase"] = MatchGifts.LANDED
 
 	# The new joiner takes the lowest open human seat: 2 is eliminated, 3 is free.
-	assert_eq(host_net.pick_open_seat(), 3)
 	host_session.slots_by_peer[3] = 3
+	replay.on_peer_joined(3, 3, "Latey")
+	assert_true(replay.is_pending(3), "the joiner owes an ack")
 
-	host_net.capture_replay = true
-	host_net._on_net_peer_joined(3, 3, "Latey")
-	assert_true(host_net._replay_pending.has(3), "the joiner owes an ack")
-
-	# What the host holds at replay time, read in the same frame: the bodies
-	# keep simulating once a frame passes, the rest only moves with
-	# Match._process (off in this fixture).
+	# What the host holds at replay time, read in the same frame.
 	var expected_blocks: Dictionary = {}
 	var host_blocks: Dictionary = _live_blocks()
 	for net_id: int in host_blocks.keys():
@@ -181,30 +236,30 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	assert_lt(expected_owners.count(0), expected_owners.size(), "the host raster owns cells")
 	assert_gt(expected_timer, 0.0, "the round clock is running")
 	assert_false(expected_mode.is_empty(), "elimination replicates its state")
-	await get_tree().process_frame
+	var rows: Array[Array] = replay.build_replay(3, 3)
+	assert_gt(rows.size(), 4, "the replay has rows")
+	if rows.size() <= 4:
+		return
 
 	# The wire order: config + roster first, then every body, then the raster,
-	# then derived state, and the end marker last of all.
-	var capture: Array[Array] = host_net.replay_capture.duplicate()
-	var methods: Array[StringName] = _methods(capture)
+	# then derived state; the end marker, if the rows carry it, is last of all.
+	var methods: Array[StringName] = _methods(rows)
 	assert_eq(methods[0], &"net_match_start", "the replay opens with config + roster")
 	assert_eq(methods.count(&"net_block_spawned"), 2, "one spawn per body")
 	assert_eq(methods[1], &"net_block_spawned", "bodies right after the config")
 	assert_eq(methods[3], &"net_territory", "then one territory keyframe")
-	assert_eq(methods[methods.size() - 1], &"net_replay_end", "the end marker is last")
-	for entry: Array in capture:
-		assert_eq(int(entry[0]), 3, "every message is addressed to the joiner alone")
-	var spawn_args: Array = capture[1][2]
+	if methods.has(&"net_replay_end"):
+		assert_eq(methods[methods.size() - 1], &"net_replay_end", "the end marker is last")
+	for sent: Array in _sent:
+		assert_eq(int(sent[0]), 3, "everything the host sends is addressed to the joiner alone")
+	var spawn_args: Array = rows[1][1]
 	assert_eq(spawn_args.size(), 6, "the replay spawn uses replicate_spawn's six-argument wire shape")
+	assert_gt(_replay_id_of(rows), 0, "the opening message marks the replay with its id")
 
 	# The joiner: Match becomes a client and the replay is applied in order.
-	host_net.queue_free()
-	await get_tree().process_frame
-	var client_session: FakeNet = FakeNet.client(3)
-	var client_net: MatchNetScript = _make_net(client_session)
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
-	for entry: Array in capture:
-		client_net.callv(StringName(entry[1]), entry[2] as Array)
+	var client_net: MatchNetScript = _become_client(3)
+	watch_signals(Events)
+	_apply_replay(client_net, rows)
 
 	assert_eq(Match.state(), Match.State.PLAYING, "the joiner is in the host's state")
 	var client_blocks: Dictionary = _live_blocks()
@@ -237,7 +292,11 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	for i: int in range(mini(gifts.size(), expected_gifts.size())):
 		assert_eq(gifts[i]["id"], expected_gifts[i]["id"])
 		assert_eq(gifts[i]["phase"], expected_gifts[i]["phase"], "falling stays falling, landed stays landed")
-	assert_eq(client_net.last_replay_acknowledged, int(capture[capture.size() - 1][2][0]), "the joiner acknowledged its replay")
+	# The joiner acknowledged: the replay span is closed, so live broadcasts apply again.
+	var span_changes: int = get_signal_emit_count(Events, "world_replay_changed")
+	assert_eq(get_signal_parameters(Events, "world_replay_changed", span_changes - 1), [false], "the replay span ended")
+	client_net.net_block_spawned(900, &"cube", 1, Vector3(1.0, 3.0, 1.0), Quaternion.IDENTITY)
+	assert_not_null(Match.registry().block_for_net_id(900), "live broadcasts apply on top of the replayed world")
 
 
 func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
@@ -245,8 +304,7 @@ func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	_make_net(host_session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	var client_net: MatchNetScript = _make_net(FakeNet.client(1))
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
+	var client_net: MatchNetScript = _become_client(1)
 	watch_signals(Events)
 
 	client_net.net_block_spawned(31, &"cube", 1, Vector3(2.0, 3.0, 4.0), Quaternion.IDENTITY)
@@ -254,25 +312,57 @@ func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
 
 	assert_null(Match.registry().block_for_net_id(31), "a spawn broadcast before the replay is not applied")
 	assert_signal_not_emitted(Events, "match_state_changed", "nor is a state change")
-	assert_eq(client_net.last_replay_acknowledged, 0)
 
 
 func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
-	var net: MatchNetScript = _make_net(session)
+	var replay: MatchWorldReplay = _make_replay(session)
 	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
-	net.capture_replay = true
-	net._on_net_peer_joined(2, 1, "Latey")
-	assert_true(net._replay_pending.has(2))
-	net._tick_replay_timeouts(net.config.replay_ack_timeout * 0.5)
-	assert_true(net._replay_pending.has(2), "still waiting inside the timeout")
+	_now_s = 100.0
+	replay.on_peer_joined(2, 1, "Latey")
+	assert_true(replay.is_pending(2))
+	replay.tick_timeouts(_now_s + _net_config.replay_ack_timeout * 0.5)
+	assert_true(replay.is_pending(2), "still waiting inside the timeout")
 	assert_eq(session.kick_peer_calls.size(), 0)
-	net._tick_replay_timeouts(net.config.replay_ack_timeout)
-	assert_false(net._replay_pending.has(2), "the gate no longer holds a dead peer")
-	assert_eq(net.replays_timed_out, 1)
+	replay.tick_timeouts(_now_s + _net_config.replay_ack_timeout)
+	assert_false(replay.is_pending(2), "the gate no longer holds a dead peer")
 	assert_eq(session.kick_peer_calls.size(), 1)
-	assert_eq(int(session.kick_peer_calls[0]["peer_id"]), 2)
+	if session.kick_peer_calls.size() == 1:
+		assert_eq(int(session.kick_peer_calls[0]["peer_id"]), 2)
+	replay.tick_timeouts(_now_s + _net_config.replay_ack_timeout * 3.0)
+	assert_eq(session.kick_peer_calls.size(), 1, "kicked once, not on every later tick")
+
+
+func test_an_acked_replay_is_never_timed_out() -> void:
+	_build_world(MapDef.base().scaled(0.75))
+	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
+	var replay: MatchWorldReplay = _make_replay(session)
+	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
+	replay.on_peer_joined(2, 1, "Latey")
+	replay.handle_replay_ack(2, _replay_id_of(replay.build_replay(2, 1)))
+	assert_false(replay.is_pending(2))
+	replay.tick_timeouts(_now_s + _net_config.replay_ack_timeout * 10.0)
+	assert_eq(session.kick_peer_calls.size(), 0, "an acknowledged peer is not kicked")
+
+
+func test_a_peer_that_left_mid_replay_is_forgotten_by_the_timeout() -> void:
+	_build_world(MapDef.base().scaled(0.75))
+	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
+	var replay: MatchWorldReplay = _make_replay(session)
+	_start_playing(_config(2, MatchConfig.GameMode.CLASSIC))
+	replay.on_peer_joined(2, 1, "Latey")
+	replay.on_peer_left(2)
+	assert_false(replay.is_pending(2), "a peer that left owes nothing")
+	replay.tick_timeouts(_now_s + _net_config.replay_ack_timeout * 10.0)
+	assert_eq(session.kick_peer_calls.size(), 0, "and is not kicked after it is gone")
+
+
+func test_nobody_owes_a_replay_in_the_lobby() -> void:
+	var session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
+	var replay: MatchWorldReplay = _make_replay(session)
+	replay.on_peer_joined(2, 1, "Early")
+	assert_false(replay.is_pending(2), "the lobby's match start carries the world: no replay")
 
 
 # --- The intent gate ------------------------------------------------------------
@@ -280,37 +370,34 @@ func test_an_unacked_replay_times_out_and_drops_the_peer() -> void:
 func test_intents_before_the_replay_ack_are_refused() -> void:
 	_build_world(MapDef.base().scaled(0.75))
 	var session: FakeNet = FakeNet.host({1: 0, 2: 1, 3: 2}, [0])
-	var net: MatchNetScript = _make_net(session)
+	var replay: MatchWorldReplay = _make_replay(session)
+	var counters: NetCounters = NetCounters.new()
+	var gateway: MatchIntentGateway = _make_gateway(session, replay, counters)
 	_start_playing(_config(3, MatchConfig.GameMode.CLASSIC))
-	net.capture_replay = true
-	net._on_net_peer_joined(3, 2, "Latey")
-	await get_tree().process_frame
-	var end_marker: Array = net.replay_capture[net.replay_capture.size() - 1]
-	assert_eq(StringName(end_marker[1]), &"net_replay_end")
-	var replay_id: int = int((end_marker[2] as Array)[0])
+	replay.on_peer_joined(3, 2, "Latey")
+	var replay_id: int = _replay_id_of(replay.build_replay(3, 2))
 	var blocks_before: int = _live_blocks().size()
 
-	net._handle_place_intent(3, 2, _home(2), 0, Quaternion.IDENTITY, Match.feed_seq(2))
-	net._handle_throw_intent(3, 2, _home(2), 0, Quaternion.IDENTITY, Vector3.UP, Match.feed_seq(2))
-	net._handle_cursor_update(3, 2, _home(2), 0, Quaternion.IDENTITY)
+	gateway.handle_place(3, 2, _home(2), 0, Quaternion.IDENTITY, Match.feed_seq(2))
+	gateway.handle_throw(3, 2, _home(2), 0, Quaternion.IDENTITY, Vector3.UP, Match.feed_seq(2))
+	gateway.handle_cursor(3, 2, _home(2), 0, Quaternion.IDENTITY)
 	assert_eq(_live_blocks().size(), blocks_before, "nothing spawns for an unreplayed peer")
-	assert_eq(net.intents_refused_before_replay_ack, 2)
-	assert_eq(net.intents_refused(2), 2, "counted as refusals, so sent == accepted + refused")
-	assert_true(net.cursor_for_slot(2).is_empty(), "its cursor is not stored for auto-drop")
+	assert_eq(counters.refused_count(2), 2, "counted as refusals, so sent == accepted + refused")
+	assert_eq(counters.sent_count(2), 2)
+	assert_false(_stored_cursors.has(2), "its cursor is not stored for auto-drop")
 
-	net._handle_replay_ack(3, replay_id + 1)
-	assert_true(net._replay_pending.has(3), "a forged or stale ack is ignored")
-	net._handle_replay_ack(2, replay_id)
-	assert_true(net._replay_pending.has(3), "another peer cannot ack for it")
-	net._handle_replay_ack(3, replay_id)
-	assert_false(net._replay_pending.has(3), "the right ack lifts the gate")
-	assert_eq(net.replays_acknowledged, 1)
+	replay.handle_replay_ack(3, replay_id + 1)
+	assert_true(replay.is_pending(3), "a forged or stale ack is ignored")
+	replay.handle_replay_ack(2, replay_id)
+	assert_true(replay.is_pending(3), "another peer cannot ack for it")
+	replay.handle_replay_ack(3, replay_id)
+	assert_false(replay.is_pending(3), "the right ack lifts the gate")
 
-	net._handle_place_intent(3, 2, _home(2), 0, Quaternion.IDENTITY, Match.feed_seq(2))
+	gateway.handle_place(3, 2, _home(2), 0, Quaternion.IDENTITY, Match.feed_seq(2))
 	assert_eq(_live_blocks().size(), blocks_before + 1, "after the ack its intent is acted on")
+	gateway.handle_cursor(3, 2, _home(2), 0, Quaternion.IDENTITY)
+	assert_true(_stored_cursors.has(2), "and its cursor is stored again")
 
-
-# --- Seats -------------------------------------------------------------------------
 
 # --- Admission over ENet -----------------------------------------------------------
 
@@ -363,4 +450,3 @@ func test_a_mid_match_joiner_with_no_free_seat_spectates() -> void:
 	host.set_match_in_progress(false)
 	var reseated: bool = await _wait_until(func() -> bool: return late.local_slot() >= 2)
 	assert_true(reseated, "back in the lobby it gets a real slot for the next match")
-
