@@ -67,6 +67,9 @@ class Track:
 	var has_last: bool = false
 	## Whether the last pose drawn was the held end of a capped extrapolation.
 	var was_clamped: bool = false
+	## True once the newest sample is sleeping, render time is past it and the
+	## offset has decayed: the pose is then constant until a sample moves it.
+	var at_rest: bool = false
 
 ## Sequence numbers are u16 on the wire, so "newer than" is a distance test
 ## inside this modulus rather than a plain comparison.
@@ -79,6 +82,8 @@ var _config: NetConfig = null
 
 ## net_id (int) -> Track. Each Track's samples are oldest first.
 var _buffers: Dictionary = {}
+## net_id -> true for every track that is not at rest (see Track.at_rest).
+var _active: Dictionary = {}
 
 ## Host time of the newest sample from any body, and how long ago (in ms of
 ## real time) the snapshot carrying it arrived.
@@ -131,9 +136,17 @@ func push_sample(
 		var newest: Sample = track.samples[track.samples.size() - 1]
 		# Equal timestamps are the same body appearing twice in one snapshot's
 		# fragments; older ones are a reordered packet. Neither may disturb the
-		# buffer, which sample_at_render_time() assumes is sorted.
+		# buffer, which pose_into() assumes is sorted.
 		if host_time_ms <= newest.host_time_ms:
 			return false
+
+	var stays_at_rest: bool = false
+	if track.at_rest and sleeping and not track.samples.is_empty():
+		var held: Sample = track.samples[track.samples.size() - 1]
+		stays_at_rest = held.sleeping and held.position == position and held.rotation == rotation
+	if not stays_at_rest:
+		track.at_rest = false
+		_active[net_id] = true
 
 	var sample: Sample = Sample.new()
 	sample.host_time_ms = host_time_ms
@@ -224,10 +237,16 @@ func advance(delta: float) -> void:
 ## out over max_extrapolation_ms — the same window that opened it (spec 2.6's
 ## "extrapolate for at most 100 ms" says nothing about the way back, and a
 ## teleport is exactly the artefact the acceptance criterion tests for).
-func sample_at_render_time(net_id: int) -> Dictionary:
+## Writes the pose into `out` without allocating; false (and `out` untouched)
+## when the body has no samples, and the caller must then leave the body where it is. A track that is at
+## rest returns its held pose without re-evaluating.
+func pose_into(net_id: int, out: Pose) -> bool:
 	var track: Track = _buffers.get(net_id) as Track
 	if track == null or track.samples.is_empty():
-		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY, "sleeping": false}
+		return false
+	if track.at_rest:
+		_write_held(track, out)
+		return true
 
 	var newest: Sample = track.samples[track.samples.size() - 1]
 	var oldest: Sample = track.samples[0]
@@ -271,37 +290,39 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	# The newest sample's own sleeping flag: a boolean can't be blended, and
 	# "settled" is a property of the latest host state whichever branch above
 	# produced the pose. SnapshotSync.client_tick() is the only reader.
-	return _pose(track.last_position, track.last_rotation, newest.sleeping)
+	out.position = track.last_position
+	out.rotation = track.last_rotation
+	out.sleeping = newest.sleeping
+	# Rest: sleeping newest sample passed by the render clock, offset gone. The
+	# pose just written is final, so the caller writes it once and stops asking.
+	if (
+		newest.sleeping
+		and _render_time_ms >= float(newest.host_time_ms)
+		and track.error_position == Vector3.ZERO
+		and track.error_rotation == Quaternion.IDENTITY
+	):
+		track.at_rest = true
+		_active.erase(net_id)
+	return true
 
 
-## net_ids with at least one buffered sample.
-func tracked_ids() -> PackedInt32Array:
+## net_ids of tracks that are not at rest: the only ones whose pose can change.
+func active_ids() -> PackedInt32Array:
 	var ids: PackedInt32Array = PackedInt32Array()
-	for key: Variant in _buffers.keys():
+	for key: Variant in _active.keys():
 		ids.append(int(key))
 	return ids
 
 
 ## Drops every sample for a body the host despawned.
-## Ids of tracks that are not at rest (stub: not implemented).
-func active_ids() -> PackedInt32Array:
-	push_error("Interpolator.active_ids: not implemented")
-	return PackedInt32Array()
-
-
-## Writes the render-time pose of `net_id` into `out`; false when untracked
-## (stub: not implemented).
-func pose_into(_net_id: int, _out: Pose) -> bool:
-	push_error("Interpolator.pose_into: not implemented")
-	return false
-
-
 func forget(net_id: int) -> void:
 	_buffers.erase(net_id)
+	_active.erase(net_id)
 
 
 func clear() -> void:
 	_buffers.clear()
+	_active.clear()
 	_arrivals.clear()
 	_newest_host_time_ms = 0
 	_ms_since_newest = 0.0
@@ -364,6 +385,12 @@ func _trim_arrivals(now: float) -> void:
 		_arrivals.remove_at(0)
 
 
+func _write_held(track: Track, out: Pose) -> void:
+	out.position = track.last_position
+	out.rotation = track.last_rotation
+	out.sleeping = true
+
+
 func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> Dictionary:
 	return {"ok": true, "position": position, "rotation": rotation, "sleeping": sleeping}
 
@@ -375,7 +402,7 @@ func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> D
 func _decay_errors(delta_ms: float) -> void:
 	var tau_ms: float = maxf(_config.max_extrapolation_ms, 1.0)
 	var keep: float = exp(-delta_ms / tau_ms)
-	for key: Variant in _buffers.keys():
+	for key: Variant in _active.keys():
 		var track: Track = _buffers[key] as Track
 		if track.error_position == Vector3.ZERO and track.error_rotation == Quaternion.IDENTITY:
 			continue
