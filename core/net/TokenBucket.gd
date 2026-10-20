@@ -28,8 +28,3 @@ func take(now_s: float, burst: int, refill_per_s: float) -> bool:
 		_tokens -= TOKEN_COST
 		return true
 	return false
-
-
-## Tokens left after the last take(); UNSET_TOKENS before the first one. For tests.
-func tokens() -> float:
-	return _tokens

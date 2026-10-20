@@ -6,7 +6,7 @@ extends RefCounted
 ## ownership, replay-pending gate, replay protection, numeric validation, then the mutation.
 ##
 ## Every host `handle_*` first asks the per-peer PeerFloodGate (limits from FloodLimits /
-## NetConfig). A flooded call is dropped silently and counted: no refusal reply (a reply is itself
+## NetConfig). A flooded call is dropped silently: no refusal reply (a reply is itself
 ## an amplification), no rebroadcast, no Match call, and never a kick (a client on a bad link must
 ## never be removed for bursting). Ordinary refusals (wrong slot, stale feed_seq, bad pose) still
 ## answer the sender so its ghost unlocks.
@@ -84,11 +84,6 @@ func _init(
 
 func is_valid() -> bool:
 	return _valid
-
-
-## Calls the flood gate dropped for `peer_id` on `intent` (FloodLimits.INTENT_*).
-func flood_dropped(peer_id: int, intent: StringName) -> int:
-	return _flood.dropped(peer_id, intent)
 
 
 ## A leave or kick: the peer's buckets go, so a rejoin starts full.
@@ -273,27 +268,7 @@ func handle_place(
 ) -> void:
 	if not _host_may_handle(sender, FloodLimits.INTENT_PLACE):
 		return
-	var sender_slot: int = _session.slot_of_peer(sender)
-	if sender_slot < 0:
-		# A peer with no slot (mid-handshake, a spectator, already gone) gets no say, and is not
-		# counted: it has no slot to count against.
-		return
-	_counters.count_sent(sender_slot)
-	if _refuse_if_unreplayed(sender, sender_slot):
-		return
-	if sender_slot != slot_id:
-		# Spec 2.6: the host checks "that the slot matches"; the claimed slot_id is never trusted.
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
-		return
-	if feed_seq < 0:
-		# Match reads a negative feed_seq as "don't check"; from the wire it would switch off the
-		# "never duplicated" defence, so a remote intent has to quote the sequence it was issued.
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if not pose_is_acceptable(origin, orientation_index, free_quat):
-		# Not a rule violation (a real ghost cannot produce such a pose): the block is neither
-		# burned nor consumed; the sender is told so its ghost unlocks.
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
+	if _remote_release_slot(sender, slot_id, feed_seq, origin, orientation_index, free_quat) < 0:
 		return
 	# auto_drop is never taken from the wire: it grants the relocation privilege of spec 1.4.
 	_reject_replied_slot = -1
@@ -317,20 +292,7 @@ func handle_throw(
 ) -> void:
 	if not _host_may_handle(sender, FloodLimits.INTENT_THROW):
 		return
-	var sender_slot: int = _session.slot_of_peer(sender)
-	if sender_slot < 0:
-		return
-	_counters.count_sent(sender_slot)
-	if _refuse_if_unreplayed(sender, sender_slot):
-		return
-	if sender_slot != slot_id:
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
-		return
-	if feed_seq < 0:
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
-		return
-	if not pose_is_acceptable(origin, orientation_index, free_quat) or not velocity.is_finite():
-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
+	if _remote_release_slot(sender, slot_id, feed_seq, origin, orientation_index, free_quat, velocity) < 0:
 		return
 	_reject_replied_slot = -1
 	var reason: StringName = apply_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
@@ -342,8 +304,7 @@ func handle_throw(
 func handle_gift_slot(sender: int, slot_id: int) -> bool:
 	if not _host_may_handle(sender, FloodLimits.INTENT_GIFT_SLOT):
 		return false
-	var sender_slot: int = _session.slot_of_peer(sender)
-	if sender_slot < 0 or sender_slot != slot_id or _is_replay_pending(sender):
+	if not _seat_owns_slot(sender, slot_id):
 		return false
 	return _host.request_use_gift_slot(slot_id)
 
@@ -386,9 +347,7 @@ func handle_cursor(
 func handle_cat_target(sender: int, slot_id: int, point: Vector3) -> void:
 	if not _host_may_handle(sender, FloodLimits.INTENT_CAT_TARGET):
 		return
-	if _session.slot_of_peer(sender) != slot_id or _is_replay_pending(sender):
-		return
-	if not point.is_finite():
+	if not _seat_owns_slot(sender, slot_id) or not point.is_finite():
 		return
 	_host.set_cat_target(slot_id, point)
 
@@ -450,6 +409,48 @@ func _host_may_handle(sender: int, intent: StringName) -> bool:
 	if not _valid or not _session.is_host():
 		return false
 	return _flood.allow(sender, intent, _now())
+
+
+## The shared gate of a remote place / throw, in the refusal order the wire contract fixes: seated
+## (an unseated peer gets no say and is not counted), counted, world replayed, slot owned, feed_seq
+## quoted, pose (and `velocity`, for a throw) acceptable. Returns the sender's slot, or -1 after
+## refusing.
+func _remote_release_slot(
+	sender: int,
+	slot_id: int,
+	feed_seq: int,
+	origin: Vector3,
+	orientation_index: int,
+	free_quat: Quaternion,
+	velocity: Vector3 = Vector3.ZERO
+) -> int:
+	var sender_slot: int = _session.slot_of_peer(sender)
+	if sender_slot < 0:
+		return -1
+	_counters.count_sent(sender_slot)
+	if _refuse_if_unreplayed(sender, sender_slot):
+		return -1
+	if sender_slot != slot_id:
+		# Spec 2.6: the host checks "that the slot matches"; the claimed slot_id is never trusted.
+		refuse_intent(sender, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
+		return -1
+	if feed_seq < 0:
+		# Match reads a negative feed_seq as "don't check"; from the wire it would switch off the
+		# "never duplicated" defence, so a remote intent has to quote the sequence it was issued.
+		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return -1
+	if not pose_is_acceptable(origin, orientation_index, free_quat) or not velocity.is_finite():
+		# Not a rule violation (a real ghost cannot produce such a pose): the block is neither
+		# burned nor consumed; the sender is told so its ghost unlocks.
+		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
+		return -1
+	return sender_slot
+
+
+## The sender holds a slot, it is `slot_id`, and its world is built.
+func _seat_owns_slot(sender: int, slot_id: int) -> bool:
+	var sender_slot: int = _session.slot_of_peer(sender)
+	return sender_slot >= 0 and sender_slot == slot_id and not _is_replay_pending(sender)
 
 
 ## A mid-match joiner's world is not built until it acknowledged its replay: refused (counted and
