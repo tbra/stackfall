@@ -23,6 +23,7 @@ Usage
     python tools/triage_log.py path/to/log.txt
     godot ... 2>&1 | python tools/triage_log.py
     python tools/triage_log.py path/to/log.txt --json > triage.json
+    python tools/triage_log.py soak.log --soak      # deterministic soak gate
 
 Requires ``TYPESAFE_API_KEY`` in the environment for the classification pass.
 Without it (or if the TypeSafe API call fails for any reason -- network,
@@ -121,6 +122,18 @@ _RECORD_START_RE = re.compile(r"^(ERROR|WARNING|SCRIPT ERROR):\s?(.*)$")
 # line for a warning was "       [0] apply_state (res://net/Interpolator.gd:88)"
 # -- no "at:" at all), so either prefix on its own must continue the record.
 _BACKTRACE_RE = re.compile(r"^\s*(\[\d+\]\s+|at:\s)")
+
+
+# `SOAK_VIOLATION k=v k=v ...` (soak line format); values hold no spaces.
+_SOAK_VIOLATION_RE = re.compile(r"^SOAK_VIOLATION\s+(.*)$")
+
+SOAK_MARKER = "SOAK VIOLATION"
+SOAK_SOURCE = "soak-invariant"
+SOAK_LOG_SOURCE = "soak-log"
+SOAK_SUBSYSTEM_SCRIPT_ERROR = "log.script_error"
+SOAK_SUBSYSTEM_ENGINE_ERROR = "log.engine_error"
+SOAK_SEV_WARN = "warn"
+DEFAULT_SOAK_KNOWN_PATH = os.path.join("tools", "soak_known.json")
 
 
 def _strip_leading_tags(line: str) -> str:
@@ -311,6 +324,98 @@ def group_records(records: Sequence[ErrorRecord]) -> List[Group]:
             order.append(sig)
         groups[sig].count += 1
     return [groups[sig] for sig in order]
+
+
+# --------------------------------------------------------------------------
+# --soak mode: deterministic gate over SOAK_VIOLATION lines and engine errors
+# --------------------------------------------------------------------------
+
+
+@dataclass
+class SoakKnown:
+    known: List[str] = field(default_factory=list)  # invariant ids allowed to fail
+    engine_noise: List[str] = field(default_factory=list)  # benign ERROR substrings
+
+
+def load_soak_known(path: str) -> SoakKnown:
+    """Read the soak known-list JSON. A missing or unreadable file is an empty
+    list, so every violation and every ERROR gates."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return SoakKnown()
+    if not isinstance(data, dict):
+        return SoakKnown()
+    return SoakKnown(
+        known=[str(k) for k in data.get("known", [])],
+        engine_noise=[str(k) for k in data.get("engine_noise", [])],
+    )
+
+
+def extract_soak_violations(text: str) -> List[ErrorRecord]:
+    """One record per SOAK_VIOLATION line; the message is its key=value text."""
+    records: List[ErrorRecord] = []
+    for i, line in enumerate(text.splitlines()):
+        m = _SOAK_VIOLATION_RE.match(_strip_leading_tags(line))
+        if m:
+            records.append(ErrorRecord(marker=SOAK_MARKER, message=m.group(1).strip(), line_no=i + 1))
+    return records
+
+
+def _soak_fields(record: ErrorRecord) -> Dict[str, str]:
+    return dict(tok.split("=", 1) for tok in record.message.split() if "=" in tok)
+
+
+def soak_violation_groups(records: Sequence[ErrorRecord], known: SoakKnown) -> List[Group]:
+    """Group violations by inv + role. Gating (likely-bug, confidence 1.0)
+    unless the id is known or every line in the group is sev=warn."""
+    groups: Dict[str, Group] = {}
+    fails: Dict[str, int] = {}
+    for record in records:
+        fields = _soak_fields(record)
+        sig = f"{SOAK_MARKER}: inv={fields.get('inv', '?')} role={fields.get('role', '?')}"
+        if sig not in groups:
+            groups[sig] = Group(
+                signature=sig,
+                marker=SOAK_MARKER,
+                representative=record,
+                first_line_no=record.line_no,
+                subsystem=fields.get("inv", "?"),
+                classification_source=SOAK_SOURCE,
+            )
+            fails[sig] = 0
+        groups[sig].count += 1
+        if fields.get("sev") != SOAK_SEV_WARN:
+            fails[sig] += 1
+    for sig, group in groups.items():
+        inv = group.subsystem or "?"
+        if inv in known.known or fails[sig] == 0:
+            group.severity = "known-limitation"
+            group.matched_limitation = f"{inv} is in soak_known.json" if inv in known.known else "sev=warn"
+        else:
+            group.severity = "likely-bug"
+        group.severity_confidence = 1.0
+    return list(groups.values())
+
+
+def classify_soak_log_groups(groups: Sequence[Group], known: SoakKnown) -> None:
+    """SCRIPT ERROR and non-allow-listed ERROR gate; WARNING stays ranked."""
+    for group in groups:
+        group.subsystem = heuristic_subsystem(group)
+        group.classification_source = SOAK_LOG_SOURCE
+        if group.marker == "SCRIPT ERROR":
+            group.subsystem = SOAK_SUBSYSTEM_SCRIPT_ERROR
+        elif group.marker == "ERROR":
+            if any(sig and sig in group.representative.raw for sig in known.engine_noise):
+                group.severity = "benign-noise"
+                group.severity_confidence = 1.0
+                continue
+            group.subsystem = SOAK_SUBSYSTEM_ENGINE_ERROR
+        else:
+            continue
+        group.severity = "likely-bug"
+        group.severity_confidence = 1.0
 
 
 # --------------------------------------------------------------------------
@@ -832,6 +937,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-classify", action="store_true", help="Skip TypeSafe entirely; deterministic grouping only."
     )
+    parser.add_argument(
+        "--soak",
+        action="store_true",
+        help="Deterministic soak gate: SOAK_VIOLATION lines and engine errors gate, no TypeSafe call.",
+    )
+    parser.add_argument(
+        "--soak-known",
+        default=DEFAULT_SOAK_KNOWN_PATH,
+        help=f"Known-id / engine-noise list for --soak (default: {DEFAULT_SOAK_KNOWN_PATH}).",
+    )
     return parser.parse_args(argv)
 
 
@@ -852,6 +967,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     records = extract_records(text)
     groups = group_records(records)
+
+    if args.soak:
+        soak_path = args.soak_known
+        if not os.path.isabs(soak_path):
+            soak_path = os.path.join(_project_root(), soak_path)
+        known = load_soak_known(soak_path)
+        classify_soak_log_groups(groups, known)
+        violations = extract_soak_violations(text)
+        groups = soak_violation_groups(violations, known) + groups
+        stats = ClassifyStats(skipped_reason="--soak is deterministic")
+        total = len(violations) + len(records)
+        if args.json:
+            print(json.dumps(to_jsonable(groups, stats, total, source_desc), indent=2))
+        else:
+            print(render_text(groups, stats, total, source_desc))
+        return 1 if any(severity_gates_ci(g) for g in groups) else 0
 
     limitations_path = args.limitations_doc
     if not os.path.isabs(limitations_path):
