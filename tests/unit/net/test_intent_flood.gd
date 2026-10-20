@@ -78,6 +78,7 @@ class Rig extends RefCounted:
 	var to_host: Array[Array] = []
 	var broadcasts: Array[Array] = []
 	var stored_cursors: int = 0
+	var cursor_events: int = 0
 	var replay_pending: Dictionary = {}
 
 	func _init(session: FakeNet, config: NetConfig) -> void:
@@ -89,9 +90,17 @@ class Rig extends RefCounted:
 		seams.send_to_peer = _send_to_peer
 		seams.broadcast = _broadcast
 		seams.now_s = _now
-		seams.is_replay_pending = _is_replay_pending
+		seams.is_replay_pending = _pending
 		seams.store_cursor = _store_cursor
 		gateway = MatchIntentGateway.new(net, spy, config, counters, seams)
+		Events.remote_cursor_updated.connect(_on_cursor_event)
+
+	func close() -> void:
+		if Events.remote_cursor_updated.is_connected(_on_cursor_event):
+			Events.remote_cursor_updated.disconnect(_on_cursor_event)
+
+	func _on_cursor_event(_slot: int, _origin: Vector3, _orient: int, _quat: Quaternion) -> void:
+		cursor_events += 1
 
 	func _can_send() -> bool:
 		return true
@@ -109,7 +118,7 @@ class Rig extends RefCounted:
 	func _now() -> float:
 		return now
 
-	func _is_replay_pending(peer_id: int) -> bool:
+	func _pending(peer_id: int) -> bool:
 		return replay_pending.has(peer_id)
 
 	func _store_cursor(_slot: int, _origin: Vector3, _orient: int, _quat: Quaternion) -> void:
@@ -117,15 +126,26 @@ class Rig extends RefCounted:
 
 
 var _config: NetConfig = preload("res://config/net/net_config.tres")
+var _rigs: Array[Rig] = []
+
+
+func after_each() -> void:
+	for rig: Rig in _rigs:
+		rig.close()
+	_rigs.clear()
 
 
 func _host_rig() -> Rig:
 	var net: FakeNet = FakeNet.host({HOST_PEER: 0, CLIENT_PEER: CLIENT_SLOT, OTHER_PEER: OTHER_SLOT}, [0])
-	return Rig.new(net, _config)
+	var rig: Rig = Rig.new(net, _config)
+	_rigs.append(rig)
+	return rig
 
 
 func _client_rig() -> Rig:
-	return Rig.new(FakeNet.client(CLIENT_SLOT), _config)
+	var rig: Rig = Rig.new(FakeNet.client(CLIENT_SLOT), _config)
+	_rigs.append(rig)
+	return rig
 
 
 func _place(rig: Rig, peer: int = CLIENT_PEER, slot: int = CLIENT_SLOT) -> void:
@@ -185,8 +205,7 @@ func _flood(rig: Rig, send: Callable, intent: StringName) -> void:
 func _assert_isolated_and_refills(rig: Rig, send: Callable, intent: StringName, passes: Callable) -> void:
 	var burst: int = roundi(_limit(intent).x)
 	var refill: float = _limit(intent).y
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, intent), (FLOOD_FACTOR - 1) * burst, "%s: the excess is counted" % intent)
-	assert_eq(rig.gateway.flood_dropped(OTHER_PEER, intent), 0, "%s: another peer starts clean" % intent)
+	assert_eq(int(passes.call(rig)), burst, "%s: exactly the burst got through, the excess was dropped" % intent)
 	var before: int = int(passes.call(rig))
 	send.call(rig, OTHER_PEER, OTHER_SLOT)
 	assert_eq(int(passes.call(rig)), before + 1, "%s: a second peer is unaffected by the flooder" % intent)
@@ -205,7 +224,6 @@ func test_place_honest_client_is_never_dropped() -> void:
 	var rig: Rig = _host_rig()
 	var sent: int = _run_honest(rig, _place, 2.0)
 	assert_eq(rig.spy.place_calls, sent)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_PLACE), 0)
 
 
 func test_place_flood_passes_exactly_the_burst_and_sends_no_reply_for_the_rest() -> void:
@@ -226,7 +244,6 @@ func test_throw_honest_client_is_never_dropped() -> void:
 	var rig: Rig = _host_rig()
 	var sent: int = _run_honest(rig, _throw, 2.0)
 	assert_eq(rig.spy.throw_calls, sent)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_THROW), 0)
 
 
 func test_throw_flood_passes_exactly_the_burst_and_sends_no_reply_for_the_rest() -> void:
@@ -244,7 +261,6 @@ func test_gift_slot_honest_client_is_never_dropped() -> void:
 	var rig: Rig = _host_rig()
 	var sent: int = _run_honest(rig, _gift, 1.0)
 	assert_eq(rig.spy.gift_calls, sent)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_GIFT_SLOT), 0)
 
 
 func test_gift_slot_flood_passes_exactly_the_burst() -> void:
@@ -262,6 +278,7 @@ func test_cursor_honest_client_with_the_real_throttle_is_never_dropped() -> void
 	var host: Rig = _host_rig()
 	var client: Rig = _client_rig()
 	var frames: int = int(SIM_SECONDS / FRAME_S)
+	var delivered: int = 0
 	for frame: int in range(frames):
 		client.now = float(frame) * FRAME_S + 1.0
 		client.gateway.submit_cursor(CLIENT_SLOT, POSE_ORIGIN, 0, Quaternion.IDENTITY)
@@ -270,10 +287,12 @@ func test_cursor_honest_client_with_the_real_throttle_is_never_dropped() -> void
 			assert_eq(sent[0], MatchIntentGateway.RPC_CURSOR)
 			var args: Array = sent[1]
 			host.gateway.handle_cursor(CLIENT_PEER, args[0], args[1], args[2], args[3], args[4])
+			delivered += 1
 		client.to_host.clear()
 	var expected: int = int(SIM_SECONDS * _config.cursor_hz)
 	assert_gte(host.stored_cursors, int(float(expected) * 0.8), "the client really sent at cursor_hz")
-	assert_eq(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CURSOR), 0)
+	assert_eq(host.stored_cursors, delivered, "an honest client loses no cursor")
+	assert_eq(host.cursor_events, delivered, "and the ghost saw every one")
 	assert_eq(host.broadcasts.size(), host.stored_cursors, "every accepted cursor is rebroadcast once")
 
 
@@ -282,6 +301,7 @@ func test_cursor_flood_drops_the_excess_without_a_rebroadcast() -> void:
 	var burst: int = roundi(_limit(FloodLimits.INTENT_CURSOR).x)
 	_flood(rig, _cursor, FloodLimits.INTENT_CURSOR)
 	assert_eq(rig.stored_cursors, burst, "exactly the burst is stored")
+	assert_eq(rig.cursor_events, burst, "and only the burst reaches the ghost")
 	assert_eq(rig.broadcasts.size(), burst, "the host rebroadcasts only what it accepted")
 	assert_eq(rig.to_peer.size(), 0, "a cursor never gets a reply")
 	_assert_isolated_and_refills(rig, _cursor, FloodLimits.INTENT_CURSOR, func(r: Rig) -> int: return r.stored_cursors)
@@ -318,14 +338,13 @@ func test_cursor_lag_bunching_one_second_of_honest_cursors_all_pass_then_a_flood
 		var b: Array = sent[1]
 		host.gateway.handle_cursor(CLIENT_PEER, b[0], b[1], b[2], b[3], b[4])
 	assert_eq(host.stored_cursors, live_stored + bunched.size(), "every bunched honest cursor passes")
-	assert_eq(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CURSOR), 0)
 	# A 3x-burst flood in the same frame then loses the excess.
 	var burst: int = roundi(_limit(FloodLimits.INTENT_CURSOR).x)
 	var before: int = host.stored_cursors
 	for _i: int in range(FLOOD_FACTOR * burst):
 		_cursor(host)
 	assert_lte(host.stored_cursors - before, burst, "no more than a bucket's worth gets through")
-	assert_gte(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CURSOR), (FLOOD_FACTOR - 1) * burst)
+	assert_eq(host.cursor_events, host.stored_cursors, "the ghost saw exactly what was stored")
 
 
 # --- cat target -------------------------------------------------------------------------------
@@ -334,6 +353,7 @@ func test_cat_target_honest_client_with_the_real_throttle_is_never_dropped() -> 
 	var host: Rig = _host_rig()
 	var client: Rig = _client_rig()
 	var frames: int = int(SIM_SECONDS / FRAME_S)
+	var delivered: int = 0
 	for frame: int in range(frames):
 		client.now = float(frame) * FRAME_S + 1.0
 		client.gateway.submit_cat_target(CLIENT_SLOT, Vector3(float(frame), 0.0, 0.0))
@@ -342,9 +362,10 @@ func test_cat_target_honest_client_with_the_real_throttle_is_never_dropped() -> 
 			assert_eq(sent[0], MatchIntentGateway.RPC_CAT_TARGET)
 			var args: Array = sent[1]
 			host.gateway.handle_cat_target(CLIENT_PEER, args[0], args[1])
+			delivered += 1
 		client.to_host.clear()
 	assert_gte(host.spy.cat_calls, int(SIM_SECONDS * _config.cursor_hz * 0.8), "the client really sent at cursor_hz")
-	assert_eq(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CAT_TARGET), 0)
+	assert_eq(host.spy.cat_calls, delivered, "an honest client loses no cat target")
 
 
 func test_cat_target_flood_passes_exactly_the_burst() -> void:
@@ -383,13 +404,11 @@ func test_cat_target_lag_bunching_one_second_passes_then_a_flood_is_clipped() ->
 		var b: Array = sent[1]
 		host.gateway.handle_cat_target(CLIENT_PEER, b[0], b[1])
 	assert_eq(host.spy.cat_calls, live_calls + bunched.size(), "every bunched honest cat target passes")
-	assert_eq(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CAT_TARGET), 0)
 	var burst: int = roundi(_limit(FloodLimits.INTENT_CAT_TARGET).x)
 	var before: int = host.spy.cat_calls
 	for _i: int in range(FLOOD_FACTOR * burst):
 		_cat(host)
 	assert_lte(host.spy.cat_calls - before, burst)
-	assert_gte(host.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_CAT_TARGET), (FLOOD_FACTOR - 1) * burst)
 
 
 # --- replay / return to lobby -------------------------------------------------------------------
@@ -399,7 +418,6 @@ func test_replay_request_honest_client_is_never_dropped() -> void:
 	rig.spy.phase = MatchPhase.State.END
 	var sent: int = _run_honest(rig, _replay, 0.5)
 	assert_eq(rig.spy.start_calls, sent)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_REPLAY_REQUEST), 0)
 
 
 func test_replay_request_flood_passes_exactly_the_burst() -> void:
@@ -417,7 +435,6 @@ func test_return_request_honest_client_is_never_dropped() -> void:
 	rig.spy.phase = MatchPhase.State.END
 	var sent: int = _run_honest(rig, _return, 0.5)
 	assert_eq(rig.spy.abort_calls, sent)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_RETURN_LOBBY), 0)
 
 
 func test_return_request_flood_passes_exactly_the_burst() -> void:
@@ -449,7 +466,6 @@ func test_forget_peer_gives_a_rejoin_full_buckets() -> void:
 	_flood(rig, _place, FloodLimits.INTENT_PLACE)
 	assert_eq(rig.spy.place_calls, burst)
 	rig.gateway.forget_peer(CLIENT_PEER)
-	assert_eq(rig.gateway.flood_dropped(CLIENT_PEER, FloodLimits.INTENT_PLACE), 0, "the counters go with the peer")
 	for _i: int in range(burst):
 		_place(rig)
 	assert_eq(rig.spy.place_calls, 2 * burst, "a rejoin starts with a full bucket")
@@ -487,5 +503,226 @@ func test_a_peer_that_is_replaying_is_refused_not_flooded() -> void:
 	rig.replay_pending[CLIENT_PEER] = 1
 	_place(rig)
 	assert_eq(rig.spy.place_calls, 0)
-	assert_eq(rig.counters.intents_refused_before_replay_ack, 1)
+	assert_eq(rig.counters.refused_count(CLIENT_SLOT), 1, "counted once against the sender's own slot")
 	assert_eq(rig.to_peer.size(), 1, "the replay-pending refusal is an ordinary refusal reply")
+
+
+# --- the remote release chain: the place and throw doors refuse identically ----------------------
+
+const UNSEATED_PEER: int = 9
+const BAD_FEED_SEQS: Array[int] = [-1, -7]
+const DOORS: Array[StringName] = [&"place", &"throw"]
+
+
+## What a caller can see after one remote release at a door: how many requests Match saw, the
+## replies addressed to peers, the broadcasts, and the sender slot's refused / sent counts.
+func _knock(
+	door: StringName,
+	setup: Callable = Callable(),
+	peer: int = CLIENT_PEER,
+	slot: int = CLIENT_SLOT,
+	feed_seq: int = 0,
+	origin: Vector3 = POSE_ORIGIN,
+	velocity: Vector3 = Vector3.FORWARD,
+) -> Dictionary:
+	var rig: Rig = _host_rig()
+	if setup.is_valid():
+		setup.call(rig)
+	if door == &"place":
+		rig.gateway.handle_place(peer, slot, origin, 0, Quaternion.IDENTITY, feed_seq)
+	else:
+		rig.gateway.handle_throw(peer, slot, origin, 0, Quaternion.IDENTITY, velocity, feed_seq)
+	return {
+		"requests": _requests_at(rig, door),
+		"replies": rig.to_peer,
+		"broadcasts": rig.broadcasts.size(),
+		"refused": rig.counters.refused_count(CLIENT_SLOT),
+		"sent": rig.counters.sent_count(CLIENT_SLOT),
+		"kicks": rig.net.kick_peer_calls.size(),
+	}
+
+
+func _requests_at(rig: Rig, door: StringName) -> int:
+	return rig.spy.place_calls if door == &"place" else rig.spy.throw_calls
+
+
+func _rejected(reason: StringName) -> Array:
+	return [[CLIENT_PEER, &"net_match_event", [MatchWireEvents.PLACEMENT_REJECTED, [CLIENT_SLOT, reason]]]]
+
+
+func _both_doors(
+	setup: Callable = Callable(),
+	peer: int = CLIENT_PEER,
+	slot: int = CLIENT_SLOT,
+	feed_seq: int = 0,
+	origin: Vector3 = POSE_ORIGIN
+) -> Dictionary:
+	var outcomes: Dictionary = {}
+	for door: StringName in DOORS:
+		outcomes[door] = _knock(door, setup, peer, slot, feed_seq, origin)
+	return outcomes
+
+
+func _assert_refused_with_reply(outcomes: Dictionary, reason: StringName, what: String) -> void:
+	for door: StringName in DOORS:
+		var seen: Dictionary = outcomes[door]
+		assert_eq(seen["requests"], 0, "%s: %s never reaches Match" % [what, door])
+		assert_eq(seen["replies"], _rejected(reason), "%s: %s answers the sender once" % [what, door])
+		assert_eq(seen["refused"], 1, "%s: %s counts one refusal against the sender" % [what, door])
+		assert_eq(seen["sent"], 1, "%s: %s counts the intent as sent" % [what, door])
+		assert_eq(seen["kicks"], 0, "%s: %s never kicks" % [what, door])
+	assert_eq(outcomes[&"place"], outcomes[&"throw"], "%s: both doors refuse identically" % what)
+
+
+func test_trust_boundary_a_seated_well_formed_release_is_the_control_that_passes() -> void:
+	var accept: Callable = func(rig: Rig) -> void: rig.spy.place_reason = PlacementRules.REASON_OK
+	for door: StringName in DOORS:
+		var seen: Dictionary = _knock(door, accept)
+		assert_eq(seen["requests"], 1, "%s reaches Match" % door)
+		assert_eq(seen["replies"], [], "%s: an accepted release needs no refusal reply" % door)
+		assert_eq(seen["refused"], 0, "%s" % door)
+		assert_eq(seen["sent"], 1, "%s" % door)
+
+
+func test_trust_boundary_an_unseated_sender_is_ignored_by_both_doors() -> void:
+	var outcomes: Dictionary = _both_doors(Callable(), UNSEATED_PEER, CLIENT_SLOT)
+	for door: StringName in DOORS:
+		var seen: Dictionary = outcomes[door]
+		assert_eq(seen["requests"], 0, "%s: no Match call" % door)
+		assert_eq(seen["replies"], [], "%s: an unseated peer gets no reply" % door)
+		assert_eq(seen["broadcasts"], 0, "%s" % door)
+		assert_eq(seen["sent"], 0, "%s: it has no slot to count against" % door)
+		assert_eq(seen["refused"], 0, "%s" % door)
+		assert_eq(seen["kicks"], 0, "%s" % door)
+	assert_eq(outcomes[&"place"], outcomes[&"throw"])
+
+
+func test_trust_boundary_an_unacknowledged_sender_is_refused_by_both_doors() -> void:
+	var pending: Callable = func(rig: Rig) -> void: rig.replay_pending[CLIENT_PEER] = 1
+	_assert_refused_with_reply(_both_doors(pending), PlacementRules.REASON_NO_BLOCK, "replay pending")
+
+
+func test_trust_boundary_a_claimed_slot_that_is_not_the_senders_is_refused_by_both_doors() -> void:
+	for claimed: int in [OTHER_SLOT, 0, -1]:
+		_assert_refused_with_reply(
+			_both_doors(Callable(), CLIENT_PEER, claimed),
+			PlacementRules.REASON_NOT_YOUR_TURN,
+			"claimed slot %d" % claimed
+		)
+
+
+func test_trust_boundary_a_negative_feed_seq_is_refused_by_both_doors() -> void:
+	for bad_seq: int in BAD_FEED_SEQS:
+		_assert_refused_with_reply(
+			_both_doors(Callable(), CLIENT_PEER, CLIENT_SLOT, bad_seq),
+			PlacementRules.REASON_NO_BLOCK,
+			"feed_seq %d" % bad_seq
+		)
+
+
+func test_trust_boundary_a_malformed_pose_is_refused_by_both_doors() -> void:
+	var malformed: Callable = func(rig: Rig) -> void: rig.spy.pose_ok = false
+	_assert_refused_with_reply(_both_doors(malformed), PlacementRules.REASON_NO_BLOCK, "pose rejected by Match")
+
+
+func test_trust_boundary_a_height_outside_the_replicable_band_is_refused_by_both_doors() -> void:
+	for y: float in [_config.pos_max_y + 1.0, _config.pos_min_y - 1.0]:
+		_assert_refused_with_reply(
+			_both_doors(Callable(), CLIENT_PEER, CLIENT_SLOT, 0, Vector3(0.0, y, 0.0)),
+			PlacementRules.REASON_NO_BLOCK,
+			"height %f" % y
+		)
+
+
+func test_trust_boundary_a_non_finite_throw_velocity_is_refused() -> void:
+	for bad: Vector3 in [Vector3(NAN, 0.0, 0.0), Vector3(0.0, INF, 0.0), Vector3(0.0, 0.0, -INF)]:
+		var seen: Dictionary = _knock(&"throw", Callable(), CLIENT_PEER, CLIENT_SLOT, 0, POSE_ORIGIN, bad)
+		assert_eq(seen["requests"], 0, "velocity %s never reaches Match" % bad)
+		assert_eq(seen["replies"], _rejected(PlacementRules.REASON_NO_BLOCK), "velocity %s: one refusal reply" % bad)
+		assert_eq(seen["refused"], 1, "velocity %s" % bad)
+
+
+func test_trust_boundary_a_flooding_sender_is_dropped_silently_by_both_doors() -> void:
+	for door: StringName in DOORS:
+		var intent: StringName = FloodLimits.INTENT_PLACE if door == &"place" else FloodLimits.INTENT_THROW
+		var burst: int = roundi(_limit(intent).x)
+		var rig: Rig = _host_rig()
+		rig.now = 5.0
+		for _i: int in range(burst):
+			_knock_rig(rig, door)
+		var replies_at_burst: int = rig.to_peer.size()
+		var sent_at_burst: int = rig.counters.sent_count(CLIENT_SLOT)
+		assert_eq(_requests_at(rig, door), burst, "%s: the burst reached Match" % door)
+		for _i: int in range(FLOOD_FACTOR):
+			_knock_rig(rig, door)
+		assert_eq(_requests_at(rig, door), burst, "%s: nothing past the burst reaches Match" % door)
+		assert_eq(rig.to_peer.size(), replies_at_burst, "%s: a dropped call is not answered" % door)
+		assert_eq(rig.counters.sent_count(CLIENT_SLOT), sent_at_burst, "%s: nor counted as sent" % door)
+		assert_eq(rig.broadcasts.size(), 0, "%s: nor rebroadcast" % door)
+		assert_eq(rig.net.kick_peer_calls.size(), 0, "%s: never kicked" % door)
+
+
+func _knock_rig(rig: Rig, door: StringName) -> void:
+	if door == &"place":
+		_place(rig)
+	else:
+		_throw(rig)
+
+
+func test_trust_boundary_cat_target_and_gift_slot_refuse_an_unseated_or_foreign_sender() -> void:
+	var senders: Array[Array] = [
+		[UNSEATED_PEER, CLIENT_SLOT, "an unseated sender"],
+		[CLIENT_PEER, OTHER_SLOT, "a claim on another seat"],
+		[CLIENT_PEER, 0, "a claim on the host seat"],
+		[OTHER_PEER, CLIENT_SLOT, "a seated peer naming the client slot"],
+	]
+	for who: Array in senders:
+		var rig: Rig = _host_rig()
+		var peer: int = who[0]
+		var slot: int = who[1]
+		rig.gateway.handle_cat_target(peer, slot, Vector3.RIGHT)
+		assert_eq(rig.spy.cat_calls, 0, "cat target: %s" % who[2])
+		assert_false(rig.gateway.handle_gift_slot(peer, slot), "gift slot: %s is refused" % who[2])
+		assert_eq(rig.spy.gift_calls, 0, "gift slot: %s never reaches Match" % who[2])
+		assert_eq(rig.to_peer.size(), 0, "%s: no reply" % who[2])
+		assert_eq(rig.net.kick_peer_calls.size(), 0, "%s: never kicked" % who[2])
+
+
+func test_trust_boundary_cat_target_and_gift_slot_refuse_an_unacknowledged_sender() -> void:
+	var rig: Rig = _host_rig()
+	rig.replay_pending[CLIENT_PEER] = 1
+	_cat(rig)
+	assert_false(rig.gateway.handle_gift_slot(CLIENT_PEER, CLIENT_SLOT))
+	assert_eq(rig.spy.cat_calls, 0)
+	assert_eq(rig.spy.gift_calls, 0)
+	rig.replay_pending.erase(CLIENT_PEER)
+	_cat(rig)
+	assert_true(rig.gateway.handle_gift_slot(CLIENT_PEER, CLIENT_SLOT), "once it acknowledged, the same intents apply")
+	assert_eq(rig.spy.cat_calls, 1)
+	assert_eq(rig.spy.gift_calls, 1)
+
+
+# --- cursor intents that must be refused ---------------------------------------------------------
+
+func test_a_malformed_or_over_limit_cursor_is_refused_without_a_trace() -> void:
+	var rig: Rig = _host_rig()
+	var burst: int = roundi(_limit(FloodLimits.INTENT_CURSOR).x)
+	rig.now = 5.0
+	rig.spy.pose_ok = false
+	_cursor(rig)
+	rig.spy.pose_ok = true
+	rig.gateway.handle_cursor(CLIENT_PEER, CLIENT_SLOT, Vector3(0.0, _config.pos_max_y + 1.0, 0.0), 0, Quaternion.IDENTITY)
+	rig.gateway.handle_cursor(CLIENT_PEER, CLIENT_SLOT, Vector3(0.0, _config.pos_min_y - 1.0, 0.0), 0, Quaternion.IDENTITY)
+	assert_eq(rig.stored_cursors, 0, "a malformed cursor is not stored for the auto-drop")
+	assert_eq(rig.cursor_events, 0, "does not reach the ghost")
+	assert_eq(rig.broadcasts.size(), 0, "is not rebroadcast")
+	assert_eq(rig.to_peer.size(), 0, "and is not answered")
+	_cursor(rig)
+	assert_eq(rig.stored_cursors, 1, "a well-formed one right after still passes")
+	# Past the bucket the same well-formed cursor is refused too.
+	for _i: int in range(FLOOD_FACTOR * burst):
+		_cursor(rig)
+	assert_eq(rig.stored_cursors, burst - 3, "the three malformed ones spent tokens, the excess is refused")
+	assert_eq(rig.cursor_events, rig.stored_cursors)
+	assert_eq(rig.broadcasts.size(), rig.stored_cursors)
+	assert_eq(rig.to_peer.size(), 0)
