@@ -213,9 +213,10 @@ func test_a_replay_timeout_kick_is_followed_by_silent_broadcasts() -> void:
 	var kicked_id: int = clients[0].net.local_peer_id()
 	_start_live_match()
 	var now_s: Array[float] = [0.0]
-	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
-	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
-	seams.now_s = func() -> float: return now_s[0]
+	var seams: MatchWorldReplay.Seams = WorldReplaySeams.make(
+		func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true,
+		func() -> float: return now_s[0]
+	)
 	var net_config: NetConfig = _host.match_net.config
 	var replay: MatchWorldReplay = MatchWorldReplay.new(_host.net, Match, net_config, seams)
 	replay.on_peer_joined(kicked_id, _host.net.slot_of_peer(kicked_id), JOINER_NAME)

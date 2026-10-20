@@ -445,10 +445,9 @@ static func _capture_net(out: Dictionary) -> void:
 	# it on wall-clock cadence, so it differs run to run.
 	if Match.state() != Match.State.LOBBY:
 		out["net.cursors"] = _size_of(_p(MatchNet, &"_cursors"))
-		out["net.spawned_ids"] = _size_of(_p(MatchNet, &"_spawned_net_ids"))
 		out["net.intents"] = [
 			_size_of(_p(MatchNet, &"_intents_sent")), _size_of(_p(MatchNet, &"_intents_accepted")),
-			_size_of(_p(MatchNet, &"_intents_refused")), _size_of(_p(MatchNet, &"_auto_drops")),
+			_size_of(_p(MatchNet, &"_intents_refused")),
 		]
 		out["net.capture_progress"] = [int(_p(MatchNet, &"_capture_team")), _fp(MatchNet, &"_capture_progress")]
 

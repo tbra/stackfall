@@ -156,9 +156,10 @@ func _build_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[Arr
 	_build_world()
 	var host_session: FakeNet = FakeNet.host({1: 0, 2: 1}, [0])
 	Match._net_provider = host_session
-	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
-	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
-	seams.now_s = func() -> float: return 0.0
+	var seams: MatchWorldReplay.Seams = WorldReplaySeams.make(
+		func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true,
+		func() -> float: return 0.0
+	)
 	var replay: MatchWorldReplay = MatchWorldReplay.new(host_session, Match, preload("res://config/net/net_config.tres"), seams)
 	_start_playing(_config(4))
 	assert_eq(Match.request_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
@@ -275,7 +276,10 @@ func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
 	_apply(client_net, capture[0])
 	await get_tree().process_frame
 	assert_true(_sfx._world_replay_silent, "still inside the timeout")
-	await get_tree().create_timer(SHORT_TIMEOUT_S * 2.0).timeout
+	# The client reads the wall clock, so wait on it rather than on the engine's frame time.
+	var waited_from_ms: int = Time.get_ticks_msec()
+	while float(Time.get_ticks_msec() - waited_from_ms) / 1000.0 < SHORT_TIMEOUT_S * 2.0:
+		await get_tree().process_frame
 	assert_false(_sfx._world_replay_silent, "the host would have dropped this peer by now")
 
 

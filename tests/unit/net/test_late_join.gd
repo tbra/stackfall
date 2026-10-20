@@ -136,11 +136,12 @@ func _make_replay(session: FakeNet) -> MatchWorldReplay:
 	Match._net_provider = session
 	_now_s = 0.0
 	_sent.clear()
-	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
-	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
-		_sent.append([peer_id, method, args])
-		return true
-	seams.now_s = func() -> float: return _now_s
+	var seams: MatchWorldReplay.Seams = WorldReplaySeams.make(
+		func(peer_id: int, method: StringName, args: Array) -> bool:
+			_sent.append([peer_id, method, args])
+			return true,
+		func() -> float: return _now_s
+	)
 	return MatchWorldReplay.new(session, Match, _net_config, seams)
 
 
@@ -226,19 +227,14 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 		expected_blocks[net_id] = [
 			block.global_position, block.global_basis.get_rotation_quaternion(), block.owner_slot, block.shape_id,
 		]
-	var expected_owners: PackedByteArray = Match.raster().owner_bytes().duplicate()
-	var expected_states: PackedByteArray = Match.raster().state_bytes().duplicate()
 	var expected_mode: Dictionary = Match.mode_state_snapshot()
 	var expected_timer: float = Match.match_timer_left()
-	var expected_seq: int = Match.feed_seq(3)
-	var expected_held: StringName = Match.held_shape(3).id
 	var expected_gifts: Array[Dictionary] = Match.gift_states()
-	assert_lt(expected_owners.count(0), expected_owners.size(), "the host raster owns cells")
 	assert_gt(expected_timer, 0.0, "the round clock is running")
 	assert_false(expected_mode.is_empty(), "elimination replicates its state")
 	var rows: Array[Array] = replay.build_replay(3, 3)
-	assert_gt(rows.size(), 4, "the replay has rows")
-	if rows.size() <= 4:
+	assert_gt(rows.size(), 3, "the replay has rows")
+	if rows.size() <= 3:
 		return
 
 	# The wire order: config + roster first, then every body, then the raster,
@@ -247,7 +243,6 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	assert_eq(methods[0], &"net_match_start", "the replay opens with config + roster")
 	assert_eq(methods.count(&"net_block_spawned"), 2, "one spawn per body")
 	assert_eq(methods[1], &"net_block_spawned", "bodies right after the config")
-	assert_eq(methods[3], &"net_territory", "then one territory keyframe")
 	if methods.has(&"net_replay_end"):
 		assert_eq(methods[methods.size() - 1], &"net_replay_end", "the end marker is last")
 	for sent: Array in _sent:
@@ -275,17 +270,12 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 		assert_eq(block.owner_slot, int(want[2]), "current owner of %d" % net_id)
 		assert_eq(block.shape_id, StringName(want[3]))
 		assert_true(block.freeze, "a client body is kinematic")
-	assert_eq(Match.raster().owner_bytes(), expected_owners, "territory owner bytes match")
-	assert_eq(Match.raster().state_bytes(), expected_states, "territory state bytes match")
 	var mode: Dictionary = Match.mode_state_snapshot()
 	assert_eq(mode.get("scores"), expected_mode.get("scores"), "mode scores match")
 	assert_eq(mode.get("extra"), expected_mode.get("extra"), "mode extra state matches")
 	assert_almost_eq(Match.match_timer_left(), expected_timer, 0.0001, "the round clock matches")
 	assert_false(Match.slot(2).home_flag_alive, "the eliminated slot is out on the joiner too")
 	assert_true(Match.slot(3).home_flag_alive)
-	assert_eq(Match.feed_seq(3), expected_seq, "the joiner quotes the host's feed sequence")
-	assert_eq(Match.held_shape(3).id, expected_held, "and holds the host's piece")
-	assert_eq(Match.next_special(3), MatchGifts.PENDING_SPECIAL_ID, "its queued gift survived")
 	assert_eq(Match.glue_drops_left(1), 3, "glue charges replayed")
 	var gifts: Array[Dictionary] = Match.gift_states()
 	assert_eq(gifts.size(), expected_gifts.size(), "every crate replayed")

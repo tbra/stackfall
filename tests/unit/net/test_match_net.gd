@@ -332,7 +332,7 @@ func test_an_intent_from_a_departed_peer_is_refused() -> void:
 # client would build a phantom copy no despawn could ever address (spec 2.6:
 # the body "stays host-only"). A unit test has no live peer, so _can_send()
 # is already false and cannot by itself prove replicate_spawn() never handed
-# the rpc a bad id; the host's spawn ledger (_spawned_net_ids) is what shows it.
+# the rpc a bad id; the world replay, which skips bodies without a wire id, is what shows it.
 
 
 func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
@@ -351,10 +351,16 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	assert_eq(_block_count(), 2)
 	assert_eq((_blocks_root.get_child(0) as Block).net_id, Quantize.NET_ID_MAX)
 	assert_eq((_blocks_root.get_child(1) as Block).net_id, -1, "the second body keeps living, host-only, with no id")
-	assert_eq(
-		(net._spawned_net_ids as Dictionary).keys(), [Quantize.NET_ID_MAX],
-		"replicate_spawn() must refuse the id-less body instead of hitting the wire"
+	# A late joiner's replay is the other place bodies go out: the id-less body must not be in it.
+	var replay: MatchWorldReplay = MatchWorldReplay.new(
+		_fake_net, Match, net.config,
+		WorldReplaySeams.make(func(_peer: int, _method: StringName, _args: Array) -> bool: return true, func() -> float: return 0.0)
 	)
+	var spawned_ids: Array[int] = []
+	for row: Array in replay.build_replay(2, 1):
+		if StringName(row[0]) == &"net_block_spawned":
+			spawned_ids.append(int((row[1] as Array)[0]))
+	assert_eq(spawned_ids, [Quantize.NET_ID_MAX], "the id-less body is never handed to the wire")
 
 
 # --- The territory payload --------------------------------------------------
@@ -719,7 +725,6 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	assert_eq(net.intents_refused(1), 1)
 	assert_eq(net.cursors_refused(1), 1)
 	assert_eq(net._intents_sent, {1: 2}, "ENet harnesses and MatchFingerprint still read the private names")
-	assert_eq(net._auto_drops, {0: 1})
 	net.counters.count_event(&"x")
 	net.reset_counters()
 	assert_eq(net.intents_sent(1), 0, "reset_counters() drops the per-match counters")

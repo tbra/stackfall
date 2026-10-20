@@ -39,11 +39,12 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 	_session = FakeNet.host({HOST_PEER: 0, 2: 1}, [0])
-	var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
-	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
-		_sent.append([peer_id, method, args])
-		return true
-	seams.now_s = func() -> float: return _now_s
+	var seams: MatchWorldReplay.Seams = WorldReplaySeams.make(
+		func(peer_id: int, method: StringName, args: Array) -> bool:
+			_sent.append([peer_id, method, args])
+			return true,
+		func() -> float: return _now_s
+	)
 	_replay = MatchWorldReplay.new(_session, Match, _config, seams)
 	var match_config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	match_config.disc_size_step = 1
