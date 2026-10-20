@@ -1,6 +1,7 @@
 """Print a bounded Beads board overview for the orchestrator's main context."""
 
 import argparse
+import datetime
 import json
 import shutil
 import subprocess
@@ -65,6 +66,7 @@ def main():
     epic_hygiene()
     parent_hygiene(limit)
     stale_blocked(limit)
+    stale_in_progress(limit)
     # surface new user replies on Beads at every board scan.
     import user_replies
     user_replies.main([])
@@ -158,6 +160,37 @@ def stale_blocked(limit):
     if not stale:
         return
     print(f"stale blocked (all blockers closed): {len(stale)}")
+    for row in stale[:limit]:
+        print("  " + brief(row))
+    if len(stale) > limit:
+        print(f"  ... {len(stale) - limit} more")
+
+
+STALE_IN_PROGRESS_DAYS = 2
+
+
+def find_stale_in_progress(rows, now, days=STALE_IN_PROGRESS_DAYS):
+    """Pure classifier: non-epic in_progress issues with no update for `days`
+    days. Session close releases these unless a live worker holds them."""
+    cutoff = now - datetime.timedelta(days=days)
+    stale = []
+    for row in rows:
+        if row.get("status") != "in_progress" or row.get("issue_type") == "epic":
+            continue
+        updated = datetime.datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00"))
+        if updated < cutoff:
+            stale.append(row)
+    return stale
+
+
+def stale_in_progress(limit):
+    """One bd export call; prints a count and at most `limit` lines."""
+    import user_replies
+    now = datetime.datetime.now(datetime.timezone.utc)
+    stale = find_stale_in_progress(user_replies._export(), now)
+    if not stale:
+        return
+    print(f"stale in progress (no update for {STALE_IN_PROGRESS_DAYS}+ days; release unless a worker is live): {len(stale)}")
     for row in stale[:limit]:
         print("  " + brief(row))
     if len(stale) > limit:

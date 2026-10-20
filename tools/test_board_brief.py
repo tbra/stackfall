@@ -1,5 +1,6 @@
 """Classifier checks for board_brief's stale-blocked section."""
 
+import datetime
 import sys
 import unittest
 from pathlib import Path
@@ -26,6 +27,20 @@ class StaleBlockedTests(unittest.TestCase):
             issue("not_blocked", "open", [("blocks", "done")]),
         ]
         self.assertEqual([r["id"] for r in bb.find_stale_blocked(rows)], ["stale", "parent_ignored"])
+
+
+class StaleInProgressTests(unittest.TestCase):
+    def test_classifier(self):
+        now = datetime.datetime(2026, 10, 20, 12, tzinfo=datetime.timezone.utc)
+        def row(iid, status, updated, kind="task"):
+            return {"id": iid, "status": status, "issue_type": kind, "updated_at": updated}
+        rows = [
+            row("old", "in_progress", "2026-10-14T09:00:00Z"),
+            row("fresh", "in_progress", "2026-10-19T09:00:00Z"),
+            row("old_epic", "in_progress", "2026-10-01T09:00:00Z", "epic"),
+            row("old_open", "open", "2026-10-01T09:00:00Z"),
+        ]
+        self.assertEqual([r["id"] for r in bb.find_stale_in_progress(rows, now)], ["old"])
 
 
 if __name__ == "__main__":
