@@ -18,6 +18,7 @@ Usage:
     python tools/dep_graph.py [--root DIR] [--out DIR]       # write outputs
     python tools/dep_graph.py --callers SYMBOL               # query, no files
     python tools/dep_graph.py --refs PATH                    # query, no files
+    python tools/dep_graph.py --map PREFIX                   # reuse map, no files
 
 Outputs in --out: graph.json, mindmap.html, unused.md.
 Known blind spots (see unused.md header): member variables/constants/enums are
@@ -1782,6 +1783,37 @@ def format_callers(graph, symbol):
     return "\n".join(lines)
 
 
+MAP_CHARS = 6000
+MAP_SKIP = ("tests/", "tools/")
+
+
+def format_map(graph, prefix, budget=MAP_CHARS):
+    """Reuse map: one line per script under `prefix` with its class/autoload name and public funcs."""
+    prefix = prefix.replace("res://", "").lstrip("/")
+    names = {p: c for c, p in graph["classes"].items()}
+    names.update({p: a for a, p in graph["autoloads"].items()})
+    by_file = {}
+    for f in graph["funcs"].values():
+        path = f["file"]
+        if path.startswith(prefix) and not path.startswith(MAP_SKIP) and not f["name"].startswith("_"):
+            by_file.setdefault(path, []).append(f)
+    if not by_file:
+        return "no public functions under %r" % prefix
+    lines, used = [], 0
+    paths = sorted(by_file)
+    for i, path in enumerate(paths):
+        funcs = sorted(by_file[path], key=lambda x: x["line"])
+        listed = ", ".join(("static " if f["static"] else "") + (f["cls"] + "." if f["cls"] else "") + f["name"]
+                           for f in funcs)
+        line = "%s%s: %s" % (path, " (%s)" % names[path] if path in names else "", listed)
+        if used + len(line) > budget:
+            lines.append("... %d more scripts; narrow the prefix" % (len(paths) - i))
+            break
+        lines.append(line)
+        used += len(line) + 1
+    return "\n".join(lines)
+
+
 def format_refs(graph, path):
     if path not in graph["files"]:
         return "no file %r in graph" % path
@@ -2180,6 +2212,7 @@ def main(argv=None):
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--callers", help="query: callers/callees of SYMBOL (File.gd:func, Class.func or func)")
     ap.add_argument("--refs", help="query: inbound/outbound references of a file path (relative)")
+    ap.add_argument("--map", help="query: class names and public funcs of scripts under a path prefix ('' = all)")
     ap.add_argument("--check", action="store_true", help="run the layer lint (tools/lint_layers.py) and exit")
     ap.add_argument("--report", action="store_true", help="with --check: report only, exit 0")
     ap.add_argument("--list", action="store_true", dest="list_all", help="with --check: per-edge lines")
@@ -2199,6 +2232,9 @@ def main(argv=None):
         return 0
     if args.refs:
         print(format_refs(graph, args.refs.replace("res://", "")))
+        return 0
+    if args.map is not None:
+        print(format_map(graph, args.map))
         return 0
     an = write_outputs(graph, args.out)
     fs = an["funcs"]

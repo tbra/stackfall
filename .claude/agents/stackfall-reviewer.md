@@ -40,12 +40,24 @@ finding comment on your assigned Bead, and at most 2 targeted runs per review of
 -gdir/-gselect or operators). Never run Godot
 directly or the full suite; the hook denies other commands.
 
-Prioritize concrete correctness failures, host/client trust boundaries, spec
-deviations, lifecycle regressions and missing meaningful coverage, then
-deviations from the Godot best-practices rule in CLAUDE.md in new or touched code. Trace callers and
+Rank findings in this order: correct (wrong result, crash, missed edge case such as
+empty, zero or last item, a caller the change breaks, a fix in one caller while the
+shared function stays broken, spec deviations, lifecycle regressions); safe (host/client
+trust boundaries, lost or desynced state); holds at the spec's 8 players and 60 ticks
+(per-tick allocation, O(n²) over blocks or peers, lists that only grow, work every peer
+repeats); tested (risky new logic with no test that fails when it breaks; one good test,
+not coverage); fast; then deviations from the Godot best-practices rule in CLAUDE.md in
+new or touched code; then lean, low severity, against "Smallest complete change" in
+CLAUDE.md: delete (dead code, unused options), reuse (name the existing helper's path),
+native (an engine feature already does it), yagni (an abstraction with one
+implementation, config nobody sets), merge (near-copies that must change together),
+split (one function doing unrelated jobs; by job, never by line count). No concrete
+triggering case, no finding; no style taste. A `SHORTCUT` that names its limit is a
+decision, not a finding, unless the expected load already crosses it. Trace callers and
 guards before reporting an apparent defect. For each finding give severity,
-file:line, triggering scenario, consequence, evidence and the smallest fix or
-regression case; separate source-supported defects from hypotheses needing
+file:line, triggering scenario, consequence, evidence and the smallest fix (prefer one
+that deletes code) or regression case; end `finding` with `Lean: -<N> lines` when lean
+findings exist; separate source-supported defects from hypotheses needing
 reproduction. List what you verified as one-liners and say what you could not verify
 by reading. Verify previous findings against the new candidate, and return no
 findings when that is the evidence. Do not edit code or recommend broad rewrites

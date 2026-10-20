@@ -77,6 +77,9 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
   evidence yourself. Never mark an interrupted worker or an unverified review finding
   complete, and never relay a worker's claim about a side effect (a rendered look, a
   process state, a user-visible change) to the user without checking it yourself.
+- For each `SHORTCUT` a worker reports or `python tools/lint_shortcuts.py --path
+  <candidate> --added <base>` lists, file a follow-up Bead under the package's epic
+  before closing the package.
 - You own `docs/SPEC.md` and keep it describing the game as built: when accepted
   work changes player-facing behaviour or a technical contract, update the matching
   section before closing the issue.

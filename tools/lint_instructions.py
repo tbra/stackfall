@@ -29,6 +29,8 @@ RULES = (
     ("orchestrator Beads actor", r"--actor stackfall-orchestrator", ("CLAUDE.md",)),
     ("full-suite cadence", r"once per integrated", ("CLAUDE.md",)),
     ("Beads remote sync", r"bd dolt (?:push|pull)", ("CLAUDE.md",)),
+    ("smallest-change ladder", r"first option that fully works", ("CLAUDE.md",)),
+    ("shortcut comment format", r"<when to upgrade>", ("CLAUDE.md",)),
     ("handback limits", r"\b1800\b", (WORKER,)),
     ("failed-comment handback", r"comment-failed", (WORKER,)),
     ("checkpoint template", r"Next exact action / blocked", (WORKER,)),

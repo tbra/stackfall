@@ -34,6 +34,9 @@ time and frame pacing) whose reference-vs-reference diff floor is measured. Desi
 the Godot best-practices rule in CLAUDE.md. Cite the real functions and lines you
 read.
 
+Plan only what the spec and the bead require: apply "Smallest complete change" in
+CLAUDE.md at package level, reuse existing modules before proposing new ones, and list
+any criterion, package or interface you cut as unneeded.
 Resolve routine implementation detail from the spec and record decisions; surface
 gameplay ambiguity or player-facing rule changes to the orchestrator. `docs/SPEC.md`
 and the user's answered decisions take precedence over older plans. Return the plan, its

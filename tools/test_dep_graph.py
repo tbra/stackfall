@@ -172,6 +172,15 @@ class DepGraphTest(unittest.TestCase):
         self.assertIn("main.gd", [e["src"] for e in inb])
         self.assertIn("core/Util.gd", dep_graph.format_refs(self.g, "core/Util.gd"))
 
+    def test_map_query(self):
+        text = dep_graph.format_map(self.g, "res://core/")
+        self.assertIn("core/Util.gd (Util): static helper, static test_only, static never_called", text)
+        self.assertNotIn("main.gd", text)
+        self.assertNotIn("_ready", dep_graph.format_map(self.g, ""))
+        self.assertIn("autoload/Bus.gd (Bus): poke", dep_graph.format_map(self.g, "autoload"))
+        self.assertIn("3 more scripts", dep_graph.format_map(self.g, "live/", budget=10))
+        self.assertIn("no public functions", dep_graph.format_map(self.g, "nowhere/"))
+
     def test_unused_files_and_roots(self):
         files = self.g["files"]
         self.assertEqual(files["project.godot"]["status"], "root")
