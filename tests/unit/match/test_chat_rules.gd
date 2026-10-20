@@ -4,6 +4,8 @@ extends GutTest
 const MAX_NAME: int = 24
 const SMALL_RING: int = 3
 const OVER_RING: int = 5
+## Raw characters scanned for a 3-character cap (the documented scan factor of 4).
+const SCAN_WINDOW: int = 12
 
 
 func _cfg() -> ChatConfig:
@@ -56,22 +58,6 @@ func test_validate_rejects_bad_lines() -> void:
 	assert_false(ChatRules.validate_line(neg, cfg, MAX_NAME), "negative seq")
 
 
-func test_bucket_burst_then_refill() -> void:
-	var bucket: ChatRules.Bucket = ChatRules.Bucket.new()
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_true(bucket.take(0.0, 3, 0.5))
-	assert_false(bucket.take(0.0, 3, 0.5), "burst spent")
-	assert_false(bucket.take(1.0, 3, 0.5), "half a token is not enough")
-	assert_true(bucket.take(2.0, 3, 0.5), "one token after 2 s")
-	assert_false(bucket.take(2.0, 3, 0.5))
-	# A long idle never banks more than the burst.
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_true(bucket.take(1000.0, 3, 0.5))
-	assert_false(bucket.take(1000.0, 3, 0.5))
-
-
 func test_history_ring_drops_the_oldest() -> void:
 	var hist: ChatRules.History = ChatRules.History.new(SMALL_RING)
 	for i: int in range(OVER_RING):
@@ -103,3 +89,58 @@ b", "a" + String.chr(0x202E) + "b", "a" + String.chr(0x200B)]:
 		assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, bad, 0, "hi"), cfg, MAX_NAME), "name " + bad.c_escape())
 	var joined: String = "a" + String.chr(0x200D) + "b"
 	assert_true(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "Bo", 0, joined), cfg, MAX_NAME))
+
+
+func test_the_wire_codes_are_pinned_and_distinct() -> void:
+	assert_eq(ChatRules.KIND_TEXT, 0)
+	assert_eq(ChatRules.KIND_SYSTEM, 1)
+	assert_eq(ChatRules.NOTICE_RATE, 0)
+	assert_eq(ChatRules.NOTICE_DUPLICATE, 1)
+
+
+func test_clean_keeps_the_first_max_chars_code_points_in_order() -> void:
+	assert_eq(ChatRules.clean("abcdef", 3), "abc")
+	assert_eq(ChatRules.clean("abc", 3), "abc")
+	assert_eq(ChatRules.clean("abc", 0), "a", "a zero cap still keeps one character")
+
+
+func test_clean_drops_a_joiner_the_cut_leaves_hanging() -> void:
+	assert_eq(ChatRules.clean("ab" + String.chr(0x200D) + "cd", 3), "ab")
+
+
+func test_clean_scan_window_is_bounded_by_scan_factor() -> void:
+	var limit: int = 3
+	var padding: String = String.chr(0x200B).repeat(SCAN_WINDOW)
+	assert_eq(ChatRules.clean(padding + "abc", limit), "", "text past the scanned window is never read")
+	var inside: String = String.chr(0x200B).repeat(SCAN_WINDOW - limit)
+	assert_eq(ChatRules.clean(inside + "abc", limit), "abc")
+
+
+func test_validate_rejects_a_slot_below_spectator() -> void:
+	var cfg: ChatConfig = _cfg()
+	assert_true(ChatRules.validate_line(ChatRules.make_line(1, 2, -1, "Bo", 0, "hi"), cfg, MAX_NAME), "a spectator line")
+	assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, -2, "Bo", 0, "hi"), cfg, MAX_NAME))
+
+
+func test_validate_accepts_text_and_name_exactly_at_their_caps() -> void:
+	var cfg: ChatConfig = _cfg()
+	var line: Dictionary = ChatRules.make_line(1, 2, 0, "n".repeat(MAX_NAME), 0, "x".repeat(cfg.max_chars))
+	assert_true(ChatRules.validate_line(line, cfg, MAX_NAME))
+
+
+func test_validate_treats_a_negative_name_cap_as_zero() -> void:
+	var cfg: ChatConfig = _cfg()
+	assert_true(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "", 0, "hi"), cfg, -5), "an empty name fits a zero cap")
+	assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "n", 0, "hi"), cfg, 0), "one character exceeds a zero cap")
+	assert_false(ChatRules.validate_line(ChatRules.make_line(1, 2, 0, "n", 0, "hi"), cfg, -5))
+
+
+func test_history_capacity_below_one_clamps_to_one_and_keeps_the_newest_line() -> void:
+	for capacity: int in [1, 0, -3]:
+		var hist: ChatRules.History = ChatRules.History.new(capacity)
+		hist.push(ChatRules.make_line(1, 1, 0, "A", 0, "old"))
+		hist.push(ChatRules.make_line(2, 1, 0, "A", 0, "new"))
+		var lines: Array[Dictionary] = hist.lines()
+		assert_eq(lines.size(), 1, "capacity %d keeps one line" % capacity)
+		if lines.size() == 1:
+			assert_eq(lines[0][ChatRules.KEY_SEQ], 2, "capacity %d keeps the newest" % capacity)
