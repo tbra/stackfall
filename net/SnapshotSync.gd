@@ -21,10 +21,9 @@ extends Node
 ## writes fight Godot's own physics interpolation (project.godot has
 ## physics_interpolation on).
 
-## The packet version and channel, read from core/net/SnapshotWire.gd (the
-## layout and the PACKET_VERSION rule are documented there). @rpc needs the
-## channel as a compile-time constant on this script.
-const PACKET_VERSION: int = SnapshotWire.PACKET_VERSION
+## The channel, read from core/net/SnapshotWire.gd (the layout and the
+## PACKET_VERSION rule are documented there). @rpc needs it as a compile-time
+## constant on this script.
 const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
 
 @export var config: NetConfig = preload("res://config/net/net_config.tres")
