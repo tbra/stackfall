@@ -222,6 +222,8 @@ Bots run only on the host and spread thinking across physics ticks under a per-f
 | Gift claim scale | 0.25 | 1.0 | 1.0 |
 | Threat lookahead | 0 m | 0 m | 3 m |
 
+A stacking placement must keep every centre-of-mass margin (the new piece over its support, and the combined load above each level over the level below) larger than the tier's aim noise times `aim_margin_share` (`config/bots/bot_stack_tuning.tres`, shipped 1.0, adjustable from the F4 tuning panel). At 1.0 a bot's own aim error never topples its tower in calm conditions; lower tiers instead find fewer stable sites and build wider and lower (Easy cannot place on a single-cube top).
+
 ### 1.9 Match settings
 
 Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig.sanitize()` on every config the host adopts).
