@@ -34,10 +34,9 @@ func test_bind_makes_one_duplicate_and_installs_it() -> void:
 	var bound: ShaderMaterial = writer.bind(sky, template)
 	assert_ne(bound, template, "a duplicate, never the template")
 	assert_eq(sky.sky_material, bound)
-	assert_eq(writer.material(), bound)
 	writer.stage(_frame())
 	writer.flush()
-	assert_eq(writer.material(), bound, "still the same duplicate after writes")
+	assert_eq(sky.sky_material, bound, "still the same duplicate after writes")
 
 
 func test_first_flush_writes_then_unchanged_frame_writes_nothing() -> void:
@@ -56,18 +55,18 @@ func test_first_flush_writes_then_unchanged_frame_writes_nothing() -> void:
 
 func test_only_changed_uniforms_are_written() -> void:
 	var writer: SkyDomeWriter = SkyDomeWriter.new()
-	writer.bind(null, _template())
+	var bound: ShaderMaterial = writer.bind(null, _template())
 	var frame: SkyFrame = _frame()
 	writer.stage(frame)
 	writer.flush()
 	frame.exposure = CHANGED_EXPOSURE
 	writer.stage(frame)
 	assert_eq(writer.flush(), 1)
-	assert_eq(writer.material().get_shader_parameter(&"exposure"), CHANGED_EXPOSURE)
+	assert_eq(bound.get_shader_parameter(&"exposure"), CHANGED_EXPOSURE)
 	frame.proc_zenith_color = CHANGED_ZENITH
 	writer.stage(frame)
 	assert_eq(writer.flush(), 1)
-	assert_eq(writer.material().get_shader_parameter(&"proc_zenith_color"), CHANGED_ZENITH)
+	assert_eq(bound.get_shader_parameter(&"proc_zenith_color"), CHANGED_ZENITH)
 
 
 func test_equality_is_exact_not_approximate() -> void:
