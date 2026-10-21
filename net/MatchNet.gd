@@ -40,16 +40,12 @@ const _REPLICA_PORT_METHODS: PackedStringArray = ["apply_replicated_cat_state", 
 ## The MatchHostPort reads the event mirror and the state handler make.
 const _MIRROR_SESSION_METHODS: PackedStringArray = ["is_host", "is_local_slot", "peer_of_slot"]
 const _MIRROR_HOST_METHODS: PackedStringArray = ["feed_seq", "feed_time_left", "is_release_locked", "eliminated_by"]
+## The MatchHostPort reads the territory replicator makes.
+const _TERRITORY_HOST_METHODS: PackedStringArray = ["raster", "circle_render_arrays", "circle_wire_xz_bound", "circle_wire_radius_max", "territory_share", "config"]
 
-## Territory payload layout (see _encode_raster / _decode_raster), bumped
-## whenever it changes. Like SnapshotSync.PACKET_VERSION this is architecture,
-## not a tunable, so it is a const rather than a NetConfig field.
-const RASTER_VERSION: int = 1
-## version u8, flags u8, uncompressed byte count u32.
-const RASTER_HEADER_BYTES: int = 6
-const RASTER_FLAG_COMPRESSED: int = 1 << 0
-## One diff entry: cell index u32, slot byte, state byte.
-const RASTER_ENTRY_BYTES: int = 6
+## The territory wire version (net/match/TerritoryReplicator.gd owns the layout); the RPC contract
+## test reads it here.
+const RASTER_VERSION: int = TerritoryReplicator.VERSION
 
 ## Names for the match-flow events mirrored over net_match_event. StringNames
 ## rather than an enum so a packet capture reads as itself.
@@ -163,12 +159,12 @@ var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tun
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## Every instrumentation counter (intent identities, replay and impact tallies, the test-only
+## Every instrumentation counter (intent identities, replay tallies, the test-only
 ## "what would have gone on the wire" records); net/NetCounters.gd. The old public/private
 ## names below are TRANSITIONAL read forwarders for tests outside this file.
 var counters: NetCounters = NetCounters.new()
 ## Test seam (net/MatchNetTap.gd): null in every shipped build. A test installs one to force the
-## deferred activation path and to capture impact batches and replay messages.
+## deferred activation path.
 var tap: MatchNetTap = null
 ## TRANSITIONAL: net_ids _on_block_dissolve_started() decided to replicate (NetCounters).
 var replicated_dissolve_starts: Array[int]:
@@ -191,26 +187,10 @@ var last_reject_reply: Array:
 	get:
 		return counters.last_reject_reply
 
-## replicated block impacts (core/net/ImpactWire.gd).
-## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
-## batch window, as {speed, position, time_ms}. Cleared on every flush, so it
-## never holds more than one window and is never replayed to a late joiner.
-var _impact_pending: Dictionary = {}
+## Replicated block impacts (net/match/ImpactReplicator.gd), built on first use and dropped on a
+## reset or a provider change.
+var _impacts: ImpactReplicator = null
 var _impact_send_accum: float = 0.0
-## Token bucket behind NetConfig.impact_max_per_second; starts full.
-var _impact_tokens: float = -1.0
-var _impact_refill_ms: int = -1
-## Client: [due_ms, speed, position] rows waiting for the interpolated view to
-## reach the moment they happened (receive_impacts()).
-var _impact_queue: Array[Array] = []
-## Test-only: >= 0 replaces SnapshotSync's interpolation delay as the client's
-## impact playback delay.
-var impact_delay_override_ms: float = -1.0
-## The "per second" of impact_client_max_per_second, in milliseconds.
-const IMPACT_RATE_WINDOW_MS: int = 1000
-## Client: Time.get_ticks_msec() of each event played within the last second,
-## the sliding window behind NetConfig.impact_client_max_per_second.
-var _impact_accept_ms: Array[int] = []
 
 ## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
 ## from SpecialDef.load_all_specials() (a directory scan). This node is
@@ -255,23 +235,10 @@ var _gateway: MatchIntentGateway:
 		return _intents()
 
 var _raster_send_accum: float = 0.0
-
-## The last slot/state bytes the host sent, to diff this tick's against.
-var _last_owner_bytes: PackedByteArray = PackedByteArray()
-var _last_state_bytes: PackedByteArray = PackedByteArray()
-## Forces the next territory packet to be a full keyframe: set at match start
-## and whenever a peer joins, since a fresh client has nothing to diff against.
-var _force_full_raster: bool = true
-
-## Cached from Events.goal_capture_progress so the territory packet can carry
-## the HUD's numbers without a second RPC.
-var _capture_team: int = -1
-var _capture_progress: float = 0.0
-## The capture values the last territory packet carried, and whether the last
-## one was a falling value.
-var _sent_capture_team: int = -1
-var _sent_capture_progress: float = 0.0
-var _capture_fading: bool = false
+## Territory raster, shares, capture ring and circles (net/match/TerritoryReplicator.gd); holds
+## the diff baseline and the capture cache, so it is rebuilt (not reset) at a match boundary.
+var _territory: TerritoryReplicator = null
+var _territory_host_port_cache: MatchHostPort = null
 
 ## True once replicate_match_start() has gone out for the running match, so a
 ## lobby that calls it explicitly and the automatic send below cannot both
@@ -329,7 +296,7 @@ func _ready() -> void:
 	Events.glue_drop_charged.connect(_on_glue_drop_charged)
 	Events.block_removed.connect(_on_block_removed)
 	Events.block_dissolve_started.connect(_on_block_dissolve_started)
-	Events.goal_capture_progress.connect(_on_goal_capture_progress)
+	_territory_replicator()
 	Events.block_impacted_at.connect(_on_block_impacted_at)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
@@ -436,6 +403,9 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_host_port_cache = null
 	_session_port_cache = null
 	_replica_port_cache = null
+	_territory_host_port_cache = null
+	_territory = null
+	_territory_replicator()
 	if _mirror != null:
 		_mirror.bind_ports(_session_port(), _host_port())
 	if _applier != null:
@@ -516,15 +486,13 @@ func _broadcast(method: StringName, args: Array = []) -> void:
 func _process(delta: float) -> void:
 	if not _session().is_host():
 		_tick_world_replay_expiry()
-		if not _impact_queue.is_empty():
-			drain_impacts(Time.get_ticks_msec())
+		_play_due_impacts()
 		return
 	_world_replay.tick_timeouts(_now())
-	if not _impact_pending.is_empty():
-		_impact_send_accum += delta
-		if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
-			_impact_send_accum = 0.0
-			flush_impacts(Time.get_ticks_msec())
+	_impact_send_accum += delta
+	if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
+		_impact_send_accum = 0.0
+		_send_impacts(Time.get_ticks_msec())
 	var cat: RigidBody3D = _authority().active_cat()
 	if cat != null and NetFanout.can_send(multiplayer, _session()):
 		_cat_send_accum += delta
@@ -710,111 +678,16 @@ func replicate_despawn(net_id: int, reason: String) -> void:
 	_broadcast(&"net_block_despawned", [net_id, reason])
 
 
-## Host only, at NetConfig.raster_diff_hz. Sends the cells whose slot or
-## state byte changed since the last diff, or a full compressed raster when
-## more than NetConfig.raster_full_threshold_fraction of them changed or a
-## client has just joined. Territory shares and capture progress ride along so
-## the HUD costs no extra packet.
-##
-## the analytic circle list rides along too, one
-## core/net/CircleWire.gd payload per packet — always the *current* full
-## list, never diffed like the raster, because it is already small (≤ 400
-## circles, ~2.8 KB) and a circle that vanished (a tower toppled) has no
-## "unchanged" cell to skip the way a raster byte does.
-# DECISION: a decaying home claim changes no raster cell, so
-# territory packets (raster-change only) would freeze the client ring. Rather
-# than a new RPC or a replicated decay flag, the existing raster_diff_hz tick
-# sends an empty diff carrying the capture values while a previously-sent claim
-# is falling, changed team, or (once falling) moving at all -- until it clears
-# (0 / no team). That bounds extra traffic to raster_diff_hz, adds no knob, and
-# a late joiner already gets the current value in the replay's full packet.
-# Rising holds on a static board are unchanged (client extrapolates).
-func _capture_update_due() -> bool:
-	if _sent_capture_progress <= 0.0:
-		return false
-	if _capture_team != _sent_capture_team:
-		return true
-	if is_equal_approx(_capture_progress, _sent_capture_progress):
-		return false
-	return _capture_progress < _sent_capture_progress or _capture_fading
-
-
-func _note_capture_sent() -> void:
-	_capture_fading = (
-		_capture_team == _sent_capture_team and _capture_progress < _sent_capture_progress
-	)
-	_sent_capture_team = _capture_team
-	_sent_capture_progress = _capture_progress
-
-
+## Host only, at NetConfig.raster_diff_hz. Sends TerritoryReplicator's packet: the changed raster
+## cells (or a full keyframe), the team shares, the capture ring values and the analytic circle
+## list, so the HUD costs no extra packet. Nothing goes out when nothing changed.
 func replicate_territory() -> void:
 	if not _session().is_host() or not NetFanout.can_send(multiplayer, _session()):
 		return
-	var raster: TerritoryRaster = _authority().raster()
-	if raster == null:
-		return
-	var raw_owners: PackedByteArray = raster.owner_bytes()
-	var raw_states: PackedByteArray = raster.state_bytes()
-	# unchanged bytes are exactly the changed.size() == 0
-	# return below, reached without the per-cell loop or the copies.
-	if (
-		not _force_full_raster
-		and raw_owners.size() == _last_owner_bytes.size()
-		and raw_owners == _last_owner_bytes
-		and raw_states == _last_state_bytes
-		and not _capture_update_due()
-	):
-		return
-	var owners: PackedByteArray = raw_owners.duplicate()
-	var states: PackedByteArray = raw_states.duplicate()
-	var count: int = owners.size()
-	if count == 0:
-		return
-
-	var changed: PackedInt32Array = PackedInt32Array()
-	var full: bool = _force_full_raster or _last_owner_bytes.size() != count
-	if not full:
-		for index: int in range(count):
-			if owners[index] != _last_owner_bytes[index] or states[index] != _last_state_bytes[index]:
-				changed.append(index)
-		if changed.size() == 0 and not _capture_update_due():
-			return
-		full = float(changed.size()) / float(count) > config.raster_full_threshold_fraction
-
-	var payload: PackedByteArray = (
-		_encode_raster_full(owners, states) if full else _encode_raster_diff(changed, owners, states)
-	)
-	_last_owner_bytes = owners
-	_last_state_bytes = states
-	_force_full_raster = false
-	_note_capture_sent()
-
-	_broadcast(&"net_territory", [
-		payload,
-		full,
-		_team_shares(),
-		_capture_team,
-		_capture_progress,
-		_encode_circles(),
-	])
-
-
-## The host's last-built circle list (autoload/Match.gd's
-## _update_circle_render()), packed with the map's own quantization bounds so
-## a client's decode uses the identical numbers the host encoded with.
-func _encode_circles() -> PackedByteArray:
-	var arrays: Dictionary = _authority().circle_render_arrays()
-	return CircleWire.encode(
-		arrays["xs"],
-		arrays["zs"],
-		arrays["radii"],
-		arrays["teams"],
-		arrays["goal_positions"],
-		arrays["goal_radii"],
-		bool(arrays["argmax_mode"]),
-		_authority().circle_wire_xz_bound(),
-		_authority().circle_wire_radius_max()
-	)
+	var territory: TerritoryReplicator = _territory_replicator()
+	var packet: PackedByteArray = territory.encode_diff()
+	if not packet.is_empty():
+		_broadcast(&"net_territory", _territory_rpc_args(packet))
 
 
 ## Host only. Mirrors a match-flow event to every client: state changes, the
@@ -839,7 +712,8 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 		return
 	_match_start_sent = true
 	counters.match_starts_replicated += 1
-	_force_full_raster = true
+	var territory: TerritoryReplicator = _territory_replicator()
+	territory.force_full()
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_match_start", [match_config.to_dict(), _roster(), 0])
@@ -893,14 +767,8 @@ func reset_counters() -> void:
 	_gift_spawn_notified.clear()
 	counters.reset()
 	_cursors.clear()
-	_last_owner_bytes = PackedByteArray()
-	_last_state_bytes = PackedByteArray()
-	_force_full_raster = true
-	_capture_team = -1
-	_capture_progress = 0.0
-	_sent_capture_team = -1
-	_sent_capture_progress = 0.0
-	_capture_fading = false
+	_territory = null
+	_territory_replicator()
 	# a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_world_replay.reset()
@@ -1064,16 +932,6 @@ func _shape_for_id(shape_id: StringName) -> BlockShape:
 	return _shapes_by_id.get(shape_id) as BlockShape
 
 
-func _team_shares() -> PackedFloat32Array:
-	var shares: PackedFloat32Array = PackedFloat32Array()
-	var match_config: MatchConfig = _authority().config
-	if match_config == null:
-		return shares
-	for team: int in range(match_config.team_count()):
-		shares.append(_authority().territory_share(team))
-	return shares
-
-
 func _roster() -> Array:
 	var roster: Array = []
 	for peer_id: int in _session().peer_ids():
@@ -1217,11 +1075,6 @@ func _on_glue_drop_charged(body: Node) -> void:
 	_event_mirror().on_block_glued(block.net_id, true)
 
 
-func _on_goal_capture_progress(team_id: int, progress: float) -> void:
-	_capture_team = team_id
-	_capture_progress = progress
-
-
 ## Field's kill plane removes a body by emitting on the bus, so the despawn is
 ## replicated from here rather than from Field — which then needs no idea that
 ## multiplayer exists.
@@ -1253,175 +1106,64 @@ func _on_block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: flo
 
 ## Host: one detected impact. Only collected while someone can hear it.
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
-	if not _session().is_host():
+	if not _session().is_host() or not _impact_audience():
 		return
-	if not (tap != null and tap.capture_impacts) and not _impact_audience():
-		return
-	collect_impact(speed, position, Time.get_ticks_msec())
+	var impacts: ImpactReplicator = _impact_replicator()
+	impacts.collect(speed, position, Time.get_ticks_msec())
 
 
 func _impact_audience() -> bool:
 	return NetFanout.can_send(multiplayer, _session()) and not multiplayer.get_peers().is_empty()
 
 
-## Host: folds one impact into the current batch window -- same
-## NetConfig.impact_coalesce_cell_m cell keeps only the strongest. Game/Block
-## already throttles each body to one impact per IMPACT_EMIT_INTERVAL_MS, so
-## one body never contributes twice to a window either.
-func collect_impact(speed: float, position: Vector3, now_ms: int) -> void:
-	if not is_finite(speed) or speed <= 0.0:
+## Host: sends the current impact window as one batch to every peer that has its world. A
+## mid-match joiner still loading its replay hears nothing yet; impacts are never part of it.
+func _send_impacts(now_ms: int) -> void:
+	var impacts: ImpactReplicator = _impact_replicator()
+	var packet: PackedByteArray = impacts.flush(now_ms)
+	if packet.is_empty() or not NetFanout.can_send(multiplayer, _session()):
 		return
-	# An impact outside the quantized volume (a block launched past the tallest
-	# tower, one falling below the kill plane) is skipped here, on its own: the
-	# client would reject it, and it must not cost its neighbours anything.
-	if not ImpactWire.position_in_range(position, config.pos_min_y, config.pos_max_y):
-		return
-	var clamped: float = minf(speed, config.impact_speed_max)
-	var key: Vector3i = ImpactWire.coalesce_key(position, config.impact_coalesce_cell_m)
-	var existing: Variant = _impact_pending.get(key)
-	if existing != null:
-		if float((existing as Dictionary)[ImpactWire.KEY_SPEED]) >= clamped:
-			return
-	elif _impact_pending.size() >= ImpactWire.MAX_EVENTS:
-		# A pathological window; the cap below would drop these anyway.
-		return
-	_impact_pending[key] = {
-		ImpactWire.KEY_SPEED: clamped, ImpactWire.KEY_POSITION: position,
-		ImpactWire.KEY_TIME_MS: now_ms,
-	}
+	for peer_id: int in multiplayer.get_peers():
+		if not _world_replay.is_pending(peer_id):
+			NetFanout.send_to(self, _session(), peer_id, &"net_block_impacts", [packet])
 
 
-## Host: turns the current window into one batch (strongest first, at most
-## impact_max_per_batch and whatever the per-second token bucket allows),
-## sends it and clears the window. Events over the cap are dropped, not
-## carried: a late thud is worse than a missing one. Returns the packet (empty
-## when nothing went out).
-func flush_impacts(now_ms: int) -> PackedByteArray:
-	var rate: float = float(maxi(config.impact_max_per_second, 1))
-	var batch_cap: int = _impact_batch_cap()
-	var capacity: float = float(batch_cap)
-	if _impact_tokens < 0.0 or _impact_refill_ms < 0:
-		_impact_tokens = capacity
-	else:
-		var elapsed_s: float = float(maxi(now_ms - _impact_refill_ms, 0)) / 1000.0
-		_impact_tokens = minf(capacity, _impact_tokens + elapsed_s * rate)
-	_impact_refill_ms = now_ms
-	var empty: PackedByteArray = PackedByteArray()
-	if _impact_pending.is_empty():
-		return empty
-	var pending: Array[Dictionary] = []
-	for event: Variant in _impact_pending.values():
-		pending.append(event as Dictionary)
-	_impact_pending.clear()
-	var allowed: int = mini(int(floor(_impact_tokens)), batch_cap)
-	if allowed <= 0:
-		return empty
-	var chosen: Array[Dictionary] = ImpactWire.strongest(pending, allowed)
-	for event: Dictionary in chosen:
-		event[ImpactWire.KEY_AGE_MS] = now_ms - int(event[ImpactWire.KEY_TIME_MS])
-	_impact_tokens -= float(chosen.size())
-	var packet: PackedByteArray = ImpactWire.encode(chosen)
-	if tap != null and tap.capture_impacts:
-		tap.on_impacts(packet)
-	if NetFanout.can_send(multiplayer, _session()):
-		for peer_id: int in multiplayer.get_peers():
-			# A mid-match joiner still loading its world replay hears nothing
-			# yet; impacts are never part of that replay either.
-			if not _world_replay.is_pending(peer_id):
-				NetFanout.send_to(self, _session(), peer_id, &"net_block_impacts", [packet])
-	return packet
-
-
-## Client: validates a batch and schedules each event for when the
-## interpolated view (SnapshotSync renders interpolation_delay_ms behind the
-## host) shows it: due = arrival + delay - age. A malformed batch is dropped
-## whole.
-func receive_impacts(packet: PackedByteArray, now_ms: int) -> void:
-	if _session().is_host() or _client_awaiting_world():
-		return
-	var events: Array[Dictionary] = ImpactWire.decode(
-		packet, config.impact_speed_max, config.pos_min_y, config.pos_max_y, _impact_batch_cap()
-	)
-	if events.is_empty():
-		counters.impact_batches_rejected += 1
-		return
-	# The wire's event_count byte: how many the host claimed, so events decode
-	# skipped (bad speed/height, past the per-batch cap) show up in the counter.
-	counters.impact_events_dropped += maxi(packet.decode_u8(1) - events.size(), 0)
-	var delay_ms: float = _impact_playback_delay_ms()
-	var queue_cap: int = config.impact_max_per_second + config.impact_max_per_batch
-	var budget: int = _impact_client_budget(now_ms)
-	if events.size() > budget:
-		counters.impact_events_dropped += events.size() - budget
-		events.resize(budget)
-	for _i: int in range(events.size()):
-		_impact_accept_ms.append(now_ms)
-	for event: Dictionary in events:
-		var due_ms: float = float(now_ms) + delay_ms - float(event[ImpactWire.KEY_AGE_MS])
-		if due_ms <= float(now_ms):
-			_emit_impact(float(event[ImpactWire.KEY_SPEED]), event[ImpactWire.KEY_POSITION] as Vector3)
-		elif _impact_queue.size() < queue_cap:
-			_impact_queue.append([due_ms, event[ImpactWire.KEY_SPEED], event[ImpactWire.KEY_POSITION]])
-
-
-## Client: plays every queued impact whose moment has come, in arrival order.
-func drain_impacts(now_ms: int) -> void:
-	if _impact_queue.is_empty():
-		return
-	var keep: Array[Array] = []
-	var due: Array[Array] = []
-	for row: Array in _impact_queue:
-		if float(row[0]) <= float(now_ms):
-			due.append(row)
-		else:
-			keep.append(row)
-	_impact_queue = keep
-	for row: Array in due:
-		_emit_impact(float(row[1]), row[2] as Vector3)
-
-
-## The per-batch event bound both ends share: NetConfig.impact_max_per_batch,
-## held to what one max_packet_bytes packet carries (sanitize() does the same,
-## this guards a config that skipped it).
-func _impact_batch_cap() -> int:
-	return mini(
-		maxi(config.impact_max_per_batch, 1), ImpactWire.max_events_for_payload(config.max_packet_bytes)
-	)
-
-
-## Client: how many more events the sliding one-second window
-## (NetConfig.impact_client_max_per_second) lets through at `now_ms`. Entries
-## older than a second fall out of the window first.
-func _impact_client_budget(now_ms: int) -> int:
-	while not _impact_accept_ms.is_empty() and now_ms - _impact_accept_ms[0] >= IMPACT_RATE_WINDOW_MS:
-		_impact_accept_ms.pop_front()
-	return maxi(config.impact_client_max_per_second - _impact_accept_ms.size(), 0)
-
-
-func _impact_playback_delay_ms() -> float:
-	if impact_delay_override_ms >= 0.0:
-		return impact_delay_override_ms
+## Client: plays every queued impact the interpolated view (SnapshotSync renders
+## interpolation_delay_ms behind the host) has reached.
+func _play_due_impacts() -> void:
+	var view_ms: float = float(Time.get_ticks_msec())
 	if SnapshotSync.is_running():
-		return SnapshotSync.interpolation_delay_ms()
-	return 0.0
+		view_ms -= SnapshotSync.interpolation_delay_ms()
+	var impacts: ImpactReplicator = _impact_replicator()
+	for row: Array in impacts.drain(view_ms):
+		_emit_impact(float(row[0]), row[1] as Vector3)
 
 
 ## The same pair game/blocks/Block.gd emits on the host, so Sfx (thud), CameraRig
 ## (shake), Rumble, BlockEffectsManager (dust) and PerchingBirds need nothing
 ## network-aware.
 func _emit_impact(speed: float, position: Vector3) -> void:
-	counters.impacts_emitted += 1
 	Events.block_impacted.emit(speed)
 	Events.block_impacted_at.emit(speed, position)
 
 
 func _reset_impacts() -> void:
-	_impact_pending.clear()
-	_impact_queue.clear()
-	_impact_accept_ms.clear()
+	_impacts = null
 	_impact_send_accum = 0.0
-	_impact_tokens = -1.0
-	_impact_refill_ms = -1
+
+
+func _impact_replicator() -> ImpactReplicator:
+	if _impacts == null:
+		_impacts = ImpactReplicator.new(config, TokenBucket.new())
+	return _impacts
+
+
+func _territory_replicator() -> TerritoryReplicator:
+	if _territory == null:
+		if _territory_host_port_cache == null:
+			_territory_host_port_cache = MatchHostPort.new(_authority(), _TERRITORY_HOST_METHODS)
+		_territory = TerritoryReplicator.new(_territory_host_port_cache, _replica_port(), config)
+	return _territory
 
 
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
@@ -1524,31 +1266,15 @@ func seat_reclaimable(slot_id: int) -> bool:
 
 
 ## net_territory's arguments for one full keyframe, or [] with no raster.
-## Diffs to every other peer are computed against _last_owner_bytes/
-## _last_state_bytes, so that baseline is what the joiner must hold; when no
-## baseline exists yet (nothing sent this match) the current raster goes out
-## and the next broadcast is forced to a full keyframe for everyone, so all
-## peers converge on the same baseline either way.
 func _territory_replay_args() -> Array:
-	var raster: TerritoryRaster = _authority().raster()
-	if raster == null:
-		return []
-	var owners: PackedByteArray = _last_owner_bytes
-	var states: PackedByteArray = _last_state_bytes
-	if _force_full_raster or owners.is_empty() or owners.size() != raster.owner_bytes().size():
-		owners = raster.owner_bytes().duplicate()
-		states = raster.state_bytes().duplicate()
-		_force_full_raster = true
-	if owners.is_empty():
-		return []
-	return [
-		_encode_raster_full(owners, states),
-		true,
-		_team_shares(),
-		_capture_team,
-		_capture_progress,
-		_encode_circles(),
-	]
+	var territory: TerritoryReplicator = _territory_replicator()
+	var packet: PackedByteArray = territory.encode_full()
+	return [] if packet.is_empty() else _territory_rpc_args(packet)
+
+
+## net_territory's arguments: the packet, then neutral values for the slots the packet now carries.
+func _territory_rpc_args(packet: PackedByteArray) -> Array:
+	return [packet, false, PackedFloat32Array(), -1, 0.0]
 
 
 ## EVENT_SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing
@@ -1626,99 +1352,6 @@ func _apply_slot_replay(args: Array) -> void:
 		replica.apply_replicated_gift_claimed(-1, slot_id, after_special)
 		replica.apply_replicated_staged_gift(slot_id, after_carrier)
 	Events.feed_block_issued.emit(slot_id, held_id, next_id)
-
-
-# --- Territory payload ------------------------------------------------------
-
-func _encode_raster_full(owners: PackedByteArray, states: PackedByteArray) -> PackedByteArray:
-	var body: PackedByteArray = PackedByteArray()
-	body.append_array(owners)
-	body.append_array(states)
-	return _finish_raster_payload(body)
-
-
-func _encode_raster_diff(
-	cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray
-) -> PackedByteArray:
-	var body: PackedByteArray = PackedByteArray()
-	body.resize(cells.size() * RASTER_ENTRY_BYTES)
-	var offset: int = 0
-	for index: int in cells:
-		body.encode_u32(offset, index)
-		body.encode_u8(offset + 4, owners[index])
-		body.encode_u8(offset + 5, states[index])
-		offset += RASTER_ENTRY_BYTES
-	return _finish_raster_payload(body)
-
-
-## Prefixes the version, the compression flag and the uncompressed size, then
-## compresses the body when NetConfig.raster_compress is on. The size has to
-## travel: PackedByteArray.decompress() needs the output length, and a
-## territory packet is reliable, so an honest 4 bytes is cheaper than guessing.
-func _finish_raster_payload(body: PackedByteArray) -> PackedByteArray:
-	var flags: int = 0
-	var payload_body: PackedByteArray = body
-	if config.raster_compress and body.size() > 0:
-		var compressed: PackedByteArray = body.compress(FileAccess.COMPRESSION_ZSTD)
-		if compressed.size() < body.size():
-			payload_body = compressed
-			flags |= RASTER_FLAG_COMPRESSED
-	var packet: PackedByteArray = PackedByteArray()
-	packet.resize(RASTER_HEADER_BYTES)
-	packet.encode_u8(0, RASTER_VERSION)
-	packet.encode_u8(1, flags)
-	packet.encode_u32(2, body.size())
-	packet.append_array(payload_body)
-	return packet
-
-
-## Inverse of the two encoders, returning {"cells", "owners", "states"} or an
-## empty Dictionary for a truncated, foreign or wrong-version payload. `full`
-## says which layout the body holds; a full payload leaves "cells" empty
-## because it names every cell.
-static func decode_raster_payload(packet: PackedByteArray, full: bool) -> Dictionary:
-	if packet.size() < RASTER_HEADER_BYTES:
-		return {}
-	if packet.decode_u8(0) != RASTER_VERSION:
-		return {}
-	var flags: int = packet.decode_u8(1)
-	var raw_size: int = packet.decode_u32(2)
-	if raw_size < 0:
-		return {}
-	var body: PackedByteArray = packet.slice(RASTER_HEADER_BYTES)
-	if (flags & RASTER_FLAG_COMPRESSED) != 0:
-		body = body.decompress(raw_size, FileAccess.COMPRESSION_ZSTD)
-	if body.size() != raw_size:
-		return {}
-
-	if full:
-		if raw_size % 2 != 0:
-			return {}
-		var half: int = raw_size / 2
-		return {
-			"cells": PackedInt32Array(),
-			"owners": body.slice(0, half),
-			"states": body.slice(half),
-		}
-
-	if raw_size % RASTER_ENTRY_BYTES != 0:
-		return {}
-	var cells: PackedInt32Array = PackedInt32Array()
-	var owners: PackedByteArray = PackedByteArray()
-	var states: PackedByteArray = PackedByteArray()
-	var entries: int = raw_size / RASTER_ENTRY_BYTES
-	for i: int in range(entries):
-		var offset: int = i * RASTER_ENTRY_BYTES
-		cells.append(body.decode_u32(offset))
-		owners.append(body.decode_u8(offset + 4))
-		states.append(body.decode_u8(offset + 5))
-	return {"cells": cells, "owners": owners, "states": states}
-
-
-static func _capture_wire_ok(team_id: int, progress: float, team_count: int) -> bool:
-	if is_nan(progress) or is_inf(progress) or progress < 0.0 or progress > 1.0:
-		return false
-	return team_id >= -1 and team_id < team_count
 
 
 # --- RPCs -------------------------------------------------------------------
@@ -1800,7 +1433,11 @@ func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3
 ## reliable spawn/despawn stream does not matter.
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
 func net_block_impacts(packet: PackedByteArray) -> void:
-	receive_impacts(packet, Time.get_ticks_msec())
+	if _session().is_host() or _client_awaiting_world():
+		return
+	var impacts: ImpactReplicator = _impact_replicator()
+	if impacts.receive(packet, Time.get_ticks_msec()):
+		_play_due_impacts()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1942,16 +1579,12 @@ func net_block_despawned(net_id: int, reason: String) -> void:
 	block.queue_free()
 
 
-## `payload` is a raster diff or a full raster, compressed when
-## NetConfig.raster_compress is on; `full` says which. Clients apply it to
-## their mirror raster and re-emit Events.hole_cells_changed for the cells
-## whose hole bit flipped, so Field opens the same holes without a second RPC.
-##
-## `circle_payload` is core/net/CircleWire.gd's encoding of the same host
-## tick's analytic circle list; a default empty value keeps a
-## direct local call from an older test/caller compiling (CircleWire.decode()
-## on an empty array returns {} for a truncated payload, which the branch
-## below already treats as "no circle update this packet", not an error).
+## `payload` is one TerritoryReplicator packet (raster diff or keyframe, shares, capture ring,
+## circles); a client applies it to its mirror raster and re-emits the territory signals, so Field
+## opens the same holes without a second RPC. A malformed packet is dropped whole.
+# SHORTCUT: the trailing arguments after payload are neutral and ignored, drop them with the next wire version bump.
+# They stay so the RPC surface and its history entry do not change.
+@warning_ignore("unused_parameter")
 @rpc("authority", "call_remote", "reliable")
 func net_territory(
 	payload: PackedByteArray,
@@ -1963,39 +1596,8 @@ func net_territory(
 ) -> void:
 	if _client_awaiting_world():
 		return
-	# Untrusted wire values: a finite 0..1 progress and a known team (or none).
-	if not _capture_wire_ok(capture_team, capture_progress, shares.size()):
-		return
-	var decoded: Dictionary = decode_raster_payload(payload, full)
-	if decoded.is_empty():
-		return
-	var circles: Dictionary = CircleWire.decode(
-		circle_payload, _authority().circle_wire_xz_bound(), _authority().circle_wire_radius_max()
-	)
-	var replica: MatchReplicaPort = _replica_port()
-	replica.apply_replicated_territory(
-		decoded["cells"],
-		decoded["owners"],
-		decoded["states"],
-		full,
-		circles.get("xs", PackedFloat32Array()),
-		circles.get("zs", PackedFloat32Array()),
-		circles.get("radii", PackedFloat32Array()),
-		circles.get("teams", PackedInt32Array()),
-		circles.get("goal_positions", PackedVector2Array()),
-		circles.get("goal_radii", PackedFloat32Array()),
-		bool(circles.get("argmax_mode", false))
-	)
-	var raster: TerritoryRaster = _authority().raster()
-	if raster == null:
-		return
-	var opened: PackedInt32Array = raster.holes_opened()
-	var closed: PackedInt32Array = raster.holes_closed()
-	if opened.size() > 0 or closed.size() > 0:
-		Events.hole_cells_changed.emit(opened, closed)
-	Events.territory_replicated.emit(raster)
-	Events.territory_share_changed.emit(shares)
-	Events.goal_capture_progress.emit(capture_team, capture_progress)
+	var territory: TerritoryReplicator = _territory_replicator()
+	territory.apply(payload)
 
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
