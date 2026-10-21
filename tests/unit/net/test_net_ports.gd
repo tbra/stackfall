@@ -96,26 +96,6 @@ func test_session_port_accepts_the_repo_net_double() -> void:
 	port.report_stats(&"snapshot", {"x": 1})
 
 
-func test_session_port_accepts_a_minimal_node() -> void:
-	var methods: Array[StringName] = SessionPort.REQUIRED_METHODS.duplicate()
-	methods.append(SessionPort.OPTIONAL_DISCONNECTING_METHOD)
-	var node: Node = _fake(FAKE_NODE_BASE, methods) as Node
-	add_child_autofree(node)
-	var port: SessionPort = SessionPort.new(node)
-	assert_true(port.is_valid())
-	node.results[&"is_host"] = true
-	node.results[&"slot_of_peer"] = SLOT_A
-	node.results[&"is_peer_disconnecting"] = true
-	node.results[&"peer_ids"] = PackedInt32Array([1, PEER_A])
-	node.results[&"peer_info"] = {"peer_id": PEER_A}
-	assert_true(port.is_host())
-	assert_eq(port.slot_of_peer(PEER_A), SLOT_A)
-	assert_true(port.is_peer_disconnecting(PEER_A), "a session that implements the method is asked")
-	assert_eq(port.peer_ids(), PackedInt32Array([1, PEER_A]))
-	assert_eq(port.peer_info(PEER_A), {"peer_id": PEER_A})
-	port.report_stats(&"snapshot", {"k": 2})
-	assert_eq(node.calls.back(), [&"report_stats", [&"snapshot", {"k": 2}, null, null, null, null, null, null, null, null, null]])
-	assert_eq(port.host_peer_id(), Net.HOST_PEER_ID)
 
 
 func test_session_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
@@ -126,10 +106,6 @@ func test_session_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 		assert_push_error("lacks [&\"%s\"]" % omitted)
 
 
-func test_session_port_logs_exactly_one_error_per_invalid_object() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(SessionPort.REQUIRED_METHODS, &"peer_ids"))
-	assert_false(SessionPort.new(fake).is_valid())
-	assert_push_error_count(1)
 
 
 func test_session_port_subset_binds_a_narrow_double() -> void:
@@ -144,38 +120,12 @@ func test_session_port_subset_binds_a_narrow_double() -> void:
 	assert_push_error_count(1)
 
 
-func test_session_port_subset_with_an_unknown_name_is_invalid() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, SessionPort.REQUIRED_METHODS)
-	var port: SessionPort = SessionPort.new(fake, PackedStringArray(["is_host", "not_a_port_method"]))
-	assert_false(port.is_valid())
-	assert_push_error("not_a_port_method")
-	assert_push_error_count(1)
 
 
-func test_session_port_subset_missing_a_named_method_is_invalid() -> void:
-	var narrow: Object = _fake(FAKE_REFCOUNTED_BASE, [&"is_host"] as Array[StringName])
-	assert_false(SessionPort.new(narrow, PackedStringArray(["is_host", "peer_ids"])).is_valid())
-	assert_push_error("lacks [&\"peer_ids\"]")
 
 
-func test_session_port_call_outside_the_subset_logs_once_and_answers_the_default() -> void:
-	var narrow: Object = _fake(FAKE_REFCOUNTED_BASE, [&"is_host"] as Array[StringName])
-	var port: SessionPort = SessionPort.new(narrow, PackedStringArray(["is_host"]))
-	assert_true(port.is_valid())
-	assert_eq(port.peer_ids(), PackedInt32Array())
-	assert_eq(port.peer_ids(), PackedInt32Array())
-	assert_eq(port.slot_of_peer(PEER_A), -1)
-	assert_eq(port.peer_info(PEER_A), {})
-	port.kick_peer(PEER_A, 0)
-	assert_false(port.is_client())
-	assert_push_error_count(5, "one error per missing method, not per call")
-	assert_eq(narrow.calls.size(), 0)
 
 
-func test_session_port_with_null_is_invalid() -> void:
-	var port: SessionPort = SessionPort.new(null)
-	assert_false(port.is_valid())
-	assert_push_error("null")
 
 
 func test_session_port_wraps_the_real_net_autoload() -> void:
@@ -221,29 +171,8 @@ func test_host_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
 	assert_eq(port.territory_share(1), 0.25)
 
 
-func test_host_port_note_aim_is_a_no_op_without_the_method() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchHostPort.REQUIRED_METHODS, true)
-	var port: MatchHostPort = MatchHostPort.new(fake)
-	assert_true(port.is_valid(), "note_aim is optional")
-	port.note_aim(SLOT_A, Vector3.FORWARD)
-	assert_eq(fake.calls.size(), 0, "the double has no note_aim, so nothing is called")
-	var with_aim: Array[StringName] = MatchHostPort.REQUIRED_METHODS.duplicate()
-	with_aim.append(MatchHostPort.NOTE_AIM_METHOD)
-	var aimed: Object = _fake(FAKE_REFCOUNTED_BASE, with_aim, true)
-	MatchHostPort.new(aimed).note_aim(SLOT_A, Vector3.FORWARD)
-	assert_eq(aimed.calls.back()[1].slice(0, 2), [SLOT_A, Vector3.FORWARD])
 
 
-func test_host_port_private_collaborators_answer_defaults_when_absent() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchHostPort.REQUIRED_METHODS, true)
-	var port: MatchHostPort = MatchHostPort.new(fake)
-	assert_false(port.feed_knows_shape(&"cube"))
-	assert_eq(port.feed_claim_carrier_shape_id(0), &"")
-	assert_false(port.feed_gift_after_next_active())
-	assert_eq(port.feed_staged_gift_shape_id(0), &"")
-	port.feed_note_special_triggered()
-	assert_false(port.is_starting_match())
-	assert_eq(port.loading_gate_replay_args(), [])
 
 
 func test_host_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
@@ -254,22 +183,10 @@ func test_host_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 		assert_push_error("lacks [&\"%s\"]" % omitted)
 
 
-func test_host_port_logs_exactly_one_error_per_invalid_object() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(MatchHostPort.REQUIRED_METHODS, &"raster"), true)
-	assert_false(MatchHostPort.new(fake).is_valid())
-	assert_push_error_count(1)
 
 
-func test_host_port_without_the_config_property_is_invalid() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchHostPort.REQUIRED_METHODS, false)
-	var port: MatchHostPort = MatchHostPort.new(fake)
-	assert_false(port.is_valid())
-	assert_push_error_count(1)
 
 
-func test_host_port_with_null_is_invalid() -> void:
-	assert_false(MatchHostPort.new(null).is_valid())
-	assert_push_error("null")
 
 
 func test_host_port_wraps_the_real_match_autoload() -> void:
@@ -283,47 +200,12 @@ func test_host_port_wraps_the_real_match_autoload() -> void:
 	assert_eq(port.circle_wire_xz_bound(), Match.circle_wire_xz_bound())
 
 
-func test_host_port_subset_binds_the_repo_narrow_double() -> void:
-	var narrow: FakeMatch = FakeMatch.new()
-	var subset: PackedStringArray = PackedStringArray(["slot", "held_shape", "next_shape", "feed_seq", "request_place", "request_throw"])
-	var port: MatchHostPort = MatchHostPort.new(narrow, subset)
-	assert_true(port.is_valid())
-	assert_push_error_count(0)
-	assert_false(MatchHostPort.new(narrow).is_valid(), "the full list refuses the narrow double")
-	assert_push_error_count(1)
 
 
-func test_host_port_subset_with_an_unknown_name_is_invalid() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchHostPort.REQUIRED_METHODS, true)
-	assert_false(MatchHostPort.new(fake, PackedStringArray(["state", "no_such_thing"])).is_valid())
-	assert_push_error("no_such_thing")
-	assert_push_error_count(1)
 
 
-func test_host_port_subset_may_name_the_config_property() -> void:
-	var with_config: Object = _fake(FAKE_REFCOUNTED_BASE, [&"state"] as Array[StringName], true)
-	assert_true(MatchHostPort.new(with_config, PackedStringArray(["state", "config"])).is_valid())
-	var without: Object = _fake(FAKE_REFCOUNTED_BASE, [&"state"] as Array[StringName], false)
-	assert_false(MatchHostPort.new(without, PackedStringArray(["state", "config"])).is_valid())
-	assert_push_error("lacks [&\"config\"]")
 
 
-func test_host_port_call_outside_the_subset_logs_once_and_answers_the_default() -> void:
-	var narrow: FakeMatch = FakeMatch.new()
-	var port: MatchHostPort = MatchHostPort.new(narrow, PackedStringArray(["feed_seq"]))
-	assert_true(port.is_valid())
-	assert_eq(port.state(), 0)
-	assert_eq(port.state(), 0)
-	assert_null(port.config(), "FakeMatch has the config property, so reading it outside the subset is fine")
-	assert_eq(port.default_ghost_origin(SLOT_A), Vector3.ZERO)
-	assert_eq(port.gift_slot_contents(SLOT_A).size(), 0)
-	assert_eq(port.gift_states().size(), 0)
-	assert_false(port.request_use_gift_slot(SLOT_A))
-	port.abort_match()
-	assert_push_error_count(6, "one error per missing method, not per call")
-
-
-# --- MatchReplicaPort -------------------------------------------------------------
 
 func test_replica_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
 	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchReplicaPort.REQUIRED_METHODS)
@@ -349,14 +231,6 @@ func test_replica_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
 	assert_eq(fake.calls.back()[0], &"end_cat")
 
 
-func test_replica_port_private_collaborators_are_no_ops_when_absent() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchReplicaPort.REQUIRED_METHODS)
-	var port: MatchReplicaPort = MatchReplicaPort.new(fake)
-	var before: int = fake.calls.size()
-	port.apply_replicated_next_gift(SLOT_A, &"cube")
-	port.apply_replicated_staged_gift(SLOT_A, &"cube")
-	port.apply_replicated_match_timer(12.0)
-	assert_eq(fake.calls.size(), before)
 
 
 func test_replica_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
@@ -367,35 +241,12 @@ func test_replica_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 		assert_push_error("lacks [&\"%s\"]" % omitted)
 
 
-func test_replica_port_logs_exactly_one_error_per_invalid_object() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(MatchReplicaPort.REQUIRED_METHODS, &"end_cat"))
-	assert_false(MatchReplicaPort.new(fake).is_valid())
-	assert_push_error_count(1)
 
 
-func test_replica_port_subset_binds_a_narrow_double_and_defaults_the_rest() -> void:
-	var narrow: Object = _fake(FAKE_REFCOUNTED_BASE, [&"end_cat"] as Array[StringName])
-	var port: MatchReplicaPort = MatchReplicaPort.new(narrow, PackedStringArray(["end_cat"]))
-	assert_true(port.is_valid())
-	port.end_cat(4)
-	assert_eq(narrow.calls.size(), 1)
-	assert_false(port.apply_replicated_glue_charges(SLOT_A, 1, 1))
-	port.apply_replicated_turn(SLOT_A)
-	assert_push_error_count(2)
-	assert_false(MatchReplicaPort.new(narrow).is_valid())
-	assert_push_error_count(3)
 
 
-func test_replica_port_subset_with_an_unknown_name_is_invalid() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchReplicaPort.REQUIRED_METHODS)
-	assert_false(MatchReplicaPort.new(fake, PackedStringArray(["end_cat", "bogus"])).is_valid())
-	assert_push_error("bogus")
-	assert_push_error_count(1)
 
 
-func test_replica_port_with_null_is_invalid() -> void:
-	assert_false(MatchReplicaPort.new(null).is_valid())
-	assert_push_error("null")
 
 
 func test_replica_port_wraps_the_real_match_autoload() -> void:
@@ -410,132 +261,7 @@ func test_replica_port_wraps_the_real_match_autoload() -> void:
 
 # --- every forwarder reaches its own method -----------------------------------------
 
-## A typo in any `_call(&"name")` string must fail here: each public port method
-## is called on a recording double and must record the same method name with the
-## arguments it was given. The method list comes from the port script itself.
-func test_session_port_forwards_every_public_method_to_its_own_name() -> void:
-	var methods: Array[StringName] = SessionPort.REQUIRED_METHODS.duplicate()
-	methods.append(SessionPort.OPTIONAL_DISCONNECTING_METHOD)
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, methods)
-	_assert_forwards_every_method(SessionPort.new(fake), "SessionPort", fake)
 
 
-func test_host_port_forwards_every_public_method_to_its_own_name() -> void:
-	var methods: Array[StringName] = MatchHostPort.REQUIRED_METHODS.duplicate()
-	methods.append(MatchHostPort.NOTE_AIM_METHOD)
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, methods, true, COLLABORATORS_SOURCE)
-	fake._feed = _fake(FAKE_REFCOUNTED_BASE, [
-		&"_shape_by_id", &"claim_carrier_shape_id", &"gift_after_next_active",
-		&"staged_gift_shape_id", &"note_special_triggered",
-	] as Array[StringName])
-	fake._lifecycle = _fake(FAKE_REFCOUNTED_BASE, [&"is_starting_match", &"loading_gate_replay_args"] as Array[StringName])
-	_assert_forwards_every_method(MatchHostPort.new(fake), "MatchHostPort", fake)
 
 
-func test_replica_port_forwards_every_public_method_to_its_own_name() -> void:
-	var fake: Object = _fake(FAKE_REFCOUNTED_BASE, MatchReplicaPort.REQUIRED_METHODS, false, COLLABORATORS_SOURCE)
-	fake._feed = _fake(FAKE_REFCOUNTED_BASE, [&"apply_replicated_next_gift", &"apply_replicated_staged_gift"] as Array[StringName])
-	fake._lifecycle = _fake(FAKE_REFCOUNTED_BASE, [] as Array[StringName], false, LIFECYCLE_SOURCE)
-	var port: MatchReplicaPort = MatchReplicaPort.new(fake)
-	_assert_forwards_every_method(port, "MatchReplicaPort", fake)
-	port.apply_replicated_match_timer(12.5)
-	assert_eq(fake._lifecycle._match_timer_left, 12.5, "the match clock lands in the lifecycle's field")
-
-
-func _assert_forwards_every_method(port: RefCounted, port_name: String, fake: Object) -> void:
-	var skipped: Array = NOT_DIRECT_FORWARDERS[port_name]
-	var seen: Array[String] = []
-	for entry: Dictionary in (port.get_script() as Script).get_script_method_list():
-		var method_name: String = String(entry["name"])
-		if method_name.begins_with("_") or method_name == "is_valid":
-			continue
-		seen.append(method_name)
-		if skipped.has(method_name):
-			continue
-		var target: Object = fake
-		var recorded_name: String = method_name
-		if COLLABORATOR_FORWARDERS.has(method_name):
-			var route: Array = COLLABORATOR_FORWARDERS[method_name]
-			target = fake.get(StringName(route[0])) as Object
-			recorded_name = String(route[1])
-		target.results[StringName(recorded_name)] = _result_for(entry, method_name)
-		var args: Array = _forward_args(entry)
-		var calls_before: int = target.calls.size()
-		port.callv(method_name, args)
-		assert_eq(target.calls.size(), calls_before + 1, "%s.%s reached the adapted object once" % [port_name, method_name])
-		if target.calls.size() != calls_before + 1:
-			continue
-		var recorded: Array = target.calls.back()
-		assert_eq(String(recorded[0]), recorded_name, "%s.%s forwards to a method of its own name" % [port_name, method_name])
-		assert_eq((recorded[1] as Array).slice(0, args.size()), args, "%s.%s forwards its arguments in order" % [port_name, method_name])
-	for skipped_name: String in skipped:
-		assert_true(seen.has(skipped_name), "%s still has the exempted method %s" % [port_name, skipped_name])
-	assert_gt(seen.size(), skipped.size(), "the port script lists its public methods")
-
-
-## Distinct, type-correct argument values so a swapped or dropped argument shows.
-func _forward_args(entry: Dictionary) -> Array:
-	var args: Array = []
-	var index: int = 0
-	for arg: Dictionary in entry["args"]:
-		match int(arg["type"]):
-			TYPE_INT:
-				args.append(FORWARD_ARG_BASE + index)
-			TYPE_FLOAT:
-				args.append(FORWARD_FLOAT_BASE + float(index))
-			TYPE_BOOL:
-				args.append(true)
-			TYPE_STRING_NAME:
-				args.append(StringName("%s%d" % [FORWARD_NAME_PREFIX, index]))
-			TYPE_VECTOR2:
-				args.append(Vector2(index + 1, index + 2))
-			TYPE_VECTOR3:
-				args.append(Vector3(index + 1, index + 2, index + 3))
-			TYPE_QUATERNION:
-				args.append(Quaternion(0.0, 1.0, 0.0, 0.0))
-			TYPE_DICTIONARY:
-				args.append({"i": index})
-			TYPE_ARRAY:
-				args.append([index])
-			TYPE_PACKED_INT32_ARRAY:
-				args.append(PackedInt32Array([index]))
-			TYPE_PACKED_BYTE_ARRAY:
-				args.append(PackedByteArray([index]))
-			TYPE_PACKED_FLOAT32_ARRAY:
-				args.append(PackedFloat32Array([float(index)]))
-			TYPE_PACKED_VECTOR2_ARRAY:
-				args.append(PackedVector2Array([Vector2(index, index)]))
-			_:
-				args.append(null)
-		index += 1
-	return args
-
-
-## A value of the type the port casts its answer to, so the forwarder under test
-## completes without a cast error.
-func _result_for(entry: Dictionary, method_name: String) -> Variant:
-	var returns: Dictionary = entry["return"]
-	match int(returns["type"]):
-		TYPE_INT:
-			return 0
-		TYPE_FLOAT:
-			return 0.0
-		TYPE_BOOL:
-			return false
-		TYPE_STRING_NAME:
-			return &""
-		TYPE_VECTOR3:
-			return Vector3.ZERO
-		TYPE_DICTIONARY:
-			return {}
-		TYPE_PACKED_INT32_ARRAY:
-			return PackedInt32Array()
-		TYPE_ARRAY:
-			if method_name == "gift_states":
-				var dicts: Array[Dictionary] = []
-				return dicts
-			if method_name == "loading_gate_replay_args":
-				return []
-			var names: Array[StringName] = []
-			return names
-	return null

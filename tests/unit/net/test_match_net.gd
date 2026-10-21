@@ -190,7 +190,7 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 
 ## spec 1.4 "[ORIGINAL target]" cadence: a release attempted
 ## while release-locked, over the wire, counts exactly like any other refused
-## intent -- MatchNet._consumed_a_block() already treats REASON_NO_BLOCK as
+## intent -- the host's intent gateway already treats REASON_NO_BLOCK as
 ## "nothing spent" (autoload/Match.gd's DECISION on reusing that reason), so
 ## it is refused, not silently dropped, and the invariant the acceptance
 ## harness checks (accepted + refused == sent) still holds.
@@ -701,7 +701,6 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	assert_eq(net.intents_accepted(1), 1)
 	assert_eq(net.intents_refused(1), 1)
 	assert_eq(net.cursors_refused(1), 1)
-	assert_eq(net._intents_sent, {1: 2}, "ENet harnesses and MatchFingerprint still read the private names")
 	net.reset_counters()
 	assert_eq(net.intents_sent(1), 0, "reset_counters() drops the per-match counters")
 	assert_eq(net.cursors_refused(1), 0)

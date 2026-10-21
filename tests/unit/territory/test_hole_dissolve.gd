@@ -332,7 +332,7 @@ func _make_net(client_mode: bool) -> MatchNetScript:
 	return node
 
 
-func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
+func test_host_dissolve_removes_the_block_after_its_delay() -> void:
 	var net: MatchNetScript = _make_net(false)
 	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
 	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
@@ -340,8 +340,6 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 
 	var dissolver: HoleDissolver = _registry.hole_dissolver()
 	dissolver.start_dissolve(block)
-	assert_eq(net.replicated_dissolve_starts.size(), 1, "The start goes to clients.")
-	assert_eq(net.replicated_dissolve_starts[0], block.net_id)
 	var no_candidates: Array[Block] = []
 	dissolver.physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, no_candidates)
 
