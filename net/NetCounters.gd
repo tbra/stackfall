@@ -94,12 +94,6 @@ func note_reject_reply(peer_id: int, slot_id: int, reason: StringName) -> void:
 	last_reject_reply = [peer_id, slot_id, reason]
 
 
-## Notes a placement_relocated reply addressed to `peer_id`.
-func note_relocate_reply(peer_id: int, slot_id: int, point: Vector2) -> void:
-	relocate_replies_by_peer[peer_id] = int(relocate_replies_by_peer.get(peer_id, 0)) + 1
-	last_relocate_reply = [peer_id, slot_id, point]
-
-
 ## Clears the per-match counters (called when a match starts or ends). The whole-session
 ## tallies keep their values, as they did before the move.
 func reset() -> void:
