@@ -26,7 +26,6 @@
    "autoload/match/MatchLifecycle.gd:countdown_remaining",
    "autoload/match/MatchLifecycle.gd:disconnect_grace_left",
    "autoload/match/MatchLifecycle.gd:eliminated_by",
-   "autoload/match/MatchLifecycle.gd:match_timer_left",
    "autoload/match/MatchLifecycle.gd:mode_state_snapshot",
    "autoload/match/MatchLifecycle.gd:on_peer_left",
    "autoload/match/MatchLifecycle.gd:on_peer_rejoined",
@@ -101,7 +100,6 @@
    "net/MatchNet.gd:set_providers",
    "net/MatchNet.gd:submit_cat_target",
    "net/MatchNet.gd:submit_cursor",
-   "net/MatchNet.gd:submit_place",
    "net/MatchNet.gd:submit_throw",
    "net/MatchNet.gd:submit_use_gift_slot",
    "net/SnowNet.gd:bind",
@@ -114,7 +112,6 @@
    "net/match/MatchIntentGateway.gd:request_return_to_lobby",
    "net/match/MatchIntentGateway.gd:submit_cat_target",
    "net/match/MatchIntentGateway.gd:submit_cursor",
-   "net/match/MatchIntentGateway.gd:submit_place",
    "net/match/MatchIntentGateway.gd:submit_throw",
    "net/match/MatchIntentGateway.gd:submit_use_gift_slot",
    "net/ports/MatchHostPort.gd:after_next_special",
@@ -318,11 +315,6 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:glue_revision",
    "reason": "live: net/MatchNet.gd:2412 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:match_timer_left",
-   "reason": "live: net/MatchNet.gd:2220 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
