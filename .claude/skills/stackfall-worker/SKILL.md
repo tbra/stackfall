@@ -57,7 +57,7 @@ Next exact action / blocked authority or prerequisite:
 
 ## Handback
 
-Your last action is one SubagentHandback call whose whole text is one JSON object: no prose before or after it. `tools/validate_worker_handback.py` checks it. Post your checkpoint first, then hand back:
+Your last action is one SubagentHandback call whose whole text is one JSON object: no prose before or after it. `tools/validate_worker_handback.py` checks it. Post your checkpoint first, stop every background shell, wait and Monitor you started (a live one wakes you after handback and you would send it again), then hand back:
 
 `{"bead":"Bontago-<id>","verdict":"done","candidate":"<checkout>@<rev or uncommitted>","files":"a.gd;b.gd","checks":"test_x: 12/12 PASS; lint_all: GREEN","finding":"decisive result, risk or blocker","next":"exact next action","record":"bd:Bontago-<id>"}`
 
