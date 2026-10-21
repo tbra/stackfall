@@ -84,6 +84,12 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_controller.set_camera_rig(rig)
 
 
+## Wires the tutorial onto a world the one builder made.
+# STUB: filled by MD-TU
+func attach(_player: HotSeat, _camera_rig: CameraRig) -> void:
+	pass
+
+
 ## A HUD plate with a rim step block ("1/5") and the sentence in cream, centred directly under the
 ## timer ring and never over it, at most tip_max_width_px wide.
 func _style_tip_banner() -> void:

@@ -137,6 +137,12 @@ func set_field(field: Field) -> void:
 	_tuning_panel.set_field(field)
 
 
+## Wires the sandbox onto a world the one builder made.
+# STUB: filled by MD-SB
+func attach(_player: HotSeat, _camera_rig: CameraRig, _field: Field, _extras: ModeExtras) -> void:
+	pass
+
+
 ## The slot this instance is currently driving. ui/debug/SandboxPanel.gd reads
 ## this every refresh.
 func active_slot() -> int:
