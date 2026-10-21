@@ -39,5 +39,5 @@ const LIVE_SCORES: StringName = &"live_scores"
 
 ## Argument shape of `event` (one typeof per arg); an empty array means unknown event.
 static func shape_of(event: StringName) -> Array:
-	assert(false, "MatchWireEvents.shape_of is a stub until M4")
+	push_error("MatchWireEvents.shape_of is a stub until M4: %s" % event)
 	return []
