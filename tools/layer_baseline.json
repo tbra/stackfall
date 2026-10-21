@@ -4,8 +4,7 @@
    "autoload/Match.gd"
   ],
   [
-   "autoload/Net.gd",
-   "net/SnapshotSync.gd"
+   "autoload/Net.gd"
   ]
  ],
  "closure": [

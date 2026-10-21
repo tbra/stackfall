@@ -171,6 +171,8 @@ signal upnp_state_changed(state: int)
 var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
+## Set by attach_global_wiring(): only the running game may reach a real router.
+var _real_upnp: bool = false
 ## LAN advert + UPnP glue and the join code (net/session/NetHostAdverts.gd); built in _ready().
 var _adverts: NetHostAdverts
 
@@ -209,11 +211,6 @@ func _ready() -> void:
 	# Keep transport/Steam/UPnP/handshake/ping polling alive while the offline
 	# pause menu has paused the tree, so a peer joining during a solo pause still gets through.
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	# SnapshotSync reaches Net through this binding
-	# instead of naming the autoload (globals exist before any _ready).
-	# Only the real autoload binds: tests build extra Net instances under test nodes.
-	if get_parent() == get_tree().root:
-		SnapshotSync.bind_net(self)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -234,15 +231,15 @@ func _ready() -> void:
 	Events.loading_gate_opened.connect(_on_loading_gate_opened)
 	chat_config.sanitize()
 	_build_session_services()
-	# Only the real autoload listens to the UI bus; test instances call send_chat().
-	if get_parent() == get_tree().root:
-		Events.chat_send_requested.connect(send_chat)
 
 
-## Global wiring that only the real autoload performs (chat bus connect, real UPnP
-## backend); Main._ready calls it. Stub: nothing calls it yet.
+## Global wiring that only the running game performs (Main._ready): the UI chat bus
+## and the real UPnP backend. Test instances skip it and call send_chat() directly.
+## Safe to call twice.
 func attach_global_wiring() -> void:
-	pass
+	_real_upnp = true
+	if not Events.chat_send_requested.is_connected(send_chat):
+		Events.chat_send_requested.connect(send_chat)
 
 
 func _process(delta: float) -> void:
@@ -1549,7 +1546,7 @@ func host_port() -> int:
 func _upnp_backend() -> UpnpBackend:
 	if upnp_backend_factory.is_valid():
 		return upnp_backend_factory.call() as UpnpBackend
-	if get_parent() != get_tree().root or AgentProbe.is_active() or DisplayServer.get_name() == "headless":
+	if not _real_upnp or AgentProbe.is_active() or DisplayServer.get_name() == "headless":
 		return null
 	return UpnpBackendReal.new()
 
