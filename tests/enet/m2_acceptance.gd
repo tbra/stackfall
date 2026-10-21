@@ -28,7 +28,7 @@ extends Node3D
 ##   (a) both players' territory shares grow as they build.
 ##   (b) where two territories overlap, the contested cells become holes after
 ##       hole_delay, and a block dropped on a hole cell dissolves and is removed
-##       (the disc stays solid; game/field/HoleDissolver.gd).
+##       (the disc stays solid; game/blocks/HoleDissolver.gd).
 ##   (c) a tower whose base is cut off loses its influence: removing a link in
 ##       the chain drops the owner's territory share.
 ##   (d) a player whose connected territory holds the goal flag's base for

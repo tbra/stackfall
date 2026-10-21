@@ -54,7 +54,7 @@ CROSS_RULES = (
       "tests/unit/match/test_match_countdown.gd")),
     ("physics-tuning",
      ("config/physics/", "game/blocks/Block.gd", "game/blocks/BlockEffectsManager.gd",
-      "game/field/HoleDissolver.gd", "game/gifts/specials/Glue", "game/gifts/specials/BlackHole",
+      "game/blocks/HoleDissolver.gd", "game/gifts/specials/Glue", "game/gifts/specials/BlackHole",
       "game/gifts/specials/SpecialPhysics", "game/main/TuningOverrides"),
      ("tests/unit/main/test_physics_tuning.gd", "tests/unit/gifts/test_glue_effect.gd",
       "tests/unit/gifts/test_glue_drops.gd", "tests/unit/gifts/test_glue_sticks_overhang.gd",

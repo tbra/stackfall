@@ -28,7 +28,7 @@ extends Node
 ## faster than contact_leave_speed. The last clause keeps a Jumping Bean that
 ## has just punched a hole under itself and kicked off from dissolving in it.
 ##
-## DECISION (game/field/HoleDissolver.gd): once started, a dissolve always completes
+## DECISION (game/blocks/HoleDissolver.gd): once started, a dissolve always completes
 ## (unless something else removes the block first, e.g. the kill plane): the
 ## fade and the clients' copy of the start event then never need a cancel
 ## message, and a block bouncing off the hole edge mid-fade still goes.
