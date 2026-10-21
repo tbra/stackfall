@@ -33,6 +33,8 @@ var _samples: int = 0
 # Seconds-clock reading when the match first played, -1 before.
 var _play_start_s: float = -1.0
 var _quitting: bool = false
+# True once Net was a client after play start; the session ending then quits the client.
+var _seen_client: bool = false
 var _prev_wall_s: float = -1.0
 var _prev_physics_frames: int = 0
 var _prev_bytes: int = 0
@@ -66,12 +68,13 @@ func _physics_process(_delta: float) -> void:
 	var epoch: int = floori(Time.get_unix_time_from_system() / config.sample_interval_s)
 	if epoch != _last_epoch:
 		sample_now()
+	if role == &"client" and _play_start_s >= 0.0 and Net.is_client():
+		_seen_client = true
 	if role == &"client" and not _quitting and _play_start_s >= 0.0 and (
-		_now_s() - _play_start_s >= config.duration_s or not Net.is_client()
-		or Match.state() != Match.State.PLAYING
+		_now_s() - _play_start_s >= config.duration_s or (_seen_client and not Net.is_client())
 	):
 		_quitting = true
-		_quit_cleanly()
+		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits
 
 
 func _exit_tree() -> void:
@@ -80,10 +83,11 @@ func _exit_tree() -> void:
 	var wall_ms: int = int(Time.get_unix_time_from_system() * _MS_PER_S)
 	for band: int in _curve.bands():
 		print(SoakLine.curve(role, band, _curve.band_stats(band), _curve.budget_ms))
-	var final_checks: Array[SoakCheck.Violation] = SoakCheck.memory(
-		maxf(_mem_start_mb, 0.0), _mem_end_mb, _bodies_start, _bodies_end, _orphans_end, config
-	)
-	_record(final_checks, _last_epoch, wall_ms)
+	# A run that ended inside warm-up never latched a baseline: nothing to compare against.
+	if _mem_start_mb >= 0.0:
+		_record(SoakCheck.memory(
+			_mem_start_mb, _mem_end_mb, _bodies_start, _bodies_end, _orphans_end, config
+		), _last_epoch, wall_ms)
 	print(SoakLine.end(role, {
 		"samples": _samples, "violations": violations().size(), "sim_rate": _sim_rate,
 		"mem_start_mb": maxf(_mem_start_mb, 0.0), "mem_end_mb": _mem_end_mb,
@@ -184,9 +188,3 @@ func _worst_p99_ms() -> float:
 func _now_s() -> float:
 	return float(Time.get_ticks_usec()) / _US_PER_S
 
-
-## The clean quit the host's --seconds timer uses.
-func _quit_cleanly() -> void:
-	await Sfx.drain_for_quit()
-	QuitFlag.mark()
-	get_tree().quit(0)
