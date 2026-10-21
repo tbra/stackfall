@@ -587,7 +587,8 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 func _fill_cone_inputs(job: TerritorySolveJob) -> void:
 	# a field/registry freed by scene teardown can still be
 	# referenced here for one step; never pass a freed object to the typed call.
-	if _match._sandbox_territory_mode != MatchAutoload.SANDBOX_TERRITORY_CONE 			or not is_instance_valid(_match._field) or not is_instance_valid(_match._registry):
+	if _match._sandbox_territory_mode != MatchAutoload.SANDBOX_TERRITORY_CONE \
+			or not is_instance_valid(_match._field) or not is_instance_valid(_match._registry):
 		return
 	var measured: Dictionary = SandboxConeAdapter.measure_heights(
 		job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
