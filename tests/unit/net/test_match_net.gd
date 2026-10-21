@@ -384,59 +384,6 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	assert_eq(spawned_ids, [Quantize.NET_ID_MAX], "the id-less body is never handed to the wire")
 
 
-# --- The territory payload --------------------------------------------------
-
-
-func test_a_full_raster_payload_round_trips() -> void:
-	var net: MatchNetScript = _make_net({1: 0}, [0])
-	var owners: PackedByteArray = PackedByteArray()
-	var states: PackedByteArray = PackedByteArray()
-	for i: int in range(500):
-		owners.append(i % 4)
-		states.append(i % 3)
-
-	var payload: PackedByteArray = net._encode_raster_full(owners, states)
-	var decoded: Dictionary = MatchNetScript.decode_raster_payload(payload, true)
-
-	assert_eq(decoded["owners"], owners)
-	assert_eq(decoded["states"], states)
-	assert_eq(decoded["cells"].size(), 0, "A full payload names every cell implicitly.")
-
-
-func test_a_diff_payload_round_trips() -> void:
-	var net: MatchNetScript = _make_net({1: 0}, [0])
-	var owners: PackedByteArray = PackedByteArray()
-	var states: PackedByteArray = PackedByteArray()
-	owners.resize(100)
-	states.resize(100)
-	owners[7] = 2
-	states[7] = TerritoryRaster.STATE_HOLE
-	owners[90] = 3
-	states[90] = TerritoryRaster.STATE_CONTESTED
-
-	var payload: PackedByteArray = net._encode_raster_diff(
-		PackedInt32Array([7, 90]), owners, states
-	)
-	var decoded: Dictionary = MatchNetScript.decode_raster_payload(payload, false)
-
-	assert_eq(decoded["cells"], PackedInt32Array([7, 90]))
-	assert_eq(decoded["owners"], PackedByteArray([2, 3]))
-	assert_eq(
-		decoded["states"],
-		PackedByteArray([TerritoryRaster.STATE_HOLE, TerritoryRaster.STATE_CONTESTED])
-	)
-
-
-func test_a_truncated_or_foreign_territory_payload_decodes_to_nothing() -> void:
-	assert_true(MatchNetScript.decode_raster_payload(PackedByteArray(), true).is_empty())
-	assert_true(MatchNetScript.decode_raster_payload(PackedByteArray([9, 9, 9]), false).is_empty())
-	var foreign: PackedByteArray = PackedByteArray([200, 0, 4, 0, 0, 0, 1, 2, 3, 4])
-	assert_true(
-		MatchNetScript.decode_raster_payload(foreign, true).is_empty(),
-		"A payload from another packet version must be dropped, not misread."
-	)
-
-
 # --- the replicated circle list ------------------------------
 
 
@@ -531,41 +478,41 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	owners.resize(cell_count)
 	states.resize(cell_count)
 	var target: int = raster.grid().cell_index(raster.grid().res / 2, raster.grid().res / 2)
+	var blank_owners: PackedByteArray = owners.duplicate()
+	var blank_states: PackedByteArray = states.duplicate()
 	owners[target] = 2
 	states[target] = TerritoryRaster.STATE_HOLE
-	var payload: PackedByteArray = net._encode_raster_full(owners, states)
+	# The host's packet: Match's raster carries the hole while it is encoded, then goes blank so
+	# the client mirror has something to receive.
+	raster.apply_replicated_state(owners, states)
+	var host_side: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(Match), MatchReplicaPort.new(Match), net.config
+	)
+	Events.goal_capture_progress.emit(1, 0.375)
+	var payload: PackedByteArray = host_side.encode_full()
+	raster.apply_replicated_state(blank_owners, blank_states)
+	assert_false(Match.raster().is_hole_index(target), "fixture: the mirror starts without the hole")
 	watch_signals(Events)
 
-	net.net_territory(payload, true, PackedFloat32Array([0.25, 0.5]), 1, 0.4)
+	# The RPC keeps its old arguments for wire compatibility; only the payload counts.
+	net.net_territory(payload, false, PackedFloat32Array(), 9, NAN)
 
 	assert_true(Match.raster().is_hole_index(target), "The mirror holds exactly what the host sent.")
 	assert_signal_emitted(Events, "hole_cells_changed")
 	assert_signal_emitted(Events, "territory_replicated")
-	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.4])
+	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.375])
+	Events.goal_capture_progress.emit(-1, 0.0)
 
 
-# --- a decaying home claim reaches clients on a static board ---
-
-func test_malformed_capture_progress_is_rejected() -> void:
+func test_a_malformed_territory_payload_leaves_the_mirror_alone() -> void:
 	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
-	var host_net: MatchNetScript = _make_net({}, [0])
-	var raster: TerritoryRaster = Match.raster()
-	var empty: PackedByteArray = host_net._encode_raster_diff(
-		PackedInt32Array(), raster.owner_bytes(), raster.state_bytes()
-	)
-	var client_net: MatchNetScript = _make_net({}, [1], true)
-	var shares: PackedFloat32Array = PackedFloat32Array([0.5, 0.5])
+	var net: MatchNetScript = _make_net({}, [1], true)
+	var before: PackedByteArray = Match.raster().owner_bytes()
 	watch_signals(Events)
-	client_net.net_territory(empty, false, shares, 1, NAN)
-	client_net.net_territory(empty, false, shares, 1, INF)
-	client_net.net_territory(empty, false, shares, 1, 1.5)
-	client_net.net_territory(empty, false, shares, 1, -0.1)
-	client_net.net_territory(empty, false, shares, 9, 0.5)
-	client_net.net_territory(empty, false, shares, -2, 0.5)
-	assert_signal_not_emitted(Events, "goal_capture_progress")
-	client_net.net_territory(empty, false, shares, 1, 0.5)
-	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.5])
+	net.net_territory(PackedByteArray([9, 9, 9]), true, PackedFloat32Array([0.5, 0.5]), 1, 0.5)
+	assert_eq(Match.raster().owner_bytes(), before)
+	assert_signal_not_emitted(Events, "territory_replicated")
 
 
 # --- M4 P2b: EVENT_GIFT_CLAIMED's third argument (Orchestrator amendment 1) -

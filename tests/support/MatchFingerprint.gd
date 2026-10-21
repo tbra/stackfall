@@ -449,7 +449,8 @@ static func _capture_net(out: Dictionary) -> void:
 			_size_of(_p(MatchNet, &"_intents_sent")), _size_of(_p(MatchNet, &"_intents_accepted")),
 			_size_of(_p(MatchNet, &"_intents_refused")),
 		]
-		out["net.capture_progress"] = [int(_p(MatchNet, &"_capture_team")), _fp(MatchNet, &"_capture_progress")]
+		# The claim progress is not fingerprinted: it is only broadcast (Events.goal_capture_progress)
+		# and no public member holds it between emissions.
 
 
 # --- globals and statics --------------------------------------------------------------

@@ -241,10 +241,16 @@ func circle_render_arrays() -> Dictionary:
 
 
 func circle_wire_radius_max() -> float:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		return real.circle_wire_radius_max()
 	return float(_call(&"circle_wire_radius_max", [], 0.0))
 
 
 func circle_wire_xz_bound() -> float:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		return real.circle_wire_xz_bound()
 	return float(_call(&"circle_wire_xz_bound", [], 0.0))
 
 
