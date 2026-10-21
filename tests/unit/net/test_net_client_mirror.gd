@@ -112,6 +112,17 @@ func test_despawn_removes_the_body_forgets_the_id_and_allows_reuse() -> void:
 	assert_true(_spawn(), "a reused id is a fresh spawn")
 
 
+func test_a_new_match_accepts_the_ids_the_previous_match_used_and_never_despawned() -> void:
+	assert_true(_spawn(), "match 1 spawns a net id")
+	# Match start: the world is cleared with no despawn RPC and the registry restarts its ids.
+	for child: Node in _parent.get_children():
+		child.free()
+	_registry.reset()
+	assert_false(_mirror.has_spawned(NET_ID), "the cleared world holds nothing")
+	assert_true(_spawn(), "match 2 may reuse that id")
+	assert_not_null(_registry.block_for_net_id(NET_ID))
+
+
 func _on_removed(_block: Block, reason: String) -> void:
 	_removed.append(reason)
 

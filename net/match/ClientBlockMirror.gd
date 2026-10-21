@@ -1,8 +1,8 @@
 class_name ClientBlockMirror
 extends RefCounted
 ## Client-side mirror of the host's blocks and seat roster: builds a frozen body for a host spawn,
-## frees it on a host despawn and writes the roster's peer/name/local flags onto the slots. It owns
-## the set of net ids spawned here. Every argument is wire data and is checked before use.
+## frees it on a host despawn and writes the roster's peer/name/local flags onto the slots. It tracks
+## no ids of its own. Every argument is wire data and is checked before use.
 
 ## `gift_id_ok` is a Callable(gift_id: String) -> bool: true when the id names a real roster gift.
 var _session: SessionPort = null
@@ -10,7 +10,6 @@ var _host: MatchHostPort = null
 var _gift_id_ok: Callable = Callable()
 var _physics_tuning: PhysicsTuning = null
 var _shapes_by_id: Dictionary = {}
-var _spawned_net_ids: Dictionary = {}
 
 
 func _init(session: SessionPort, host: MatchHostPort, gift_id_ok: Callable, physics_tuning: PhysicsTuning) -> void:
@@ -27,7 +26,7 @@ func on_spawned(net_id: int, shape_id: StringName, owner_slot: int, origin: Vect
 		return false
 	var registry: Node = _host.registry()
 	var parent: Node3D = _host.blocks_parent()
-	if registry == null or parent == null or has_spawned(net_id) or registry.block_for_net_id(net_id) != null:
+	if registry == null or parent == null or has_spawned(net_id):
 		return false
 	var shape: BlockShape = _shape_for_id(shape_id)
 	if shape == null:
@@ -47,14 +46,12 @@ func on_spawned(net_id: int, shape_id: StringName, owner_slot: int, origin: Vect
 	# id, so the host's is bound straight after and both ends address the same body.
 	Events.block_placed.emit(block, shape.id)
 	registry.bind_net_id(block, net_id)
-	_spawned_net_ids[net_id] = true
 	Events.block_replicated.emit(block, net_id)
 	return true
 
 
 ## Frees the replica of a host despawn; `reason` is the host's Events.block_removed reason.
 func on_despawned(net_id: int, reason: String) -> void:
-	_spawned_net_ids.erase(net_id)
 	var registry: Node = _host.registry()
 	if registry == null:
 		return
@@ -84,9 +81,11 @@ func apply_roster(roster: Array) -> bool:
 	return all_applied
 
 
-## True when this mirror spawned `net_id` and no despawn for it has arrived since.
+## True while a body is registered under `net_id`. The registry is the single record: it forgets
+## every id at a match start, when ids restart at 1, so a mirror-side set would go stale.
 func has_spawned(net_id: int) -> bool:
-	return _spawned_net_ids.has(net_id)
+	var registry: Node = _host.registry()
+	return registry != null and registry.block_for_net_id(net_id) != null
 
 
 func _shape_for_id(shape_id: StringName) -> BlockShape:
