@@ -494,44 +494,60 @@ func _remote_peers() -> PackedInt32Array:
 func _select_bodies() -> Dictionary:
 	var awake_or_moved: Array = []
 	var sleepers: Array[BlockBody] = []
+	var saw_freed: bool = false
 	_selector.begin_tick(_disk_transform())
 
-	for key: Variant in _bodies.keys():
-		var held: Variant = _bodies[key]
-		if held == null or not is_instance_valid(held):
-			_bodies.erase(key)
+	# This loop visits every body every snapshot, so an unchanged sleeper costs
+	# only its sleep flag and one needs_check: its pose is read (and its carrier
+	# re-posed) only when it is awake, drift-tested or recorded.
+	for held: Variant in _bodies.values():
+		if not is_instance_valid(held):
+			saw_freed = true
 			continue
 		var block: BlockBody = held as BlockBody
-		if block.net_id <= 0:
+		var net_id: int = block.net_id
+		if net_id <= 0:
 			continue
-		# An anchored group's followers must be posed from the disc of THIS tick before they
-		# are recorded (the carrier's own tick runs after this node).
-		var carrier: RigidBody3D = block.fused_carrier()
-		if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
-			carrier.call(&"refresh_anchor_pose")
 		var sleeping: bool = block.net_sleeping()
-		var pose_rotation: Quaternion = block.global_basis.get_rotation_quaternion()
 		# SHORTCUT: a sleeping body that moved with no disc change and no sleep flip (a teleport or anchored-group pose edit that leaves it asleep) is resent only by its keyframe slice, upgrade when a playtest or the session-close soak shows a stale sleeper
-		if (
-			not sleeping
-			or (
-				_selector.needs_check(block.net_id, sleeping)
-				and _selector.moved_since_sent(block.net_id, block.global_position, pose_rotation)
-			)
+		if sleeping and not _selector.needs_check(net_id, sleeping):
+			sleepers.append(block)
+			continue
+		_refresh_carrier_pose(block)
+		if not sleeping or _selector.moved_since_sent(
+			net_id, block.global_position, block.global_basis.get_rotation_quaternion()
 		):
 			awake_or_moved.append(_record(block))
 		else:
 			sleepers.append(block)
+	if saw_freed:
+		_drop_freed_bodies()
 
 	var slice: int = mini(keyframe_slice_for(sleepers.size(), config), sleepers.size())
 	var keyframe: bool = slice > 0
 	for step: int in range(slice):
 		var block: BlockBody = sleepers[(_keyframe_cursor + step) % sleepers.size()]
+		_refresh_carrier_pose(block)
 		awake_or_moved.append(_record(block))
 	if not sleepers.is_empty():
 		_keyframe_cursor = (_keyframe_cursor + slice) % sleepers.size()
 
 	return {"bodies": awake_or_moved, "keyframe": keyframe}
+
+
+## An anchored group's followers must be posed from the disc of THIS tick before
+## their pose is read (the carrier's own tick runs after this node). The carrier
+## re-poses at most once per physics frame however many followers ask.
+func _refresh_carrier_pose(block: BlockBody) -> void:
+	var carrier: RigidBody3D = block.fused_carrier()
+	if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
+		carrier.call(&"refresh_anchor_pose")
+
+
+func _drop_freed_bodies() -> void:
+	for key: Variant in _bodies.keys():
+		if not is_instance_valid(_bodies[key]):
+			_bodies.erase(key)
 
 
 func _record(block: BlockBody) -> Dictionary:
