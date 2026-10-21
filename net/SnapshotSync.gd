@@ -34,9 +34,8 @@ const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
 var _registry: Node = null
 var _bounds: AABB = AABB()
 var _running: bool = false
-## The session seam: bind_session() (or the bind_net() shim) sets it; see _session().
+## The session seam: bind_session() sets it (Main binds the Net autoload); null until then; see _session().
 var _session_port: SessionPort = null
-const NET_NODE_NAME: NodePath = ^"Net"
 ## The SessionPort methods this node calls (and NetFanout through it).
 const SESSION_METHODS: PackedStringArray = ["is_host", "is_client", "is_offline", "report_stats"]
 
@@ -449,23 +448,9 @@ func _is_spawned(net_id: int) -> bool:
 	return _registry.call("block_for_net_id", net_id) != null
 
 
-## The session every send and mode check goes through. Net binds itself in its
-## _ready (bind_net, until the global wiring replaces it); an unbound instance (a
-## test, or a call before Net._ready) falls back to the real Net autoload by path
-## so no file edge to autoload/Net.gd exists.
+## The session every send and mode check goes through; null while unbound.
 func _session() -> SessionPort:
-	if _session_port != null:
-		return _session_port
-	# Through the SceneTree root so an instance not (yet) in the tree resolves too.
-	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	var net: Node = tree.root.get_node_or_null(NET_NODE_NAME) if tree != null else null
-	if net == null:
-		return null
-	var port: SessionPort = SessionPort.new(net, SESSION_METHODS)
-	if not port.is_valid():
-		return null
-	_session_port = port
-	return port
+	return _session_port
 
 
 ## Binds the typed session. An invalid port (a session missing a method this node
@@ -476,12 +461,6 @@ func bind_session(port: SessionPort) -> bool:
 		return false
 	_session_port = port
 	return true
-
-
-## Shim until the global wiring replaces Net's call (the one in Net._ready):
-## wraps the session node in a SessionPort over just the methods used here.
-func bind_net(net: Node) -> void:
-	bind_session(SessionPort.new(net, SESSION_METHODS))
 
 
 ## The one network send (a seam so tests can count sends without a peer).

@@ -3,14 +3,12 @@ extends GutTest
 ## autoload carry-overs behind "a new match after leaving is indistinguishable from
 ## a freshly launched one".
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
 var _tiny_map: MapDef
 var _field: Field
 var _blocks_root: Node3D
 var _registry: BlockRegistry
-var _net: MatchNetScript
 
 var _sfx: Node
 var _audio_config: AudioConfig
@@ -39,9 +37,6 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -87,21 +82,55 @@ func _circle_count() -> int:
 	return (Match.circle_render_arrays()["xs"] as PackedFloat32Array).size()
 
 
-func _make_host_net() -> MatchNetScript:
-	var fake: FakeNet = FakeNet.host({1: 0}, [0])
-	Match._net_provider = fake
-	var node: MatchNetScript = MatchNetScript.new()
-	node.set_process(false)
-	add_child_autofree(node)
-	node.set_providers(fake, Match)
-	_net = node
-	return node
+## A client's match side: a mirror raster and the circles its replica port was handed.
+class ClientSide extends RefCounted:
+	var mirror: TerritoryRaster = null
+	var xz_bound: float = 0.0
+	var radius_max: float = 0.0
+	var received: Dictionary = {}
+
+	func raster() -> TerritoryRaster:
+		return mirror
+
+	func circle_wire_xz_bound() -> float:
+		return xz_bound
+
+	func circle_wire_radius_max() -> float:
+		return radius_max
+
+	func apply_replicated_territory(
+		_cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, _full: bool,
+		xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array,
+		teams: PackedInt32Array, goal_positions: PackedVector2Array, _goal_radii: PackedFloat32Array,
+		argmax_mode: bool
+	) -> void:
+		mirror.apply_replicated_state(owners, states)
+		received = {
+			"xs": xs, "zs": zs, "radii": radii, "teams": teams,
+			"goal_positions": goal_positions, "argmax_mode": argmax_mode,
+		}
 
 
-func _decoded_circle_payload(net: MatchNetScript) -> Dictionary:
-	return CircleWire.decode(
-		net._encode_circles(), Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
+## The circle list the host's territory packet carries right now, as a client receives it. Empty
+## when the client refused the packet.
+func _decoded_circle_payload() -> Dictionary:
+	var net_config: NetConfig = NetConfig.new()
+	var host: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(Match), MatchReplicaPort.new(Match), net_config
 	)
+	var raster: TerritoryRaster = Match.raster()
+	var side: ClientSide = ClientSide.new()
+	side.mirror = TerritoryRaster.new(raster.grid(), raster.tuning())
+	side.xz_bound = Match.circle_wire_xz_bound()
+	side.radius_max = Match.circle_wire_radius_max()
+	var client: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(side, PackedStringArray(["raster", "circle_wire_xz_bound", "circle_wire_radius_max"])),
+		MatchReplicaPort.new(side, PackedStringArray(["apply_replicated_territory"])),
+		net_config
+	)
+	if not client.apply(host.encode_full()):
+		return {}
+	return side.received
 
 
 func _assert_render_arrays_empty(context: String) -> void:
@@ -142,14 +171,13 @@ func test_every_reset_path_drops_the_previous_matchs_circles() -> void:
 
 func test_the_hosts_circle_payload_during_the_next_countdown_decodes_to_zero_circles() -> void:
 	_start_playing()
-	var net: MatchNetScript = _make_host_net()
-	assert_gt((_decoded_circle_payload(net)["xs"] as PackedFloat32Array).size(), 0, "fixture: A's payload carries circles")
+	assert_gt((_decoded_circle_payload()["xs"] as PackedFloat32Array).size(), 0, "fixture: A's payload carries circles")
 
 	Match.abort_match()
 	Match.start_match(_config(3))
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 
-	var decoded: Dictionary = _decoded_circle_payload(net)
+	var decoded: Dictionary = _decoded_circle_payload()
 	assert_false(decoded.is_empty(), "the payload is still a valid, decodable packet")
 	assert_eq((decoded["xs"] as PackedFloat32Array).size(), 0, "no stale circles replicated to clients")
 	assert_eq((decoded["teams"] as PackedInt32Array).size(), 0)

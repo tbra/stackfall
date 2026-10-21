@@ -289,6 +289,23 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 	# the assertion: the RPC attempt above must have been skipped.
 
 
+# --- Global wiring ---------------------------------------------------------------
+
+## A Net that is not the real autoload does not listen to the UI chat bus until
+## attach_global_wiring() (which Main calls once for the real one) connects it.
+func test_attach_global_wiring_connects_the_chat_bus_once() -> void:
+	assert_eq(_host.host_game(_take_port(), "Hostie"), OK)
+	watch_signals(Events)
+	Events.chat_send_requested.emit("before wiring")
+	assert_signal_emit_count(Events, "chat_line_received", 0, "an unwired instance ignores the UI bus")
+	_host.attach_global_wiring()
+	_host.attach_global_wiring()
+	Events.chat_send_requested.emit("after wiring")
+	assert_signal_emit_count(Events, "chat_line_received", 1, "wiring twice still delivers each line once")
+	if Events.chat_send_requested.is_connected(_host.send_chat):
+		Events.chat_send_requested.disconnect(_host.send_chat)
+
+
 # --- leave() idempotence -----------------------------------------------
 
 # --- Command line -------------------------------------------------------
@@ -932,4 +949,4 @@ func test_an_oversize_handshake_name_over_enet_is_dropped_without_a_reply() -> v
 		await get_tree().process_frame
 	assert_eq(_host.peer_ids().size(), 1, "the oversize handshake seated nobody")
 	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 0, "and drew no refusal reply")
-	assert_false(_client._joined_accepted)
+	assert_eq(_client.peer_ids().size(), 0, "and the client never joined a roster")

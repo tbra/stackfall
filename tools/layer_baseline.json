@@ -4,8 +4,7 @@
    "autoload/Match.gd"
   ],
   [
-   "autoload/Net.gd",
-   "net/SnapshotSync.gd"
+   "autoload/Net.gd"
   ]
  ],
  "closure": [
@@ -113,9 +112,11 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/match/ImpactReplicator.gd",
   "net/match/MatchEventMirror.gd",
   "net/match/MatchIntentGateway.gd",
   "net/match/MatchWorldReplay.gd",
+  "net/match/TerritoryReplicator.gd",
   "net/ports/MatchHostPort.gd",
   "net/ports/MatchReplicaPort.gd",
   "net/ports/SessionPort.gd",
@@ -507,9 +508,11 @@
   "net/UpnpBackend.gd",
   "net/UpnpBackendReal.gd",
   "net/UpnpRunner.gd",
+  "net/match/ImpactReplicator.gd",
   "net/match/MatchEventMirror.gd",
   "net/match/MatchIntentGateway.gd",
   "net/match/MatchWorldReplay.gd",
+  "net/match/TerritoryReplicator.gd",
   "net/ports/MatchHostPort.gd",
   "net/ports/MatchReplicaPort.gd",
   "net/ports/SessionPort.gd",

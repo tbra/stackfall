@@ -37,8 +37,7 @@ var _host_field: Field = null
 var _client_field: Field = null
 var _client_sync: Node = null
 var _client_registry: BlockRegistry = null
-var _previous_net_mode: int = Net.Mode.OFFLINE
-var _previous_joined_accepted: bool = false
+var _session_double: SessionDouble = null
 
 
 func _small_map() -> MapDef:
@@ -75,31 +74,21 @@ func before_each() -> void:
 	_client_sync.call("set_disk", _client_field)
 	_client_sync.call("begin_match", _client_registry, _map)
 
-	# client_tick() no-ops unless Net.is_client() -- flip the real autoload's
-	# mode directly (test_net_session.gd's own tests build a *separate* Net
-	# instance for this; SnapshotSync.gd reads the live `Net` autoload by
-	# name, so there is no injection seam here, and poking the live one is
-	# the smaller change). _joined_accepted must go along with it: Net's own
-	# _process() runs every frame regardless of how _mode got set, and its
-	# Mode.CLIENT branch calls _fail_join() -- which flips _mode back to
-	# OFFLINE -- the moment `now > _join_deadline`, which a bare _mode flip
-	# with no real handshake leaves permanently true. Restored in after_each
-	# so neither leaks into another test in the same run.
-	_previous_net_mode = Net._mode
-	_previous_joined_accepted = Net._joined_accepted
-	Net._mode = Net.Mode.CLIENT
-	Net._joined_accepted = true
+	# client_tick() no-ops unless the bound session says is_client(): bind a narrow
+	# client session through the production seam instead of poking the live autoload.
+	_session_double = SessionDouble.new()
+	_session_double.client = true
+	assert_true(_client_sync.call("bind_session", SessionPort.new(_session_double, SnapshotSync.SESSION_METHODS)))
 
 
 func after_each() -> void:
 	if _client_sync != null and is_instance_valid(_client_sync):
 		_client_sync.call("end_match")
-	Net._mode = _previous_net_mode
-	Net._joined_accepted = _previous_joined_accepted
 	_host_field = null
 	_client_field = null
 	_client_sync = null
 	_client_registry = null
+	_session_double = null
 
 
 func _bounds() -> AABB:
@@ -206,14 +195,16 @@ class SessionDouble:
 
 
 func test_bind_session_routes_mode_checks_through_the_port() -> void:
+	var offline: SessionDouble = SessionDouble.new()
+	offline.client = false
+	assert_true(_client_sync.call("bind_session", SessionPort.new(offline, SnapshotSync.SESSION_METHODS)))
+	_client_sync.call("client_tick", TICK)
+	assert_eq(float(_client_sync.get("_stats_accumulator")), 0.0, "fixture: a session that is not a client gates client_tick out")
 	var double: SessionDouble = SessionDouble.new()
 	double.client = true
 	var port: SessionPort = SessionPort.new(double, SnapshotSync.SESSION_METHODS)
 	assert_true(port.is_valid(), "the narrow double satisfies the subset SnapshotSync binds")
-	Net._mode = Net.Mode.OFFLINE # the live autoload says "not a client": client_tick gates out
-	_client_sync.call("client_tick", TICK)
-	assert_eq(float(_client_sync.get("_stats_accumulator")), 0.0, "fixture: the unbound client tick is a no-op")
-	assert_true(_client_sync.call("bind_session", port), "a valid port binds")
+	assert_true(_client_sync.call("bind_session", port), "a valid port rebinds")
 	_client_sync.call("client_tick", TICK)
 	assert_gt(float(_client_sync.get("_stats_accumulator")), 0.0, "the bound session's is_client() opened the gate")
 
@@ -229,14 +220,6 @@ func test_bind_session_refuses_an_invalid_port() -> void:
 	assert_same(_client_sync.call("_session"), before, "the previous binding is kept")
 	assert_false(_client_sync.call("bind_session", null), "null is refused")
 	assert_push_error("SnapshotSync.bind_session")
-
-
-func test_bind_net_shim_wraps_the_node_in_a_port() -> void:
-	var node: Node = autofree((load("res://autoload/Net.gd") as GDScript).new() as Node)
-	_client_sync.call("bind_net", node)
-	var session: SessionPort = _client_sync.call("_session") as SessionPort
-	assert_not_null(session, "bind_net leaves a typed session behind")
-	assert_true(session.is_valid(), "the shim's port is valid")
 
 
 # --- Host peer gating and the resend memory ----------------------------------

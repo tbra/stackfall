@@ -34,6 +34,7 @@ var _client_done: bool = false
 
 
 func _ready() -> void:
+	RootWiring.attach()
 	if not Net.apply_command_line():
 		get_tree().quit(2)
 		return

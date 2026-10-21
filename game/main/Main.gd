@@ -386,6 +386,10 @@ func _ready() -> void:
 	# anything else in the tree reads them.
 	TuningOverrides.apply_saved()
 
+	# The game's global wiring: SnapshotSync's session and Net's chat bus / real UPnP.
+	SnapshotSync.bind_session(SessionPort.new(Net, SnapshotSync.SESSION_METHODS))
+	Net.attach_global_wiring()
+
 	# The ambient life subscribes to the sky's Events, so it exists before the preset below is
 	# applied; the sky booted before this node, so it re-publishes what it already knows.
 	add_child(AmbientLife.build(_field, _registry))
