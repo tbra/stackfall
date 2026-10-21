@@ -369,7 +369,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 - Blocks are `game/blocks/Block.tscn`, created by `BlockFactory`, tracked by `BlockRegistry` (net ids, settled state, per-block influence feed).
 - `game/world/MatchContext.gd` is the port world code (fields, specials, presenters, weather effects) uses to reach the running match without naming the `Match` or `Net` autoloads; `autoload/match/MatchContextLive.gd` forwards it to the real autoloads, and tests install a fake.
 
-**Boot paths.** The default run opens the menu. Command-line flags after `--`: `--host`, `--join=<addr>`, `--port=`, `--headless-host` with `--bots=N` (a headless bot match; add `--loop-matches`), `--steam-online` or `--host-online` (initialize Steam), `--sandbox`, `--hot-seat` (single-PC test harness), `--mode=`, `--round-timer=`, `--bot-difficulty=`, `--debug` or `--no-debug`, `--agent-probe` (tool and test runs).
+**Boot paths.** The default run opens the menu. Command-line flags after `--`: `--host`, `--join=<addr>`, `--port=`, `--headless-host` with `--bots=N` (a headless bot match; add `--loop-matches`), `--steam-online` or `--host-online` (initialize Steam), `--sandbox`, `--hot-seat` (single-PC test harness), `--mode=`, `--round-timer=`, `--bot-difficulty=`, `--debug` or `--no-debug`, `--soak` and `--soak-fuzz` (debug mode only: the invariant soak monitor and the client intent fuzzer), `--agent-probe` (tool and test runs).
 
 ### 2.4 Match state machine
 
@@ -488,6 +488,7 @@ Every tunable lives in a typed `Resource` under `res://config/` (a script plus i
 - **Project check:** `godot --headless --editor --path . --quit` must print no errors or new warnings.
 - **Network scenarios:** `tests/enet/` holds ENet scenario scenes (host plus client in one machine) driven by `tools/run_*_enet.ps1`; `tests/support/` holds fakes and hooks. Manual multiplayer testing uses the editor's Debug > Customize Run Instances (2 to 4 instances).
 - **Headless bot match:** `godot --headless --path . -- --headless-host --bots=8` (soak and balance runs); `tools/bot_h2h.py` compares bot tiers.
+- **Invariant soak:** `python tools/run_soak.py` runs a headless host plus ENet clients with `--debug --soak` (load and authority scenarios, the client fuzzing refusable intents with `--soak-fuzz`); each process prints `SOAK_*` lines (host/client agreement, authority, territory fresh-solve, physics, memory, tick budget, snapshot bytes), and `tools/soak_report.py` joins them into one `SOAK RESULT PASS|FAIL|INVALID` line. It runs at session close or on an idle PC; it is not a batch gate.
 - **Probes and screenshots:** agent and tool runs use `--agent-probe` (random free port, no LAN advertising); `tools/shot.tscn` and `tools/shot.gd` render screenshots.
 - **Diagnostics:** the F1 to F4 debug overlays (§1.3) and `tools/triage_log.py`, which groups a long run's log into ranked distinct signatures.
 - **Dependency tools:** `tools/dep_graph.py` builds the script dependency graph the layer lint uses.
