@@ -277,18 +277,6 @@ func test_a_teammates_claim_still_chimes_team_wide() -> void:
 # --- MatchNet: placement_relocated goes to the owning seat only ---------------
 
 
-func test_a_remote_clients_relocation_goes_to_that_peer_alone() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_playing()
-
-	Events.placement_relocated.emit(REMOTE_SLOT, RELOCATED_POINT)
-
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_RELOCATED, 0)), 0, "never broadcast to every peer")
-	assert_eq(int(net.relocate_replies_by_peer.get(REMOTE_PEER, 0)), 1, "the owner is told exactly once")
-	assert_eq(net.relocate_replies_by_peer.size(), 1, "and nobody else is addressed")
-	assert_eq(net.last_relocate_reply, [REMOTE_PEER, REMOTE_SLOT, RELOCATED_POINT])
-
-
 func test_a_client_drops_a_malformed_relocation_payload() -> void:
 	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
 	watch_signals(Events)

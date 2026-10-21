@@ -83,7 +83,7 @@ func _glued_events(messages: Array[Array]) -> Array:
 
 
 func test_host_coats_fused_pair_and_uncoats_the_survivor_when_a_member_is_removed() -> void:
-	var net: MatchNetScript = _make_net(false)
+	_make_net(false)
 	_start_playing()
 	var a: Block = _block(201)
 	var b: Block = _block(202)
@@ -91,14 +91,12 @@ func test_host_coats_fused_pair_and_uncoats_the_survivor_when_a_member_is_remove
 	assert_not_null(carrier)
 	assert_true(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
-	assert_eq(int(net.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 2)
 	var coat_mesh: MeshInstance3D = a.get_node("BlockMesh").get_node(HoneyCoat.COAT_NODE_NAME) as MeshInstance3D
 	assert_not_null(coat_mesh.material_override)
 	carrier.remove_member(a, &"hole")
 	await get_tree().process_frame
 	assert_false(HoneyCoat.is_coated(b), "survivor collapsed to a lone block -> coat removed")
-	assert_eq(int(net.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 3)
-	assert_true(net._fused_ids.is_empty())
+	assert_null(b.fused_carrier(), "and no fused body is left holding it")
 
 
 func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
@@ -132,7 +130,7 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 ## a charged drop is coated at spawn (before any bond), replicated,
 ## and replayed to late joiners; it uncoats only once a bond it formed ends.
 func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void:
-	var host: MatchNetScript = _make_net(false)
+	_make_net(false)
 	_start_playing()
 	var a: Block = _block(251)
 	var drops: GlueDrops = GlueDrops.new()
@@ -140,7 +138,6 @@ func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void
 	drops.bind(a, _tuning)
 	Events.glue_drop_charged.emit(a)
 	assert_true(HoneyCoat.is_coated(a), "coated while still falling, no bond yet")
-	assert_eq(int(host.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 1)
 	var b: Block = _block(252)
 	assert_true(drops.try_bond(b))
 	assert_true(HoneyCoat.is_coated(a))

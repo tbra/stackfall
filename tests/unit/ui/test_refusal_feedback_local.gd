@@ -39,6 +39,9 @@ var _tmp_dir: String
 var _settings_cfg_path: String
 var _rumble_calls: Array[Dictionary] = []
 var _rejected_events: Array[int] = []
+## What the host's intent door sent out through its Seams: [peer_id, method, args] per addressed send.
+var _replies: Array[Array] = []
+var _broadcasts: int = 0
 var _rejected_listener: Callable
 
 
@@ -137,21 +140,47 @@ func _any_sfx_playing() -> bool:
 	return false
 
 
-## A listen-server host (peer 1, slot 0) with one remote client (peer 2, slot 1).
-func _make_host_net() -> MatchNetScript:
+## The host's intent door for a listen-server host (peer 1, slot 0) with one remote client (peer 2,
+## slot 1), bound to the real Match with spy Seams: every reply it addresses lands in _replies.
+func _make_host_gateway() -> MatchIntentGateway:
 	var peer_slots: Dictionary = {HOST_PEER: HOST_SLOT, REMOTE_PEER: REMOTE_SLOT}
 	_fake_net = FakeNet.host(peer_slots, [HOST_SLOT])
 	_fake_net.slots_by_peer = peer_slots
 	Match._net_provider = _fake_net
-	var node: MatchNetScript = MatchNetScript.new()
-	node.set_process(false)
-	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
-	_net = node
+	_replies = []
+	_broadcasts = 0
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return true
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+		_replies.append([peer_id, method, args])
+		return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: _broadcasts += 1
+	seams.now_s = func() -> float: return 0.0
+	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
+	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
+	var gateway: MatchIntentGateway = MatchIntentGateway.new(_fake_net, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+	assert_true(gateway.is_valid(), "fixture: the gateway bound the faked session and the real Match")
 	# Sfx/Rumble read the real Net: a host drives slot 0 only.
 	Net._mode = Net.Mode.HOST
 	Net._local_slot = HOST_SLOT
-	return node
+	return gateway
+
+
+## What the owning client does with the one reply the host addressed to it: its own MatchNet applies
+## the event, and the refusal reaches that client's Events bus.
+func _deliver_reply_to_remote_client() -> void:
+	assert_eq(_replies.size(), 1, "fixture: exactly one reply was addressed")
+	var reply: Array = _replies[0]
+	_rejected_events.clear()
+	_fake_net = FakeNet.client(REMOTE_SLOT)
+	Match._net_provider = _fake_net
+	var client: MatchNetScript = MatchNetScript.new()
+	client.set_process(false)
+	add_child_autofree(client)
+	client.set_providers(_fake_net, Match)
+	_net = client
+	client.net_match_event(reply[2][0], reply[2][1])
 
 
 ## A client instance whose own seat is `local_slot_id`. Its MatchNet applies
@@ -202,8 +231,8 @@ func _home_world_position(slot_id: int) -> Vector3:
 
 ## The remote client (peer 2) releases its block on the host's own home flag:
 ## enemy territory, so the host refuses it.
-func _remote_refused_place(net: MatchNetScript) -> void:
-	net._handle_place_intent(
+func _remote_refused_place(gateway: MatchIntentGateway) -> void:
+	gateway.handle_place(
 		REMOTE_PEER, REMOTE_SLOT, _home_world_position(HOST_SLOT), 0, Quaternion.IDENTITY, Match.feed_seq(REMOTE_SLOT)
 	)
 
@@ -217,30 +246,34 @@ func _assert_no_feedback_here(what: String) -> void:
 
 
 func test_host_hears_nothing_for_a_remote_clients_refused_placement() -> void:
-	var net: MatchNetScript = _make_host_net()
+	var gateway: MatchIntentGateway = _make_host_gateway()
 	_start_playing()
 
-	_remote_refused_place(net)
+	_remote_refused_place(gateway)
 
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1, "fixture: the host did refuse the remote's release")
+	assert_eq(_replies.size(), 1, "fixture: the host did refuse the remote's release")
+	assert_eq(_replies[0][0], REMOTE_PEER, "fixture: and told the remote")
 	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "fixture: Match announced the refusal once")
 	_assert_no_feedback_here("host, remote client's refusal")
 
 
 func test_a_remote_refusal_goes_to_the_owning_peer_once_and_is_never_broadcast() -> void:
-	var net: MatchNetScript = _make_host_net()
+	var gateway: MatchIntentGateway = _make_host_gateway()
 	_start_playing()
 
-	_remote_refused_place(net)
+	_remote_refused_place(gateway)
 
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_REJECTED, 0)), 0, "a refusal is never broadcast to every peer")
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1, "the owner gets exactly one reply (broadcast + targeted used to double it)")
-	assert_eq(net.reject_replies_by_peer.size(), 1, "and nobody else is addressed")
-	assert_eq(net.last_reject_reply[1], REMOTE_SLOT)
+	assert_eq(_broadcasts, 0, "a refusal is never broadcast to every peer")
+	assert_eq(_replies.size(), 1, "the owner gets exactly one reply (broadcast + targeted used to double it) and nobody else is addressed")
+	assert_eq(_replies[0][0], REMOTE_PEER)
+	assert_eq(_replies[0][1], &"net_match_event")
+	assert_eq(_replies[0][2][1][0], REMOTE_SLOT)
+	_deliver_reply_to_remote_client()
+	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "the owning client's own bus announces the refusal")
 
 
 func test_a_remote_throw_refusal_goes_to_the_owning_peer_once_and_host_hears_nothing() -> void:
-	var net: MatchNetScript = _make_host_net()
+	var gateway: MatchIntentGateway = _make_host_gateway()
 	_start_playing()
 	# Queue a held special on the remote slot (test_match_throw.gd's own
 	# _queue_special()) so the throw reaches the host's territory check.
@@ -249,18 +282,21 @@ func test_a_remote_throw_refusal_goes_to_the_owning_peer_once_and_host_hears_not
 	Match._feed._held_is_gift[REMOTE_SLOT] = true
 	var off_disk: Vector3 = _home_world_position(REMOTE_SLOT) + Vector3(1000.0, 0.0, 1000.0)
 
-	net._handle_throw_intent(
+	gateway.handle_throw(
 		REMOTE_PEER, REMOTE_SLOT, off_disk, 0, Quaternion.IDENTITY, Vector3(0.0, -0.5, -1.0).normalized(), Match.feed_seq(REMOTE_SLOT)
 	)
 
 	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "fixture: the host refused a throw off the disk")
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_REJECTED, 0)), 0)
-	assert_eq(int(net.reject_replies_by_peer.get(REMOTE_PEER, 0)), 1)
+	assert_eq(_broadcasts, 0)
+	assert_eq(_replies.size(), 1)
+	assert_eq(_replies[0][0], REMOTE_PEER)
 	_assert_no_feedback_here("host, remote client's refused throw")
+	_deliver_reply_to_remote_client()
+	assert_eq(_rejected_events, [REMOTE_SLOT] as Array[int], "the owning client hears its refused throw")
 
 
 func test_the_hosts_own_refusal_still_plays_sound_and_rumble_and_is_not_sent_anywhere() -> void:
-	var net: MatchNetScript = _make_host_net()
+	_make_host_gateway()
 	_start_playing()
 
 	Match.request_place(HOST_SLOT, _home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, false, Match.feed_seq(HOST_SLOT))
@@ -268,8 +304,8 @@ func test_the_hosts_own_refusal_still_plays_sound_and_rumble_and_is_not_sent_any
 	assert_eq(_rejected_events, [HOST_SLOT] as Array[int], "fixture: the host's own release was refused")
 	assert_true(_any_sfx_playing(), "the host hears its own refusal")
 	assert_eq(_rumble_calls.size(), 1, "the host's pad rumbles for its own refusal")
-	assert_eq(net.reject_replies_by_peer.size(), 0, "nothing goes to the remote peer for the host's refusal")
-	assert_eq(int(net.replicated_event_counts.get(MatchNetScript.EVENT_PLACEMENT_REJECTED, 0)), 0, "and nothing is broadcast")
+	assert_eq(_replies.size(), 0, "nothing goes to the remote peer for the host's refusal")
+	assert_eq(_broadcasts, 0, "and nothing is broadcast")
 
 
 # --- client -------------------------------------------------------------------
