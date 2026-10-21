@@ -1,11 +1,7 @@
 extends GutTest
 ## game/debug/SoakIntentFuzzer.gd: the client-side authority probe (SOAK_PLAN sections 6.3, 7.1).
-## The fuzzer's collaborators are set before add_child, as Main does it (call down):
-##   own_slot (int, -1 = seatless), disc_radius_m (float), feed_seq_of (Callable(slot) -> int),
-##   place_sink (Callable with MatchNet.submit_place's arguments), line_sink (Callable(line)).
-## Properties go through set() so this file parses against the stub; see the handback boundary.
+## The fuzzer's collaborators are set before add_child, through SoakIntentFuzzer.Seams, as Main does.
 
-const FuzzerScript: GDScript = preload("res://game/debug/SoakIntentFuzzer.gd")
 const _STEP_S: float = 0.01
 const _OWN_SLOT: int = 1
 const _DISC_RADIUS_M: float = 40.0
@@ -22,11 +18,14 @@ var _current_seq: int = 7
 ## One entry per submitted intent: slot, origin, seq, auto_drop, frame, current.
 var _sent: Array[Dictionary] = []
 var _lines: PackedStringArray = PackedStringArray()
+var _playing: bool = true
+var _slot: int = _OWN_SLOT
 
 
 func before_each() -> void:
 	_frame = 0
 	_current_seq = 7
+	_playing = true
 	_sent.clear()
 	_lines.clear()
 
@@ -39,14 +38,18 @@ func _config(rng_seed: int = 8331) -> SoakConfig:
 	return config
 
 
-func _make(config: SoakConfig, slot: int = _OWN_SLOT) -> Node:
-	var fuzzer: Node = FuzzerScript.new()
-	fuzzer.set(&"config", config)
-	fuzzer.set(&"own_slot", slot)
-	fuzzer.set(&"disc_radius_m", _DISC_RADIUS_M)
-	fuzzer.set(&"feed_seq_of", func(_slot: int) -> int: return _current_seq)
-	fuzzer.set(&"place_sink", _on_place)
-	fuzzer.set(&"line_sink", func(line: String) -> void: _lines.append(line))
+func _make(config: SoakConfig, slot: int = _OWN_SLOT) -> SoakIntentFuzzer:
+	_slot = slot
+	var seams: SoakIntentFuzzer.Seams = SoakIntentFuzzer.Seams.new()
+	seams.playing = func() -> bool: return _playing
+	seams.local_slot = func() -> int: return _slot
+	seams.feed_seq = func(_s: int) -> int: return _current_seq
+	seams.field_radius = func() -> float: return _DISC_RADIUS_M
+	seams.submit_place = _on_place
+	seams.line = func(line: String) -> void: _lines.append(line)
+	var fuzzer: SoakIntentFuzzer = SoakIntentFuzzer.new()
+	fuzzer.config = config
+	fuzzer.seams = seams
 	add_child_autofree(fuzzer)
 	return fuzzer
 
@@ -61,7 +64,7 @@ func _on_place(
 	return PlacementRules.REASON_OK
 
 
-func _run(fuzzer: Node, seconds: float) -> void:
+func _run(fuzzer: SoakIntentFuzzer, seconds: float) -> void:
 	for _i: int in roundi(seconds / _STEP_S):
 		_frame += 1
 		simulate(fuzzer, 1, _STEP_S)
@@ -107,27 +110,27 @@ func _batch_sizes() -> Dictionary:
 
 
 func test_nothing_is_sent_before_the_start_delay() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S - 0.05)
 	assert_eq(_sent.size(), 0)
 	assert_eq(_lines.size(), 0)
 
 
 func test_sends_begin_once_the_start_delay_has_passed() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + _INTERVAL_S + 0.05)
 	assert_gt(_sent.size(), 0, "the fuzzer must send after fuzz_start_after_s")
 
 
 func test_batches_arrive_once_per_interval() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S)
 	_run(fuzzer, _INTERVAL_S * 10.0)
 	assert_between(_batch_sizes().size(), 9, 11, "ten intervals give about ten batches")
 
 
 func test_batches_are_at_least_one_interval_apart() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + _INTERVAL_S * 3.0)
 	var frames: Array = _batch_sizes().keys()
 	frames.sort()
@@ -138,7 +141,7 @@ func test_batches_are_at_least_one_interval_apart() -> void:
 
 
 func test_every_intent_is_one_the_host_must_refuse() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + 6.0)
 	assert_gt(_sent.size(), 20, "fixture: enough intents to mean something")
 	for sent: Dictionary in _sent:
@@ -146,7 +149,7 @@ func test_every_intent_is_one_the_host_must_refuse() -> void:
 
 
 func test_no_intent_is_a_legitimate_own_home_placement_at_the_current_seq() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + 3.0)
 	_current_seq = 12
 	_run(fuzzer, 3.0)
@@ -156,7 +159,7 @@ func test_no_intent_is_a_legitimate_own_home_placement_at_the_current_seq() -> v
 
 
 func test_no_intent_is_an_auto_drop() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + 2.0)
 	assert_gt(_sent.size(), 0)
 	for sent: Dictionary in _sent:
@@ -165,7 +168,7 @@ func test_no_intent_is_an_auto_drop() -> void:
 
 func test_a_flood_is_the_configured_multiple_of_the_burst_in_one_tick() -> void:
 	var config: SoakConfig = _config()
-	var fuzzer: Node = _make(config)
+	var fuzzer: SoakIntentFuzzer = _make(config)
 	_run(fuzzer, _START_S + 10.0)
 	var expected: int = ceili(config.fuzz_flood_factor * float(_net_config.flood_place_burst))
 	var floods: int = 0
@@ -177,38 +180,38 @@ func test_a_flood_is_the_configured_multiple_of_the_burst_in_one_tick() -> void:
 
 
 func test_a_seatless_client_sends_nothing() -> void:
-	var fuzzer: Node = _make(_config(), -1)
+	var fuzzer: SoakIntentFuzzer = _make(_config(), -1)
 	_run(fuzzer, _START_S + 2.0)
 	assert_eq(_sent.size(), 0)
 	assert_eq(_lines.size(), 0)
 
 
 func test_the_same_seed_gives_the_same_sequence() -> void:
-	var first: Node = _make(_config(77))
+	var first: SoakIntentFuzzer = _make(_config(77))
 	_run(first, _START_S + 3.0)
 	var first_signature: PackedStringArray = _signature()
 	first.queue_free()
 	before_each()
-	var second: Node = _make(_config(77))
+	var second: SoakIntentFuzzer = _make(_config(77))
 	_run(second, _START_S + 3.0)
 	assert_gt(first_signature.size(), 0)
 	assert_eq(_signature(), first_signature)
 
 
 func test_a_different_seed_gives_a_different_sequence() -> void:
-	var first: Node = _make(_config(77))
+	var first: SoakIntentFuzzer = _make(_config(77))
 	_run(first, _START_S + 3.0)
 	var first_signature: PackedStringArray = _signature()
 	first.queue_free()
 	before_each()
-	var second: Node = _make(_config(78))
+	var second: SoakIntentFuzzer = _make(_config(78))
 	_run(second, _START_S + 3.0)
 	assert_gt(first_signature.size(), 0)
 	assert_ne(_signature(), first_signature)
 
 
 func test_one_fuzz_line_is_logged_for_each_intent_sent() -> void:
-	var fuzzer: Node = _make(_config())
+	var fuzzer: SoakIntentFuzzer = _make(_config())
 	_run(fuzzer, _START_S + 3.0)
 	assert_gt(_sent.size(), 0)
 	assert_eq(_lines.size(), _sent.size(), "logged lines equal sent intents")
@@ -217,9 +220,28 @@ func test_one_fuzz_line_is_logged_for_each_intent_sent() -> void:
 		var tokens: PackedStringArray = line.split(" ")
 		assert_eq(tokens[0], "SOAK_FUZZ")
 		assert_true(tokens.has("role=%s" % _ROLE_CLIENT), line)
-		assert_true(tokens.has("seq=%d" % int(_sent[i]["seq"])), line)
+		assert_true(tokens.has("seq=%d" % (i + 1)), "line counter counts from 1: %s" % line)
 		assert_true(tokens.has("slot=%d" % int(_sent[i]["slot"])), line)
 		var kind_ok: bool = false
 		for kind_name: String in _KIND_NAMES:
 			kind_ok = kind_ok or tokens.has("kind=%s" % kind_name)
 		assert_true(kind_ok, "kind is a SoakFuzzPlan.Kind name: %s" % line)
+
+
+func test_nothing_is_sent_while_the_match_is_not_playing() -> void:
+	_playing = false
+	var fuzzer: SoakIntentFuzzer = _make(_config())
+	_run(fuzzer, _START_S + 2.0)
+	assert_eq(_sent.size(), 0)
+	assert_eq(_lines.size(), 0)
+
+
+func test_the_start_delay_counts_only_playing_time() -> void:
+	_playing = false
+	var fuzzer: SoakIntentFuzzer = _make(_config())
+	_run(fuzzer, 5.0)
+	_playing = true
+	_run(fuzzer, _START_S - 0.05)
+	assert_eq(_sent.size(), 0, "time spent not playing does not count toward the delay")
+	_run(fuzzer, _INTERVAL_S + 0.1)
+	assert_gt(_sent.size(), 0)
