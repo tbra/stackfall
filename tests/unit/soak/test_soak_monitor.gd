@@ -85,7 +85,7 @@ func _ids_of(violations: Array[SoakCheck.Violation]) -> Array[StringName]:
 	return ids
 
 
-func test_block_below_the_kill_plane_is_reported_with_its_body_id() -> void:
+func test_block_below_the_kill_plane_is_reported_with_its_net_id() -> void:
 	await _start_match_with_block()
 	var block: Block = _first_block()
 	assert_not_null(block, "a placed block is tracked by the registry before the monitor looks")
@@ -101,7 +101,7 @@ func test_block_below_the_kill_plane_is_reported_with_its_body_id() -> void:
 			below.append(v)
 	assert_eq(below.size(), 1, "exactly one below-kill-plane violation for one bad block")
 	if below.size() == 1:
-		assert_eq(below[0].subject, str(block.get_instance_id()), "the violation names the body id")
+		assert_eq(below[0].subject, str(block.net_id), "the violation names the block by its net id")
 		assert_lt(below[0].value, below[0].limit, "measured height is under the limit it crossed")
 
 
@@ -140,15 +140,18 @@ func test_sample_now_writes_nothing_to_the_world() -> void:
 	assert_eq(MatchNet.counters.refused_count(0), refused_before, "refused counter unchanged")
 
 
-func test_host_reads_counter_identity_for_non_bot_slots() -> void:
+func test_host_local_slot_is_outside_the_spawn_identity() -> void:
+	# Slot 0 is host-local: its placements go through Match directly, with no gateway counters, so
+	# an accepted-counter mismatch must not be reported for it. A remote-driven slot is not
+	# reachable through the public path without a session peer (boundary, see the handback).
 	await _start_match_with_block()
-	# Accepted intents with no block spawned breaks the M3a identity blocks_placed == accepted + auto_drops.
+	assert_true(Match.slot(0).is_local, "slot 0 is host-local")
 	MatchNet.counters.count_sent(0)
 	MatchNet.counters.count_accepted(0)
 	var monitor: SoakMonitor = _monitor(&"host", 0.0)
 	var found: Array[SoakCheck.Violation] = monitor.sample_now()
-	assert_true(&"authority.spawn_identity" in _ids_of(found),
-		"host reports the spawn identity for slot 0 when accepted intents spawned no block")
+	assert_false(&"authority.spawn_identity" in _ids_of(found),
+		"a host-local slot's placements are not checked against gateway counters")
 
 
 func test_client_role_reports_no_host_only_checks() -> void:
@@ -159,6 +162,7 @@ func test_client_role_reports_no_host_only_checks() -> void:
 		return
 	var kill_y: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).kill_plane_y
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
+	# The same counter mismatch that the host reports for a remote slot must be silent here.
 	MatchNet.counters.count_sent(0)
 	MatchNet.counters.count_accepted(0)
 	var monitor: SoakMonitor = _monitor(&"client", 0.0)
