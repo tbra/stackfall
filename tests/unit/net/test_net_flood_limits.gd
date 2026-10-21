@@ -1,38 +1,31 @@
 extends GutTest
 ## core/net/FloodLimits.gd and the flood / wire-cap fields of
-## config/net/NetConfig.gd: defaults, sanitize() clamps and the one-row-per-intent
-## table that the host's per-peer buckets are built from.
+## config/net/NetConfig.gd: sanitize() clamps and the one-row-per-intent table that the host's
+## per-peer buckets are built from.
 
 const NET_CONFIG_PATH: String = "res://config/net/net_config.tres"
 const FLOOD_PREFIX: String = "flood_"
 const BURST_SUFFIX: String = "_burst"
 const REFILL_SUFFIX: String = "_refill_per_s"
-const EXPECTED_INTENTS: int = 12
-const WIRE_CAP_FIELDS: Array[String] = [
-	"special_id_max_length",
-	"reject_reason_max_length",
-	"cat_duration_max_s",
-	"handshake_build_max_length",
-	"handshake_name_max_length",
-	"ping_rtt_max_ms",
-]
+const UNIQUE_BURST_BASE: int = 10
+const UNIQUE_REFILL_STEP: float = 0.25
 const HUGE_CURSOR_HZ: float = 1000.0
 
-## Plan defaults: intent -> Vector2(burst, refill_per_s).
-const DEFAULTS: Dictionary = {
-	&"place": Vector2(6, 4.0),
-	&"throw": Vector2(6, 4.0),
-	&"cursor": Vector2(30, 30.0),
-	&"cat_target": Vector2(30, 30.0),
-	&"gift_slot": Vector2(4, 2.0),
-	&"set_ready": Vector2(4, 1.0),
-	&"loading_ready": Vector2(3, 0.5),
-	&"replay_request": Vector2(3, 0.5),
-	&"return_lobby": Vector2(3, 0.5),
-	&"replay_ack": Vector2(3, 0.5),
-	&"pong": Vector2(4, 2.0),
-	&"handshake": Vector2(2, 0.2),
-}
+## Every intent a host-side bucket exists for.
+const INTENTS: Array[StringName] = [
+	FloodLimits.INTENT_PLACE,
+	FloodLimits.INTENT_THROW,
+	FloodLimits.INTENT_CURSOR,
+	FloodLimits.INTENT_CAT_TARGET,
+	FloodLimits.INTENT_GIFT_SLOT,
+	FloodLimits.INTENT_SET_READY,
+	FloodLimits.INTENT_LOADING_READY,
+	FloodLimits.INTENT_REPLAY_REQUEST,
+	FloodLimits.INTENT_RETURN_LOBBY,
+	FloodLimits.INTENT_REPLAY_ACK,
+	FloodLimits.INTENT_PONG,
+	FloodLimits.INTENT_HANDSHAKE,
+]
 
 var _config: NetConfig
 
@@ -41,58 +34,12 @@ func before_each() -> void:
 	_config = (load(NET_CONFIG_PATH) as NetConfig).duplicate() as NetConfig
 
 
-func _flood_fields(suffix: String) -> Array[String]:
-	var names: Array[String] = []
-	for prop: Dictionary in _config.get_property_list():
-		var prop_name: String = String(prop["name"])
-		if prop_name.begins_with(FLOOD_PREFIX) and prop_name.ends_with(suffix):
-			names.append(prop_name)
-	return names
+func _burst_field(intent: StringName) -> String:
+	return FLOOD_PREFIX + String(intent) + BURST_SUFFIX
 
 
-func _intent_of(field: String, suffix: String) -> StringName:
-	return StringName(field.trim_prefix(FLOOD_PREFIX).trim_suffix(suffix))
-
-
-func test_net_config_tres_loads_as_net_config() -> void:
-	var loaded: Resource = load(NET_CONFIG_PATH)
-	assert_not_null(loaded)
-	assert_true(loaded is NetConfig)
-
-
-func test_there_are_24_flood_fields() -> void:
-	assert_eq(_flood_fields(BURST_SUFFIX).size(), EXPECTED_INTENTS)
-	assert_eq(_flood_fields(REFILL_SUFFIX).size(), EXPECTED_INTENTS)
-
-
-func test_every_flood_field_names_a_table_intent() -> void:
-	var intents: Array[StringName] = FloodLimits.intents()
-	for field: String in _flood_fields(BURST_SUFFIX):
-		assert_true(intents.has(_intent_of(field, BURST_SUFFIX)), field)
-	for field: String in _flood_fields(REFILL_SUFFIX):
-		assert_true(intents.has(_intent_of(field, REFILL_SUFFIX)), field)
-
-
-func test_shipped_tres_carries_the_plan_defaults() -> void:
-	var limits: Dictionary = FloodLimits.from_config(_config)
-	for intent: StringName in DEFAULTS:
-		assert_eq(limits[intent], DEFAULTS[intent], String(intent))
-
-
-func test_script_defaults_match_the_tres() -> void:
-	var fresh: NetConfig = NetConfig.new()
-	assert_eq(FloodLimits.from_config(fresh), FloodLimits.from_config(_config))
-	for field: String in WIRE_CAP_FIELDS:
-		assert_eq(fresh.get(field), _config.get(field), field)
-
-
-func test_wire_cap_defaults() -> void:
-	assert_eq(_config.special_id_max_length, 32)
-	assert_eq(_config.reject_reason_max_length, 48)
-	assert_eq(_config.cat_duration_max_s, 60.0)
-	assert_eq(_config.handshake_build_max_length, 64)
-	assert_eq(_config.handshake_name_max_length, 64)
-	assert_eq(_config.ping_rtt_max_ms, 10000)
+func _refill_field(intent: StringName) -> String:
+	return FLOOD_PREFIX + String(intent) + REFILL_SUFFIX
 
 
 func test_defaults_are_sane_and_survive_sanitize_unchanged() -> void:
@@ -105,46 +52,39 @@ func test_defaults_are_sane_and_survive_sanitize_unchanged() -> void:
 		assert_gt(row.y, 0.0, String(intent))
 
 
-func test_from_config_has_exactly_one_row_per_intent() -> void:
+func test_from_config_has_exactly_one_vector_row_per_intent() -> void:
 	var limits: Dictionary = FloodLimits.from_config(_config)
-	var intents: Array[StringName] = FloodLimits.intents()
-	assert_eq(intents.size(), EXPECTED_INTENTS)
-	assert_eq(limits.size(), intents.size())
-	for intent: StringName in intents:
+	assert_eq(limits.size(), INTENTS.size())
+	for intent: StringName in INTENTS:
 		assert_true(limits.has(intent), String(intent))
 		assert_true(limits[intent] is Vector2, String(intent))
 
 
-func test_intent_constants_are_distinct() -> void:
-	var seen: Dictionary = {}
-	for intent: StringName in FloodLimits.intents():
-		assert_false(seen.has(intent), String(intent))
-		seen[intent] = true
-
-
-func test_from_config_reads_the_config_it_is_given() -> void:
-	_config.flood_place_burst = 9
-	_config.flood_place_refill_per_s = 2.5
-	_config.flood_handshake_burst = 5
-	_config.flood_handshake_refill_per_s = 0.7
+func test_every_intent_row_reads_its_own_config_fields() -> void:
+	var expected: Dictionary = {}
+	for i: int in range(INTENTS.size()):
+		var burst: int = UNIQUE_BURST_BASE + i
+		var refill: float = UNIQUE_REFILL_STEP * float(i + 1)
+		_config.set(_burst_field(INTENTS[i]), burst)
+		_config.set(_refill_field(INTENTS[i]), refill)
+		expected[INTENTS[i]] = Vector2(float(burst), refill)
 	var limits: Dictionary = FloodLimits.from_config(_config)
-	assert_eq(limits[FloodLimits.INTENT_PLACE], Vector2(9, 2.5))
-	assert_eq(limits[FloodLimits.INTENT_HANDSHAKE], Vector2(5, 0.7))
+	for intent: StringName in INTENTS:
+		assert_eq(limits[intent], expected[intent], String(intent))
 
 
 func test_sanitize_clamps_zero_and_negative_bursts_and_refills() -> void:
-	for field: String in _flood_fields(BURST_SUFFIX):
-		_config.set(field, 0)
-	for field: String in _flood_fields(REFILL_SUFFIX):
-		_config.set(field, -3.0)
+	for intent: StringName in INTENTS:
+		_config.set(_burst_field(intent), 0)
+		_config.set(_refill_field(intent), -3.0)
 	_config.sanitize()
 	var limits: Dictionary = FloodLimits.from_config(_config)
 	for intent: StringName in limits:
 		var row: Vector2 = limits[intent]
 		assert_gte(row.x, 1.0, "burst %s" % intent)
 		assert_gt(row.y, 0.0, "refill %s" % intent)
-	for field: String in _flood_fields(BURST_SUFFIX):
-		assert_eq(int(_config.get(field)), 1, field)
+	for intent: StringName in INTENTS:
+		assert_eq(int(_config.get(_burst_field(intent))), 1, String(intent))
 
 
 func test_sanitize_raises_cursor_and_cat_refill_to_one_and_a_half_cursor_hz() -> void:

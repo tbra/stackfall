@@ -27,6 +27,8 @@ const LAYER_SEED_STEP: int = 7919
 const NOISE_OCTAVES: int = 3
 
 @export var field_path: NodePath
+## The sky whose sun, daylight, wind and seed drive the shadows. Empty means no sky.
+@export var skybox_path: NodePath
 @export var config: CloudShadowConfig = CONFIG
 
 var _decals: Array[Decal] = []
@@ -55,6 +57,8 @@ func _ready() -> void:
 	# Decals and noise textures are only built while enabled (lazily on a preset change).
 	if _enabled:
 		_build_layers()
+	if not skybox_path.is_empty():
+		_skybox = get_node_or_null(skybox_path) as Skybox
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 
@@ -107,10 +111,7 @@ func _process(delta: float) -> void:
 		return
 	_time_s += delta
 	if _skybox == null or not is_instance_valid(_skybox):
-		_skybox = get_tree().get_first_node_in_group(Skybox.OVERCAST_GROUP) as Skybox
-		if _skybox == null:
-			return
-		_time_seeded = false
+		return
 	if not _time_seeded:
 		# Cosmetic start phase from the match's sky variation seed (differs per match, no sync).
 		_time_s = float(absi(hash(_skybox.variation_seed())) % SEED_PHASE_RANGE_S)

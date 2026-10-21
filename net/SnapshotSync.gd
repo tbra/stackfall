@@ -13,9 +13,7 @@ extends Node
 ## transport). Steam's peer carries it unchanged.
 ##
 ## **Wire layout** lives in core/net/SnapshotWire.gd (version, header, flags,
-## fragmentation); the constants and the three statics are re-exported below
-## under their old names because the contract golden, the benches and the tests
-## read them off this script.
+## fragmentation); callers name SnapshotWire directly.
 ##
 ## **Client side** it owns net/Interpolator.gd: buffer, render 100 ms behind
 ## with a jitter-adaptive delay, extrapolate at most 100 ms, and write every
@@ -23,29 +21,10 @@ extends Node
 ## writes fight Godot's own physics interpolation (project.godot has
 ## physics_interpolation on).
 
-## The wire constants, re-exported from core/net/SnapshotWire.gd (the layout
-## and the PACKET_VERSION rule are documented there). @rpc needs the channel as
-## a compile-time constant on this script.
-const PACKET_VERSION: int = SnapshotWire.PACKET_VERSION
-
-const HEADER_BYTES: int = SnapshotWire.HEADER_BYTES
-const DISK_STATE_BYTES: int = SnapshotWire.DISK_STATE_BYTES
-
-const FLAG_DISK_STATE: int = SnapshotWire.FLAG_DISK_STATE
-const FLAG_KEYFRAME: int = SnapshotWire.FLAG_KEYFRAME
-
+## The channel, read from core/net/SnapshotWire.gd (the layout and the
+## PACKET_VERSION rule are documented there). @rpc needs it as a compile-time
+## constant on this script.
 const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
-
-const OFFSET_VERSION: int = SnapshotWire.OFFSET_VERSION
-const OFFSET_SEQUENCE: int = SnapshotWire.OFFSET_SEQUENCE
-const OFFSET_FRAGMENT_INDEX: int = SnapshotWire.OFFSET_FRAGMENT_INDEX
-const OFFSET_FRAGMENT_COUNT: int = SnapshotWire.OFFSET_FRAGMENT_COUNT
-const OFFSET_HOST_TIME: int = SnapshotWire.OFFSET_HOST_TIME
-const OFFSET_FLAGS: int = SnapshotWire.OFFSET_FLAGS
-const OFFSET_BODY_COUNT: int = SnapshotWire.OFFSET_BODY_COUNT
-
-const SEQUENCE_MODULUS: int = SnapshotWire.SEQUENCE_MODULUS
-const MAX_FRAGMENTS: int = SnapshotWire.MAX_FRAGMENTS
 
 @export var config: NetConfig = preload("res://config/net/net_config.tres")
 
@@ -73,9 +52,9 @@ const SESSION_METHODS: PackedStringArray = ["is_host", "is_client", "is_offline"
 ## matter.
 var _bodies: Dictionary = {}
 
-## net_id (int) -> [position: Vector3, rotation: Quaternion], what each body
-## looked like the last time it went out, for the resend epsilon test.
-var _last_sent: Dictionary = {}
+## The resend decision for sleeping bodies: what each body looked like the last
+## time it went out, and whether the disc moved. Rebuilt per match with the live config.
+var _selector: SnapshotSelector = SnapshotSelector.new()
 
 var _send_accumulator: float = 0.0
 var _sequence: int = 0
@@ -91,6 +70,8 @@ func sky_cycle_seconds() -> float:
 		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
 	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
+## Cumulative snapshot bytes since begin_match(): sent (host) or applied (client).
+var _snapshot_bytes_total: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
 ## Peer ids seen last tick (sorted); a new id forces a full snapshot even
@@ -101,6 +82,7 @@ var _disk: Node3D = null
 # --- Client state -----------------------------------------------------------
 
 var _interpolator: Interpolator = null
+var _pose: Interpolator.Pose = Interpolator.Pose.new()
 var _last_noted_sequence: int = -1
 var _stats_accumulator: float = 0.0
 
@@ -135,6 +117,7 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 	end_match()
 	_registry = registry
 	_bounds = config.position_bounds(map_def)
+	_selector = SnapshotSelector.new(config)
 	_running = true
 	_sequence = 0
 	_host_clock_ms = 0.0
@@ -169,9 +152,10 @@ func end_match() -> void:
 	if Events.block_replicated.is_connected(_on_block_replicated):
 		Events.block_replicated.disconnect(_on_block_replicated)
 	_running = false
+	_snapshot_bytes_total = 0
 	_registry = null
 	_bodies.clear()
-	_last_sent.clear()
+	_selector.reset()
 	if _disk_smoother != null:
 		_disk_smoother.reset()
 	_disk_smoother = null
@@ -187,12 +171,17 @@ func is_running() -> bool:
 	return _running
 
 
+## Cumulative snapshot bytes this match: sent on the host, applied on a client.
+func snapshot_bytes_total() -> int:
+	return _snapshot_bytes_total
+
+
 ## Host only: makes the next snapshot carry every body, the
 ## same thing a newly connected peer id triggers in host_tick(). net/MatchNet.gd
 ## calls it once a mid-match joiner acknowledges its world replay: the joiner
 ## connected (and was "new" here) before it had a world to apply snapshots to.
 func request_full_snapshot() -> void:
-	_last_sent.clear()
+	_selector.reset()
 
 
 ## The disk, so its tilt can ride every snapshot (spec 2.6 "Disk state"). Main
@@ -232,7 +221,7 @@ func host_tick(delta: float) -> void:
 		# mid-match join, reconnect) carries every body, not just movers.
 		_known_peer_count = 0
 		_known_peers = PackedInt32Array()
-		_last_sent.clear()
+		_selector.reset()
 		_last_snapshot_bytes = 0
 		_send_accumulator = 0.0
 		return
@@ -242,7 +231,7 @@ func host_tick(delta: float) -> void:
 			has_new_peer = true
 			break
 	if has_new_peer:
-		_last_sent.clear()
+		_selector.reset()
 		_send_accumulator = 1.0 / maxf(config.snapshot_hz, 1.0)
 	_known_peer_count = peer_count
 	_known_peers = peers
@@ -256,17 +245,18 @@ func host_tick(delta: float) -> void:
 
 	var selection: Dictionary = _select_bodies()
 	var bodies: Array = selection["bodies"] as Array
-	var flags: int = FLAG_DISK_STATE
+	var flags: int = SnapshotWire.FLAG_DISK_STATE
 	if bool(selection["keyframe"]):
-		flags |= FLAG_KEYFRAME
+		flags |= SnapshotWire.FLAG_KEYFRAME
 
-	_sequence = (_sequence + 1) % SEQUENCE_MODULUS
-	var packets: Array[PackedByteArray] = build_snapshot(
+	_sequence = (_sequence + 1) % SnapshotWire.SEQUENCE_MODULUS
+	var packets: Array[PackedByteArray] = SnapshotWire.build_snapshot(
 		_sequence, int(_host_clock_ms), flags, bodies, _disk_transform(), _bounds, config
 	)
 	_last_snapshot_bytes = 0
 	for packet: PackedByteArray in packets:
 		_last_snapshot_bytes += packet.size()
+	_snapshot_bytes_total += _last_snapshot_bytes
 	_remember_sent(bodies)
 
 	for packet: PackedByteArray in packets:
@@ -307,27 +297,25 @@ func client_tick(delta: float) -> void:
 	if _disk_smoother != null:
 		_disk_smoother.decay(delta * 1000.0)
 
-	for net_id: int in _interpolator.tracked_ids():
+	for net_id: int in _interpolator.active_ids():
 		var block: BlockBody = _registry.call("block_for_net_id", net_id) as BlockBody if _registry != null else null
 		if block == null or not is_instance_valid(block):
 			continue
 		freeze_body(block)
-		var pose: Dictionary = _interpolator.sample_at_render_time(net_id)
-		if not bool(pose["ok"]):
+		if not _interpolator.pose_into(net_id, _pose):
 			continue
 		# Writing global_transform here and nowhere else is the whole trick:
 		# physics_interpolation smooths this 30 Hz stream up to the display rate
-		# by itself, and a write from _process would fight it.
-		block.global_transform = Transform3D(
-			Basis(pose["rotation"] as Quaternion), pose["position"] as Vector3
-		)
+		# by itself, and a write from _process would fight it. A body that comes
+		# to rest drops out of active_ids() after this tick's write.
+		block.global_transform = Transform3D(Basis(_pose.rotation), _pose.position)
 		# The "contributing to territory influence" glow
 		# (Block.set_contributing_visual()) is driven from here too: this body is
 		# frozen kinematic (freeze_body() above) and never sleeps for real on a
 		# client, so BlockFactory.build()'s sleeping_state_changed hook never
 		# fires. The newest buffered sample's sleeping flag is applied every tick;
 		# Block's own change-guard keeps identical values cheap.
-		block.set_contributing_visual(bool(pose["sleeping"]))
+		block.set_contributing_visual(_pose.sleeping)
 
 	# the disk rides every snapshot the same way a body does
 	# (spec 2.6 "Disk state ... sent every snapshot"), so it gets the same
@@ -382,42 +370,6 @@ static func freeze_body(body: RigidBody3D) -> void:
 	body.angular_velocity = Vector3.ZERO
 
 
-# --- Wire (pure forwarders to core/net/SnapshotWire.gd) ----------------------
-
-## See SnapshotWire.encode_fragment().
-static func encode_fragment(
-	sequence: int,
-	fragment_index: int,
-	fragment_count: int,
-	host_time_ms: int,
-	flags: int,
-	bodies: Array,
-	disk_transform: Transform3D,
-	bounds: AABB
-) -> PackedByteArray:
-	return SnapshotWire.encode_fragment(
-		sequence, fragment_index, fragment_count, host_time_ms, flags, bodies, disk_transform, bounds
-	)
-
-
-## See SnapshotWire.decode_fragment().
-static func decode_fragment(packet: PackedByteArray, bounds: AABB) -> Dictionary:
-	return SnapshotWire.decode_fragment(packet, bounds)
-
-
-## See SnapshotWire.build_snapshot().
-static func build_snapshot(
-	sequence: int,
-	host_time_ms: int,
-	flags: int,
-	bodies: Array,
-	disk_transform: Transform3D,
-	bounds: AABB,
-	net_config: NetConfig
-) -> Array[PackedByteArray]:
-	return SnapshotWire.build_snapshot(sequence, host_time_ms, flags, bodies, disk_transform, bounds, net_config)
-
-
 # --- RPC --------------------------------------------------------------------
 
 ## Host -> clients. Unreliable on config.snapshot_channel; the sequence number
@@ -459,9 +411,10 @@ func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 # --- Internals --------------------------------------------------------------
 
 func _apply_packet(packet: PackedByteArray) -> void:
-	var fragment: Dictionary = decode_fragment(packet, _bounds)
+	var fragment: Dictionary = SnapshotWire.decode_fragment(packet, _bounds)
 	if fragment.is_empty():
 		return
+	_snapshot_bytes_total += packet.size()
 
 	var sequence: int = int(fragment["sequence"])
 	var host_time_ms: int = int(fragment["host_time_ms"])
@@ -470,7 +423,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 		_last_noted_sequence = sequence
 		_interpolator.note_snapshot(sequence, host_time_ms, now())
 
-	if (int(fragment["flags"]) & FLAG_DISK_STATE) != 0:
+	if (int(fragment["flags"]) & SnapshotWire.FLAG_DISK_STATE) != 0:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
 		_disk_smoother.push_sample(
 			host_time_ms, disk_transform.origin, disk_transform.basis.get_rotation_quaternion()
@@ -551,34 +504,60 @@ func _remote_peers() -> PackedInt32Array:
 func _select_bodies() -> Dictionary:
 	var awake_or_moved: Array = []
 	var sleepers: Array[BlockBody] = []
+	var saw_freed: bool = false
+	_selector.begin_tick(_disk_transform())
 
-	for key: Variant in _bodies.keys():
-		var held: Variant = _bodies[key]
-		if held == null or not is_instance_valid(held):
-			_bodies.erase(key)
+	# This loop visits every body every snapshot, so an unchanged sleeper costs
+	# only its sleep flag and one needs_check: its pose is read (and its carrier
+	# re-posed) only when it is awake, drift-tested or recorded.
+	for held: Variant in _bodies.values():
+		if not is_instance_valid(held):
+			saw_freed = true
 			continue
 		var block: BlockBody = held as BlockBody
-		if block.net_id <= 0:
+		var net_id: int = block.net_id
+		if net_id <= 0:
 			continue
-		# An anchored group's followers must be posed from the disc of THIS tick before they
-		# are recorded (the carrier's own tick runs after this node).
-		var carrier: RigidBody3D = block.fused_carrier()
-		if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
-			carrier.call(&"refresh_anchor_pose")
-		if not block.net_sleeping() or _moved_since_sent(block):
+		var sleeping: bool = block.net_sleeping()
+		# SHORTCUT: a sleeping body that moved with no disc change and no sleep flip (a teleport or anchored-group pose edit that leaves it asleep) is resent only by its keyframe slice, upgrade when a playtest or the session-close soak shows a stale sleeper
+		if sleeping and not _selector.needs_check(net_id, sleeping):
+			sleepers.append(block)
+			continue
+		_refresh_carrier_pose(block)
+		if not sleeping or _selector.moved_since_sent(
+			net_id, block.global_position, block.global_basis.get_rotation_quaternion()
+		):
 			awake_or_moved.append(_record(block))
 		else:
 			sleepers.append(block)
+	if saw_freed:
+		_drop_freed_bodies()
 
 	var slice: int = mini(keyframe_slice_for(sleepers.size(), config), sleepers.size())
 	var keyframe: bool = slice > 0
 	for step: int in range(slice):
 		var block: BlockBody = sleepers[(_keyframe_cursor + step) % sleepers.size()]
+		_refresh_carrier_pose(block)
 		awake_or_moved.append(_record(block))
 	if not sleepers.is_empty():
 		_keyframe_cursor = (_keyframe_cursor + slice) % sleepers.size()
 
 	return {"bodies": awake_or_moved, "keyframe": keyframe}
+
+
+## An anchored group's followers must be posed from the disc of THIS tick before
+## their pose is read (the carrier's own tick runs after this node). The carrier
+## re-poses at most once per physics frame however many followers ask.
+func _refresh_carrier_pose(block: BlockBody) -> void:
+	var carrier: RigidBody3D = block.fused_carrier()
+	if carrier != null and carrier.has_method(&"refresh_anchor_pose"):
+		carrier.call(&"refresh_anchor_pose")
+
+
+func _drop_freed_bodies() -> void:
+	for key: Variant in _bodies.keys():
+		if not is_instance_valid(_bodies[key]):
+			_bodies.erase(key)
 
 
 func _record(block: BlockBody) -> Dictionary:
@@ -590,26 +569,15 @@ func _record(block: BlockBody) -> Dictionary:
 	}
 
 
-## True when a sleeping body drifted past config.resend_position_epsilon or
-## resend_angle_epsilon since it was last sent, so a body that only wobbled
-## inside its own quantization bucket never costs a packet.
-func _moved_since_sent(block: BlockBody) -> bool:
-	var previous: Variant = _last_sent.get(block.net_id)
-	if previous == null:
-		return true
-	var state: Array = previous as Array
-	var last_position: Vector3 = state[0] as Vector3
-	if block.global_position.distance_to(last_position) > config.resend_position_epsilon:
-		return true
-	var last_rotation: Quaternion = state[1] as Quaternion
-	var current: Quaternion = block.global_basis.get_rotation_quaternion()
-	return rad_to_deg(current.angle_to(last_rotation)) > config.resend_angle_epsilon
-
-
 func _remember_sent(bodies: Array) -> void:
 	for entry: Variant in bodies:
 		var body: Dictionary = entry as Dictionary
-		_last_sent[int(body["net_id"])] = [body["position"], body["rotation"]]
+		_selector.remember_sent(
+			int(body["net_id"]),
+			body["position"] as Vector3,
+			body["rotation"] as Quaternion,
+			bool(body["sleeping"])
+		)
 
 
 func _disk_transform() -> Transform3D:
@@ -641,6 +609,6 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
-	_last_sent.erase(typed.net_id)
+	_selector.forget(typed.net_id)
 	if _interpolator != null:
 		_interpolator.forget(typed.net_id)

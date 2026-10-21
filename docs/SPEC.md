@@ -222,6 +222,8 @@ Bots run only on the host and spread thinking across physics ticks under a per-f
 | Gift claim scale | 0.25 | 1.0 | 1.0 |
 | Threat lookahead | 0 m | 0 m | 3 m |
 
+A stacking placement must keep every centre-of-mass margin (the new piece over its support, and the combined load above each level over the level below) larger than the tier's aim noise times `aim_margin_share` (`config/bots/bot_stack_tuning.tres`, shipped 1.0, adjustable from the F4 tuning panel). At 1.0 a bot's own aim error never topples its tower in calm conditions; lower tiers instead find fewer stable sites and build wider and lower (Easy cannot place on a single-cube top).
+
 ### 1.9 Match settings
 
 Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig.sanitize()` on every config the host adopts).
@@ -410,7 +412,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 - `net_request_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)`: the host ignores `auto_drop` from the wire (only the host's own timer may relocate); a negative `feed_seq` is refused.
 - `net_request_throw(slot_id, origin, orientation_index, free_quat, velocity, feed_seq)`: `velocity` carries the camera forward; the host validates and normalizes it and derives the launch from `core/gifts/GiftAim.gd`.
 - `net_request_use_gift_slot`, `net_update_cursor` (unreliable, `cursor_hz` = 15, includes aim), `net_cat_target`, `net_request_replay`, `net_request_return_to_lobby`.
-- Lobby and session intents: handshake, ready, loading ready, seat preference (color and team, rate-limited), chat submit, pong.
+- Lobby and session intents: handshake, ready, loading ready, seat preference (color and team, rate-limited), chat submit, pong. Every one is accepted only from a known (roster or seated) peer and passes a per-peer flood limit (`NetConfig` buckets); per-peer limiter state is dropped when the peer leaves, is kicked or disconnects, so a never-handshaked peer allocates nothing.
 
 **Intent checks.** The host checks the match state, slot range, `feed_seq` (a replay or a double click is refused), the seat's home alive, the turn gate, the held piece, the one-release-per-interval lock, then pose well-formedness and placement legality (§1.4). Refused deliberate placements consume nothing.
 
@@ -420,7 +422,8 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 - Sent at `snapshot_hz` = 30 as unreliable packets of at most `max_packet_bytes` = 1200, split into independently decodable fragments (78 bodies each).
 - Header 12 bytes (version, u16 sequence, fragment index and count, u32 host time in ms, flags, body count); the first fragment of a snapshot adds a 12-byte disc state (quantized offset and tilt quaternion).
 - Body record 15 bytes: u24 `net_id`, position as three u16 over the match's position bounds (about 2 mm in X/Z; Y spans `pos_min_y` −48 to the Reach the Sky target plus margin, about 3 mm), rotation as a 48-bit smallest-three quaternion with a sleeping flag.
-- Only awake or changed bodies are sent (resend epsilons 5 mm and 0.5°); a full keyframe every `keyframe_interval` = 2 s covers sleeping bodies.
+- Only awake or changed bodies are sent (resend epsilons 5 mm and 0.5°, measured against the last *sent* pose); a full keyframe every `keyframe_interval` = 2 s covers sleeping bodies. The host drift-tests a sleeping body only when it was never sent, its sleep flag changed since it was last sent, or the disc moved this tick (`core/net/SnapshotSelector.gd`); a sleeping body moved with none of those is resent by its keyframe slice.
+- Clients interpolate only active bodies: a body rests once its newest sample is asleep, render time has passed it and its correction offset has decayed; its transform is written once on entering rest, and an awake or moved sample makes it active again.
 
 **Interpolation** (`net/Interpolator.gd`): render `base_interp_delay_ms` = 100 ms behind the host (adapting between 50 and 300 ms to jitter), interpolate between surrounding snapshots, extrapolate at most 100 ms. Clients write transforms in `_physics_process` so they do not fight physics interpolation.
 
@@ -428,7 +431,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Impacts.** The host batches block impact events (`core/net/ImpactWire.gd`, `impact_batch_hz` 30, rate-limited) so clients can play impact sounds and puffs.
 
-**Late join and reconnect.** A peer that drops keeps its seat for `disconnect_grace`; rejoining with its token (`REJOIN_TOKEN_BYTES` 16) inside that window restores it. With `allow_mid_match_join` on, the host admits a new peer mid-match (an open human seat, else a spectator) and replays the world to it in chunks (bodies, territory, match state) with an acknowledgement (`replay_ack_timeout` 15 s). With it off the match is lobby-only.
+**Late join and reconnect.** A peer that drops keeps its seat for `disconnect_grace`; rejoining with its token (`REJOIN_TOKEN_BYTES` 16) inside that window restores it. With `allow_mid_match_join` on, the host admits a new peer mid-match (an open human seat, else a spectator) and replays the world to it in chunks (bodies, territory, match state) with an acknowledgement (`replay_ack_timeout` 15 s; a joiner that never acks is kicked once). The ack is rate-limited per peer, and the joiner's intents are refused until it has acked. With it off the match is lobby-only.
 
 **Network simulation.** `NetConfig.sim_lag_ms`, `sim_jitter_ms`, `sim_loss` and the preset values add artificial lag, jitter and loss for testing (`core/net/NetSim.gd`).
 

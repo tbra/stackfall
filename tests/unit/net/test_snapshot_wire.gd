@@ -5,9 +5,7 @@ extends GutTest
 ## "tag each with a sequence number". The wire is pure by design so the whole
 ## format is asserted without a peer, a registry or a scene tree. The fixtures
 ## below were captured from the pre-move SnapshotSync statics, so they prove
-## the move left the bytes identical; net/SnapshotSync.gd keeps forwarders and
-## re-exported constants (the golden and the benches read them) and a test pins
-## those to the wire.
+## the move left the bytes identical.
 ##
 ## SnapshotSync has no `class_name` (it is an autoload), so the live-client
 ## tests at the bottom reach it through an instance built from the script.
@@ -163,36 +161,6 @@ func test_the_pre_move_fixture_decodes_to_its_inputs() -> void:
 	assert_eq(int(((decoded["bodies"] as Array)[2] as Dictionary)["net_id"]), 71954)
 
 
-# --- SnapshotSync keeps the old names ------------------------------------------
-
-func test_snapshot_sync_reexports_the_wire_constants_and_statics() -> void:
-	var sync_constants: Dictionary = (load("res://net/SnapshotSync.gd") as GDScript).get_script_constant_map()
-	var wire_constants: Dictionary = (load("res://core/net/SnapshotWire.gd") as GDScript).get_script_constant_map()
-	for name: String in [
-		"PACKET_VERSION", "HEADER_BYTES", "DISK_STATE_BYTES", "FLAG_DISK_STATE", "FLAG_KEYFRAME",
-		"SNAPSHOT_CHANNEL", "OFFSET_VERSION", "OFFSET_SEQUENCE", "OFFSET_FRAGMENT_INDEX",
-		"OFFSET_FRAGMENT_COUNT", "OFFSET_HOST_TIME", "OFFSET_FLAGS", "OFFSET_BODY_COUNT",
-		"SEQUENCE_MODULUS", "MAX_FRAGMENTS",
-	]:
-		assert_true(sync_constants.has(name), "SnapshotSync still exposes %s" % name)
-		assert_eq(sync_constants.get(name), wire_constants.get(name), "%s equals the wire's" % name)
-
-	var bodies: Array = _fixture_bodies().slice(0, 3)
-	var via_sync: PackedByteArray = _sync.call(
-		"encode_fragment", 4242, 1, 3, 123456789, 3, bodies, _fixture_disk(), _bounds
-	) as PackedByteArray
-	assert_eq(via_sync.hex_encode(), FIXTURE_SMALL_DISK_HEX, "the forwarder gives the base bytes")
-	assert_eq(
-		_sync.call("decode_fragment", via_sync, _bounds),
-		SnapshotWire.decode_fragment(via_sync, _bounds),
-		"the decode forwarder agrees with the wire"
-	)
-	var via_sync_build: Array = _sync.call(
-		"build_snapshot", 9, 5000, 3, _fixture_bodies(), _fixture_disk(), _bounds, _config
-	) as Array
-	assert_eq(via_sync_build.size(), FIXTURE_BUILD_SIZES.size(), "the build forwarder fragments the same")
-
-
 # --- Header -----------------------------------------------------------------
 
 # --- Disk state -------------------------------------------------------------
@@ -322,7 +290,7 @@ func test_an_inbound_packet_reaches_the_interpolator() -> void:
 	_sync.call("receive_packet", packet)
 
 	var interp: Interpolator = _sync.get("_interpolator") as Interpolator
-	assert_true(Array(interp.tracked_ids()).has(block.net_id), "the sample was buffered")
+	assert_true(interp.pose_into(block.net_id, Interpolator.Pose.new()), "the sample was buffered")
 	assert_eq(interp.dropped_unknown_count(), 0, "and nothing was dropped")
 
 
@@ -341,5 +309,5 @@ func test_a_sample_for_an_unspawned_body_is_dropped_and_counted() -> void:
 
 	var interp: Interpolator = _sync.get("_interpolator") as Interpolator
 	assert_eq(interp.dropped_unknown_count(), 1, "the unknown body was counted")
-	assert_false(Array(interp.tracked_ids()).has(4242), "and buffered nothing")
+	assert_false(interp.pose_into(4242, Interpolator.Pose.new()), "and buffered nothing")
 

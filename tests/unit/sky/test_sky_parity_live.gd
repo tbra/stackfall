@@ -141,9 +141,23 @@ static func _apply_sun_scale(rig: Rig, scale: float) -> void:
 	rig.skybox.set_sun_cloud_scale(scale)
 
 
+## The real Events.match_scope_reset emit, delivered to `target` only: the process-wide handlers
+## (WeatherPresenter.clear_now resets the shared weather-fog statics after which the dome's
+## deduplicated haze is not pushed again) would otherwise change what this golden pins.
+static func _emit_match_scope_reset_to(target: Node) -> void:
+	var others: Array[Dictionary] = []
+	for connection: Dictionary in Events.match_scope_reset.get_connections():
+		var callable: Callable = connection["callable"] as Callable
+		if callable.get_object() != target:
+			others.append(connection)
+			Events.match_scope_reset.disconnect(callable)
+	Events.match_scope_reset.emit()
+	for connection: Dictionary in others:
+		Events.match_scope_reset.connect(connection["callable"] as Callable, int(connection["flags"]))
+
+
 static func _flush(rig: Rig) -> void:
-	if rig.skybox.has_method(&"flush_weather"):
-		rig.skybox.call(&"flush_weather")
+	SkyTestKit.settle(rig.skybox)
 
 
 ## One frame of the real `_process` with `delta` seconds; the radiance tick lands when the
@@ -166,7 +180,7 @@ static func _probe_lighting(rig: Rig) -> Object:
 
 static func _probe_puff_material(rig: Rig) -> ShaderMaterial:
 	var sea: CloudSea = rig.skybox.get_node_or_null("CloudSea") as CloudSea
-	return sea.puff_material() if sea != null else null
+	return SkyTestKit.puff_material(sea) if sea != null else null
 
 
 static func _probe_fog_volume(rig: Rig) -> FogVolume:
@@ -261,7 +275,7 @@ static func dump(rig: Rig) -> Dictionary:
 	out["facade"] = {
 		"phase": rig.skybox.current_cycle_phase(), "locked": rig.skybox.locked_phase(),
 		"sun_direction": _enc(rig.skybox.sun_direction()), "daylight": rig.skybox.daylight(),
-		"cloud_overcast": rig.skybox.cloud_overcast_amount(),
+		"cloud_overcast": (_probe_lighting(rig) as CloudLighting).overcast,
 	}
 	return out
 
@@ -350,14 +364,14 @@ static func capture_all(host: Node) -> Dictionary:
 	Settings.set_graphics_preset(PRESET_HIGH)
 	_snap(states, "W_preset_low_to_high_0.25", preset_rig)
 	_free_rig(preset_rig)
-	# W: a storm match, reset_to_launch, then a new match locked at sunset
+	# W: a storm match, the match-scope reset, then a new match locked at sunset
 	var match_rig: Rig = _make_rig(host, PRESET_HIGH)
 	match_rig.skybox.configure_match_sky(_match_config(MatchConfig.SkyThemeMode.NIGHT, AURORA_SEED))
 	_snap(states, "W_match_night_aurora_seed", match_rig)
 	_apply_storm(match_rig, 0.5)
 	_flush(match_rig)
 	_snap(states, "W_match_night_storm", match_rig)
-	match_rig.skybox.reset_to_launch()
+	_emit_match_scope_reset_to(match_rig.skybox)
 	_snap(states, "W_after_reset", match_rig)
 	match_rig.skybox.configure_match_sky(_match_config(MatchConfig.SkyThemeMode.DAY, SkyVariation.DEFAULT_SEED))
 	_snap(states, "W_after_reset_sunset_match", match_rig)

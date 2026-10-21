@@ -69,12 +69,11 @@ func test_phase_sweep_swaps_exactly_once_at_dusk_and_once_at_dawn() -> void:
 	var life: AmbientLife = _built()
 	var def: SkyCycleDef = _def()
 	_configure_by_signal(def)
-	var clear: SkyWeatherState = SkyWeatherState.new()
 	var swaps: Array[bool] = []
 	var was_night: bool = false
 	for step: int in range(SWEEP_STEPS + 1):
 		var phase: float = fposmod(SWEEP_START_PHASE + float(step) / float(SWEEP_STEPS), 1.0)
-		var frame: SkyFrame = SkyEvaluator.evaluate(def, phase, SkyVariation.seed_for(SWEEP_SEED), 0, clear, true)
+		var frame: SkyFrame = SkyEvaluator.evaluate_tick(def, phase, SkyVariation.seed_for(SWEEP_SEED), 0, true)
 		Events.sky_time_of_day_changed.emit(phase, frame.night)
 		if life._is_night != was_night:
 			was_night = life._is_night

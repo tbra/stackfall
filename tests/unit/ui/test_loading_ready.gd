@@ -182,8 +182,6 @@ func test_client_ignores_malformed_or_host_side_gate_snapshots() -> void:
 	Events.loading_ready_changed.connect(on_set)
 	var session: FakeNet = FakeNet.client(1)
 	var client_net: MatchNetScript = _make_wire_net(session)
-	client_net._on_net_mode_changed(Net.Mode.CLIENT)
-	client_net._awaiting_match_start = false
 	var event: StringName = MatchNetScript.EVENT_LOADING_GATE
 	client_net.net_match_event(event, [])
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2])])

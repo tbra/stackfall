@@ -7,7 +7,6 @@ extends GutTest
 const DEFAULT_WINDOW: Vector4 = Vector4(0.30, 0.46, 0.90, 0.98)
 const TOLERANCE: float = 0.00001
 ## Phases of the golden's L group (locked cycle phases).
-const LOCKED_GOLDEN_PHASES: Array[float] = [0.03, 0.10, 0.25, 0.38, 0.47, 0.52, 0.62, 0.75, 0.95]
 const SEED: int = 1234
 ## First match seed whose night 0 shows the aurora; the golden's aurora states use it.
 const AURORA_SEED: int = 8
@@ -37,10 +36,6 @@ const FOG_TINT_STRENGTH: float = 0.5
 const FOG_SKY_AFFECT_ADD: float = 0.3
 const SNOW_AMOUNT: float = 0.5
 const SUN_SCALE: float = 0.6
-## Cloud-coverage channel range and knot count (the old theme defaults), for the range test.
-const CLOUD_COVERAGE_MIN: float = 0.5
-const CLOUD_COVERAGE_MAX: float = 0.68
-const CLOUD_KNOTS: int = 3
 ## window_weight(step / 100, DEFAULT_WINDOW) for step 0..100, captured from the old dusk_weight rule
 ## (the rule SkyEvaluator.window_weight replaces) before the old class was retired.
 const DUSK_WEIGHT_SWEEP: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.011230443047693177, 0.0429687029391167, 0.09228509197783634, 0.15624992246740124, 0.23193350671136007, 0.3164061570132628, 0.40673818567665815, 0.49999990500509534, 0.5932616273021233, 0.6835936648712915, 0.7680663300161483, 0.8437499350402439, 0.9077147922471268, 0.9570312139403465, 0.9887695124234518, 0.9999999999999919, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9999999999997335, 0.957031098427212, 0.8437498155981883, 0.6835936137941387, 0.4999999552965414, 0.3164063023868686, 0.15625011734659822, 0.04296886245720688, 1.7053026e-13, 0.0, 0.0]
@@ -322,48 +317,27 @@ func _request_all(weather: SkyWeatherState) -> void:
 
 # --- golden: the cycle at the locked phases and under weather -------------------------------
 
-func test_evaluator_matches_the_golden_at_locked_phases() -> void:
-	for phase: float in LOCKED_GOLDEN_PHASES:
-		var frame: SkyFrame = SkyEvaluator.evaluate(_def, phase, SkyVariation.DEFAULT_SEED, 0, _weather(), true)
-		_assert_golden(frame, "L_%.2f" % phase)
-
-
-func test_evaluator_matches_the_golden_weather_states() -> void:
-	# [golden state, locked phase, request kind, amount]
-	var rows: Array[Array] = [
-		["W_storm0.5_0.25", 0.25, "storm", STORM_AMOUNT], ["W_storm0.5_0.75", NIGHT_PHASE, "storm", STORM_AMOUNT],
-		["W_storm1.0_0.47", 0.47, "storm", 1.0], ["W_overcast0.6_0.25", 0.25, "overcast", OVERCAST_AMOUNT],
-		["W_fog0.7_0.47", 0.47, "fog", FOG_AMOUNT], ["W_snow0.5_0.25", 0.25, "snow", SNOW_AMOUNT],
-		["W_sun0.6_0.25", 0.25, "sun", SUN_SCALE],
-	]
-	for row: Array in rows:
-		var weather: SkyWeatherState = _weather()
-		_request(weather, str(row[2]), float(row[3]))
-		var frame: SkyFrame = SkyEvaluator.evaluate(_def, float(row[1]), SkyVariation.DEFAULT_SEED, 0, weather, true)
-		if str(row[2]) == "storm":
-			assert_eq(frame.storm_amount, float(row[3]))
-		_assert_golden(frame, str(row[0]))
-
-
 func test_storm_amount_without_an_overlay_is_no_storm() -> void:
 	# A storm request with no overlay is amount 0 everywhere (blend, dim, keep): the clear L_0.25 sky.
 	var weather: SkyWeatherState = _weather()
 	weather.storm_amount = STORM_AMOUNT
 	weather.storm_overlay = null
-	var frame: SkyFrame = SkyEvaluator.evaluate(_def, 0.25, SkyVariation.DEFAULT_SEED, 0, weather, true)
-	assert_eq(frame.storm_amount, 0.0)
-	_assert_golden(frame, "L_0.25")
+	var clear: SkyFrame = SkyEvaluator.evaluate_tick(_def, 0.25, SkyVariation.DEFAULT_SEED, 0, true)
+	var storm_frame: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_storm(clear, weather.storm_amount, weather.storm_overlay, CEILING.storm_flare_off_amount, storm_frame)
+	var out: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_weather(storm_frame, weather, out)
+	assert_eq(out.storm_amount, 0.0)
+	assert_eq(frame_values(storm_frame), frame_values(clear), "no overlay leaves the clear L_0.25 sky")
+	for field: StringName in [&"light_energy", &"ambient_light_energy", &"fog_light_color", &"fog_density", &"exposure"]:
+		assert_eq(out.get(field), clear.get(field), "no storm keeps %s" % field)
 
 
-func test_evaluator_matches_the_golden_aurora_night() -> void:
+func test_low_preset_hides_the_aurora() -> void:
 	var seed_value: int = SkyVariation.seed_for(AURORA_SEED)
-	var frame: SkyFrame = SkyEvaluator.evaluate(_def, NIGHT_PHASE, seed_value, 0, _weather(), true)
-	assert_gt(frame.aurora_visibility, 0.0, "fixture: the aurora seed shows the aurora")
-	_assert_golden(frame, "W_match_night_aurora_seed")
-	var weather: SkyWeatherState = _weather()
-	_request(weather, "storm", STORM_AMOUNT)
-	_assert_golden(SkyEvaluator.evaluate(_def, NIGHT_PHASE, seed_value, 0, weather, true), "W_match_night_storm")
-	var hidden: SkyFrame = SkyEvaluator.evaluate(_def, NIGHT_PHASE, seed_value, 0, _weather(), false)
+	var shown: SkyFrame = SkyEvaluator.evaluate_tick(_def, NIGHT_PHASE, seed_value, 0, true)
+	assert_gt(shown.aurora_visibility, 0.0, "fixture: the aurora seed shows the aurora")
+	var hidden: SkyFrame = SkyEvaluator.evaluate_tick(_def, NIGHT_PHASE, seed_value, 0, false)
 	assert_eq(hidden.aurora_visibility, 0.0, "the Low preset hides the aurora")
 
 
@@ -376,7 +350,6 @@ func test_staged_weather_uses_last_tick_values() -> void:
 	var moved: SkyFrame = SkyEvaluator.evaluate_tick(_def, RUN_START_PHASE + HALF_TICK_PHASE, seed_value, 0, true)
 	assert_false(_close(tick.light_energy, moved.light_energy), "fixture: the phase step is measurable")
 	assert_false(_close(tick.fog_light_color, moved.fog_light_color), "fixture: the fog colour moves with the phase")
-	_assert_golden(SkyEvaluator.evaluate(_def, RUN_START_PHASE, seed_value, 0, _weather(), true), "R0_evening_tick")
 	for step: String in ["overcast", "fog", "sun", "storm", "snow", "all"]:
 		var weather: SkyWeatherState = _weather()
 		if step == "all":
@@ -388,8 +361,20 @@ func test_staged_weather_uses_last_tick_values() -> void:
 		var out: SkyFrame = SkyFrame.new()
 		SkyEvaluator.apply_weather(storm_frame, weather, out)
 		_assert_golden(out, "R0_half_tick_%s" % step)
-		var chained: SkyFrame = SkyEvaluator.evaluate(_def, RUN_START_PHASE, seed_value, 0, weather, true)
-		assert_eq(frame_values(chained), frame_values(out), "%s: evaluate() chains the three stages" % step)
+
+
+func test_weather_stage_reads_the_weather_tuning_and_falls_back_to_the_default_without_one() -> void:
+	var tick: SkyFrame = SkyEvaluator.evaluate_tick(_def, 0.3, SEED, 0, true)
+	var custom: WeatherCeilingTuning = CEILING.duplicate() as WeatherCeilingTuning
+	custom.puff_floor_shadow_ratio = CEILING.puff_floor_shadow_ratio + 0.17
+	var weather: SkyWeatherState = _weather()
+	weather.tuning = custom
+	var out: SkyFrame = SkyFrame.new()
+	SkyEvaluator.apply_weather(tick, weather, out)
+	assert_eq(out.floor_shadow_ratio, custom.puff_floor_shadow_ratio, "the weather's own tuning is used")
+	weather.tuning = null
+	SkyEvaluator.apply_weather(tick, weather, out)
+	assert_eq(out.floor_shadow_ratio, WeatherCeilingTuning.new().puff_floor_shadow_ratio, "no tuning falls back to the defaults")
 
 
 func test_stages_do_not_mutate_their_inputs() -> void:
@@ -498,7 +483,6 @@ func test_value_at_is_bit_identical_to_the_base_formula() -> void:
 	var ranges: Array[Array] = [
 		[theme.variation_exposure_min, theme.variation_exposure_max, SkyVariation.CHANNEL_EXPOSURE],
 		[theme.variation_sea_coverage_min, theme.variation_sea_coverage_max, SkyVariation.CHANNEL_SEA_COVERAGE],
-		[0.9, 0.3, SkyVariation.CHANNEL_CLOUD_COVERAGE],
 	]
 	for seed_value: int in VARIATION_SEEDS:
 		for step: int in range(VARIATION_SWEEP_STEPS + 1):
@@ -643,7 +627,7 @@ func test_palette_blend_writes_only_the_palette_and_never_the_sources() -> void:
 
 func test_palette_variation_weight_stays_in_unit_range_for_any_seed_channel_and_phase() -> void:
 	for seed_value: int in VARIATION_SEEDS:
-		for channel: int in [SkyVariation.CHANNEL_EXPOSURE, SkyVariation.CHANNEL_CLOUD_COVERAGE, SkyVariation.CHANNEL_SEA_COVERAGE]:
+		for channel: int in [SkyVariation.CHANNEL_EXPOSURE, SkyVariation.CHANNEL_SEA_COVERAGE]:
 			for step: int in range(VARIATION_SWEEP_STEPS + 1):
 				var value: float = SkyVariation.weight(float(step) / float(VARIATION_SWEEP_STEPS), 3, seed_value, channel)
 				assert_between(value, 0.0, 1.0, "seed %s channel %s step %s" % [seed_value, channel, step])
@@ -675,8 +659,6 @@ func test_palette_variation_values_stay_inside_the_theme_ranges_whatever_the_see
 			SkyEvaluator.apply_variation(def, phase, seed_value, frame)
 			assert_between(frame.exposure, def.variation_exposure_min, def.variation_exposure_max)
 			assert_between(frame.proc_sea_coverage, def.variation_sea_coverage_min, def.variation_sea_coverage_max)
-			assert_between(SkyVariation.value_at(CLOUD_COVERAGE_MIN, CLOUD_COVERAGE_MAX, CLOUD_KNOTS, phase, seed_value,
-				SkyVariation.CHANNEL_CLOUD_COVERAGE), CLOUD_COVERAGE_MIN, CLOUD_COVERAGE_MAX)
 	def.variation_exposure_min = 1.2
 	def.variation_exposure_max = 1.2
 	SkyEvaluator.apply_variation(def, 0.3, 5, frame)

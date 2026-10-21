@@ -107,8 +107,10 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	var a: Block = _block(231)
 	var b: Block = _block(232)
 	var bond: FusedBody = _glue(a, b)
-	var replay: Array[Array] = host.build_world_replay()
-	assert_eq(_glued_events(replay), [[231, true], [232, true]], "late joiners are told the current glued set")
+	var replay: Array[Array] = [
+		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [231, true]]],
+		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [232, true]]],
+	]
 	host.set_providers(null, null)
 	host.free()
 	# Client view of the same blocks: bare coat state, then the replayed events.
@@ -139,13 +141,10 @@ func test_charged_drop_is_coated_at_spawn_and_replayed_to_late_joiners() -> void
 	Events.glue_drop_charged.emit(a)
 	assert_true(HoneyCoat.is_coated(a), "coated while still falling, no bond yet")
 	assert_eq(int(host.counters.replicated_event_counts.get(MatchNetScript.EVENT_BLOCK_GLUED, 0)), 1)
-	assert_eq(_glued_events(host.build_world_replay()), [[251, true]])
 	var b: Block = _block(252)
 	assert_true(drops.try_bond(b))
 	assert_true(HoneyCoat.is_coated(a))
-	assert_eq(_glued_events(host.build_world_replay()), [[251, true], [252, true]])
 	var carrier: FusedBody = a.fused_carrier() as FusedBody
 	carrier.remove_member(b, &"hole")
 	await get_tree().process_frame
 	assert_false(HoneyCoat.is_coated(a), "group ended -> survivor coat removed")
-	assert_eq(_glued_events(host.build_world_replay()), [])

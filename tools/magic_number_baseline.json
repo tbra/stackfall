@@ -1,6 +1,6 @@
 {
  "assets/textures/sky/horizon_storm_cell/storm_cell.gd": 142,
- "autoload/Net.gd": 4,
+ "autoload/Net.gd": 3,
  "autoload/Rumble.gd": 1,
  "autoload/Settings.gd": 8,
  "autoload/Sfx.gd": 2,
@@ -79,7 +79,7 @@
  "net/Interpolator.gd": 5,
  "net/LanDiscovery.gd": 5,
  "net/MatchEventApplier.gd": 27,
- "net/MatchNet.gd": 22,
+ "net/MatchNet.gd": 21,
  "net/SnapshotSync.gd": 8,
  "ui/debug/NetDebugOverlay.gd": 2,
  "ui/debug/PerfOverlay.gd": 2,

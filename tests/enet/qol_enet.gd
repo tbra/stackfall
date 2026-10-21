@@ -64,6 +64,8 @@ var _match_net: Node
 var _field: Field = null
 var _started_msec: int = 0
 var _expired: Array[int] = [0, 0]
+## Blocks the host spawned for the remote seat this cell: an auto-drop is the only way one appears.
+var _client_blocks: int = 0
 var _topple_counts: PackedInt32Array = PackedInt32Array([0, 0])
 var _client_reports: Dictionary = {}
 var _client_started: Dictionary = {}
@@ -78,6 +80,7 @@ func _ready() -> void:
 		return
 	_match_net = get_node(^"/root/MatchNet")
 	Events.feed_timer_expired.connect(_on_expired)
+	Events.block_placed.connect(_on_block_placed)
 	if Net.mode() == Net.Mode.HOST:
 		await _run_host()
 	# A client has nothing to drive: h_begin / h_finish arrive as RPCs.
@@ -100,6 +103,12 @@ func _role() -> String:
 func _on_expired(slot_id: int) -> void:
 	if slot_id >= 0 and slot_id < SLOTS:
 		_expired[slot_id] += 1
+
+
+func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
+	var typed: Block = block as Block
+	if typed != null and typed.owner_slot == CLIENT_SLOT:
+		_client_blocks += 1
 
 
 func _wait(seconds: float) -> void:
@@ -189,6 +198,7 @@ func _host_cell(cell: int) -> void:
 	config.countdown_seconds = COUNTDOWN_S
 	config.qol = _cell_qol(mask)
 	_expired = [0, 0]
+	_client_blocks = 0
 	_topple_counts = PackedInt32Array([0, 0])
 	Match._feed._qol_moving_counts_source = Callable()
 	Match.start_match(config)
@@ -273,7 +283,7 @@ func _host_backlog(mask: int) -> Array:
 	await _wait(NEGATIVE_WINDOW_S)
 	var b0: int = Match.qol_backlog_count(HOST_SLOT)
 	var b1: int = Match.qol_backlog_count(CLIENT_SLOT)
-	var drops: int = int((_match_net.get(&"_auto_drops") as Dictionary).get(CLIENT_SLOT, 0))
+	var drops: int = _client_blocks
 	var ok: bool
 	if on:
 		# Queued, never forced: no expiry signal, no auto-drop for the remote seat.

@@ -35,6 +35,7 @@ class SessionMetricsTest(unittest.TestCase):
         write(self.root, "tools/magic_number_baseline.json", json.dumps({"files": {"core/A.gd": 3}}))
         write(self.root, "tests/unit/test_a.gd", "extends GutTest\nfunc test_one() -> void:\n\tpass\n")
         write(self.root, "core/A.gd", "extends RefCounted\nvar x := 1\n")
+        write(self.root, "tools/layer_baseline.json", json.dumps({"closure": ["autoload/E.gd"]}))
         git(self.root, "add", "-A")
         git(self.root, "commit", "-qm", "base")
         self.rev = subprocess.run(["git", "-C", self.root, "rev-parse", "HEAD"], capture_output=True,
@@ -46,6 +47,8 @@ class SessionMetricsTest(unittest.TestCase):
         write(self.root, "tests/unit/test_a.gd",
               "extends GutTest\nfunc test_one() -> void:\n\tpass\nfunc test_two() -> void:\n\tpass\n")
         write(self.root, "core/A.gd", "extends RefCounted\nvar x := 2\n")
+        write(self.root, "tools/layer_baseline.json",
+              json.dumps({"closure": ["autoload/E.gd", "core/A.gd", "core/B.gd"]}))
         write(self.root, "CLAUDE.md", "rules\n")
         git(self.root, "add", "-A")
         git(self.root, "commit", "-qm", "work")
@@ -54,11 +57,13 @@ class SessionMetricsTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_guard_additions_tests_areas_and_process_changes(self):
-        added = sm.guards(self.root, self.rev)
+        added, new_closures = sm.guards(self.root, self.rev)
         self.assertIn("tools/dead_baseline.json: +checks|test-only-func|b.gd:g", added)
         self.assertIn("tools/dead_baseline.json: +allow|test-only-func|c.gd:h", added)
         self.assertIn("tools/magic_number_baseline.json: files|core/A.gd 3 -> 5", added)
-        self.assertEqual(len(added), 3)
+        self.assertIn("tools/layer_baseline.json: +closure|core/A.gd", added)
+        self.assertEqual(len(added), 4)
+        self.assertEqual(new_closures, ["tools/layer_baseline.json: +closure|core/B.gd"])
         self.assertEqual((sm.test_count(self.root, self.rev), sm.test_count(self.root)), (1, 2))
         d = sm.delivery(self.root, self.rev)
         self.assertEqual(d["commits"], 1)
@@ -92,6 +97,12 @@ class SessionMetricsTest(unittest.TestCase):
         self.assertEqual((h["attempts"], h["denied"], h["review_approve"], h["review_changes"]), (4, 1, 1, 1))
         self.assertEqual(h["verdicts"], {"done": 1, "review": 2})
 
+
+    def test_since_time_accepts_a_trailing_z(self):
+        utc = datetime.timezone.utc
+        self.assertEqual(sm.parse_since("2026-10-20T20:59:55Z"), datetime.datetime(2026, 10, 20, 20, 59, 55, tzinfo=utc))
+        self.assertEqual(sm.parse_since("2026-10-20T22:59:55+02:00"),
+                         datetime.datetime(2026, 10, 20, 20, 59, 55, tzinfo=utc))
 
 if __name__ == "__main__":
     unittest.main()

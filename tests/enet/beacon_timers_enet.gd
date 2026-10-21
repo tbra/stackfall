@@ -90,15 +90,30 @@ func _force_host_state() -> void:
 		Match._lifecycle.publish_mode_state_if_changed()
 	else:
 		Events.goal_capture_progress.emit(0, CAPTURE_PROGRESS)
-		_match_net.set(&"_capture_team", 0)
-		_match_net.set(&"_capture_progress", CAPTURE_PROGRESS)
 	Events.territory_replicated.emit(raster)
 
 
+## Latched the first time the beacon labels follow the host: a later solver reset of
+## the capture values must not erase what the client already showed.
+var _labels_seen: bool = false
+
+
+func _latch_labels() -> void:
+	if _labels_follow_host():
+		_labels_seen = true
+
+
+func _on_capture_or_territory(_a: Variant = null, _b: Variant = null) -> void:
+	# Deferred so the beacon has applied the same signal before its labels are read.
+	_latch_labels.call_deferred()
+
+
 func _run_client() -> void:
+	Events.goal_capture_progress.connect(_on_capture_or_territory)
+	Events.territory_replicated.connect(_on_capture_or_territory)
 	var playing: bool = await _until(func() -> bool: return Match.state() == Match.State.PLAYING, CONNECT_TIMEOUT + 10.0)
 	_field.place_flags(Match.config.player_count, Match.config.player_colors, Match.config.goal_flag_count)
-	var seen: bool = await _until(_labels_follow_host, 20.0)
+	var seen: bool = await _until(func() -> bool: return _labels_seen or _labels_follow_host(), 20.0)
 	var flag: GoalFlag = _field.goal_flags()[0]
 	print("BTENET client mode=%s playing=%s timer=%s chip=%s ctrl=%d" % [
 		"ctf" if _ctf else "classic", playing, _label_text(flag, "TimerLabel"), _label_text(flag, "MultiplierLabel"), flag.control()])

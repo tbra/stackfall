@@ -11,6 +11,9 @@ one of those two roots and may not contain "..":
     test_a[,test_b...] [-Path <checkout>] [-Unit name]: explicit test_* script names only.
     Max 2 runs per review (RUN_CAP) is a profile rule; the hook also counts per subagent when
     the hook event carries an agent_id (no agent_id = not enforced, to avoid a shared session cap).
+  - python [<repo>/]tools/check_packages.py|lint_dead.py|lint_all.py|dep_graph.py|affected_tests.py
+    [plain args]: read-only tools; flags that write (--update, --update-baseline, --allow-new,
+    --out) and ".." are denied.
 Everything else (edits, other tests, commits, status changes, pipes, redirects,
 command chaining, substitutions, -gdir/-gselect/-Dir overrides) is denied.
 """
@@ -55,8 +58,14 @@ GUT_RUN_ALT = re.compile(
     r'test_[A-Za-z0-9_]+(,test_[A-Za-z0-9_]+)*'
     r'( -Unit [A-Za-z0-9_]+)( -Path ' + CHECKOUT + r')?$'
 )
+# Read-only project tools with plain-token args; PY_DENY drops the flags that write files.
+PY_READ = re.compile(
+    r'^python (?:' + REPO + r'/)?tools/(check_packages|lint_dead|lint_all|dep_graph|affected_tests)\.py'
+    r'( [A-Za-z0-9_.:/=@,-]+)*$'
+)
+PY_DENY = re.compile(r' --(update|update-baseline|allow-new|out)(=| |$)|\.\.')
 RUN_CAP = 2
-ALLOWED = (COMMENT, BD_READ, GIT_READ, GUT_RUN, GUT_RUN_ALT)
+ALLOWED = (COMMENT, BD_READ, GIT_READ, GUT_RUN, GUT_RUN_ALT, PY_READ)
 # git options that write files or run external programs.
 GIT_DENY = re.compile(r' (--output|-o|--ext-diff|--textconv|--exec|--upload-pack)(=| |$)')
 
@@ -65,6 +74,8 @@ def allowed(command):
     if not isinstance(command, str):
         return False
     if GIT_READ.fullmatch(command) and GIT_DENY.search(command):
+        return False
+    if PY_READ.fullmatch(command) and PY_DENY.search(command):
         return False
     return any(p.fullmatch(command) for p in ALLOWED)
 
@@ -118,7 +129,9 @@ def main():
                 "show|comments|children Bontago-ID [--json] [--brief-deps]; git -C <checkout> "
                 "log|show|diff|status <plain args>. No pipes, redirects, chaining or quotes "
                 "in git args; powershell -NoProfile -File tools/run_gut.ps1 test_a,test_b "
-                "[-Path <checkout>] [-Unit name] (max 2 runs). Use Read/Glob/Grep for files."
+                "[-Path <checkout>] [-Unit name] (max 2 runs); python tools/check_packages|lint_dead|"
+                "lint_all|dep_graph|affected_tests.py <plain args, no writing flags>. "
+                "Use Read/Glob/Grep for files."
             ))
     return 0
 

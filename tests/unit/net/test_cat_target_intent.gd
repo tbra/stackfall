@@ -1,10 +1,8 @@
 extends GutTest
-## The host handler behind the net_cat_target RPC, driven through the real MatchNet, gateway and
+## The host handler behind the net_cat_target RPC, driven through the real MatchIntentGateway and
 ## Match with a faked session: only the cat's owner may steer it, a peer that has not
 ## acknowledged its world replay is ignored, a non-finite point never reaches the cat, a far point
 ## is clamped to the cat's range, and the per-peer flood bucket bounds the rate.
-
-const MatchNetScript := preload("res://net/MatchNet.gd")
 
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
@@ -15,13 +13,19 @@ const FAR_M: float = 60.0
 const NEAR_M: float = 1.0
 const RANGE_TOLERANCE_M: float = 0.05
 const FLOOD_FACTOR: int = 3
+const FLOOD_TIME_S: float = 5.0
 
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
-var _net: MatchNetScript
 var _fake_net: FakeNet
 var _cat: CatController
+var _gateway: MatchIntentGateway
+var _unacked: Dictionary = {}
+var _now_s: float = 0.0
+var _sent_to_peers: int = 0
+var _broadcasts: int = 0
+var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 
 
 func before_each() -> void:
@@ -38,11 +42,22 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 	_fake_net = FakeNet.host({HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}, [0])
-	Match._net_provider = _fake_net
-	_net = MatchNetScript.new()
-	_net.set_process(false)
-	add_child_autofree(_net)
-	_net.set_providers(_fake_net, Match)
+	_unacked.clear()
+	_now_s = 0.0
+	_sent_to_peers = 0
+	_broadcasts = 0
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return true
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(_peer: int, _method: StringName, _args: Array) -> bool:
+		_sent_to_peers += 1
+		return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: _broadcasts += 1
+	seams.now_s = func() -> float: return _now_s
+	seams.is_replay_pending = func(peer_id: int) -> bool: return _unacked.has(peer_id)
+	seams.store_cursor = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: pass
+	_gateway = MatchIntentGateway.new(_fake_net, Match, _net_config, NetCounters.new(), seams)
+	assert_true(_gateway.is_valid(), "fixture: the gateway bound the fake session and the real Match")
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(map)
@@ -61,10 +76,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
-	Match._net_provider = null
+	_gateway = null
 	Match.set_replicator(null)
 	Match.abort_match()
 	Match.set_process(true)
@@ -76,7 +88,7 @@ func _point_near(offset: Vector3) -> Vector3:
 
 
 func _send(sender: int, slot_id: int, point: Vector3) -> void:
-	_net._intents().handle_cat_target(sender, slot_id, point)
+	_gateway.handle_cat_target(sender, slot_id, point)
 
 
 func test_the_owner_steers_its_cat() -> void:
@@ -110,10 +122,10 @@ func test_the_host_seat_cannot_steer_a_cat_it_does_not_own() -> void:
 
 func test_a_peer_waiting_for_its_world_replay_is_ignored() -> void:
 	var before: Vector3 = _cat.target
-	_net._replay_pending[REMOTE_PEER] = 1
+	_unacked[REMOTE_PEER] = 1
 	_send(REMOTE_PEER, REMOTE_SLOT, _point_near(Vector3.RIGHT * NEAR_M))
 	assert_eq(_cat.target, before, "an unreplayed peer's target is dropped")
-	_net._replay_pending.erase(REMOTE_PEER)
+	_unacked.erase(REMOTE_PEER)
 	_send(REMOTE_PEER, REMOTE_SLOT, _point_near(Vector3.RIGHT * NEAR_M))
 	assert_ne(_cat.target, before, "once it acknowledged its replay the same target applies")
 
@@ -123,7 +135,6 @@ func test_a_non_finite_point_never_moves_the_cat() -> void:
 	for bad: Vector3 in [Vector3.INF, Vector3(NAN, 0.0, 0.0), Vector3(0.0, 0.0, -INF), Vector3(NAN, NAN, NAN)]:
 		_send(REMOTE_PEER, REMOTE_SLOT, bad)
 		assert_eq(_cat.target, before, "target unchanged by %s" % bad)
-	assert_eq(_net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_CAT_TARGET), 0)
 
 
 func test_a_far_point_is_clamped_to_the_cats_range() -> void:
@@ -134,11 +145,17 @@ func test_a_far_point_is_clamped_to_the_cats_range() -> void:
 
 
 func test_a_flooding_peer_is_bounded_and_the_cat_stays_controllable_by_its_owner_alone() -> void:
-	var burst: int = _net.config.flood_cat_target_burst
+	var burst: int = _net_config.flood_cat_target_burst
+	_now_s = FLOOD_TIME_S
 	for _i: int in range(FLOOD_FACTOR * burst):
 		_send(REMOTE_PEER, REMOTE_SLOT, _point_near(Vector3.RIGHT * NEAR_M))
-	var dropped: int = _net._intents().flood_dropped(REMOTE_PEER, FloodLimits.INTENT_CAT_TARGET)
-	# Real time passes between the calls (a fraction of a refill token), so allow one token of slack.
-	assert_gte(dropped, (FLOOD_FACTOR - 1) * burst - 1, "the excess over the bucket is dropped")
-	assert_lte(dropped, (FLOOD_FACTOR - 1) * burst)
+	var before: Vector3 = _cat.target
+	var flooded_point: Vector3 = _point_near(Vector3.LEFT * NEAR_M)
+	_send(REMOTE_PEER, REMOTE_SLOT, flooded_point)
+	assert_eq(_cat.target, before, "a call past the burst, in the same instant, does not steer the cat")
+	assert_eq(_sent_to_peers, 0, "a dropped target is not answered")
+	assert_eq(_broadcasts, 0, "nor rebroadcast")
 	assert_eq(_fake_net.kick_peer_calls.size(), 0, "a flooder is never kicked")
+	_now_s += 1.0
+	_send(REMOTE_PEER, REMOTE_SLOT, flooded_point)
+	assert_ne(_cat.target, before, "a refilled bucket lets the owner steer again")

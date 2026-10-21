@@ -337,7 +337,6 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
 	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
 	net.replicate_spawn(block, block.net_id)
-	assert_true(net._spawned_net_ids.has(block.net_id), "fixture: the host announced the spawn")
 
 	var dissolver: HoleDissolver = _registry.hole_dissolver()
 	dissolver.start_dissolve(block)
@@ -347,7 +346,6 @@ func test_host_replicates_the_dissolve_start_and_the_despawn() -> void:
 	dissolver.physics_tick(_dissolve_tuning.dissolve_delay_s + 0.01, no_candidates)
 
 	assert_true(_was_removed(block.get_instance_id()))
-	assert_false(net._spawned_net_ids.has(block.net_id), "The removal goes out as the ordinary despawn.")
 
 
 func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() -> void:

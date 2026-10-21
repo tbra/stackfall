@@ -131,8 +131,9 @@ const EVENT_LIVE_SCORES: StringName = &"live_scores"
 @export var config: NetConfig = preload("res://config/net/net_config.tres"):
 	set(value):
 		config = value
-		# The intent gateway reads the flood limits and send cadence from this resource.
+		# The gateway and the replay collaborator read the flood limits from this resource.
 		_intent_gateway = null
+		_world_replay_host = null
 
 ## Clients build their replicated bodies with the same factory and the same
 ## tuning the host built the originals with, so a frozen copy has the same
@@ -245,12 +246,6 @@ var _intents_accepted: Dictionary:
 var _intents_refused: Dictionary:
 	get:
 		return counters.refused
-var _auto_drops: Dictionary:
-	get:
-		return counters.auto_drops
-var _duplicate_net_ids: int:
-	get:
-		return counters.duplicate_net_ids
 ## The intent door (net/match/MatchIntentGateway.gd): local submit_*, host handle_* with the
 ## per-peer flood gate. Built on first use so set_providers() can rebind it.
 var _intent_gateway: MatchIntentGateway = null
@@ -258,11 +253,6 @@ var _intent_gateway: MatchIntentGateway = null
 var _gateway: MatchIntentGateway:
 	get:
 		return _intents()
-
-## net_id -> true for every spawn this instance has seen. A net_id arriving
-## twice is a hard failure of the "never duplicated" criterion, so it is
-## counted rather than quietly overwritten.
-var _spawned_net_ids: Dictionary = {}
 
 var _raster_send_accum: float = 0.0
 
@@ -289,14 +279,11 @@ var _capture_fading: bool = false
 var _match_start_sent: bool = false
 
 ## -- Mid-match join / reconnect replay -----------------------
-## Host only: peer_id -> replay id of a world replay sent to that peer and not
-## yet acknowledged. Gameplay intents from a peer in here are refused (spec
-## 3.4: the host checks every intent; a peer with no world yet cannot have
-## formed a legitimate one), its cursors and cat targets are dropped.
-var _replay_pending: Dictionary = {}
-## peer_id -> seconds its replay has gone unacknowledged.
-var _replay_age: Dictionary = {}
-var _next_replay_id: int = 1
+## Host only: the join/replay/ack/timeout collaborator (net/match/MatchWorldReplay.gd), built on first use.
+var _world_replay_host: MatchWorldReplay = null
+var _world_replay: MatchWorldReplay:
+	get:
+		return _replays()
 ## Client only: true from the moment this instance becomes a CLIENT until the
 ## first net_match_start lands. Every host -> client gameplay RPC that arrives
 ## in that window was broadcast before this peer's replay was built, so the
@@ -304,34 +291,6 @@ var _next_replay_id: int = 1
 ## exist yet could only corrupt the mirror (a stray LOBBY -> PLAYING emit, a
 ## feed event for slots that are not built).
 var _awaiting_match_start: bool = false
-## TRANSITIONAL (MatchNetTap / NetCounters): the replay test seam and its tallies, still read by
-## tests outside this file. capture_replay makes replay messages land in `replay_capture` as
-## [peer_id, method, args] instead of going out by rpc_id(); there is no peer in a unit test, and
-## this is what lets a test apply the exact ordered replay to a client-mode MatchNet.
-var capture_replay: bool:
-	get:
-		return tap != null and tap.capture_replay
-	set(value):
-		if tap == null and not value:
-			return
-		_ensure_tap().capture_replay = value
-var replay_capture: Array[Array]:
-	get:
-		if tap == null:
-			var none: Array[Array] = []
-			return none
-		return tap.replay_capture
-var replays_timed_out: int:
-	get:
-		return counters.replays_timed_out
-var replays_acknowledged: int:
-	get:
-		return counters.replays_acknowledged
-var intents_refused_before_replay_ack: int:
-	get:
-		return counters.intents_refused_before_replay_ack
-## Client only: the replay id this instance last acknowledged (0 = none).
-var last_replay_acknowledged: int = 0
 ## Client only: the id of the late-join world replay being
 ## applied right now (0 = none). Set by the net_match_start that carries it,
 ## cleared by the matching net_replay_end -- or by anything that ends the replay
@@ -388,6 +347,7 @@ func _ready() -> void:
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
+	multiplayer.peer_disconnected.connect(_forget_peer)
 	# the WeatherNet child is built by late_activate(); headless
 	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
 	if LateScripts.boot_defers_activation(get_tree()) or (tap != null and tap.defer_activation):
@@ -452,6 +412,7 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_net_provider = net_provider
 	_match_provider = match_provider
 	_intent_gateway = null
+	_world_replay_host = null
 	if _weather_net != null:
 		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
@@ -477,10 +438,45 @@ func _intents() -> MatchIntentGateway:
 			return NetFanout.send_to(self, _session(), peer_id, method, args)
 		seams.broadcast = func(method: StringName, args: Array) -> void: _broadcast(method, args)
 		seams.now_s = _now
-		seams.is_replay_pending = func(peer_id: int) -> bool: return _replay_pending.has(peer_id)
+		seams.is_replay_pending = _world_replay.is_pending
 		seams.store_cursor = _store_cursor
 		_intent_gateway = MatchIntentGateway.new(_session(), _authority(), config, counters, seams)
 	return _intent_gateway
+
+
+## The world replay collaborator, bound to the current session and Match providers. Its pending
+## state survives only until a provider or config change rebuilds it.
+func _replays() -> MatchWorldReplay:
+	if _world_replay_host == null:
+		var seams: MatchWorldReplay.Seams = MatchWorldReplay.Seams.new()
+		seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+			return NetFanout.send_to(self, _session(), peer_id, method, args)
+		seams.now_s = _now
+		seams.clear_cursor = func(slot_id: int) -> void: _cursors.erase(slot_id)
+		seams.spawn_args = _spawn_args
+		seams.glued_ids = _glued_ids
+		seams.territory_args = _territory_replay_args
+		seams.slot_replay_args = _slot_replay_args
+		seams.replay_acknowledged = _on_replay_acknowledged
+		_world_replay_host = MatchWorldReplay.new(_session(), _authority(), config, seams)
+	return _world_replay_host
+
+
+## Net ids of blocks fused into a FusedBody or coated by a glue drop, ascending.
+func _glued_ids() -> Array:
+	var ids: Array = _fused_ids.keys()
+	for charged_id: int in _glue_charged_ids:
+		if not ids.has(charged_id):
+			ids.append(charged_id)
+	ids.sort()
+	return ids
+
+
+## Spec 2.6's snapshots resume: the next one carries every body, so the joiner's interpolator
+## starts from fresh samples for sleepers too.
+func _on_replay_acknowledged() -> void:
+	if _net_provider == null:
+		SnapshotSync.request_full_snapshot()
 
 
 ## every host -> clients broadcast goes through here, so a peer the
@@ -496,7 +492,7 @@ func _process(delta: float) -> void:
 		if not _impact_queue.is_empty():
 			drain_impacts(Time.get_ticks_msec())
 		return
-	_tick_replay_timeouts(delta)
+	_world_replay.tick_timeouts(_now())
 	if not _impact_pending.is_empty():
 		_impact_send_accum += delta
 		if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
@@ -657,7 +653,6 @@ func replicate_spawn(block: BlockBody, net_id: int) -> void:
 		return
 	if not Quantize.is_wire_id(net_id):
 		return
-	_note_spawn(net_id)
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	var args: Array = _spawn_args(block, net_id)
@@ -683,7 +678,6 @@ func _spawn_args(block: BlockBody, net_id: int) -> Array:
 func replicate_despawn(net_id: int, reason: String) -> void:
 	if not _session().is_host() or net_id < 0:
 		return
-	_spawned_net_ids.erase(net_id)
 	if not NetFanout.can_send(multiplayer, _session()):
 		return
 	_broadcast(&"net_block_despawned", [net_id, reason])
@@ -871,7 +865,6 @@ func reset_counters() -> void:
 	_gift_wire_phases.clear()
 	_gift_spawn_notified.clear()
 	counters.reset()
-	_spawned_net_ids.clear()
 	_cursors.clear()
 	_last_owner_bytes = PackedByteArray()
 	_last_state_bytes = PackedByteArray()
@@ -883,8 +876,7 @@ func reset_counters() -> void:
 	_capture_fading = false
 	# a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
-	_replay_pending.clear()
-	_replay_age.clear()
+	_world_replay.reset()
 	_fused_ids.clear()
 	_glue_charged_ids.clear()
 
@@ -1027,21 +1019,6 @@ func _gift_special_id_wire_ok(special_id: String) -> bool:
 ## to one peer, under its old private name for tests outside this file.
 func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
 	_gateway.reject_to_peer(peer_id, slot_id, reason)
-
-
-func _ensure_tap() -> MatchNetTap:
-	if tap == null:
-		tap = MatchNetTap.new()
-	return tap
-
-
-func _note_spawn(net_id: int) -> void:
-	if net_id < 0:
-		return
-	if _spawned_net_ids.has(net_id):
-		counters.duplicate_net_ids += 1
-		return
-	_spawned_net_ids[net_id] = true
 
 
 func _store_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
@@ -1510,7 +1487,7 @@ func flush_impacts(now_ms: int) -> PackedByteArray:
 		for peer_id: int in multiplayer.get_peers():
 			# A mid-match joiner still loading its world replay hears nothing
 			# yet; impacts are never part of that replay either.
-			if not _replay_pending.has(peer_id):
+			if not _world_replay.is_pending(peer_id):
 				NetFanout.send_to(self, _session(), peer_id, &"net_block_impacts", [packet])
 	return packet
 
@@ -1608,32 +1585,23 @@ func _reset_impacts() -> void:
 
 
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
-	_replay_pending.erase(peer_id)
-	_replay_age.erase(peer_id)
-	# A rejoin starts with full intent buckets.
-	_gateway.forget_peer(peer_id)
+	_forget_peer(peer_id)
 	if slot_id >= 0:
 		_authority().on_peer_left(slot_id)
 
 
-## a peer was seated (Net emits this after it has already sent
-## the joiner its join-accepted and the roster). In the lobby that is all:
-## the broadcast net_match_start will carry the world. Mid-match the host
-## owes this peer the whole world, as one ordered replay -- see
-## _replay_world_to().
-func _on_net_peer_joined(peer_id: int, slot_id: int, _player_name: String) -> void:
-	if not _session().is_host():
-		return
-	if slot_id >= 0:
-		# Inside the disconnect grace: resume the slot's feed with a full
-		# timer (MatchLifecycle.on_peer_rejoined; a no-op otherwise).
-		_authority().on_peer_rejoined(slot_id)
-		# Whoever sat here before (or this peer's own old connection) left a
-		# ghost the host would auto-drop from; the joiner has no pose yet.
-		_cursors.erase(slot_id)
-	if bool(_session().is_offline()) or not is_match_live() or _replay_pending.has(peer_id):
-		return
-	_replay_world_to(peer_id)
+## Any transport disconnect, including a peer that never finished the handshake (Net emits
+## net_peer_left only for seated ones): its replay and flood buckets go, so a rejoin starts full.
+func _forget_peer(peer_id: int) -> void:
+	_world_replay.on_peer_left(peer_id)
+	_gateway.forget_peer(peer_id)
+
+
+## A peer was seated (Net emits this after it has already sent the joiner its join-accepted and
+## the roster). In the lobby that is all: the broadcast net_match_start carries the world.
+## Mid-match the host owes this peer the whole world as one ordered replay (MatchWorldReplay).
+func _on_net_peer_joined(peer_id: int, slot_id: int, player_name: String) -> void:
+	_world_replay.on_peer_joined(peer_id, slot_id, player_name)
 
 
 func _begin_world_replay(replay_id: int) -> void:
@@ -1713,203 +1681,6 @@ func seat_reclaimable(slot_id: int) -> bool:
 	if seat == null or not seat.home_flag_alive:
 		return false
 	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
-
-
-## A joiner that never acks its replay would stay
-## intent-gated with its cursors dropped forever. Past
-## config.replay_ack_timeout the host drops it cleanly.
-## DECISION: drop, not retry. A second replay would re-send spawns for bodies
-## the first one may already have created; a peer that cannot ack within the
-## timeout is not going to play, and it can rejoin (its reservation applies).
-func _tick_replay_timeouts(delta: float) -> void:
-	if _replay_pending.is_empty():
-		return
-	var expired: Array[int] = []
-	for peer_id: int in _replay_pending.keys():
-		var age: float = float(_replay_age.get(peer_id, 0.0)) + delta
-		_replay_age[peer_id] = age
-		if age >= config.replay_ack_timeout:
-			expired.append(peer_id)
-	for peer_id: int in expired:
-		counters.replays_timed_out += 1
-		_replay_pending.erase(peer_id)
-		_replay_age.erase(peer_id)
-		var session: Variant = _session()
-		if session != null and session.has_method(&"kick_peer"):
-			session.kick_peer(peer_id, Net.LeaveReason.TIMEOUT)
-
-
-## Host only. Spec 2.6 "Late join / reconnect: Send the full world state in
-## chunks: all bodies, the territory raster, and match state." Every message
-## is a reliable rpc_id() on the default channel, so the joiner receives them
-## in exactly this order, after the join-accepted and roster Net already
-## sent, and before any later broadcast:
-##
-##   1. config + roster      net_match_start (the joiner builds its world)
-##   2. world                one net_block_spawned per body -- the same wire
-##                           shape as replicate_spawn() -- then any hole
-##                           dissolves in progress
-##   3. territory            one full keyframe (see _territory_replay_args())
-##   4. derived state        match state, clock, mode objective, eliminations,
-##                           turn, every slot's feed and gifts, glue charges,
-##                           gift crates, the cat
-##   (WeatherNet/SnowNet answer the same Events.net_peer_joined after this
-##   node, so the weather state follows.)
-##   5. net_replay_end       deferred to the end of the frame; the joiner
-##                           answers net_replay_ack, which lifts the intent
-##                           gate and asks SnapshotSync for a full snapshot.
-##
-## Each piece is the state *at this instant*, built synchronously, so every
-## broadcast the joiner dropped before net_match_start (see
-## _awaiting_match_start) is already folded in, and every broadcast after it
-## applies on top in order.
-##
-## DECISION (still open): the
-## match clock does NOT pause while a player joins mid-match. Spec 2.6 only
-## pauses it for lobby-mode joins; the open decision can add a pause later in
-## MatchLifecycle without changing this protocol.
-func _replay_world_to(peer_id: int) -> void:
-	var replay_id: int = _next_replay_id
-	_next_replay_id += 1
-	_replay_pending[peer_id] = replay_id
-	_replay_age[peer_id] = 0.0
-	counters.replays_started += 1
-	for message: Array in build_world_replay(replay_id):
-		_send_replay(peer_id, StringName(message[0]), message[1] as Array)
-	call_deferred(&"_finish_replay", peer_id, replay_id)
-
-
-## Sends the end marker unless the peer left (or a restart cleared the
-## pending replay) in the meantime.
-func _finish_replay(peer_id: int, replay_id: int) -> void:
-	if int(_replay_pending.get(peer_id, -1)) != replay_id:
-		return
-	_send_replay(peer_id, &"net_replay_end", [replay_id])
-
-
-func _send_replay(peer_id: int, method: StringName, args: Array) -> void:
-	if tap != null and tap.capture_replay:
-		tap.on_replay(peer_id, method, args)
-		return
-	NetFanout.send_to(self, _session(), peer_id, method, args)
-
-
-## The ordered replay body (steps 1-4 of _replay_world_to()), as
-## [method: StringName, args: Array] pairs. Public so a test can apply it to
-## a client mirror without a peer.
-##
-## `replay_id` > 0 (the real send) marks the opening net_match_start as a replay
-## so the joiner mutes one-shot feedback until the matching net_replay_end; 0
-## builds the body without the marker.
-func build_world_replay(replay_id: int = 0) -> Array[Array]:
-	var authority: Variant = _authority()
-	var messages: Array[Array] = []
-	var running: MatchConfig = authority.config
-	if running == null:
-		return messages
-	var start_args: Array = [running.to_dict(), _roster()]
-	if replay_id > 0:
-		start_args.append(replay_id)
-	messages.append([&"net_match_start", start_args])
-
-	# DECISION (D8): the registry is held as a Node and called dynamically; the typed
-	# Array[Block] result is kept in an untyped Array so this file names no Block.
-	var registry: Node = authority.registry()
-	if registry != null:
-		var blocks: Array = registry.all_blocks()
-		blocks.sort_custom(func(a: BlockBody, b: BlockBody) -> bool: return a.net_id < b.net_id)
-		var dissolving: Array[int] = []
-		for block: BlockBody in blocks:
-			if not Quantize.is_wire_id(block.net_id):
-				continue
-			messages.append([&"net_block_spawned", _spawn_args(block, block.net_id)])
-			if registry.hole_dissolver().is_dissolving(block):
-				dissolving.append(block.net_id)
-		for net_id: int in dissolving:
-			messages.append(_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id]))
-		# Freeze gift: the icy overlay is an event, not part of
-		# the spawn args, so a joiner needs it after the block exists.
-		for frozen_payload: Array in _frozen_overlay_snapshot():
-			messages.append(_event(EVENT_BLOCK_FROZEN, frozen_payload))
-		# honey coat of currently glued blocks.
-		var glued_ids: Array = _fused_ids.keys()
-		for charged_id: int in _glue_charged_ids:
-			if not glued_ids.has(charged_id):
-				glued_ids.append(charged_id)
-		glued_ids.sort()
-		for glued_id: int in glued_ids:
-			messages.append(_event(EVENT_BLOCK_GLUED, [glued_id, true]))
-
-	var territory: Array = _territory_replay_args()
-	if not territory.is_empty():
-		messages.append([&"net_territory", territory])
-
-	var state: int = int(authority.state())
-	if state == MatchPhase.State.COUNTDOWN:
-		messages.append(_event(EVENT_COUNTDOWN, [int(ceil(float(authority.countdown_remaining())))]))
-		# the ready gate lives only through the countdown; sent after
-		# net_match_start (whose start_match() resets the joiner's mirror), so the
-		# joiner holds the host's current sets whatever it heard before.
-		var gate_args: Array = authority._lifecycle.loading_gate_replay_args()
-		if gate_args.size() == 3:
-			messages.append(_event(EVENT_LOADING_GATE, gate_args))
-	elif MatchPhase.is_live(state):
-		# A client's own start_match() leaves it in COUNTDOWN; PLAYING is
-		# replayed before SUDDEN_DEATH so its consumers see the order a
-		# seated client saw.
-		messages.append(_event(EVENT_STATE_CHANGED, [MatchPhase.State.PLAYING]))
-		if state == MatchPhase.State.SUDDEN_DEATH:
-			messages.append(_event(EVENT_STATE_CHANGED, [MatchPhase.State.SUDDEN_DEATH]))
-	messages.append(_event(EVENT_MATCH_CLOCK, [float(authority.match_timer_left())]))
-
-	var mode_snapshot: Dictionary = authority.mode_state_snapshot()
-	if not mode_snapshot.is_empty():
-		messages.append(_event(EVENT_MODE_STATE, [mode_snapshot]))
-
-	var slot_count: int = int(authority.slot_count())
-	for slot_id: int in range(slot_count):
-		var seat: PlayerSlot = authority.slot(slot_id)
-		if seat != null and not seat.home_flag_alive:
-			messages.append(
-				_event(EVENT_PLAYER_ELIMINATED, [slot_id, seat.team_id, int(authority.eliminated_by(slot_id))])
-			)
-	if int(authority.active_slot()) >= 0:
-		messages.append(_event(EVENT_TURN_CHANGED, [int(authority.active_slot())]))
-	for slot_id: int in range(slot_count):
-		var slot_args: Array = _slot_replay_args(slot_id)
-		if not slot_args.is_empty():
-			messages.append(_event(EVENT_SLOT_REPLAY, slot_args))
-	for payload: Array in _glue_rejoin_snapshot():
-		messages.append(_event(EVENT_GLUE_CHARGES, payload))
-	# a late joiner's HUD mirror starts at zero/unpaused, so
-	# replay each slot's non-default QoL state (nothing is sent with the toggles off).
-	for slot_id: int in range(slot_count):
-		var backlog: int = int(authority.qol_backlog_count(slot_id))
-		var paused: bool = bool(authority.qol_timer_paused(slot_id))
-		if backlog > 0 or paused:
-			messages.append(_event(EVENT_QOL_FEED, [slot_id, backlog, paused]))
-
-	for slot_id: int in range(slot_count):
-		var slotted: Array[StringName] = authority.gift_slot_contents(slot_id)
-		if not slotted.is_empty():
-			messages.append(_event(EVENT_GIFT_SLOT, [slot_id, slotted, &"", &""]))
-
-	for gift: Dictionary in authority.gift_states():
-		var gift_id: int = int(gift["id"])
-		if int(gift["phase"]) == GiftWirePhase.FALLING:
-			messages.append(_event(EVENT_GIFT_FLIGHT, [gift_id, gift["origin"], gift["landing"]]))
-		else:
-			messages.append(_event(EVENT_GIFT_SPAWNED, [gift_id, gift["position"]]))
-
-	var cat: RigidBody3D = authority.active_cat()
-	if cat != null:
-		messages.append(_event(EVENT_CAT_STARTED,
-			[cat.activation_id, cat.owner_slot, cat.global_position, cat.time_left]))
-	return messages
-
-
-func _event(event: StringName, args: Array) -> Array:
-	return [&"net_match_event", [event, args]]
 
 
 ## net_territory's arguments for one full keyframe, or [] with no raster.
@@ -2017,45 +1788,6 @@ func _apply_slot_replay(args: Array) -> void:
 		authority.apply_replicated_gift_claimed(-1, slot_id, after_special)
 		authority._feed.apply_replicated_staged_gift(slot_id, after_carrier)
 	Events.feed_block_issued.emit(slot_id, held_id, next_id)
-
-
-## Host side of net_replay_ack, split out (like _handle_place_intent) so a
-## test can drive it with a manufactured sender id. Only the id the host
-## actually sent this peer counts; a stale or forged ack is ignored.
-func _handle_replay_ack(sender_peer_id: int, replay_id: int) -> void:
-	if not _session().is_host():
-		return
-	if int(_replay_pending.get(sender_peer_id, -1)) != replay_id:
-		return
-	_replay_pending.erase(sender_peer_id)
-	_replay_age.erase(sender_peer_id)
-	counters.replays_acknowledged += 1
-	# Spec 2.6's snapshots resume: the next one carries every body, so the
-	# joiner's interpolator starts from fresh samples for sleepers too.
-	if _net_provider == null:
-		SnapshotSync.request_full_snapshot()
-
-
-## a rejoining peer missed the icy overlay events of an active Freeze.
-func _frozen_overlay_snapshot() -> Array[Array]:
-	var snapshot: Array[Array] = []
-	var registry: Node = _authority().registry()
-	if registry == null:
-		return snapshot
-	var all_blocks: Array = registry.all_blocks()
-	for block: BlockBody in all_blocks:
-		if block.is_frozen_visual() and block.net_id > 0:
-			snapshot.append([block.net_id, true])
-	return snapshot
-
-
-func _glue_rejoin_snapshot() -> Array[Array]:
-	var snapshot: Array[Array] = []
-	for glue_slot: int in range(_authority().slot_count()):
-		var revision: int = _authority().glue_revision(glue_slot)
-		if revision > 0:
-			snapshot.append([glue_slot, _authority().glue_drops_left(glue_slot), revision])
-	return snapshot
 
 
 # --- Territory payload ------------------------------------------------------
@@ -2239,7 +1971,7 @@ func net_match_loading() -> void:
 
 ## `replay_id` is 0 for the broadcast every client gets at match start, and the
 ## replay's own id (> 0) when this is the first message of a late-join /
-## reconnect world replay (see _replay_world_to). The replay span is silent for
+## reconnect world replay (see MatchWorldReplay). The replay span is silent for
 ## one-shot feedback: see Events.world_replay_changed.
 @rpc("authority", "call_remote", "reliable")
 func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0) -> void:
@@ -2276,7 +2008,6 @@ func _apply_roster(roster: Array) -> void:
 func net_replay_end(replay_id: int) -> void:
 	if _session().is_host() or _client_awaiting_world() or replay_id <= 0:
 		return
-	last_replay_acknowledged = replay_id
 	# The replay's last message: live events from here on are news again.
 	if replay_id == _replaying_id:
 		_end_world_replay()
@@ -2286,7 +2017,7 @@ func net_replay_end(replay_id: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func net_replay_ack(replay_id: int) -> void:
-	_handle_replay_ack(multiplayer.get_remote_sender_id(), replay_id)
+	_world_replay.handle_replay_ack(multiplayer.get_remote_sender_id(), replay_id)
 
 
 ## True on a client that has not received net_match_start since it joined
@@ -2320,7 +2051,6 @@ func net_block_spawned(
 		# carry would sit under blocks_parent forever with nothing able to
 		# address it for a despawn.
 		return
-	_note_spawn(net_id)
 	var registry: Node = _authority().registry()
 	var parent: Node3D = _authority().blocks_parent()
 	if registry == null or parent == null:
@@ -2363,7 +2093,6 @@ func net_block_spawned(
 func net_block_despawned(net_id: int, reason: String) -> void:
 	if _client_awaiting_world():
 		return
-	_spawned_net_ids.erase(net_id)
 	var registry: Node = _authority().registry()
 	if registry == null:
 		return

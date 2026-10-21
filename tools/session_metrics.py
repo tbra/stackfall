@@ -10,7 +10,9 @@ read from Git, the scratch logs and Beads; nothing is written. Sections:
              instructions, docs, other) between <rev> and HEAD.
   guards     entries added to tools/*baseline*.json, tools/flag_dead_allow.json and
              tools/probe_allowlist.txt (new list entries, raised counts, new allow entries).
-             With shrink-only baselines this should be 0; every entry is listed.
+             With shrink-only baselines this should be 0; every entry is listed. Layer closure
+             entries for files that did not exist at <rev> are planned --allow-new additions and
+             are counted on their own line instead.
   tests      test count at <rev> and HEAD (`func test_` in tests/), the last gate's summed
              script seconds, and SHORTCUT markers added.
   gates      FULL GATE GREEN/RED lines in scratch logs written since the session started,
@@ -40,6 +42,8 @@ import repo_paths  # noqa: E402
 GAME_DIRS = ("core/", "game/", "net/", "autoload/", "ui/", "config/", "shaders/", "assets/")
 INSTRUCTION_PATHS = ("CLAUDE.md", ".claude/")
 GUARD_FILES = ("tools/flag_dead_allow.json", "tools/probe_allowlist.txt")
+LAYER_BASELINE = "tools/layer_baseline.json"
+CLOSURE_KEYS = ("closure|", "main_closure|")
 GATE_RE = re.compile(r"FULL GATE (GREEN|RED): (\d+)/(\d+) passing.*?failing=(\S+)")
 LOG_EXTS = (".log", ".txt")
 LIST_CAP = 25
@@ -107,10 +111,21 @@ def _entries(text, path):
     return out
 
 
+def _new_file_closure(repo, rev, path, key):
+    """A layer closure entry for a file that did not exist at `rev`: a planned --allow-new, not a guard."""
+    if path != LAYER_BASELINE or not key.startswith(CLOSURE_KEYS):
+        return False
+    target = key.split("|", 1)[1]
+    return subprocess.run(["git", "-C", repo, "cat-file", "-e", "%s:%s" % (rev, target)],
+                          capture_output=True).returncode != 0
+
+
 def guards(repo, rev):
+    """(added guard entries, layer closure entries for files new since `rev`)."""
     files = sorted(set(glob.glob(os.path.join(repo, "tools", "*baseline*.json"))))
     paths = [os.path.relpath(f, repo).replace("\\", "/") for f in files] + list(GUARD_FILES)
     added = []
+    new_closures = []
     for path in paths:
         before = _entries(git(repo, "show", "%s:%s" % (rev, path)), path)
         full = os.path.join(repo, path)
@@ -120,10 +135,11 @@ def guards(repo, rev):
             after = _entries(fh.read(), path)
         for key, value in sorted(after.items()):
             if key not in before:
-                added.append("%s: +%s" % (path, key))
+                bucket = new_closures if _new_file_closure(repo, rev, path, key) else added
+                bucket.append("%s: +%s" % (path, key))
             elif value > before[key]:
                 added.append("%s: %s %s -> %s" % (path, key, before[key], value))
-    return added
+    return added, new_closures
 
 
 def test_count(repo, rev=None):
@@ -263,10 +279,12 @@ def mutate(repo, scripts):
 
 def collect(repo, rev, since, scratch, run_mutation):
     core = changed_core(repo, rev)
+    added_guards, new_closures = guards(repo, rev)
     return {
         "since": rev, "since_time": since.isoformat(timespec="seconds"), "head": git(repo, "rev-parse", "--short", "HEAD").strip(),
         "delivery": delivery(repo, rev),
-        "guards_added": guards(repo, rev),
+        "guards_added": added_guards,
+        "new_file_closures": new_closures,
         "tests": {"before": test_count(repo, rev), "after": test_count(repo), "suite_seconds": suite_seconds(repo),
                   "shortcuts_added": shortcuts_added(repo, rev)},
         "gates": gates(scratch, since),
@@ -287,6 +305,7 @@ def render(m):
     g = m["guards_added"]
     lines.append("guards: %d entries added%s" % (len(g), "" if g else " (expected 0)"))
     lines += ["  " + e for e in g[:LIST_CAP]]
+    lines.append("layer closures for new files (planned --allow-new, not guards): %d" % len(m.get("new_file_closures", [])))
     t = m["tests"]
     lines.append("tests: %d -> %d (%+d); last gate summed script seconds %s; SHORTCUT added %d" % (
         t["before"], t["after"], t["after"] - t["before"], t["suite_seconds"], len(t["shortcuts_added"])))
@@ -308,6 +327,13 @@ def render(m):
     return "\n".join(lines)
 
 
+def parse_since(stamp):
+    """ISO time to an aware local datetime; accepts the trailing Z that Python 3.8 fromisoformat rejects."""
+    if stamp.endswith("Z"):
+        stamp = stamp[:-1] + "+00:00"
+    return datetime.datetime.fromisoformat(stamp).astimezone()
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--since", required=True, help="main revision the session started from")
@@ -320,7 +346,7 @@ def main(argv):
     repo = os.path.abspath(args.path)
     stamp = args.since_time or git(repo, "show", "-s", "--format=%cI", args.since).strip()
     try:
-        since = datetime.datetime.fromisoformat(stamp).astimezone()
+        since = parse_since(stamp)
     except ValueError:
         print("session_metrics: cannot resolve the start time of %s" % args.since, file=sys.stderr)
         return 2

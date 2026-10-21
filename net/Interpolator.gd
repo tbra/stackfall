@@ -46,6 +46,14 @@ class Sample:
 	var sleeping: bool = false
 
 
+## A reusable pose written by pose_into(), so a tick allocates no Dictionary.
+class Pose:
+	extends RefCounted
+	var position: Vector3 = Vector3.ZERO
+	var rotation: Quaternion = Quaternion.IDENTITY
+	var sleeping: bool = false
+
+
 ## Everything kept per body: its sample buffer and the convergence state that
 ## unwinds a capped extrapolation without a snap.
 class Track:
@@ -59,6 +67,9 @@ class Track:
 	var has_last: bool = false
 	## Whether the last pose drawn was the held end of a capped extrapolation.
 	var was_clamped: bool = false
+	## True once the newest sample is sleeping, render time is past it and the
+	## offset has decayed: the pose is then constant until a sample moves it.
+	var at_rest: bool = false
 
 ## Sequence numbers are u16 on the wire, so "newer than" is a distance test
 ## inside this modulus rather than a plain comparison.
@@ -71,6 +82,8 @@ var _config: NetConfig = null
 
 ## net_id (int) -> Track. Each Track's samples are oldest first.
 var _buffers: Dictionary = {}
+## net_id -> true for every track that is not at rest (see Track.at_rest).
+var _active: Dictionary = {}
 
 ## Host time of the newest sample from any body, and how long ago (in ms of
 ## real time) the snapshot carrying it arrived.
@@ -123,9 +136,17 @@ func push_sample(
 		var newest: Sample = track.samples[track.samples.size() - 1]
 		# Equal timestamps are the same body appearing twice in one snapshot's
 		# fragments; older ones are a reordered packet. Neither may disturb the
-		# buffer, which sample_at_render_time() assumes is sorted.
+		# buffer, which pose_into() assumes is sorted.
 		if host_time_ms <= newest.host_time_ms:
 			return false
+
+	var stays_at_rest: bool = false
+	if track.at_rest and sleeping and not track.samples.is_empty():
+		var held: Sample = track.samples[track.samples.size() - 1]
+		stays_at_rest = held.sleeping and held.position == position and held.rotation == rotation
+	if not stays_at_rest:
+		track.at_rest = false
+		_active[net_id] = true
 
 	var sample: Sample = Sample.new()
 	sample.host_time_ms = host_time_ms
@@ -203,7 +224,7 @@ func advance(delta: float) -> void:
 	_render_time_ms += clampf(error_ms, -budget_ms, budget_ms)
 
 
-## The pose to draw for `net_id` right now: interpolated between the two
+## The pose to draw right now: interpolated between the two
 ## samples bracketing the render clock, extrapolated from the last two for at
 ## most NetConfig.max_extrapolation_ms past the newest, then held. `ok` is
 ## false when the body has no usable samples, and the caller must then leave
@@ -216,10 +237,16 @@ func advance(delta: float) -> void:
 ## out over max_extrapolation_ms — the same window that opened it (spec 2.6's
 ## "extrapolate for at most 100 ms" says nothing about the way back, and a
 ## teleport is exactly the artefact the acceptance criterion tests for).
-func sample_at_render_time(net_id: int) -> Dictionary:
+## Writes the pose to draw into `out` without allocating, and returns false
+## (leaving `out` untouched) when the body has no samples. A track at rest
+## returns its held pose without re-evaluating.
+func pose_into(net_id: int, out: Pose) -> bool:
 	var track: Track = _buffers.get(net_id) as Track
 	if track == null or track.samples.is_empty():
-		return {"ok": false, "position": Vector3.ZERO, "rotation": Quaternion.IDENTITY, "sleeping": false}
+		return false
+	if track.at_rest:
+		_write_held(track, out)
+		return true
 
 	var newest: Sample = track.samples[track.samples.size() - 1]
 	var oldest: Sample = track.samples[0]
@@ -233,9 +260,9 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	elif _render_time_ms >= float(newest.host_time_ms):
 		var ahead_ms: float = _render_time_ms - float(newest.host_time_ms)
 		clamped = ahead_ms > _config.max_extrapolation_ms
-		var extrapolated: Dictionary = _extrapolate(track.samples, newest)
-		raw_position = extrapolated["position"] as Vector3
-		raw_rotation = extrapolated["rotation"] as Quaternion
+		_extrapolate(track.samples, newest, out)
+		raw_position = out.position
+		raw_rotation = out.rotation
 	else:
 		for index: int in range(track.samples.size() - 1):
 			var a: Sample = track.samples[index]
@@ -263,13 +290,26 @@ func sample_at_render_time(net_id: int) -> Dictionary:
 	# The newest sample's own sleeping flag: a boolean can't be blended, and
 	# "settled" is a property of the latest host state whichever branch above
 	# produced the pose. SnapshotSync.client_tick() is the only reader.
-	return _pose(track.last_position, track.last_rotation, newest.sleeping)
+	out.position = track.last_position
+	out.rotation = track.last_rotation
+	out.sleeping = newest.sleeping
+	# Rest: sleeping newest sample passed by the render clock, offset gone. The
+	# pose just written is final, so the caller writes it once and stops asking.
+	if (
+		newest.sleeping
+		and _render_time_ms >= float(newest.host_time_ms)
+		and track.error_position == Vector3.ZERO
+		and track.error_rotation == Quaternion.IDENTITY
+	):
+		track.at_rest = true
+		_active.erase(net_id)
+	return true
 
 
-## net_ids with at least one buffered sample.
-func tracked_ids() -> PackedInt32Array:
+## net_ids of tracks that are not at rest: the only ones whose pose can change.
+func active_ids() -> PackedInt32Array:
 	var ids: PackedInt32Array = PackedInt32Array()
-	for key: Variant in _buffers.keys():
+	for key: Variant in _active.keys():
 		ids.append(int(key))
 	return ids
 
@@ -277,10 +317,12 @@ func tracked_ids() -> PackedInt32Array:
 ## Drops every sample for a body the host despawned.
 func forget(net_id: int) -> void:
 	_buffers.erase(net_id)
+	_active.erase(net_id)
 
 
 func clear() -> void:
 	_buffers.clear()
+	_active.clear()
 	_arrivals.clear()
 	_newest_host_time_ms = 0
 	_ms_since_newest = 0.0
@@ -343,8 +385,10 @@ func _trim_arrivals(now: float) -> void:
 		_arrivals.remove_at(0)
 
 
-func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> Dictionary:
-	return {"ok": true, "position": position, "rotation": rotation, "sleeping": sleeping}
+func _write_held(track: Track, out: Pose) -> void:
+	out.position = track.last_position
+	out.rotation = track.last_rotation
+	out.sleeping = true
 
 
 ## Relaxes every body's convergence offset toward zero with a time constant of
@@ -354,7 +398,7 @@ func _pose(position: Vector3, rotation: Quaternion, sleeping: bool = false) -> D
 func _decay_errors(delta_ms: float) -> void:
 	var tau_ms: float = maxf(_config.max_extrapolation_ms, 1.0)
 	var keep: float = exp(-delta_ms / tau_ms)
-	for key: Variant in _buffers.keys():
+	for key: Variant in _active.keys():
 		var track: Track = _buffers[key] as Track
 		if track.error_position == Vector3.ZERO and track.error_rotation == Quaternion.IDENTITY:
 			continue
@@ -368,19 +412,22 @@ func _decay_errors(delta_ms: float) -> void:
 ## NetConfig.max_extrapolation_ms, then hold. Clamping the elapsed time rather
 ## than the result is what makes the hold exact — the pose simply stops
 ## advancing instead of drifting, and there is no snap when it stops.
-func _extrapolate(buffer: Array[Sample], newest: Sample) -> Dictionary:
+func _extrapolate(buffer: Array[Sample], newest: Sample, out: Pose) -> void:
 	var ahead_ms: float = clampf(
 		_render_time_ms - float(newest.host_time_ms), 0.0, _config.max_extrapolation_ms
 	)
 	if buffer.size() < 2 or newest.sleeping or ahead_ms <= 0.0:
-		return _pose(newest.position, newest.rotation)
+		out.position = newest.position
+		out.rotation = newest.rotation
+		return
 
 	var previous: Sample = buffer[buffer.size() - 2]
 	var span_ms: float = float(newest.host_time_ms - previous.host_time_ms)
 	if span_ms <= 0.0:
-		return _pose(newest.position, newest.rotation)
+		out.position = newest.position
+		out.rotation = newest.rotation
+		return
 
 	var t: float = ahead_ms / span_ms
-	var position: Vector3 = newest.position + (newest.position - previous.position) * t
-	var rotation: Quaternion = previous.rotation.slerp(newest.rotation, 1.0 + t).normalized()
-	return _pose(position, rotation)
+	out.position = newest.position + (newest.position - previous.position) * t
+	out.rotation = previous.rotation.slerp(newest.rotation, 1.0 + t).normalized()

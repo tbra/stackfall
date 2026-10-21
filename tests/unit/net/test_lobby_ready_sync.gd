@@ -23,7 +23,7 @@ func after_each() -> void:
 		_host_net.leave()
 	_client_net = null
 	_host_net = null
-	# Net._reject_peer()/leave() close the transport a couple of frames later.
+	# A refused handshake and leave() close the transport a couple of frames later.
 	await get_tree().process_frame
 	await get_tree().process_frame
 

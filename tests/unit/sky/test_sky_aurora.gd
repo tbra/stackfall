@@ -101,10 +101,10 @@ func test_storm_hides_the_aurora() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
 	skybox.set_storm_sky(1.0, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(_visibility(skybox), 0.0, 0.0001, "a full storm covers the aurora like the moon")
 	skybox.set_storm_sky(0.0, null)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(_visibility(skybox), 1.0, 0.0001, "clear again")
 
 
@@ -112,11 +112,11 @@ func test_overcast_dims_the_aurora() -> void:
 	var skybox: Skybox = _cycle_skybox()
 	skybox.set_cycle_phase(NIGHT_PHASE)
 	skybox.set_overcast(1.0, 0.5, 0.6, 0.4, Color(0.4, 0.4, 0.5), 0.5)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var dimmed: float = _visibility(skybox)
 	assert_true(dimmed > 0.0 and dimmed < 1.0, "overcast keeps some aurora, not all (got %s)" % dimmed)
 	skybox.set_overcast(0.0, 1.0, 1.0, 1.0, Color.WHITE, 0.0)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(_visibility(skybox), 1.0, 0.0001, "clear sky again")
 
 
