@@ -364,6 +364,13 @@ func _session_port() -> SessionPort:
 	return _session_port_cache
 
 
+## STUB: binds the three ports the facade's collaborators share. Returns true when every
+## port is valid and bound; the M6 implementation fills this in and nothing calls it yet.
+func bind_ports(_session_port_arg: SessionPort, _host: MatchHostPort, _replica: MatchReplicaPort) -> bool:
+	push_error("MatchNet.bind_ports: not implemented")
+	return false
+
+
 ## The host Events subscribers, sending through the same seams shape the intent gateway uses. The
 ## ports are rebound whenever the providers change (set_providers), so the Events connections the
 ## mirror holds never go stale.
