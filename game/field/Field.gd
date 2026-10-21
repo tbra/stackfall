@@ -853,7 +853,7 @@ static func raycast_disk_surface(
 ## down: drops every trace of the match that just ended (its flags, the
 ## overlay's reference to its raster, and every hole it opened) so the field
 ## behind the main menu, or a fresh rehosted match, starts clean. Field is a
-## persistent node (unlike HotSeat, RemoteCursors and NetDebugOverlay, which
+## persistent node (unlike the local player scene, RemoteCursors and NetDebugOverlay, which
 ## Main frees and rebuilds), and Match's teardown clears its blocks and slots,
 ## never Field's.
 ##

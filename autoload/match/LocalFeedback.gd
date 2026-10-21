@@ -6,8 +6,8 @@ extends RefCounted
 ## every slot it refuses -- a remote client's, a bot's, its own -- so a reaction
 ## that plays a sound or buzzes a pad must not fire for just any slot.
 ## It does only when a human at *this* machine drives the slot: Net.is_local_slot()
-## (the host's own seat, a client's own seat, or every seat in offline
-## hot-seat) and not a bot. Match-layer state (slot.is_bot) is read through the
+## (the host's own seat, a client's own seat, or every seat in an offline
+## sandbox or tutorial) and not a bot. Match-layer state (slot.is_bot) is read through the
 ## Match autoload; the session through Net, so this stays transport-neutral.
 ## ui/hud/HUD.gd and game/player/PlayerController.gd already apply the same per-viewer
 ## slot filter to their own reactions.

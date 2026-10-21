@@ -106,7 +106,7 @@ func _ready() -> void:
 
 ## One instance drives exactly one bot slot on the host. Called once by
 ## whatever builds the match world (game/main/Main.gd's _build_match_world())
-## alongside HotSeat's own per-slot wiring.
+## alongside the local player scene's own per-slot wiring.
 func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, registry: BlockRegistry) -> void:
 	_slot_id = slot_id
 	# A new bot never inherits the previous match's Reach the Sky base memory.

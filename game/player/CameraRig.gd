@@ -37,7 +37,7 @@ extends Node3D
 const TUNING_GROUP: StringName = &"tuning_camera"
 
 ## Process order: this rig is a static child of game/main/Main.tscn, created before
-## the PlayerController that HotSeat/Sandbox add at runtime, and _process() runs in
+## the PlayerController that the local player scene and Sandbox add at runtime, and _process() runs in
 ## ascending process_priority order with tree position only breaking ties. Both
 ## defaulted to 0, so this rig's _process() ran before PlayerController's every
 ## frame and read last frame's ghost position (set_follow_position() is only called
@@ -104,7 +104,7 @@ var _decay_elapsed_s: float = 0.0
 
 ## which slot's home beacon Focus home should target -- pushed
 ## every frame by game/player/PlayerController.gd's own _acting_slot() (the same
-## "local/acting slot" HotSeat/Sandbox already resolve for it), never read
+## "local/acting slot" the local player scene and Sandbox already resolve for it), never read
 ## from here. -1 (the default) means "no local slot known yet"; _resolve_
 ## home_target() below falls back to the disk center in that case, same as
 ## an eliminated or missing flag.
@@ -545,7 +545,7 @@ func _start_pivot(home: Vector3) -> Vector3:
 
 
 ## pushed every frame by game/player/PlayerController.gd's own
-## _acting_slot() (the same "local/acting slot" HotSeat.bind_local_slot()/
+## _acting_slot() (the same "local/acting slot" the local player scene and
 ## Sandbox's own active-slot cycling already resolve) so Focus home can find
 ## the right beacon among Field.home_flags() without this rig needing its own
 ## copy of that resolution logic. -1 is the "not known yet" default;
