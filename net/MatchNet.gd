@@ -34,6 +34,13 @@ extends Node
 ## NetConfig; NetConfig documents the pairing.
 const CURSOR_CHANNEL: int = 2
 
+## The MatchReplicaPort writes MatchNet makes itself (cat state, territory, slot replay).
+const _REPLICA_PORT_METHODS: PackedStringArray = ["apply_replicated_cat_state", "apply_replicated_territory", "apply_replicated_gift_claimed", "apply_replicated_feed"]
+
+## The MatchHostPort reads the event mirror and the state handler make.
+const _MIRROR_SESSION_METHODS: PackedStringArray = ["is_host", "is_local_slot", "peer_of_slot"]
+const _MIRROR_HOST_METHODS: PackedStringArray = ["feed_seq", "feed_time_left", "is_release_locked", "eliminated_by"]
+
 ## Territory payload layout (see _encode_raster / _decode_raster), bumped
 ## whenever it changes. Like SnapshotSync.PACKET_VERSION this is architecture,
 ## not a tunable, so it is a const rather than a NetConfig field.
@@ -109,15 +116,14 @@ const EVENT_CAT_ENDED: StringName = &"cat_ended"
 const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 ## mid-match join replay only: one slot's absolute feed and
 ## gift state -- [slot_id, held_shape_id, next_shape_id, feed_seq, time_left,
-## release_locked, held_special_id, next_special_id]. See
+## release_locked, held_special_id, next_special_id, after_next_special_id, after_next_carrier_id]. See
 ## _apply_slot_replay().
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
-## EVENT_SLOT_REPLAY arity: 8 args before the current payload adds the
-## after-next gift id and its carrier shape id. Indices of the id-typed args for each.
-const SLOT_REPLAY_ARGS_BASE: int = 8
-const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_BASE + 2
-const SLOT_REPLAY_ID_ARGS_BASE: Array[int] = [1, 2, 6, 7]
-const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, 8, 9]
+## EVENT_SLOT_REPLAY arity, and the indices of its id-typed args (after-next gift and carrier last).
+const SLOT_REPLAY_AFTER_SPECIAL: int = 8
+const SLOT_REPLAY_AFTER_CARRIER: int = SLOT_REPLAY_AFTER_SPECIAL + 1
+const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_AFTER_CARRIER + 1
+const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, SLOT_REPLAY_AFTER_SPECIAL, SLOT_REPLAY_AFTER_CARRIER]
 ## mid-match join replay only: [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 ## mid-match join replay only, COUNTDOWN: the loading-screen ready
@@ -184,12 +190,6 @@ var reject_replies_by_peer: Dictionary:
 var last_reject_reply: Array:
 	get:
 		return counters.last_reject_reply
-var relocate_replies_by_peer: Dictionary:
-	get:
-		return counters.relocate_replies_by_peer
-var last_relocate_reply: Array:
-	get:
-		return counters.last_relocate_reply
 
 ## replicated block impacts (core/net/ImpactWire.gd).
 ## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
@@ -304,6 +304,12 @@ var _weather_net: Node = null
 ## the client-side event applier child (net/MatchEventApplier.gd).
 ## net_match_event stays the RPC entry point; this child holds the apply bulk.
 var _applier: Node = null
+## The typed Match reads the mirror and the state handler make; rebuilt when the providers change.
+var _host_port_cache: MatchHostPort = null
+var _session_port_cache: SessionPort = null
+var _replica_port_cache: MatchReplicaPort = null
+## The host Events subscribers (net/match/MatchEventMirror.gd), built on first use.
+var _mirror: MatchEventMirror = null
 ## true once late_activate() has built the WeatherNet child.
 var _late_active: bool = false
 var _cat_send_accum: float = 0.0
@@ -312,34 +318,15 @@ var _scores_send_accum: float = 0.0
 
 func _ready() -> void:
 	_authority().set_replicator(self)
+	var mirror: MatchEventMirror = _event_mirror()
+	mirror.bind(Events)
 	Events.match_state_changed.connect(_on_match_state_changed)
-	Events.countdown_tick.connect(_on_countdown_tick)
-	Events.turn_changed.connect(_on_turn_changed)
-	Events.feed_block_issued.connect(_on_feed_block_issued)
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
-	Events.qol_feed_changed.connect(_on_qol_feed_changed)
-	Events.gift_slot_changed.connect(_on_gift_slot_changed)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
-	Events.player_eliminated.connect(_on_player_eliminated)
-	Events.match_won.connect(_on_match_won)
-	Events.mode_state_changed.connect(_on_mode_state_changed)
-	Events.match_results_ready.connect(_on_match_results_ready)
-	Events.gift_flight_spawned.connect(_on_gift_flight)
-	Events.gift_landed.connect(_on_gift_landed)
-	Events.gift_spawned.connect(_on_gift_spawned)
-	Events.gift_claimed.connect(_on_gift_claimed)
-	Events.gift_expired.connect(_on_gift_expired)
-	Events.special_triggered.connect(_on_special_triggered)
-	Events.special_consumed.connect(_on_special_consumed)
-	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 	Events.blocks_fused.connect(_on_blocks_fused)
 	Events.fused_member_released.connect(_on_fused_member_released)
 	Events.glue_drop_charged.connect(_on_glue_drop_charged)
-	Events.block_owner_changed.connect(_on_block_owner_changed)
-	Events.block_frozen_changed.connect(_on_block_frozen_changed)
-	Events.cat_started.connect(_on_cat_started)
-	Events.cat_ended.connect(_on_cat_ended)
 	Events.block_removed.connect(_on_block_removed)
 	Events.block_dissolve_started.connect(_on_block_dissolve_started)
 	Events.goal_capture_progress.connect(_on_goal_capture_progress)
@@ -387,8 +374,41 @@ func _event_applier() -> Node:
 		_applier = LateScripts.script(LateScripts.MATCH_EVENT_APPLIER).new() as Node
 		_applier.name = "MatchEventApplier"
 		_applier.set("_net", self)
+		_applier.call(&"bind_replica", _replica_port())
 		add_child(_applier)
 	return _applier
+
+
+func _host_port() -> MatchHostPort:
+	if _host_port_cache == null:
+		_host_port_cache = MatchHostPort.new(_authority(), _MIRROR_HOST_METHODS)
+	return _host_port_cache
+
+
+func _replica_port() -> MatchReplicaPort:
+	if _replica_port_cache == null:
+		_replica_port_cache = MatchReplicaPort.new(_authority(), _REPLICA_PORT_METHODS)
+	return _replica_port_cache
+
+
+func _session_port() -> SessionPort:
+	if _session_port_cache == null:
+		_session_port_cache = SessionPort.new(_session(), _MIRROR_SESSION_METHODS)
+	return _session_port_cache
+
+
+## The host Events subscribers, sending through the same seams shape the intent gateway uses. The
+## ports are rebound whenever the providers change (set_providers), so the Events connections the
+## mirror holds never go stale.
+func _event_mirror() -> MatchEventMirror:
+	if _mirror == null:
+		var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+		seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+			return NetFanout.send_to(self, _session(), peer_id, method, args)
+		seams.broadcast = func(_method: StringName, args: Array) -> void: replicate_match_event(args[0], args[1])
+		_mirror = MatchEventMirror.new(seams)
+		_mirror.bind_ports(_session_port(), _host_port())
+	return _mirror
 
 
 func _block_factory() -> GDScript:
@@ -413,6 +433,13 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_match_provider = match_provider
 	_intent_gateway = null
 	_world_replay_host = null
+	_host_port_cache = null
+	_session_port_cache = null
+	_replica_port_cache = null
+	if _mirror != null:
+		_mirror.bind_ports(_session_port(), _host_port())
+	if _applier != null:
+		_applier.call(&"bind_replica", _replica_port())
 	if _weather_net != null:
 		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
@@ -509,7 +536,7 @@ func _process(delta: float) -> void:
 		_scores_send_accum += delta
 		if _scores_send_accum >= 1.0 / maxf(config.scoreboard_hz, 0.001):
 			_scores_send_accum = 0.0
-			replicate_match_event(EVENT_LIVE_SCORES, [_authority().stats().build_live_payload()])
+			_event_mirror().on_live_scores(_authority().stats().build_live_payload())
 	_raster_send_accum += delta
 	var step: float = 1.0 / maxf(config.raster_diff_hz, 0.001)
 	if _raster_send_accum >= step:
@@ -1015,12 +1042,6 @@ func _gift_special_id_wire_ok(special_id: String) -> bool:
 	return _known_special_ids().has(special_id)
 
 
-## TRANSITIONAL (MatchIntentGateway.reject_to_peer): the placement_rejected reply
-## to one peer, under its old private name for tests outside this file.
-func _reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
-	_gateway.reject_to_peer(peer_id, slot_id, reason)
-
-
 func _store_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	if slot_id < 0:
 		return
@@ -1062,7 +1083,7 @@ func _roster() -> Array:
 
 # --- Events the host mirrors to its clients ---------------------------------
 
-func _on_match_state_changed(_from_state: int, to_state: int) -> void:
+func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	# DECISION: impacts clear on LOBBY|LOADING only; END is excluded from
 	# is_resetting so impacts already queued still play into the results screen.
 	if MatchPhase.is_resetting(to_state) and to_state != MatchPhase.State.END:
@@ -1078,61 +1099,11 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 		replicate_match_start(_authority().config)
 	elif to_state == MatchPhase.State.LOBBY:
 		_match_start_sent = false
-	# the LOBBY/LOADING/COUNTDOWN start_match() produces
-	# internally (see MatchLifecycle._starting's own doc) is fully replayed on
-	# a client by net_match_start alone; replicating them again here would
-	# race that local replay and turn into spurious re-emits on the other
-	# side. Every OTHER state change -- reached outside a start_match() call,
-	# such as PLAYING->END from a win -- still replicates normally.
-	#
-	# DECISION (net/MatchNet.gd): reaches _authority()'s own
-	# _lifecycle directly rather than through a new Match.is_starting_match()
-	# forward -- autoload/Match.gd is not one of this package's owned files.
-	# _authority() is always either the real Match (which always has a
-	# _lifecycle by the time any match flow can run, built in Match._ready())
-	# or a test double; nothing in the current test suite ever hands MatchNet
-	# a _match_provider without one.
-	if _authority()._lifecycle.is_starting_match():
-		return
-	counters.replicated_state_changes.append(to_state)
-	replicate_match_event(EVENT_STATE_CHANGED, [to_state])
-
-
-func _on_countdown_tick(seconds_left: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_COUNTDOWN, [seconds_left])
-
-
-func _on_turn_changed(slot_id: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_TURN_CHANGED, [slot_id])
-
-
-## The host's feed sequence rides along with the block it belongs to, so a
-## client always quotes the number the host will actually check against
-## (Match.apply_replicated_feed explains why it cannot count its own).
-## Events.feed_block_issued's own signature is untouched; this is the RPC
-## payload, not the signal.
-##
-## Also rides feed_time_left()/is_release_locked()
-## for this slot, read at this exact moment -- Match's own _consume_and_
-## refeed()/_begin_playing() update both before calling _issue_next_block(),
-## which is what emits Events.feed_block_issued and triggers this handler
-## synchronously, so "this exact moment" already reflects the placement that
-## just happened. Without them a client's mirror always assumed a fresh
-## config.block_timer-length interval, which is wrong on an early release
-## (spec 1.4 "does not restart the interval") and never showed the ghost
-## locked on a client's own screen either.
-func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
-	if _session().is_host():
-		var authority: Variant = _authority()
-		replicate_match_event(
-			EVENT_FEED_ISSUED,
-			[
-				slot_id, shape_id, next_shape_id, int(authority.feed_seq(slot_id)),
-				float(authority.feed_time_left(slot_id)), bool(authority.is_release_locked(slot_id)),
-			]
-		)
+	# The LOBBY/LOADING/COUNTDOWN start_match() produces internally is replayed on a client by
+	# net_match_start alone (the mirror skips it); every other state change replicates normally.
+	if not _host_port().is_starting_match():
+		counters.replicated_state_changes.append(to_state)
+	_event_mirror().on_state_changed(from_state, to_state)
 
 
 ## Spec 1.4's auto-drop is [ORIGINAL] and must keep dropping "from its current
@@ -1148,7 +1119,7 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	if not _session().is_host():
 		return
 	# The ghost flash is feedback, not a rule, so every instance gets it.
-	replicate_match_event(EVENT_FEED_EXPIRED, [slot_id])
+	_event_mirror().on_feed_expired(slot_id)
 	if bool(_session().is_local_slot(slot_id)):
 		return
 	var cursor: Dictionary = cursor_for_slot(slot_id)
@@ -1179,16 +1150,6 @@ func _afk_fallback_origin(slot_id: int) -> Vector3:
 	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
 
 
-func _on_qol_feed_changed(slot_id: int, backlog: int, paused: bool) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_QOL_FEED, [slot_id, backlog, paused])
-
-
-func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GIFT_SLOT, [slot_id, contents, activated, carrier_id])
-
-
 ## A refusal is feedback for the refused player alone, so it goes only to the
 ## peer that holds the slot -- never the host's own seat, a bot's or a vacated
 ## one, which have no remote peer to tell. The host's own seat reacts to
@@ -1196,23 +1157,9 @@ func _on_gift_slot_changed(slot_id: int, contents: Array, activated: StringName,
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	if not _session().is_host():
 		return
-	var owner_peer: int = _remote_peer_of_slot(slot_id)
-	if owner_peer < 0:
-		return
-	_reject_to_peer(owner_peer, slot_id, reason)
 	# The intent handler that is applying this refusal must not send it again.
-	_gateway.note_rejection_sent(slot_id)
-
-
-## The remote peer that holds `slot_id`, or -1 when nobody remote does: the
-## listen-server's own seat, a bot, an empty or vacated seat, a bad slot.
-func _remote_peer_of_slot(slot_id: int) -> int:
-	if slot_id < 0 or bool(_session().is_local_slot(slot_id)):
-		return -1
-	var peer_id: int = int(_session().peer_of_slot(slot_id))
-	if peer_id <= 0 or peer_id == Net.HOST_PEER_ID:
-		return -1
-	return peer_id
+	if _event_mirror().on_placement_rejected(slot_id, reason):
+		_gateway.note_rejection_sent(slot_id)
 
 
 ## Mirrors an auto-drop's relocation to the owning client so its
@@ -1226,94 +1173,7 @@ func _remote_peer_of_slot(slot_id: int) -> int:
 func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	if not _session().is_host():
 		return
-	var owner_peer: int = _remote_peer_of_slot(slot_id)
-	if owner_peer < 0:
-		return
-	counters.note_relocate_reply(owner_peer, slot_id, point)
-	NetFanout.send_to(self, _session(), owner_peer, &"net_match_event", [EVENT_PLACEMENT_RELOCATED, [slot_id, point]])
-
-
-func _on_player_eliminated(slot_id: int, team_id: int) -> void:
-	if _session().is_host():
-		# the third argument is the eliminator slot (-1 unknown).
-		replicate_match_event(EVENT_PLAYER_ELIMINATED, [slot_id, team_id, int(_authority().eliminated_by(slot_id))])
-
-
-## Host only: the objective's state changed. A client's own apply re-emits the
-## same signal, hence the host guard (no echo, and a client never replicates).
-func _on_mode_state_changed(state: Dictionary) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_MODE_STATE, [state])
-
-
-func _on_match_won(team_id: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_MATCH_WON, [team_id])
-
-
-## mirrors MatchLifecycle._finish_match()'s own
-## Events.match_results_ready emit (fired right after match_won above) to
-## every client, in one reliable packet. The dictionary rides as a single
-## net_match_event argument -- Godot's high-level RPC marshalling already
-## carries a Dictionary/Array of built-in Variant types (this file's own
-## MatchConfig.to_dict()/net_match_start precedent), so no separate encoding
-## is needed the way the territory raster's binary payload requires.
-func _on_match_results_ready(results: Dictionary) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_MATCH_RESULTS, [results])
-
-
-func _on_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GIFT_FLIGHT, [gift_id, origin, landing])
-
-
-func _on_gift_landed(gift_id: int, landing: Vector3) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GIFT_LANDED, [gift_id, landing])
-
-
-func _on_gift_spawned(gift_id: int, position: Vector2) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GIFT_SPAWNED, [gift_id, position])
-
-
-func _on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
-	if _session().is_host():
-		# in the after-next trial the carrier is the staged shape, not the next piece.
-		replicate_match_event(EVENT_GIFT_CLAIMED, [gift_id, slot_id, special_id, _authority()._feed.claim_carrier_shape_id(slot_id)])
-
-
-func _on_gift_expired(gift_id: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GIFT_EXPIRED, [gift_id])
-
-
-## autoload/match/MatchPlacement._on_special_behavior_triggered()
-## emits Events.special_triggered only on the host (game/gifts/specials/
-## SpecialBehavior.gd only ever attaches there), so this mirrors it to every
-## client exactly like _on_gift_spawned above.
-func _on_special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int) -> void:
-	if _session().is_host():
-		# QoL 1: a special freezes block timers for a while.
-		var feed: Variant = _authority().get("_feed")
-		if feed != null:
-			feed.note_special_triggered()
-		replicate_match_event(EVENT_SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
-
-
-## mirrors autoload/match/MatchGifts.gd's pop_pending_special()
-## emit to every client -- a client never pops its own queue (it only ever
-## mirrors the host's, via apply_replicated_special_consumed() below), so this
-## dispatch is the only place a client ever learns a special was spent.
-func _on_special_consumed(slot_id: int, special_id: StringName) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_SPECIAL_CONSUMED, [slot_id, special_id])
-
-
-func _on_glue_charges_changed(slot_id: int, charges: int, revision: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_GLUE_CHARGES, [slot_id, charges, revision])
+	_event_mirror().on_placement_relocated(slot_id, point)
 
 
 ## Host: members newly fused into a FusedBody join the glued set; the coat event
@@ -1329,7 +1189,7 @@ func _on_blocks_fused(_carrier: Node, members: Array) -> void:
 		_fused_ids[block.net_id] = true
 		if not was_coated:
 			_set_block_coated(block, true)
-			replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, true])
+			_event_mirror().on_block_glued(block.net_id, true)
 
 
 ## Host: a member left its group alive (the survivor of a collapse); it uncoats.
@@ -1342,7 +1202,7 @@ func _on_fused_member_released(member: Node) -> void:
 	var was_charged: bool = _glue_charged_ids.erase(block.net_id)
 	if was_fused or was_charged:
 		_set_block_coated(block, false)
-		replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, false])
+		_event_mirror().on_block_glued(block.net_id, false)
 
 
 ## Host: a charged glue drop is coated (and the coat replicated) at spawn, so it
@@ -1354,17 +1214,7 @@ func _on_glue_drop_charged(body: Node) -> void:
 		return
 	_glue_charged_ids[block.net_id] = true
 	_set_block_coated(block, true)
-	replicate_match_event(EVENT_BLOCK_GLUED, [block.net_id, true])
-
-
-func _on_block_owner_changed(net_id: int, owner_slot: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_BLOCK_OWNER_CHANGED, [net_id, owner_slot])
-
-
-func _on_block_frozen_changed(net_id: int, frozen: bool) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_BLOCK_FROZEN, [net_id, frozen])
+	_event_mirror().on_block_glued(block.net_id, true)
 
 
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
@@ -1385,21 +1235,11 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 
 ## Host: mirrors a dissolve start so clients can play the same fade. A body
 ## without a wire id (net_id allocation failed) never reached a client.
-func _on_block_dissolve_started(_block: RigidBody3D, net_id: int, _duration_s: float) -> void:
+func _on_block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float) -> void:
 	if not _session().is_host() or not Quantize.is_wire_id(net_id):
 		return
 	counters.replicated_dissolve_starts.append(net_id)
-	replicate_match_event(EVENT_BLOCK_DISSOLVE_STARTED, [net_id])
-
-
-func _on_cat_started(id: int, slot_id: int, position: Vector3, duration: float) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_CAT_STARTED, [id, slot_id, position, duration])
-
-
-func _on_cat_ended(id: int) -> void:
-	if _session().is_host():
-		replicate_match_event(EVENT_CAT_ENDED, [id])
+	_event_mirror().on_block_dissolve_started(block, net_id, duration_s)
 
 
 # --- Replicated block impacts ------------------------------
@@ -1729,7 +1569,7 @@ func _slot_replay_args(slot_id: int) -> Array:
 		StringName(authority.held_special(slot_id)),
 		StringName(authority.next_special(slot_id)),
 		StringName(authority.after_next_special(slot_id)),
-		authority._feed.staged_gift_shape_id(slot_id),
+		_host_port().feed_staged_gift_shape_id(slot_id),
 	]
 
 
@@ -1742,11 +1582,9 @@ func _slot_replay_args(slot_id: int) -> Array:
 ## and marked as the next carrier, the feed event activates it, then the
 ## queued next gift is queued behind it.
 func _apply_slot_replay(args: Array) -> void:
-	# 8 args before 10 adds the after-next gift and its carrier.
-	var has_after: bool = args.size() == SLOT_REPLAY_ARGS
-	if (args.size() != SLOT_REPLAY_ARGS_BASE and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
+	if args.size() != SLOT_REPLAY_ARGS or not args[0] is int or not args[3] is int or not args[5] is bool:
 		return
-	for index: int in (SLOT_REPLAY_ID_ARGS_BASE if not has_after else SLOT_REPLAY_ID_ARGS):
+	for index: int in SLOT_REPLAY_ID_ARGS:
 		if not (args[index] is StringName or args[index] is String):
 			return
 	if not (args[4] is float or args[4] is int):
@@ -1759,34 +1597,34 @@ func _apply_slot_replay(args: Array) -> void:
 	var locked: bool = args[5]
 	var held_special: StringName = StringName(args[6])
 	var next_special: StringName = StringName(args[7])
-	var after_special: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE]) if has_after else &""
-	var after_carrier: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE + 1]) if has_after else &""
-	var authority: Variant = _authority()
-	var running: MatchConfig = authority.config
-	if running == null or slot_id < 0 or slot_id >= int(authority.slot_count()):
+	var after_special: StringName = StringName(args[SLOT_REPLAY_AFTER_SPECIAL])
+	var after_carrier: StringName = StringName(args[SLOT_REPLAY_AFTER_CARRIER])
+	var host: MatchHostPort = _host_port()
+	var replica: MatchReplicaPort = _replica_port()
+	if host.config() == null or slot_id < 0 or slot_id >= host.slot_count():
 		return
 	if feed_seq < 0 or not is_finite(time_left) or time_left < 0.0 or time_left > MatchConfig.BLOCK_TIMER_MAX:
 		return
-	if authority._feed._shape_by_id(held_id) == null:
+	if not host.feed_knows_shape(held_id):
 		return
-	if next_id != &"" and authority._feed._shape_by_id(next_id) == null:
+	if next_id != &"" and not host.feed_knows_shape(next_id):
 		return
 	if held_special != &"" and not _gift_special_id_wire_ok(String(held_special)):
 		return
 	if next_special != &"" and (next_id == &"" or not _gift_special_id_wire_ok(String(next_special))):
 		return
-	if after_special != &"" and (not _gift_special_id_wire_ok(String(after_special)) or authority._feed._shape_by_id(after_carrier) == null):
+	if after_special != &"" and (not _gift_special_id_wire_ok(String(after_special)) or not host.feed_knows_shape(after_carrier)):
 		return
 	if held_special != &"":
-		authority.apply_replicated_gift_claimed(-1, slot_id, held_special)
-		authority._feed.apply_replicated_next_gift(slot_id, held_id)
-	authority.apply_replicated_feed(slot_id, held_id, next_id, feed_seq, time_left, locked)
+		replica.apply_replicated_gift_claimed(-1, slot_id, held_special)
+		replica.apply_replicated_next_gift(slot_id, held_id)
+	replica.apply_replicated_feed(slot_id, held_id, next_id, feed_seq, time_left, locked)
 	if next_special != &"":
-		authority.apply_replicated_gift_claimed(-1, slot_id, next_special)
-		authority._feed.apply_replicated_next_gift(slot_id, next_id)
+		replica.apply_replicated_gift_claimed(-1, slot_id, next_special)
+		replica.apply_replicated_next_gift(slot_id, next_id)
 	if after_special != &"":
-		authority.apply_replicated_gift_claimed(-1, slot_id, after_special)
-		authority._feed.apply_replicated_staged_gift(slot_id, after_carrier)
+		replica.apply_replicated_gift_claimed(-1, slot_id, after_special)
+		replica.apply_replicated_staged_gift(slot_id, after_carrier)
 	Events.feed_block_issued.emit(slot_id, held_id, next_id)
 
 
@@ -1949,7 +1787,8 @@ func net_cat_target(slot_id: int, point: Vector3) -> void:
 func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
 	if _client_awaiting_world():
 		return
-	_authority().apply_replicated_cat_state(id, position, velocity, point, remaining)
+	var replica: MatchReplicaPort = _replica_port()
+	replica.apply_replicated_cat_state(id, position, velocity, point, remaining)
 
 
 # Host -> clients.
@@ -2133,7 +1972,8 @@ func net_territory(
 	var circles: Dictionary = CircleWire.decode(
 		circle_payload, _authority().circle_wire_xz_bound(), _authority().circle_wire_radius_max()
 	)
-	_authority().apply_replicated_territory(
+	var replica: MatchReplicaPort = _replica_port()
+	replica.apply_replicated_territory(
 		decoded["cells"],
 		decoded["owners"],
 		decoded["states"],

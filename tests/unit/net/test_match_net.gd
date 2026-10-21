@@ -21,6 +21,7 @@ var _field: Field
 var _registry: BlockRegistry
 var _net: MatchNetScript
 var _fake_net: FakeNet
+var _gateway_counters: NetCounters
 
 ## DECISION: see test_match_flow.gd's own `_tiny_map` comment
 ## for the full story -- this file builds a real Field/Match world in every
@@ -71,6 +72,26 @@ func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = fa
 	node.set_providers(_fake_net, Match)
 	_net = node
 	return node
+
+
+## The host's intent door, built the way the game builds it, over the faked session and the real
+## Match, with spy Seams (nothing leaves the process).
+func _make_gateway(peer_slots: Dictionary, local: Array[int], client_mode: bool = false) -> MatchIntentGateway:
+	_fake_net = FakeNet.host(peer_slots, local) if not client_mode else FakeNet.client(local[0])
+	_fake_net.slots_by_peer = peer_slots
+	Match._net_provider = _fake_net
+	_gateway_counters = NetCounters.new()
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return true
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: pass
+	seams.now_s = func() -> float: return 0.0
+	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
+	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
+	var gateway: MatchIntentGateway = MatchIntentGateway.new(_fake_net, Match, preload("res://config/net/net_config.tres"), _gateway_counters, seams)
+	assert_true(gateway.is_valid(), "fixture: the gateway bound the faked session and the real Match")
+	return gateway
 
 
 func _config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
@@ -209,26 +230,26 @@ func test_a_stale_feed_seq_is_refused() -> void:
 
 
 func test_an_intent_for_someone_elses_slot_is_refused() -> void:
-	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	var gateway: MatchIntentGateway = _make_gateway({1: 0, 2: 1}, [0])
 	_start_playing()
 
 	# Peer 2 holds slot 1 but claims slot 0.
-	net._handle_place_intent(2, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Match.feed_seq(0))
+	gateway.handle_place(2, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Match.feed_seq(0))
 
 	assert_eq(_block_count(), 0, "Nothing may be placed for a slot the sender does not hold.")
-	assert_eq(net.intents_accepted(0), 0, "intents_accepted must not move.")
-	assert_eq(net.intents_accepted(1), 0)
-	assert_eq(net.intents_refused(1), 1, "The refusal is counted against the sender's own slot.")
-	assert_eq(net.intents_sent(1), 1)
+	assert_eq(_gateway_counters.accepted_count(0), 0, "intents_accepted must not move.")
+	assert_eq(_gateway_counters.accepted_count(1), 0)
+	assert_eq(_gateway_counters.refused_count(1), 1, "The refusal is counted against the sender's own slot.")
+	assert_eq(_gateway_counters.sent_count(1), 1)
 
 
 func test_a_client_never_acts_on_an_intent_it_receives() -> void:
-	var net: MatchNetScript = _make_net({}, [1], true)
+	var gateway: MatchIntentGateway = _make_gateway({}, [1], true)
 	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
 	Match._net_provider = _fake_net
 
-	net._handle_place_intent(1, 0, _home_world_position(0), 0, Quaternion.IDENTITY, 0)
+	gateway.handle_place(1, 0, _home_world_position(0), 0, Quaternion.IDENTITY, 0)
 
 	assert_eq(_block_count(), 0)
 
@@ -313,13 +334,13 @@ func test_a_peer_that_comes_back_inside_the_grace_keeps_playing() -> void:
 
 
 func test_an_intent_from_a_departed_peer_is_refused() -> void:
-	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	var gateway: MatchIntentGateway = _make_gateway({1: 0, 2: 1}, [0])
 	_start_playing()
 	Match.on_peer_left(1)
 	# P1 drops the peer from the registry as it goes.
 	_fake_net.slots_by_peer.erase(2)
 
-	net._handle_place_intent(2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Match.feed_seq(1))
+	gateway.handle_place(2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Match.feed_seq(1))
 
 	assert_eq(_block_count(), 0, "An intent already in flight when its sender vanished is dropped.")
 
@@ -464,13 +485,24 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 		Match._process(1.0 / 60.0)
 	assert_lt(Match.feed_time_left(1), 6.0)
 
-	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9, 6.0, false])
 
 	assert_eq(Match.held_shape(1).id, &"cube")
 	assert_almost_eq(Match.feed_time_left(1), 6.0, 0.001, "The host's feed is the client's clock.")
 	assert_eq(
 		Match.feed_seq(1), 9, "The client takes the host's sequence verbatim; it cannot count its own."
 	)
+
+
+func test_a_feed_event_missing_its_timer_and_lock_is_refused() -> void:
+	Match._net_provider = FakeNet.host({}, [0, 1])
+	_start_playing(2, 6.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+	var seq_before: int = Match.feed_seq(1)
+
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+
+	assert_eq(Match.feed_seq(1), seq_before, "a 4-argument feed event is not the wire form")
 
 
 func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
@@ -538,7 +570,7 @@ func test_malformed_capture_progress_is_rejected() -> void:
 
 # --- M4 P2b: EVENT_GIFT_CLAIMED's third argument (Orchestrator amendment 1) -
 
-## net/MatchNet.gd's _special_id_wire_ok(): empty, over-length (40 chars) and
+## The client's special-id wire check: empty, over-length (40 chars) and
 ## non-[A-Za-z0-9_] (a space) payloads are all dropped -- mirrors
 ## test_gift_claim.gd's test_gift_wire_rejects_malformed_payloads for
 ## EVENT_GIFT_SPAWNED's own position check.
@@ -566,38 +598,36 @@ func test_a_malformed_special_id_is_dropped_not_applied() -> void:
 
 
 func test_a_throw_intent_for_someone_elses_slot_is_refused() -> void:
-	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	var gateway: MatchIntentGateway = _make_gateway({1: 0, 2: 1}, [0])
 	_start_playing()
 	_seed_held_gift(0, MatchGifts.PENDING_SPECIAL_ID)
 
 	# Peer 2 holds slot 1 but claims slot 0, exactly like the matching
 	# placement test above.
-	net._handle_throw_intent(
+	gateway.handle_throw(
 		2, 0, _home_world_position(0), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), Match.feed_seq(0)
 	)
 
 	assert_eq(_block_count(), 0, "Nothing may be thrown for a slot the sender does not hold.")
-	assert_eq(net.intents_accepted(0), 0)
-	assert_eq(net.intents_refused(1), 1, "The refusal is counted against the sender's own slot.")
-	assert_eq(net.intents_sent(1), 1)
+	assert_eq(_gateway_counters.accepted_count(0), 0)
+	assert_eq(_gateway_counters.refused_count(1), 1, "The refusal is counted against the sender's own slot.")
+	assert_eq(_gateway_counters.sent_count(1), 1)
 
 
 ## Review NIT: a remote throw intent quoting the -1 "don't check" sentinel
-## must be refused at the wire boundary -- _handle_throw_intent()'s own
-## `feed_seq < 0` branch, exactly the one _handle_place_intent() takes (see
-## that function's own matching comment on why -1 is a trusted-local-caller-
-## only courtesy that must never arrive from the wire).
+## must be refused at the wire boundary, exactly as a place intent is (-1 is a
+## trusted-local-caller-only courtesy that must never arrive from the wire).
 func test_a_negative_feed_seq_on_a_throw_intent_is_refused_at_the_wire_like_place() -> void:
-	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	var gateway: MatchIntentGateway = _make_gateway({1: 0, 2: 1}, [0])
 	_start_playing()
 	_seed_held_gift(1, MatchGifts.PENDING_SPECIAL_ID)
 
-	net._handle_throw_intent(
+	gateway.handle_throw(
 		2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, Vector3(1.0, 0.0, 0.0), -1
 	)
 
 	assert_eq(_block_count(), 0, "A negative feed_seq from the wire must be refused, not treated as 'don't check'.")
-	assert_eq(net.intents_refused(1), 1)
+	assert_eq(_gateway_counters.refused_count(1), 1)
 	assert_eq(Match.held_special(1), MatchGifts.PENDING_SPECIAL_ID, "nothing was consumed by the refusal")
 
 
@@ -725,11 +755,9 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	assert_eq(net.intents_refused(1), 1)
 	assert_eq(net.cursors_refused(1), 1)
 	assert_eq(net._intents_sent, {1: 2}, "ENet harnesses and MatchFingerprint still read the private names")
-	net.counters.count_event(&"x")
 	net.reset_counters()
 	assert_eq(net.intents_sent(1), 0, "reset_counters() drops the per-match counters")
 	assert_eq(net.cursors_refused(1), 0)
-	assert_eq(int(net.replicated_event_counts.get(&"x", 0)), 1, "the whole-session tallies survive a reset, as before")
 
 
 func test_the_intent_gateway_binds_the_current_providers() -> void:
@@ -739,10 +767,3 @@ func test_the_intent_gateway_binds_the_current_providers() -> void:
 	assert_same(net._intents(), first, "built once per binding")
 	net.set_providers(_fake_net, Match)
 	assert_not_same(net._intents(), first, "rebinding the providers rebuilds the gateway")
-
-
-func test_the_transitional_reject_forwarder_goes_through_the_gateway_counters() -> void:
-	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
-	net._reject_to_peer(2, 1, &"test")
-	assert_eq(net.last_reject_reply, [2, 1, &"test"])
-	assert_eq(int(net.reject_replies_by_peer.get(2, 0)), 1)

@@ -23,6 +23,13 @@ func test_special_id_refuses_empty_and_bad_characters() -> void:
 	assert_false(WireLimits.special_id_ok(&"a/b", _config))
 
 
+func test_special_id_character_classes_include_both_ends_and_exclude_their_neighbours() -> void:
+	for accepted: String in ["a", "z", "A", "Z", "0", "9", "_"]:
+		assert_true(WireLimits.special_id_ok(StringName(accepted), _config), "%s is a legal id character" % accepted)
+	for refused: String in ["`", "{", "@", "[", "/", ":", "^", "`"]:
+		assert_false(WireLimits.special_id_ok(StringName(refused), _config), "%s is not" % refused)
+
+
 func test_special_id_length_follows_the_config() -> void:
 	var at_cap: String = "a".repeat(_config.special_id_max_length)
 	assert_true(WireLimits.special_id_ok(StringName(at_cap), _config), "exactly the cap passes")
