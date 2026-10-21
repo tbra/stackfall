@@ -3,36 +3,62 @@ extends GutTest
 ## Driven only through a FakeSteam (a SteamClient with no Steam singleton behind
 ## it): the session's calls into the fake, its answers to the fake's queued
 ## lobby answers (delivered by one run_callbacks() frame), and what it leaves in
-## the roster and on the Events bus.
+## the signals it emits for Net (host_ready, request_failed, join_refused,
+## lobbies_discovered). Net's seams are stood in for by the fields above.
 
 const _HOST_LOBBY: int = 4242
 const _OTHER_LOBBY: int = 777
 const _RESULT_FAILED: int = 2
 const _RESPONSE_FULL: int = 3
-const _PERSONA: String = "TestSteamUser"
+const _VERSION: String = "test-build"
+const _HOST_NAME: String = "Hostie"
 
 var _fake: FakeSteam
 var _transport: NetTransport
 var _roster: NetRoster
-var _config: NetConfig
 var _session: NetSteamSession
 var _host_peer_builds: int = 0
+## What Net tells the session through its seams: whether it has no session yet.
+var _offline: bool = true
+var _lobby_settings: Dictionary = {"map_variant": 2, "player_count": 4}
+var _hosted: Array[Dictionary] = []
+var _failed: Array[Array] = []
+var _refused: Array[Array] = []
+var _discovered: Array = []
 
 
 func before_each() -> void:
-	_config = NetConfig.new()
 	_fake = FakeSteam.new()
 	_transport = NetTransport.new()
-	_roster = NetRoster.new(_config)
+	_roster = NetRoster.new(NetConfig.new())
 	_host_peer_builds = 0
+	_offline = true
+	_hosted.clear()
+	_failed.clear()
+	_refused.clear()
+	_discovered.clear()
 	_session = NetSteamSession.new(_fake, _transport, _roster)
-	watch_signals(Events)
+	_session.seams.is_offline = func() -> bool: return _offline
+	_session.seams.is_host = func() -> bool: return true
+	_session.seams.leave_session = func() -> void:
+		_offline = true
+		_session.leave()
+	_session.seams.lobby_data = func() -> Dictionary: return _lobby_settings
+	_session.seams.build_version = func() -> String: return _VERSION
+	_session.seams.local_name = func(typed: String) -> String: return typed
+	# Net seats the session when the peer is ready.
+	_session.host_ready.connect(func(peer: MultiplayerPeer, lobby_id: int, host_name: String) -> void:
+		_offline = false
+		_hosted.append({"peer": peer, "lobby_id": lobby_id, "host_name": host_name}))
+	_session.request_failed.connect(func(error: int, detail: String) -> void: _failed.append([error, detail]))
+	_session.join_refused.connect(func(error: int, detail: String) -> void: _refused.append([error, detail]))
+	_session.lobbies_discovered.connect(func(lobbies: Array[Dictionary]) -> void: _discovered.append(lobbies))
 
 
 ## Steam initialised and a host peer the session can take (a connected stub:
 ## SteamMultiplayerPeer is never built in a test).
 func _ready_steam() -> void:
-	_fake.init()
+	_session.init()
 	_transport.steam_host_peer_factory = func() -> MultiplayerPeer:
 		_host_peer_builds += 1
 		return _StubPeer.new()
@@ -57,16 +83,14 @@ class _StubPeer:
 		pass
 
 
+## One frame: what Net._process does for the session.
 func _frame() -> void:
-	_fake.run_callbacks()
+	_session.process(0.0)
 
 
-func _failed_count() -> int:
-	return get_signal_emit_count(Events, "net_join_failed")
-
-
-func _failed_error(index: int = 0) -> int:
-	return int(get_signal_parameters(Events, "net_join_failed", index)[0])
+## Every failure the session reported, requests and refused joins together.
+func _failure_count() -> int:
+	return _failed.size() + _refused.size()
 
 
 ## A hosted session: host_online() answered with `lobby_id`.
@@ -75,7 +99,8 @@ func _host_live(lobby_id: int = _HOST_LOBBY) -> void:
 	assert_eq(_session.host_online("Hostie"), OK)
 	_fake.queue_create_answer(FakeSteam.RESULT_OK, lobby_id)
 	_frame()
-	assert_true(_roster.hosting, "the session reached the Steam HOST state")
+	assert_eq(_hosted.size(), 1, "the session handed Net a host peer")
+	assert_true(_session.is_live())
 
 
 func _seed_lobby(lobby_id: int, game: String, version: String, host_name: String, members: int, map: String = "") -> void:
@@ -91,7 +116,7 @@ func _seed_lobby(lobby_id: int, game: String, version: String, host_name: String
 
 func test_host_online_and_join_are_refused_when_steam_is_not_available() -> void:
 	_fake.available_value = false
-	_fake.init()
+	_session.init()
 	assert_eq(_session.host_online("Hostie"), ERR_UNAVAILABLE)
 	assert_eq(_session.join_lobby(_OTHER_LOBBY, "Clienty"), ERR_UNAVAILABLE)
 	assert_true(_fake.create_lobby_calls.is_empty())
@@ -100,14 +125,14 @@ func test_host_online_and_join_are_refused_when_steam_is_not_available() -> void
 
 func test_host_online_is_refused_when_steam_init_failed() -> void:
 	_fake.init_status_value = 2 # client not running
-	_fake.init()
+	_session.init()
 	assert_eq(_session.host_online("Hostie"), ERR_UNAVAILABLE)
 	assert_true(_fake.create_lobby_calls.is_empty())
 
 
 func test_refresh_lobby_list_is_a_no_op_when_steam_is_not_available() -> void:
 	_fake.available_value = false
-	_fake.init()
+	_session.init()
 	_session.refresh_lobby_list()
 	assert_true(_fake.request_lobby_list_calls.is_empty())
 
@@ -118,22 +143,26 @@ func test_host_online_asks_steam_for_one_lobby_of_the_configured_type_and_size()
 	_ready_steam()
 	assert_eq(_session.host_online("Hostie"), OK)
 	assert_eq(_fake.create_lobby_calls.size(), 1)
-	assert_eq(_fake.create_lobby_calls[0], {"lobby_type": _config.steam_lobby_type, "max_members": _config.max_peers})
-	assert_false(_roster.hosting, "the attempt only started: Steam has not answered")
+	assert_eq(_fake.create_lobby_calls[0], {"lobby_type": _session.config.steam_lobby_type, "max_members": _session.config.max_peers})
+	assert_true(_hosted.is_empty(), "the attempt only started: Steam has not answered")
 
 
-func test_a_created_lobby_is_tagged_with_game_version_name_and_match_config() -> void:
+func test_a_created_lobby_is_tagged_and_handed_to_net_as_a_host_peer() -> void:
 	_host_live()
 	var lobby: int = _HOST_LOBBY
-	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
-	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_VERSION)), Net.build_version())
-	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_HOST_NAME)), _PERSONA, "the Steam persona names the host")
-	assert_ne(_fake.get_lobby_data(lobby, String(SteamClient.KEY_MATCH_CONFIG)), "", "the match config is written under one key")
+	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_GAME)), String(NetIds.DISCOVERY_MAGIC))
+	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_VERSION)), _VERSION)
+	assert_eq(_fake.get_lobby_data(lobby, String(SteamClient.KEY_HOST_NAME)), _HOST_NAME, "the name Net resolves tags the lobby")
+	var decoded: Dictionary = JSON.parse_string(_fake.get_lobby_data(lobby, String(SteamClient.KEY_MATCH_CONFIG))) as Dictionary
+	assert_eq(int(decoded.get("map_variant")), 2, "the lobby settings are written under one JSON key")
+	assert_eq(int(decoded.get("player_count")), 4)
 	assert_eq(_fake.joinable_calls, [[lobby, true]], "the lobby is explicitly joinable")
 	assert_eq(_host_peer_builds, 1)
+	assert_eq(_hosted[0]["lobby_id"], lobby)
+	assert_eq(_hosted[0]["host_name"], _HOST_NAME)
+	assert_eq(_session.lobby_id(), lobby)
 	assert_true(_fake.leave_lobby_calls.is_empty(), "a live lobby is kept")
-	assert_true(_roster.peers.has(NetRoster.HOST_PEER_ID), "the host is the first roster entry")
-	assert_eq(_roster.name_of_peer(NetRoster.HOST_PEER_ID), _PERSONA)
+	assert_eq(_failure_count(), 0)
 
 
 func test_a_failed_create_reports_a_transport_error_and_leaves_no_lobby() -> void:
@@ -141,24 +170,46 @@ func test_a_failed_create_reports_a_transport_error_and_leaves_no_lobby() -> voi
 	assert_eq(_session.host_online("Hostie"), OK)
 	_fake.queue_create_answer(_RESULT_FAILED, _HOST_LOBBY)
 	_frame()
-	assert_eq(_failed_count(), 1)
-	assert_eq(_failed_error(), Net.JoinError.TRANSPORT)
-	assert_false(_roster.hosting)
+	assert_eq(_failed.size(), 1, "a lobby that never existed is a request failure")
+	assert_eq(_failed[0][0], Net.JoinError.TRANSPORT)
+	assert_true(_hosted.is_empty())
 	assert_true(_fake.set_lobby_data_calls.is_empty(), "nothing is tagged for a failed create")
 	assert_true(_fake.leave_lobby_calls.is_empty(), "a failed create made no lobby to leave")
 	assert_eq(_session.host_online("Hostie"), OK, "the failed attempt no longer blocks a new one")
 
 
 func test_a_host_peer_that_cannot_be_built_releases_the_lobby() -> void:
-	_fake.init()
+	_session.init()
 	_transport.steam_host_peer_factory = func() -> MultiplayerPeer: return null
 	assert_eq(_session.host_online("Hostie"), OK)
 	_fake.queue_create_answer(FakeSteam.RESULT_OK, _HOST_LOBBY)
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [_HOST_LOBBY], "the lobby Steam made is not orphaned")
-	assert_eq(_failed_count(), 1)
-	assert_eq(_failed_error(), Net.JoinError.TRANSPORT)
-	assert_false(_roster.hosting)
+	assert_eq(_failed.size(), 1)
+	assert_eq(_failed[0][0], Net.JoinError.TRANSPORT)
+	assert_true(_hosted.is_empty())
+	assert_false(_session.is_live())
+
+
+func test_a_fake_provider_never_gets_a_real_steam_peer() -> void:
+	_session.init() # no factory set: the real path
+	assert_eq(_session.host_online(_HOST_NAME), OK)
+	_fake.queue_create_answer(FakeSteam.RESULT_OK, _HOST_LOBBY)
+	_frame()
+	assert_true(_hosted.is_empty())
+	assert_eq(_fake.leave_lobby_calls, [_HOST_LOBBY])
+	assert_eq(_failed[0][0], Net.JoinError.TRANSPORT)
+
+
+func test_a_granted_join_without_a_real_peer_leaves_the_lobby_and_is_refused() -> void:
+	_session.init()
+	assert_eq(_session.join_lobby(_OTHER_LOBBY, "Clienty"), OK)
+	_fake.queue_lobby_joined(_OTHER_LOBBY, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	_frame()
+	assert_eq(_fake.leave_lobby_calls, [_OTHER_LOBBY])
+	assert_eq(_refused.size(), 1)
+	assert_eq(_refused[0][0], Net.JoinError.TRANSPORT)
+	assert_false(_session.is_live())
 
 
 # --- One attempt at a time -------------------------------------------------------
@@ -187,8 +238,9 @@ func test_a_refused_join_reports_refused_and_frees_the_next_attempt() -> void:
 	assert_eq(_session.join_lobby(_OTHER_LOBBY, "Clienty"), OK)
 	_fake.queue_lobby_joined(_OTHER_LOBBY, _RESPONSE_FULL)
 	_frame()
-	assert_eq(_failed_count(), 1)
-	assert_eq(_failed_error(), Net.JoinError.REFUSED)
+	assert_eq(_refused.size(), 1)
+	assert_eq(_refused[0][0], Net.JoinError.REFUSED)
+	assert_true(_failed.is_empty())
 	assert_true(_fake.leave_lobby_calls.is_empty(), "a refused join entered no lobby")
 	assert_eq(_session.join_lobby(_OTHER_LOBBY, "Clienty"), OK)
 
@@ -213,13 +265,13 @@ func test_the_first_delivered_answer_resolves_the_cancelled_attempt_and_is_aband
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [111], "the cancelled attempt's lobby is left, not hosted")
 	assert_true(_fake.set_lobby_data_calls.is_empty(), "an abandoned lobby is never tagged")
-	assert_false(_roster.hosting)
+	assert_true(_hosted.is_empty())
 	assert_eq(_session.host_online("Hostie3"), ERR_BUSY, "the live attempt is still pending")
 
 	_fake.queue_lobby_created(FakeSteam.RESULT_OK, 222)
 	_frame()
-	assert_true(_roster.hosting, "the second answer is the live attempt's own")
-	assert_eq(_fake.get_lobby_data(222, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
+	assert_eq(_hosted.size(), 1, "the second answer is the live attempt's own")
+	assert_eq(_fake.get_lobby_data(222, String(SteamClient.KEY_GAME)), String(NetIds.DISCOVERY_MAGIC))
 	assert_eq(_fake.leave_lobby_calls, [111], "the live lobby is kept")
 
 
@@ -235,8 +287,8 @@ func test_three_attempts_two_cancelled_only_the_last_answer_goes_live() -> void:
 	_fake.queue_lobby_created(FakeSteam.RESULT_OK, 3)
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [1, 2])
-	assert_true(_roster.hosting)
-	assert_eq(_fake.get_lobby_data(3, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
+	assert_false(_hosted.is_empty())
+	assert_eq(_fake.get_lobby_data(3, String(SteamClient.KEY_GAME)), String(NetIds.DISCOVERY_MAGIC))
 	assert_eq(_fake.get_lobby_data(1, String(SteamClient.KEY_GAME)), "")
 
 
@@ -247,7 +299,7 @@ func test_a_cancelled_attempts_failed_answer_is_dropped_and_the_live_one_stays_p
 	assert_eq(_session.host_online("B"), OK)
 	_fake.queue_lobby_created(_RESULT_FAILED, 0)
 	_frame()
-	assert_eq(_failed_count(), 0, "a cancelled attempt reports nothing")
+	assert_eq(_failure_count(), 0, "a cancelled attempt reports nothing")
 	assert_true(_fake.leave_lobby_calls.is_empty(), "a failure made no lobby to leave")
 	assert_eq(_session.host_online("C"), ERR_BUSY, "attempt B is still waiting for its answer")
 
@@ -261,15 +313,15 @@ func test_join_answers_resolve_oldest_first_across_a_leave() -> void:
 	_fake.queue_lobby_joined(20, _RESPONSE_FULL)
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [10], "the cancelled join's lobby is left")
-	assert_eq(_failed_count(), 1, "only the live join reports")
-	assert_eq(_failed_error(), Net.JoinError.REFUSED)
+	assert_eq(_refused.size(), 1, "only the live join reports")
+	assert_eq(_refused[0][0], Net.JoinError.REFUSED)
 
 
 func test_hosting_again_leaves_the_current_lobby_first() -> void:
 	_host_live(10)
 	assert_eq(_session.host_online("Hostie"), OK)
 	assert_eq(_fake.leave_lobby_calls, [10])
-	assert_false(_roster.hosting)
+	assert_false(_session.is_live())
 	assert_eq(_fake.create_lobby_calls.size(), 2)
 
 
@@ -280,9 +332,9 @@ func test_the_creators_own_lobby_enter_after_lobby_created_is_not_a_stray_join()
 	assert_eq(_session.host_online("Hostie"), OK)
 	_fake.queue_create_answer(FakeSteam.RESULT_OK, _HOST_LOBBY) # lobby_created, then lobby_joined
 	_frame()
-	assert_true(_roster.hosting)
+	assert_false(_hosted.is_empty())
 	assert_true(_fake.leave_lobby_calls.is_empty(), "the host must not leave its own fresh lobby")
-	assert_eq(_failed_count(), 0)
+	assert_eq(_failure_count(), 0)
 
 
 func test_the_creators_lobby_enter_arriving_before_lobby_created_is_ignored() -> void:
@@ -291,7 +343,7 @@ func test_the_creators_lobby_enter_arriving_before_lobby_created_is_ignored() ->
 	_fake.queue_lobby_joined(_HOST_LOBBY, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
 	_fake.queue_lobby_created(FakeSteam.RESULT_OK, _HOST_LOBBY)
 	_frame()
-	assert_true(_roster.hosting)
+	assert_false(_hosted.is_empty())
 	assert_true(_fake.leave_lobby_calls.is_empty())
 
 
@@ -299,7 +351,7 @@ func test_a_repeat_lobby_enter_for_the_live_hosted_lobby_is_ignored() -> void:
 	_host_live()
 	_fake.queue_lobby_joined(_HOST_LOBBY, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
 	_frame()
-	assert_true(_roster.hosting)
+	assert_false(_hosted.is_empty())
 	assert_true(_fake.leave_lobby_calls.is_empty())
 
 
@@ -310,7 +362,7 @@ func test_an_abandoned_lobbys_enter_echo_is_not_left_a_second_time() -> void:
 	_fake.queue_create_answer(FakeSteam.RESULT_OK, 111) # lobby_created + the echo
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [111], "left once, by the stale-answer path only")
-	assert_eq(_failed_count(), 0)
+	assert_eq(_failure_count(), 0)
 
 
 func test_the_echo_of_a_created_lobby_does_not_resolve_a_pending_join() -> void:
@@ -329,7 +381,7 @@ func test_a_successful_enter_nobody_asked_for_is_left_rather_than_orphaned() -> 
 	_fake.queue_lobby_joined(500, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
 	_frame()
 	assert_eq(_fake.leave_lobby_calls, [500])
-	assert_false(_roster.hosting)
+	assert_true(_hosted.is_empty())
 
 
 # --- Overlay invite ---------------------------------------------------------------
@@ -356,8 +408,8 @@ func test_refresh_requests_only_this_game_and_this_version() -> void:
 	assert_eq(_fake.request_lobby_list_calls.size(), 1)
 	var sent: Dictionary = _filters_sent()
 	assert_eq(sent.size(), 2)
-	assert_eq(sent[String(SteamClient.KEY_GAME)], String(Net.DISCOVERY_MAGIC))
-	assert_eq(sent[String(SteamClient.KEY_VERSION)], Net.build_version())
+	assert_eq(sent[String(SteamClient.KEY_GAME)], String(NetIds.DISCOVERY_MAGIC))
+	assert_eq(sent[String(SteamClient.KEY_VERSION)], _VERSION)
 
 
 func test_a_refresh_while_one_is_outstanding_waits_and_goes_out_once_answered() -> void:
@@ -372,19 +424,20 @@ func test_a_refresh_while_one_is_outstanding_waits_and_goes_out_once_answered() 
 
 func test_the_list_keeps_only_lobbies_of_this_game_and_version() -> void:
 	_ready_steam()
-	var version: String = Net.build_version()
-	_seed_lobby(1, String(Net.DISCOVERY_MAGIC), version, "Alpha", 3, "plains")
-	_seed_lobby(2, String(Net.DISCOVERY_MAGIC), version + "-old", "Stale", 2)
+	var version: String = _VERSION
+	_seed_lobby(1, String(NetIds.DISCOVERY_MAGIC), version, "Alpha", 3, "plains")
+	_seed_lobby(2, String(NetIds.DISCOVERY_MAGIC), version + "-old", "Stale", 2)
 	_seed_lobby(3, "otherGame", version, "Foreign", 2)
-	_seed_lobby(4, String(Net.DISCOVERY_MAGIC), version, "Beta", 1)
+	_seed_lobby(4, String(NetIds.DISCOVERY_MAGIC), version, "Beta", 1)
 	_fake.lobby_data_store[5] = {} # a lobby whose data never arrived
 	_session.refresh_lobby_list()
 	_fake.queue_lobby_match_list([1, 2, 3, 4, 5])
 	_frame()
-	assert_signal_emit_count(Events, "net_steam_lobbies_discovered", 1)
-	var rows: Array = get_signal_parameters(Events, "net_steam_lobbies_discovered", 0)[0]
+	assert_eq(_discovered.size(), 1)
+	var rows: Array = _discovered[0]
+	assert_eq(_session.discovered_lobbies(), rows, "the same list is readable afterwards")
 	assert_eq(rows.size(), 2)
-	assert_eq(rows[0], {"lobby_id": 1, "name": "Alpha", "players": 3, "max": _config.max_peers, "map": "plains"})
+	assert_eq(rows[0], {"lobby_id": 1, "name": "Alpha", "players": 3, "max": _session.config.max_peers, "map": "plains"})
 	assert_eq(int((rows[1] as Dictionary)["lobby_id"]), 4, "answer order is kept")
 	assert_eq((rows[1] as Dictionary)["name"], "Beta")
 
@@ -394,18 +447,18 @@ func test_an_empty_answer_publishes_an_empty_list() -> void:
 	_session.refresh_lobby_list()
 	_fake.queue_lobby_match_list([])
 	_frame()
-	assert_signal_emit_count(Events, "net_steam_lobbies_discovered", 1)
-	assert_eq((get_signal_parameters(Events, "net_steam_lobbies_discovered", 0)[0] as Array).size(), 0)
+	assert_eq(_discovered.size(), 1)
+	assert_eq((_discovered[0] as Array).size(), 0)
 
 
 # --- Leave -----------------------------------------------------------------------
 
-func test_leave_gives_up_the_hosted_lobby_once_and_ends_the_roster() -> void:
+func test_leave_gives_up_the_hosted_lobby_once() -> void:
 	_host_live()
 	_session.leave()
 	assert_eq(_fake.leave_lobby_calls, [_HOST_LOBBY])
-	assert_false(_roster.hosting)
-	assert_true(_roster.peers.is_empty())
+	assert_false(_session.is_live())
+	assert_eq(_session.lobby_id(), 0)
 	_session.leave()
 	assert_eq(_fake.leave_lobby_calls, [_HOST_LOBBY], "a second leave has nothing left to give up")
 
@@ -414,7 +467,7 @@ func test_leave_when_nothing_is_running_touches_no_lobby() -> void:
 	_ready_steam()
 	_session.leave()
 	assert_true(_fake.leave_lobby_calls.is_empty())
-	assert_eq(_failed_count(), 0)
+	assert_eq(_failure_count(), 0)
 
 
 func test_after_leave_the_session_can_host_again() -> void:
@@ -423,5 +476,37 @@ func test_after_leave_the_session_can_host_again() -> void:
 	assert_eq(_session.host_online("Hostie"), OK)
 	_fake.queue_create_answer(FakeSteam.RESULT_OK, 11)
 	_frame()
-	assert_true(_roster.hosting)
-	assert_eq(_fake.get_lobby_data(11, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
+	assert_false(_hosted.is_empty())
+	assert_eq(_fake.get_lobby_data(11, String(SteamClient.KEY_GAME)), String(NetIds.DISCOVERY_MAGIC))
+
+
+# --- Invites and published settings -------------------------------------------------
+
+func test_the_invite_overlay_opens_only_for_a_live_lobby() -> void:
+	_ready_steam()
+	_session.open_invite_overlay()
+	assert_true(_fake.activate_invite_overlay_calls.is_empty(), "no lobby yet")
+	_host_live()
+	_session.open_invite_overlay()
+	assert_eq(_fake.activate_invite_overlay_calls, [_HOST_LOBBY])
+	_session.leave()
+	_session.open_invite_overlay()
+	assert_eq(_fake.activate_invite_overlay_calls, [_HOST_LOBBY], "a left lobby is not offered")
+
+
+func test_published_settings_reach_the_live_lobby_and_are_dropped_without_one() -> void:
+	_ready_steam()
+	_session.publish_match_config({"map_variant": 9})
+	assert_true(_fake.set_lobby_data_calls.is_empty())
+	_host_live()
+	_session.publish_match_config({"map_variant": 9})
+	var decoded: Dictionary = JSON.parse_string(_fake.get_lobby_data(_HOST_LOBBY, String(SteamClient.KEY_MATCH_CONFIG))) as Dictionary
+	assert_eq(int(decoded.get("map_variant")), 9)
+
+
+func test_the_frame_pump_only_runs_once_steam_is_ready() -> void:
+	_session.process(0.0)
+	assert_eq(_fake.run_callbacks_calls, 0)
+	_session.init()
+	_session.process(0.0)
+	assert_eq(_fake.run_callbacks_calls, 1)
