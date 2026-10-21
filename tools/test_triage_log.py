@@ -12,9 +12,13 @@ or:
 
 from __future__ import annotations
 
+import io
+import json
 import os
 import sys
+import tempfile
 import unittest
+from typing import Sequence, Tuple
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -191,6 +195,83 @@ class KnownLimitationKeywordTests(unittest.TestCase):
         self.assertTrue(tl._is_specific_keyword("cell_overlap"))
         self.assertTrue(tl._is_specific_keyword("team_count()"))
         self.assertTrue(tl._is_specific_keyword("tests/enet/m2_acceptance.gd"))
+
+
+class SoakGateTests(unittest.TestCase):
+    """--soak: deterministic gate (exit code and groups), via the CLI entry."""
+
+    VIOLATION = (
+        "SOAK_VIOLATION inv=physics.below_kill_plane role=host epoch=1 mt=3.0 "
+        "sev=fail subject=12 value=-41.0000 limit=-39.0000\n"
+    )
+    NOISE = "ERROR: 3 ObjectDB instances leaked at exit (run with --verbose for details).\n"
+
+    def _run(self, log: str, known: object = None, extra: Sequence[str] = ()) -> Tuple[int, str]:
+        with tempfile.TemporaryDirectory() as d:
+            log_path = os.path.join(d, "soak.log")
+            known_path = os.path.join(d, "known.json")
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(log)
+            with open(known_path, "w", encoding="utf-8") as f:
+                json.dump(known if known is not None else {}, f)
+            out = io.StringIO()
+            with patch("sys.stdout", out):
+                code = tl.main([log_path, "--soak", "--soak-known", known_path, *extra])
+            return code, out.getvalue()
+
+    def test_clean_log_exits_zero(self) -> None:
+        self.assertEqual(self._run("SOAK_SAMPLE role=host bodies=3\n")[0], 0)
+
+    def test_one_violation_exits_one_and_counts_lines(self) -> None:
+        code, out = self._run("[host] " + self.VIOLATION + self.VIOLATION)
+        self.assertEqual(code, 1)
+        self.assertIn("count=2", out)
+        self.assertIn("source=soak-invariant", out)
+
+    def test_violations_split_by_role(self) -> None:
+        code, out = self._run(
+            self.VIOLATION + self.VIOLATION.replace("role=host", "role=client"), extra=["--json"]
+        )
+        self.assertEqual(code, 1)
+        self.assertEqual(len(json.loads(out)["groups"]), 2)
+
+    def test_known_id_exits_zero(self) -> None:
+        code, out = self._run(self.VIOLATION, {"known": ["physics.below_kill_plane"]})
+        self.assertEqual(code, 0)
+        self.assertIn("KNOWN-LIMITATION", out)
+
+    def test_warn_severity_does_not_gate(self) -> None:
+        self.assertEqual(self._run(self.VIOLATION.replace("sev=fail", "sev=warn"))[0], 0)
+
+    def test_engine_noise_exits_zero_but_other_error_gates(self) -> None:
+        known = {"engine_noise": ["ObjectDB instances leaked"]}
+        self.assertEqual(self._run(self.NOISE, known)[0], 0)
+        code, out = self._run(self.NOISE + "ERROR: Something else broke\n", known)
+        self.assertEqual(code, 1)
+        self.assertIn("log.engine_error", out)
+
+    def test_script_error_gates_even_if_listed_as_noise(self) -> None:
+        code, out = self._run(
+            "SCRIPT ERROR: boom\n   at: f (res://core/a.gd:1)\n", {"engine_noise": ["boom"]}
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("log.script_error", out)
+
+    def test_warning_is_ranked_but_does_not_gate(self) -> None:
+        code, out = self._run("WARNING: odd thing\n")
+        self.assertEqual(code, 0)
+        self.assertIn("odd thing", out)
+
+    def test_soak_lines_ignored_without_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "x.log")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(self.VIOLATION + self.NOISE)
+            out = io.StringIO()
+            with patch("sys.stdout", out):
+                code = tl.main([path, "--no-classify"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("SOAK VIOLATION", out.getvalue())
 
 
 if __name__ == "__main__":

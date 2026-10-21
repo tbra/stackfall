@@ -52,6 +52,9 @@ extends Node3D
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
 const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
+const SOAK_MONITOR_PATH: String = "res://game/debug/SoakMonitor.gd"
+const SOAK_FUZZER_PATH: String = "res://game/debug/SoakIntentFuzzer.gd"
+const SOAK_CONFIG_PATH: String = "res://config/soak/soak_config.tres"
 ## DECISION: Field, CameraRig and BlockRegistry are NOT dormant: they settle reset state (Field
 ## tilt basis, camera follow/origin/target) that a results->lobby leave starts, and pausing them
 ## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
@@ -1115,6 +1118,33 @@ func _build_debug_tools() -> void:
 	logger.config = debug_config
 	logger.sampler = sampler
 	add_child(logger)
+	if _has_cmdline_flag("soak"):
+		# Loaded by path like the bot overlay: the soak code stays out of Main's compile closure.
+		var soak_script: GDScript = load(SOAK_MONITOR_PATH) as GDScript
+		var soak: Node = soak_script.new() as Node
+		soak.set(&"config", load(SOAK_CONFIG_PATH))
+		# DECISION: Net.apply_command_line() runs after this, so Net.is_host() would read the
+		# offline default; the role comes from the same parser Net uses.
+		var joining: bool = NetCommandLine.parse(OS.get_cmdline_user_args()).has_join
+		soak.set(&"role", &"client" if joining else &"host")
+		soak.set(&"sampler", sampler)
+		add_child(soak)
+		# DECISION: the plan does not say client-only; the launcher passes --soak-fuzz to the client
+		# alone and the fuzzer does nothing without a seat, so no role check is added here.
+		if _has_cmdline_flag("soak-fuzz"):
+			var fuzzer_script: GDScript = load(SOAK_FUZZER_PATH) as GDScript
+			var fuzzer: Node = fuzzer_script.new() as Node
+			fuzzer.set(&"config", load(SOAK_CONFIG_PATH))
+			var seams_script: GDScript = fuzzer_script.get_script_constant_map()[&"Seams"] as GDScript
+			var seams: RefCounted = seams_script.new() as RefCounted
+			seams.set(&"playing", func() -> bool: return Match.state() == Match.State.PLAYING)
+			seams.set(&"local_slot", Net.local_slot)
+			seams.set(&"feed_seq", Match.feed_seq)
+			seams.set(&"field_radius", func() -> float: return Match.config.map_def().field_radius)
+			seams.set(&"submit_place", MatchNet.submit_place)
+			seams.set(&"line", func(text: String) -> void: print(text))
+			fuzzer.set(&"seams", seams)
+			add_child(fuzzer)
 
 
 # --- Helpers -----------------------------------------------------------------

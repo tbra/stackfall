@@ -78,7 +78,7 @@
  "game/weather/StormPresentation.gd": 4,
  "net/Interpolator.gd": 5,
  "net/LanDiscovery.gd": 5,
- "net/MatchEventApplier.gd": 27,
+ "net/MatchEventApplier.gd": 8,
  "net/MatchNet.gd": 21,
  "net/SnapshotSync.gd": 8,
  "ui/debug/NetDebugOverlay.gd": 2,
