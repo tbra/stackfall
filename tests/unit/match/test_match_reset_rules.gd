@@ -3,14 +3,12 @@ extends GutTest
 ## autoload carry-overs behind "a new match after leaving is indistinguishable from
 ## a freshly launched one".
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
 const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
 var _tiny_map: MapDef
 var _field: Field
 var _blocks_root: Node3D
 var _registry: BlockRegistry
-var _net: MatchNetScript
 
 var _sfx: Node
 var _audio_config: AudioConfig
@@ -39,9 +37,6 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -87,21 +82,28 @@ func _circle_count() -> int:
 	return (Match.circle_render_arrays()["xs"] as PackedFloat32Array).size()
 
 
-func _make_host_net() -> MatchNetScript:
-	var fake: FakeNet = FakeNet.host({1: 0}, [0])
-	Match._net_provider = fake
-	var node: MatchNetScript = MatchNetScript.new()
-	node.set_process(false)
-	add_child_autofree(node)
-	node.set_providers(fake, Match)
-	_net = node
-	return node
+## The circle list the host's territory packet carries right now, as a client decodes it.
+func _decoded_circle_payload() -> Dictionary:
+	var received: Dictionary = {}
+	var sink: Callable = func(arrays: Dictionary) -> void:
+		received = arrays
+	var host: TerritoryReplicator = _territory_replicator(Match.raster(), Callable(Match, "circle_render_arrays"), Callable())
+	var raster: TerritoryRaster = Match.raster()
+	var mirror: TerritoryRaster = TerritoryRaster.new(raster.grid(), raster.tuning())
+	_territory_replicator(mirror, Callable(), sink).apply(host.encode_full())
+	return received
 
 
-func _decoded_circle_payload(net: MatchNetScript) -> Dictionary:
-	return CircleWire.decode(
-		net._encode_circles(), Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
-	)
+## Follows the replicator constructor; the stub has none yet, so it is built bare there.
+func _territory_replicator(raster: TerritoryRaster, source: Callable, sink: Callable) -> TerritoryReplicator:
+	var script: GDScript = preload("res://net/match/TerritoryReplicator.gd")
+	for method: Dictionary in script.get_script_method_list():
+		if method["name"] == "_init" and not (method["args"] as Array).is_empty():
+			return script.callv("new", [
+				raster, source, sink, NetConfig.new(),
+				Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
+			]) as TerritoryReplicator
+	return TerritoryReplicator.new()
 
 
 func _assert_render_arrays_empty(context: String) -> void:
@@ -142,14 +144,13 @@ func test_every_reset_path_drops_the_previous_matchs_circles() -> void:
 
 func test_the_hosts_circle_payload_during_the_next_countdown_decodes_to_zero_circles() -> void:
 	_start_playing()
-	var net: MatchNetScript = _make_host_net()
-	assert_gt((_decoded_circle_payload(net)["xs"] as PackedFloat32Array).size(), 0, "fixture: A's payload carries circles")
+	assert_gt((_decoded_circle_payload()["xs"] as PackedFloat32Array).size(), 0, "fixture: A's payload carries circles")
 
 	Match.abort_match()
 	Match.start_match(_config(3))
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 
-	var decoded: Dictionary = _decoded_circle_payload(net)
+	var decoded: Dictionary = _decoded_circle_payload()
 	assert_false(decoded.is_empty(), "the payload is still a valid, decodable packet")
 	assert_eq((decoded["xs"] as PackedFloat32Array).size(), 0, "no stale circles replicated to clients")
 	assert_eq((decoded["teams"] as PackedInt32Array).size(), 0)

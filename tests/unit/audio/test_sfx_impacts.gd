@@ -77,7 +77,7 @@ func test_below_min_is_silent_and_position_entry_plays() -> void:
 
 
 func test_events_signal_reaches_sfx_for_host_and_client_path() -> void:
-	# MatchNet._emit_impact (client) and Block (host) both emit this exact pair.
+	# A client (impacts drained from ImpactReplicator by MatchNet) and Block (host) both emit this exact pair.
 	var real: Node = get_tree().root.get_node("Sfx")
 	var before: int = real._next_sfx_player_index
 	Events.block_impacted_at.emit(_config.impact_speed_loud, Vector3.ZERO)
