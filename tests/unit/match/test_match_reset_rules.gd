@@ -82,28 +82,55 @@ func _circle_count() -> int:
 	return (Match.circle_render_arrays()["xs"] as PackedFloat32Array).size()
 
 
-## The circle list the host's territory packet carries right now, as a client decodes it.
-func _decoded_circle_payload() -> Dictionary:
+## A client's match side: a mirror raster and the circles its replica port was handed.
+class ClientSide extends RefCounted:
+	var mirror: TerritoryRaster = null
+	var xz_bound: float = 0.0
+	var radius_max: float = 0.0
 	var received: Dictionary = {}
-	var sink: Callable = func(arrays: Dictionary) -> void:
-		received = arrays
-	var host: TerritoryReplicator = _territory_replicator(Match.raster(), Callable(Match, "circle_render_arrays"), Callable())
+
+	func raster() -> TerritoryRaster:
+		return mirror
+
+	func circle_wire_xz_bound() -> float:
+		return xz_bound
+
+	func circle_wire_radius_max() -> float:
+		return radius_max
+
+	func apply_replicated_territory(
+		_cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, _full: bool,
+		xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array,
+		teams: PackedInt32Array, goal_positions: PackedVector2Array, _goal_radii: PackedFloat32Array,
+		argmax_mode: bool
+	) -> void:
+		mirror.apply_replicated_state(owners, states)
+		received = {
+			"xs": xs, "zs": zs, "radii": radii, "teams": teams,
+			"goal_positions": goal_positions, "argmax_mode": argmax_mode,
+		}
+
+
+## The circle list the host's territory packet carries right now, as a client receives it. Empty
+## when the client refused the packet.
+func _decoded_circle_payload() -> Dictionary:
+	var net_config: NetConfig = NetConfig.new()
+	var host: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(Match), MatchReplicaPort.new(Match), net_config
+	)
 	var raster: TerritoryRaster = Match.raster()
-	var mirror: TerritoryRaster = TerritoryRaster.new(raster.grid(), raster.tuning())
-	_territory_replicator(mirror, Callable(), sink).apply(host.encode_full())
-	return received
-
-
-## Follows the replicator constructor; the stub has none yet, so it is built bare there.
-func _territory_replicator(raster: TerritoryRaster, source: Callable, sink: Callable) -> TerritoryReplicator:
-	var script: GDScript = preload("res://net/match/TerritoryReplicator.gd")
-	for method: Dictionary in script.get_script_method_list():
-		if method["name"] == "_init" and not (method["args"] as Array).is_empty():
-			return script.callv("new", [
-				raster, source, sink, NetConfig.new(),
-				Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
-			]) as TerritoryReplicator
-	return TerritoryReplicator.new()
+	var side: ClientSide = ClientSide.new()
+	side.mirror = TerritoryRaster.new(raster.grid(), raster.tuning())
+	side.xz_bound = Match.circle_wire_xz_bound()
+	side.radius_max = Match.circle_wire_radius_max()
+	var client: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(side, PackedStringArray(["raster", "circle_wire_xz_bound", "circle_wire_radius_max"])),
+		MatchReplicaPort.new(side, PackedStringArray(["apply_replicated_territory"])),
+		net_config
+	)
+	if not client.apply(host.encode_full()):
+		return {}
+	return side.received
 
 
 func _assert_render_arrays_empty(context: String) -> void:

@@ -4,12 +4,8 @@ extends GutTest
 ## MatchNet re-emits Events.block_impacted / block_impacted_at, so Sfx/camera/rumble/dust need no
 ## network awareness; a client's frozen kinematic replicas never detect impacts of their own.
 
-const ImpactReplicatorScript: GDScript = preload("res://net/match/ImpactReplicator.gd")
-
 ## A view time far past any playback delay: everything queued is due.
 const VIEW_LATE_MS: float = 1.0e9
-## A view time before any possible due time.
-const VIEW_EARLY_MS: float = -1.0e9
 
 var _config: NetConfig = NetConfig.new()
 var _speeds: Array[float] = []
@@ -35,14 +31,8 @@ func after_each() -> void:
 	Events.block_impacted_at.disconnect(_at_listener)
 
 
-## One replicator. This is the one place that follows the replicator constructor (the stub has
-## none yet, so it is built bare there).
 func _replicator() -> ImpactReplicator:
-	var script: GDScript = ImpactReplicatorScript
-	for method: Dictionary in script.get_script_method_list():
-		if method["name"] == "_init" and not (method["args"] as Array).is_empty():
-			return script.callv("new", [_config]) as ImpactReplicator
-	return ImpactReplicator.new()
+	return ImpactReplicator.new(_config, TokenBucket.new())
 
 
 func _batch(events: Array[Dictionary]) -> PackedByteArray:
@@ -104,13 +94,15 @@ func test_nothing_collected_means_nothing_to_send() -> void:
 	assert_eq(host.flush(1100).size(), 0, "a flushed batch is not sent again")
 
 
-func test_an_impact_is_not_due_before_its_playback_moment() -> void:
+func test_an_impact_plays_when_the_view_reaches_the_moment_it_happened() -> void:
 	var host: ImpactReplicator = _replicator()
 	host.collect(5.0, Vector3(1.0, 1.0, 1.0), 1000)
 	var client: ImpactReplicator = _replicator()
-	assert_true(client.receive(host.flush(1000), 2000))
-	assert_eq(client.drain(VIEW_EARLY_MS).size(), 0, "a view time before the impact plays nothing")
-	assert_eq(client.drain(VIEW_LATE_MS).size(), 1, "and the impact is still queued afterwards")
+	# Detected 100 ms before the send, received at 2000: it happened at 1900 on the client clock.
+	assert_true(client.receive(host.flush(1100), 2000))
+	assert_eq(client.drain(1899.0).size(), 0, "the view has not reached it yet")
+	assert_eq(client.drain(1900.0).size(), 1, "and it is still queued when the view arrives")
+	assert_eq(client.drain(VIEW_LATE_MS).size(), 0)
 
 
 # --- Coalescing and caps ----------------------------------------------------

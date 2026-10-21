@@ -478,52 +478,41 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	owners.resize(cell_count)
 	states.resize(cell_count)
 	var target: int = raster.grid().cell_index(raster.grid().res / 2, raster.grid().res / 2)
+	var blank_owners: PackedByteArray = owners.duplicate()
+	var blank_states: PackedByteArray = states.duplicate()
 	owners[target] = 2
 	states[target] = TerritoryRaster.STATE_HOLE
-	var host_raster: TerritoryRaster = TerritoryRaster.new(raster.grid(), raster.tuning())
-	host_raster.apply_replicated_state(owners, states)
-	var payload: PackedByteArray = _territory_replicator(host_raster).encode_full()
+	# The host's packet: Match's raster carries the hole while it is encoded, then goes blank so
+	# the client mirror has something to receive.
+	raster.apply_replicated_state(owners, states)
+	var host_side: TerritoryReplicator = TerritoryReplicator.new(
+		MatchHostPort.new(Match), MatchReplicaPort.new(Match), net.config
+	)
+	Events.goal_capture_progress.emit(1, 0.375)
+	var payload: PackedByteArray = host_side.encode_full()
+	raster.apply_replicated_state(blank_owners, blank_states)
+	assert_false(Match.raster().is_hole_index(target), "fixture: the mirror starts without the hole")
 	watch_signals(Events)
 
-	net.net_territory(payload, true, PackedFloat32Array([0.25, 0.5]), 1, 0.4)
+	# The RPC keeps its old arguments for wire compatibility; only the payload counts.
+	net.net_territory(payload, false, PackedFloat32Array(), 9, NAN)
 
 	assert_true(Match.raster().is_hole_index(target), "The mirror holds exactly what the host sent.")
 	assert_signal_emitted(Events, "hole_cells_changed")
 	assert_signal_emitted(Events, "territory_replicated")
-	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.4])
+	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.375])
+	Events.goal_capture_progress.emit(-1, 0.0)
 
 
-## A host-side replicator over `raster`, the packet source the host's net_territory RPC sends.
-func _territory_replicator(raster: TerritoryRaster) -> TerritoryReplicator:
-	var script: GDScript = preload("res://net/match/TerritoryReplicator.gd")
-	for method: Dictionary in script.get_script_method_list():
-		if method["name"] == "_init" and not (method["args"] as Array).is_empty():
-			return script.callv("new", [
-				raster, Callable(Match, "circle_render_arrays"), Callable(), NetConfig.new(),
-				Match.circle_wire_xz_bound(), Match.circle_wire_radius_max()
-			]) as TerritoryReplicator
-	return TerritoryReplicator.new()
-
-
-# --- a decaying home claim reaches clients on a static board ---
-
-func test_malformed_capture_progress_is_rejected() -> void:
+func test_a_malformed_territory_payload_leaves_the_mirror_alone() -> void:
 	Match._net_provider = FakeNet.host({}, [0, 1])
 	_start_playing()
-	var raster: TerritoryRaster = Match.raster()
-	var empty: PackedByteArray = _territory_replicator(raster).encode_full()
-	var client_net: MatchNetScript = _make_net({}, [1], true)
-	var shares: PackedFloat32Array = PackedFloat32Array([0.5, 0.5])
+	var net: MatchNetScript = _make_net({}, [1], true)
+	var before: PackedByteArray = Match.raster().owner_bytes()
 	watch_signals(Events)
-	client_net.net_territory(empty, true, shares, 1, NAN)
-	client_net.net_territory(empty, true, shares, 1, INF)
-	client_net.net_territory(empty, true, shares, 1, 1.5)
-	client_net.net_territory(empty, true, shares, 1, -0.1)
-	client_net.net_territory(empty, true, shares, 9, 0.5)
-	client_net.net_territory(empty, true, shares, -2, 0.5)
-	assert_signal_not_emitted(Events, "goal_capture_progress")
-	client_net.net_territory(empty, true, shares, 1, 0.5)
-	assert_signal_emitted_with_parameters(Events, "goal_capture_progress", [1, 0.5])
+	net.net_territory(PackedByteArray([9, 9, 9]), true, PackedFloat32Array([0.5, 0.5]), 1, 0.5)
+	assert_eq(Match.raster().owner_bytes(), before)
+	assert_signal_not_emitted(Events, "territory_replicated")
 
 
 # --- M4 P2b: EVENT_GIFT_CLAIMED's third argument (Orchestrator amendment 1) -
