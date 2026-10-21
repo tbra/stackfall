@@ -20,7 +20,7 @@ func test_to_dict_from_dict_round_trips_every_field() -> void:
 	config.match_timer_minutes = 20
 	config.sudden_death = true
 	config.per_player_timer = false
-	config.hot_seat = false
+	config.turn_based = true
 	config.player_colors = PackedColorArray([Color.RED, Color.BLUE])
 	config.rng_seed = 42
 
@@ -43,7 +43,7 @@ func test_to_dict_from_dict_round_trips_every_field() -> void:
 	assert_eq(restored.match_timer_minutes, config.match_timer_minutes)
 	assert_eq(restored.sudden_death, config.sudden_death)
 	assert_eq(restored.per_player_timer, config.per_player_timer)
-	assert_eq(restored.hot_seat, config.hot_seat)
+	assert_eq(restored.turn_based, config.turn_based)
 	assert_eq(restored.player_colors.size(), config.player_colors.size())
 	for i: int in range(config.player_colors.size()):
 		assert_eq(restored.player_colors[i], config.player_colors[i])
