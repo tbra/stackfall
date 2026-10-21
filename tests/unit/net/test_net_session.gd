@@ -309,8 +309,7 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 # real usage where game/main/Main.gd always calls Net.init_steam() before the menu
 # can reach host_online()/join_lobby() — so every positive-path test below
 # calls _ready_steam() first. Net.gd additionally refuses to ever construct a
-# real SteamMultiplayerPeer unless steam_provider `is SteamClient` (never true
-# for a FakeSteam), a hard safety rail this worker added after reproducing a
+# real SteamMultiplayerPeer for a fake provider, a hard safety rail this worker added after reproducing a
 # real engine crash: calling SteamMultiplayerPeer.create_host()/create_client()
 # without a prior successful steamInitEx() segfaults the process
 # (netcode-F-probe_peer_no_init.log). That means the actual HOST/CLIENT mode
@@ -325,6 +324,17 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 func _ready_steam(node: Variant, fake: FakeSteam) -> void:
 	node.steam_provider = fake
 	node.init_steam()
+
+
+## Lets Net's own frame pump (_process -> run_callbacks) deliver what Steam queued.
+func _steam_frames() -> void:
+	for _i: int in range(2):
+		await get_tree().process_frame
+
+
+func _answer_created(fake: FakeSteam, lobby_id: int) -> void:
+	fake.queue_lobby_created(FakeSteam.RESULT_OK, lobby_id)
+	await _steam_frames()
 
 
 func test_steam_unavailable_refuses_host_online_without_creating_a_lobby() -> void:
@@ -348,7 +358,7 @@ func test_lobby_created_tags_the_lobby_with_the_json_encoded_match_config() -> v
 
 	assert_eq(_host.host_online("Hostie"), OK)
 	var lobby_id: int = 4242
-	fake.lobby_created.emit(FakeSteam.RESULT_OK, lobby_id)
+	await _answer_created(fake, lobby_id)
 
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_GAME)), String(Net.DISCOVERY_MAGIC))
 	assert_eq(fake.get_lobby_data(lobby_id, String(SteamClient.KEY_VERSION)), _host.build_version())
@@ -379,6 +389,9 @@ class StubSteamPeer:
 	func _get_unique_id() -> int:
 		return Net.HOST_PEER_ID
 
+	func _get_available_packet_count() -> int:
+		return 0
+
 	func _poll() -> void:
 		pass
 
@@ -398,7 +411,7 @@ func test_steam_host_peer_factory_seam_reaches_the_host_state() -> void:
 		calls.append(1)
 		return stub
 	assert_eq(_host.host_online("Hostie"), OK)
-	fake.lobby_created.emit(FakeSteam.RESULT_OK, 4242)
+	await _answer_created(fake, 4242)
 	assert_eq(calls.size(), 1, "the factory built the host peer once")
 	assert_eq(_host.mode(), Net.Mode.HOST, "the factory's peer carries the Steam HOST state")
 	assert_true(_host.is_steam_session())
@@ -413,7 +426,7 @@ func test_steam_host_peer_without_a_factory_stays_unbuilt_for_a_fake_provider() 
 	_ready_steam(_host, fake)
 	assert_false(_host.transport.steam_host_peer_factory.is_valid())
 	assert_eq(_host.host_online("Hostie"), OK)
-	fake.lobby_created.emit(FakeSteam.RESULT_OK, 77)
+	await _answer_created(fake, 77)
 	assert_eq(_host.mode(), Net.Mode.OFFLINE)
 	assert_eq(fake.leave_lobby_calls, [77])
 
@@ -424,7 +437,8 @@ func test_lobby_joined_with_a_failure_response_refuses_and_returns_offline() -> 
 	assert_eq(_client.join_lobby(9001, "Clienty"), OK)
 
 	watch_signals(Events)
-	fake.lobby_joined.emit(9001, 3) # k_EChatRoomEnterResponseFull-shaped failure, not 1
+	fake.queue_lobby_joined(9001, 3) # k_EChatRoomEnterResponseFull-shaped failure, not 1
+	await _steam_frames()
 
 	assert_eq(get_signal_emit_count(Events, "net_join_failed"), 1)
 	assert_eq(get_signal_parameters(Events, "net_join_failed")[0], Net.JoinError.REFUSED)
@@ -472,7 +486,7 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 	assert_eq(fake.create_lobby_calls.size(), 2, "leave() must not have refused the second attempt")
 
 	# Attempt 1's own late answer arrives first (the reported race).
-	fake.lobby_created.emit(FakeSteam.RESULT_OK, 111)
+	await _answer_created(fake, 111)
 	assert_eq(fake.leave_lobby_calls, [111], "the first-delivered answer must be abandoned, not hosted")
 	assert_true(
 		fake.set_lobby_data_calls.is_empty(),
@@ -483,7 +497,7 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 
 	# Attempt 2's real answer, delivered afterward, must still be accepted --
 	# not dropped as stale in its place (the exact bug this fix targets).
-	fake.lobby_created.emit(FakeSteam.RESULT_OK, 222)
+	await _answer_created(fake, 222)
 	assert_eq(
 		fake.get_lobby_data(222, String(SteamClient.KEY_HOST_NAME)), "TestSteamUser",
 		"the attempt delivered second must be accepted as the live one, tagged with its own player name"
@@ -499,13 +513,8 @@ func test_leave_then_host_online_before_either_answers_the_first_delivered_answe
 	assert_eq(fake.leave_lobby_calls, [111, 222])
 
 
-# --- Creator's own lobby_joined ------------------------------
-# Steamworks answers a successful CreateLobby with LobbyCreated_t AND a
-# LobbyEnter_t (GodotSteam's lobby_joined) for the creator; every probe log of
-# shows lobby_created then lobby_joined(response=1). Net used to take
-# that second answer for a stray join: the pending queue was already empty, so
-# the "defensive" branch called leave_lobby() and the host left (destroyed) its
-# own fresh lobby, which is why no other account could ever find it.
+# The generation/FIFO queue and the creator's-echo filter are covered through
+# NetSteamSession in test_net_steam_session.gd.
 
 # --- Lobby seat preferences ------------------------------------
 #

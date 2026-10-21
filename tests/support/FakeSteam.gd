@@ -1,27 +1,20 @@
 class_name FakeSteam
-extends RefCounted
+extends SteamClient
 ## Test double for net/SteamClient.gd.
 ##
-## GUT cannot double a plain RefCounted script driven only through duck-typed
-## `.call()`s the way the real SteamClient reaches the Engine "Steam"
-## singleton, and every P1 test must pass with **no real Steam singleton
-## present**. This fake implements
-## SteamClient's exact public method/signal surface so autoload/Net.gd's
-## `steam_provider: Variant` seam cannot tell the difference at the call
-## site — same role FakeNet plays for the whole Net autoload.
+## Extends SteamClient, so it is a SteamClient to every typed seam (Net's
+## steam_provider, NetSteamSession's `steam` argument) and inherits the real
+## signals and constants. Every method that would reach the Engine "Steam"
+## singleton is overridden with an in-memory version, so every test passes with
+## **no real Steam singleton present**.
 ##
-## Every method that would touch a real lobby id instead reads/writes this
-## fake's own `_lobby_data`/`_lobby_owners`/`_lobby_members` Dictionaries, so
-## a test can set up a lobby's state and then assert Net's Steam-facing
-## methods (discovered_lobbies(), invite_friends(), ...) read it back
-## correctly, exactly the round trip the real Steam lobby-data calls give.
-
-signal init_result(status: int, verbal: String)
-signal lobby_created(result: int, lobby_id: int)
-signal lobby_match_list(lobby_ids: Array)
-signal lobby_data_updated(lobby_id: int)
-signal lobby_joined(lobby_id: int, response: int)
-signal lobby_join_requested(lobby_id: int, friend_id: int)
+## Lobby state lives in this fake's own `lobby_data_store`/`lobby_owners`/
+## `lobby_member_counts`, so a test can seed a lobby and read back what the
+## session wrote.
+##
+## Answers are asynchronous the way Steamworks' are: queue_lobby_created() and
+## friends only queue, and run_callbacks() (the per-frame pump Net._process
+## calls) delivers them in order. A test drives a frame, not a private method.
 
 ## Steamworks' own well-known result/response codes (see net/SteamClient.gd's
 ## matching DECISION comments) — tests fire the fake's signals with these by
@@ -48,6 +41,7 @@ var leave_lobby_calls: Array[int] = []
 var request_lobby_list_calls: Array = []
 var activate_invite_overlay_calls: Array[int] = []
 var run_callbacks_calls: int = 0
+var _queued: Array[Dictionary] = []
 
 ## What init() answers with when called; tests override before calling
 ## Net.init_steam().
@@ -132,13 +126,29 @@ func self_check_line(lobby_id: int) -> String:
 	return "lobby=%d members=%d owner=%d" % [lobby_id, lobby_member_count(lobby_id), lobby_owner(lobby_id)]
 
 
-## Answers a create_lobby() the way Steamworks does (seen in
-## every probe log): lobby_created, then — on success — the creator's own
-## lobby_joined (LobbyEnter_t) for the same lobby.
-func answer_create_lobby(result: int, lobby_id: int) -> void:
-	lobby_created.emit(result, lobby_id)
+## Queues the answer to a create_lobby() the way Steamworks does (seen in
+## every probe log): lobby_created, then, on success, the creator's own
+## lobby_joined (LobbyEnter_t) for the same lobby. Delivered by run_callbacks().
+func queue_create_answer(result: int, lobby_id: int) -> void:
+	_queued.append({"kind": &"created", "a": result, "b": lobby_id})
 	if result == RESULT_OK:
-		lobby_joined.emit(lobby_id, CHAT_ROOM_ENTER_SUCCESS)
+		queue_lobby_joined(lobby_id, CHAT_ROOM_ENTER_SUCCESS)
+
+
+func queue_lobby_created(result: int, lobby_id: int) -> void:
+	_queued.append({"kind": &"created", "a": result, "b": lobby_id})
+
+
+func queue_lobby_joined(lobby_id: int, response: int) -> void:
+	_queued.append({"kind": &"joined", "a": lobby_id, "b": response})
+
+
+func queue_lobby_match_list(lobby_ids: Array) -> void:
+	_queued.append({"kind": &"list", "a": lobby_ids, "b": 0})
+
+
+func queue_join_requested(lobby_id: int, friend_id: int) -> void:
+	_queued.append({"kind": &"requested", "a": lobby_id, "b": friend_id})
 
 
 func request_lobby_list(string_filters: Array[Dictionary]) -> void:
@@ -149,13 +159,23 @@ func activate_invite_overlay(lobby_id: int) -> void:
 	activate_invite_overlay_calls.append(lobby_id)
 
 
-## Mirrors net/SteamClient.gd's run_callbacks() (every
-## real method needs a fake counterpart so Net._process()'s unconditional
-## per-frame call never errors on a FakeSteam-driven test). A no-op: this fake
-## already fires its own signals synchronously and explicitly, so it has no
-## queued callbacks to pump.
+## The per-frame pump (net/SteamClient.gd's run_callbacks()): delivers every
+## answer queued so far, oldest first. An answer queued by a listener while this
+## runs waits for the next call, as a real Steamworks answer lands on a later frame.
 func run_callbacks() -> void:
 	run_callbacks_calls += 1
+	var batch: Array[Dictionary] = _queued
+	_queued = []
+	for item: Dictionary in batch:
+		match StringName(item["kind"]):
+			&"created":
+				lobby_created.emit(int(item["a"]), int(item["b"]))
+			&"joined":
+				lobby_joined.emit(int(item["a"]), int(item["b"]))
+			&"list":
+				lobby_match_list.emit(item["a"] as Array)
+			&"requested":
+				lobby_join_requested.emit(int(item["a"]), int(item["b"]))
 
 
 ## Convenience for tests: seeds a lobby this fake will report as if a real
