@@ -28,7 +28,7 @@ enum Mode { OFFLINE, HOST, CLIENT }
 enum JoinError { NONE, TIMEOUT, VERSION_MISMATCH, SERVER_FULL, MATCH_IN_PROGRESS, REFUSED, TRANSPORT }
 
 ## Why a peer left, carried on Events.net_peer_left.
-enum LeaveReason { GRACEFUL, TIMEOUT, KICKED, HOST_SHUTDOWN }
+const LeaveReason = NetIds.LeaveReason
 
 ## Peer id of the listen-server host. Godot fixes this at 1; named here so no
 ## other file writes the literal.
@@ -237,6 +237,12 @@ func _ready() -> void:
 	# Only the real autoload listens to the UI bus; test instances call send_chat().
 	if get_parent() == get_tree().root:
 		Events.chat_send_requested.connect(send_chat)
+
+
+## Global wiring that only the real autoload performs (chat bus connect, real UPnP
+## backend); Main._ready calls it. Stub: nothing calls it yet.
+func attach_global_wiring() -> void:
+	pass
 
 
 func _process(delta: float) -> void:
