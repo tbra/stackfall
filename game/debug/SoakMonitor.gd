@@ -22,6 +22,8 @@ var role: StringName = &""
 var sampler: PerfSampler = null
 
 var _violations: Array[SoakCheck.Violation] = []
+# "invariant|subject" -> the epoch it was last recorded in (one record per epoch).
+var _last_recorded_epoch: Dictionary = {}
 var _observer: SoakObserver = null
 var _curve: TickBudgetCurve = null
 var _fuzz_run: bool = false
@@ -140,7 +142,7 @@ func sample_now() -> Array[SoakCheck.Violation]:
 	_prev_bytes = bytes_total
 	_last_epoch = epoch
 	_samples += 1
-	_record(found, epoch, wall_ms)
+	found = _record(found, epoch, wall_ms)
 	var fields: Dictionary = _observer.sample_fields(bodies.size(), board)
 	fields["mt"] = now_s - _play_start_s if _play_start_s >= 0.0 else 0.0
 	fields["tick_p99_ms"] = _worst_p99_ms()
@@ -158,11 +160,21 @@ func violations() -> Array[SoakCheck.Violation]:
 	return _violations
 
 
-func _record(found: Array[SoakCheck.Violation], epoch: int, wall_ms: int) -> void:
+## Records and prints each (invariant, subject) at most once per epoch; returns those recorded.
+func _record(
+	found: Array[SoakCheck.Violation], epoch: int, wall_ms: int
+) -> Array[SoakCheck.Violation]:
+	var recorded: Array[SoakCheck.Violation] = []
 	var match_time: float = _now_s() - _play_start_s if _play_start_s >= 0.0 else 0.0
 	for violation: SoakCheck.Violation in found:
+		var key: String = "%s|%s" % [violation.invariant, violation.subject]
+		if _last_recorded_epoch.get(key, -1) == epoch:
+			continue
+		_last_recorded_epoch[key] = epoch
+		recorded.append(violation)
 		_violations.append(violation)
 		print(SoakLine.violation(violation, role, epoch, wall_ms, match_time))
+	return recorded
 
 
 func _worst_p99_ms() -> float:
