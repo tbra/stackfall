@@ -90,6 +90,39 @@ func territory_share(team_id: int) -> float:
 	return _raster.team_share(team_id) if _raster != null else 0.0
 
 
+## Soak audit (SOAK_PLAN 6.3). True when the board is not clean (nothing to
+## compare), or when an uncached fresh solve's owner bytes equal the live raster's
+## owner bytes, ignoring live hole and contested cells. Read-only: no raster,
+## cache or revision state changes (the live raster's owner-byte cache is
+## refreshed, which is content-neutral). Nothing is compared while a solve is
+## pending, a block is awake or the last solve is stale (_is_clean()).
+func fresh_solve_matches_live() -> bool:
+	if _raster == null or _solver == null or _pending != null or _match._registry == null:
+		return true
+	if not _match._registry.all_settled() or not _is_clean():
+		return true
+	var job: TerritorySolveJob = TerritorySolveJob.new()
+	job.circles = _collect_circles()
+	_fill_cone_inputs(job)
+	job.holes_enabled = _match.config.hole_mode != MatchConfig.HoleMode.OFF
+	job.solver_tuning = _match._territory_tuning
+	job.fill_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
+	job.run()
+	var live_owners: PackedByteArray = _raster.owner_bytes()
+	var fresh_owners: PackedByteArray = job.fill_raster.owner_bytes()
+	var live_states: PackedByteArray = _raster.state_bytes()
+	var skip_mask: int = TerritoryRaster.STATE_HOLE | TerritoryRaster.STATE_CONTESTED
+	if live_owners.size() != fresh_owners.size():
+		return false
+	if live_owners == fresh_owners:
+		return true
+	var fresh_states: PackedByteArray = job.fill_raster.state_bytes()
+	for index: int in range(live_owners.size()):
+		if live_owners[index] != fresh_owners[index] and (live_states[index] | fresh_states[index]) & skip_mask == 0:
+			return false
+	return true
+
+
 ## The winning team, or -1.
 func winner_team() -> int:
 	return _objective.winner() if _objective != null else WinChecker.NO_TEAM
@@ -546,23 +579,29 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 		job.cached_groups = _cached_groups
 	else:
 		job.circles = _collect_circles()
-		# a field/registry freed by scene teardown can still be
-		# referenced here for one step; never pass a freed object to the typed call.
-		if _match._sandbox_territory_mode == MatchAutoload.SANDBOX_TERRITORY_CONE \
-				and is_instance_valid(_match._field) and is_instance_valid(_match._registry):
-			var measured: Dictionary = SandboxConeAdapter.measure_heights(
-				job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
-			)
-			if not measured.has("error"):
-				job.cone_enabled = true
-				job.heights = measured["heights"]
-				job.cone_angle = _match._sandbox_cone_angle
-				job.cone_base_mode = _match._sandbox_cone_base_mode
-				job.cone_base_radius = _match._territory_tuning.influence_base
-				job.cone_max_radius = (
-					_match._territory_tuning.influence_max_fraction * _match.config.map_def().field_radius
-				)
+		_fill_cone_inputs(job)
 	return job
+
+
+## Sandbox cone projection inputs for `job`: heights measured on the main thread.
+func _fill_cone_inputs(job: TerritorySolveJob) -> void:
+	# a field/registry freed by scene teardown can still be
+	# referenced here for one step; never pass a freed object to the typed call.
+	if _match._sandbox_territory_mode != MatchAutoload.SANDBOX_TERRITORY_CONE \
+			or not is_instance_valid(_match._field) or not is_instance_valid(_match._registry):
+		return
+	var measured: Dictionary = SandboxConeAdapter.measure_heights(
+		job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
+	)
+	if not measured.has("error"):
+		job.cone_enabled = true
+		job.heights = measured["heights"]
+		job.cone_angle = _match._sandbox_cone_angle
+		job.cone_base_mode = _match._sandbox_cone_base_mode
+		job.cone_base_radius = _match._territory_tuning.influence_base
+		job.cone_max_radius = (
+			_match._territory_tuning.influence_max_fraction * _match.config.map_def().field_radius
+		)
 
 
 ## Main-thread half of a solve step, in this order: cache store, groups, raster, objective, overlay,
