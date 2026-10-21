@@ -1,6 +1,6 @@
 extends GutTest
 ## Hole dissolve: the disc stays solid under holes, and
-## game/field/HoleDissolver.gd (owned by BlockRegistry) dissolves a block that
+## game/blocks/HoleDissolver.gd (owned by BlockRegistry) dissolves a block that
 ## rests or lands on an applied hole cell and removes it through the edge-fall
 ## path. The first half drives a bare Field + BlockRegistry on a 6 m disk; the
 ## second half the real Match (a punched hole under a home flag) and MatchNet

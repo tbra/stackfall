@@ -713,3 +713,59 @@ func test_the_intent_gateway_binds_the_current_providers() -> void:
 	assert_same(net._intents(), first, "built once per binding")
 	net.set_providers(_fake_net, Match)
 	assert_not_same(net._intents(), first, "rebinding the providers rebuilds the gateway")
+
+
+# --- Events the facade wires in _ready ----------------------------------------
+
+## A peer that leaves loses its flood buckets, so a rejoin starts full. Observed by flooding
+## place intents until the gate drops them (the counted intents stop growing), emitting
+## Events.net_peer_left, and flooding again. The gateway is the door the RPC stubs call.
+func test_a_peer_leaving_gives_a_rejoin_full_flood_buckets() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var gateway: MatchIntentGateway = net._intents()
+	var burst: int = roundi((FloodLimits.from_config(net.config)[FloodLimits.INTENT_PLACE] as Vector2).x)
+	for _i: int in range(burst * 3):
+		gateway.handle_place(2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, -1)
+	var counted: int = net.intents_sent(1)
+	assert_lt(counted, burst * 3, "fixture: the flood gate dropped the excess")
+
+	Events.net_peer_left.emit(2, -1, 0)
+	for _i: int in range(burst * 3):
+		gateway.handle_place(2, 1, _home_world_position(1), 0, Quaternion.IDENTITY, -1)
+
+	assert_gt(net.intents_sent(1), counted, "after the peer left, its bucket is full again")
+
+
+## The host places a remote seat's held piece itself when that seat's feed timer runs out.
+func test_a_remote_seats_feed_timer_expiry_drops_its_held_piece_for_it() -> void:
+	_make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	assert_eq(_block_count(), 0)
+	Events.feed_timer_expired.emit(1)
+	assert_eq(_block_count(), 1, "the remote seat's piece was dropped for it")
+
+
+func test_the_hosts_own_seat_is_not_auto_dropped_by_the_facade() -> void:
+	_make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	Events.feed_timer_expired.emit(0)
+	assert_eq(_block_count(), 0, "a local seat drops through its own controller")
+
+
+# --- bind_ports ---------------------------------------------------------------
+
+func test_bind_ports_accepts_valid_ports() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	assert_true(net.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+
+
+func test_bind_ports_refuses_an_invalid_port_and_keeps_working() -> void:
+	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
+	_start_playing()
+	var bad_session: SessionPort = SessionPort.new(null)
+	assert_push_error("SessionPort")
+	assert_false(net.bind_ports(bad_session, MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_push_error("MatchNet.bind_ports")
+	var reason: StringName = net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	assert_eq(reason, PlacementRules.REASON_OK, "the earlier binding still serves intents")

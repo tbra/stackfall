@@ -7,36 +7,10 @@ extends GutTest
 ## autoload) satisfies it.
 
 const FAKE_ARG_COUNT: int = 11
-const FAKE_NODE_BASE: String = "Node"
 const FAKE_REFCOUNTED_BASE: String = "RefCounted"
 const CONFIG_FIELD_SOURCE: String = "var config: MatchConfig = null\n"
 const PEER_A: int = 7
 const SLOT_A: int = 3
-const FORWARD_ARG_BASE: int = 100
-const FORWARD_FLOAT_BASE: float = 1.5
-const FORWARD_NAME_PREFIX: String = "arg_"
-const COLLABORATORS_SOURCE: String = "var _feed: Object = null\nvar _lifecycle: Object = null\n"
-const LIFECYCLE_SOURCE: String = "var _match_timer_left: float = -1.0\n"
-## Public port methods that do not forward to a same-named method of the adapted
-## object (constants answered locally, a property read, a field write); each is
-## asserted to exist so the list cannot rot.
-const NOT_DIRECT_FORWARDERS: Dictionary = {
-	"SessionPort": ["host_peer_id", "timeout_leave_reason"],
-	"MatchHostPort": ["config"],
-	"MatchReplicaPort": ["apply_replicated_match_timer"],
-}
-## TRANSITIONAL forwarders: port method -> [collaborator property, recorded name].
-const COLLABORATOR_FORWARDERS: Dictionary = {
-	"feed_knows_shape": ["_feed", "_shape_by_id"],
-	"feed_claim_carrier_shape_id": ["_feed", "claim_carrier_shape_id"],
-	"feed_gift_after_next_active": ["_feed", "gift_after_next_active"],
-	"feed_staged_gift_shape_id": ["_feed", "staged_gift_shape_id"],
-	"feed_note_special_triggered": ["_feed", "note_special_triggered"],
-	"is_starting_match": ["_lifecycle", "is_starting_match"],
-	"loading_gate_replay_args": ["_lifecycle", "loading_gate_replay_args"],
-	"apply_replicated_next_gift": ["_feed", "apply_replicated_next_gift"],
-	"apply_replicated_staged_gift": ["_feed", "apply_replicated_staged_gift"],
-}
 
 
 ## Builds a throwaway script whose every listed method records its call in
@@ -96,16 +70,12 @@ func test_session_port_accepts_the_repo_net_double() -> void:
 	port.report_stats(&"snapshot", {"x": 1})
 
 
-
-
 func test_session_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 	for omitted: StringName in SessionPort.REQUIRED_METHODS:
 		var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(SessionPort.REQUIRED_METHODS, omitted))
 		var port: SessionPort = SessionPort.new(fake)
 		assert_false(port.is_valid(), "missing %s" % omitted)
 		assert_push_error("lacks [&\"%s\"]" % omitted)
-
-
 
 
 func test_session_port_subset_binds_a_narrow_double() -> void:
@@ -118,14 +88,6 @@ func test_session_port_subset_binds_a_narrow_double() -> void:
 	assert_push_error_count(0)
 	assert_false(SessionPort.new(narrow).is_valid(), "the full list still refuses the narrow double")
 	assert_push_error_count(1)
-
-
-
-
-
-
-
-
 
 
 func test_session_port_wraps_the_real_net_autoload() -> void:
@@ -171,22 +133,12 @@ func test_host_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
 	assert_eq(port.territory_share(1), 0.25)
 
 
-
-
-
-
 func test_host_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 	for omitted: StringName in MatchHostPort.REQUIRED_METHODS:
 		var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(MatchHostPort.REQUIRED_METHODS, omitted), true)
 		var port: MatchHostPort = MatchHostPort.new(fake)
 		assert_false(port.is_valid(), "missing %s" % omitted)
 		assert_push_error("lacks [&\"%s\"]" % omitted)
-
-
-
-
-
-
 
 
 func test_host_port_wraps_the_real_match_autoload() -> void:
@@ -196,15 +148,8 @@ func test_host_port_wraps_the_real_match_autoload() -> void:
 	assert_eq(port.slot_count(), Match.slot_count())
 	assert_eq(port.config(), Match.config)
 	assert_eq(port.registry(), Match.registry())
-	assert_eq(port.replicator(), Match.replicator())
+	assert_eq(port.blocks_parent(), Match.blocks_parent())
 	assert_eq(port.circle_wire_xz_bound(), Match.circle_wire_xz_bound())
-
-
-
-
-
-
-
 
 
 func test_replica_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
@@ -231,22 +176,12 @@ func test_replica_port_accepts_a_minimal_fake_and_forwards_arguments() -> void:
 	assert_eq(fake.calls.back()[0], &"end_cat")
 
 
-
-
 func test_replica_port_with_a_missing_method_is_invalid_and_logs_once() -> void:
 	for omitted: StringName in MatchReplicaPort.REQUIRED_METHODS:
 		var fake: Object = _fake(FAKE_REFCOUNTED_BASE, _without(MatchReplicaPort.REQUIRED_METHODS, omitted))
 		var port: MatchReplicaPort = MatchReplicaPort.new(fake)
 		assert_false(port.is_valid(), "missing %s" % omitted)
 		assert_push_error("lacks [&\"%s\"]" % omitted)
-
-
-
-
-
-
-
-
 
 
 func test_replica_port_wraps_the_real_match_autoload() -> void:
@@ -260,8 +195,3 @@ func test_replica_port_wraps_the_real_match_autoload() -> void:
 
 
 # --- every forwarder reaches its own method -----------------------------------------
-
-
-
-
-
