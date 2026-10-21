@@ -168,6 +168,8 @@ class JoinTest(unittest.TestCase):
         res = run(host_extra=[body("host", 90, 1)], client_extra=[body("client", 100, 1)])
         self.assertEqual(res["verdict"], "INVALID")
         self.assertIn("body checks never ran", res["detail"])
+        res = run(host_extra=[body("host", 90, 1), violation("authority.fuzz_accepted")], client_extra=[body("client", 100, 1)])
+        self.assertEqual((res["verdict"], invs(res)), ("FAIL", ["authority.fuzz_accepted"]))  # INVALID never hides a FAIL
         res = run(host_extra=[body("host", 99, 1)], client_extra=[body("client", 100, 1)])  # e-1 is aligned
         self.assertEqual(res["verdict"], "PASS")
 

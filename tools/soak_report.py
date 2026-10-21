@@ -399,11 +399,10 @@ def analyze(scenario, host_text, client_text, known_ids, tres_cfg=None):
     if bad:
         res.update(verdict="INVALID", detail=bad)
         return res
-    if compared_dumps(host, client, cfg) == 0:
-        res.update(verdict="INVALID", detail="no client body dump has a host dump at its epoch: body checks never ran")
-        return res
     violations = host.violations + client.violations + join_violations(host, client, cfg)
     v, detail = verdict(violations, known_ids)
+    if v != "FAIL" and compared_dumps(host, client, cfg) == 0:  # never hides a FAIL
+        v, detail = "INVALID", "no client body dump has a host dump at its epoch: body checks never ran"
     res.update(verdict=v, detail=detail, violations=violations)
     return res
 
