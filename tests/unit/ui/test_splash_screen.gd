@@ -4,7 +4,7 @@ extends GutTest
 
 func test_skipped_when_headless_or_cli_args() -> void:
 	assert_false(SplashScreen.should_show(true, PackedStringArray()))
-	assert_false(SplashScreen.should_show(false, PackedStringArray(["--hot-seat"])))
+	assert_false(SplashScreen.should_show(false, PackedStringArray(["--sandbox"])))
 	assert_true(SplashScreen.should_show(false, PackedStringArray()))
 
 

@@ -1,5 +1,5 @@
 extends GutTest
-## ui/menus/MainMenu.gd offers only Host / Join / Quit (hot-seat is unlisted), a LAN game list fed by Events, and a
+## ui/menus/MainMenu.gd offers only Host / Join / Quit, a LAN game list fed by Events, and a
 ## direct-IP fallback (spec 2.6).
 
 
