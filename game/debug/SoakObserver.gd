@@ -70,7 +70,7 @@ func territory(fresh_solve: bool) -> SoakCheck.TerritoryObs:
 	var raster: TerritoryRaster = Match.raster()
 	if raster == null:
 		return obs
-	var teams: int = team_count()
+	var teams: int = _team_count()
 	obs.shares.resize(teams)
 	obs.owned_cells.resize(teams)
 	for team: int in teams:
@@ -156,7 +156,7 @@ func _is_remote_driven(slot: PlayerSlot) -> bool:
 	return slot != null and not slot.is_bot and not slot.is_local
 
 
-func team_count() -> int:
+func _team_count() -> int:
 	var teams: int = 0
 	for slot_id: int in Match.slot_count():
 		teams = maxi(teams, Match.team_of(slot_id) + 1)
@@ -165,9 +165,13 @@ func team_count() -> int:
 
 ## The SOAK_SAMPLE keys that are plain reads of the live state.
 func sample_fields(bodies_count: int, territory_obs: SoakCheck.TerritoryObs) -> Dictionary:
+	# Owned tracked bodies per slot: the registry replicates on every peer, so host and client agree.
 	var scores: Dictionary = {}
 	for slot_id: int in Match.slot_count():
-		scores[slot_id] = Match.stats().blocks_placed(slot_id)
+		scores[slot_id] = 0
+	for block: Block in _blocks:
+		if scores.has(block.owner_slot):
+			scores[block.owner_slot] += 1
 	var raster: TerritoryRaster = Match.raster()
 	return {
 		"state": Match.State.find_key(Match.state()),

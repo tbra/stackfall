@@ -66,9 +66,9 @@ func _physics_process(_delta: float) -> void:
 	var epoch: int = floori(Time.get_unix_time_from_system() / config.sample_interval_s)
 	if epoch != _last_epoch:
 		sample_now()
-	if (
-		role == &"client" and not _quitting and _play_start_s >= 0.0
-		and _now_s() - _play_start_s >= config.duration_s
+	if role == &"client" and not _quitting and _play_start_s >= 0.0 and (
+		_now_s() - _play_start_s >= config.duration_s or not Net.is_client()
+		or Match.state() != Match.State.PLAYING
 	):
 		_quitting = true
 		_quit_cleanly()
@@ -91,9 +91,9 @@ func _exit_tree() -> void:
 	}))
 
 
-## One sample: reads the state, runs the checks, records the violations and returns the new
-## ones. The schedule calls the same method.
-func sample_now() -> Array[SoakCheck.Violation]:
+## One sample: reads the state, runs the checks and records the violations. The schedule calls
+## the same method.
+func sample_now() -> void:
 	var started_us: int = Time.get_ticks_usec()
 	var wall_s: float = Time.get_unix_time_from_system()
 	var epoch: int = floori(wall_s / config.sample_interval_s)
@@ -102,8 +102,9 @@ func sample_now() -> Array[SoakCheck.Violation]:
 	var is_host: bool = role == &"host"
 	if _play_start_s < 0.0 and Match.state() == Match.State.PLAYING:
 		_play_start_s = now_s
-	var checking: bool = _play_start_s < 0.0 or now_s - _play_start_s >= config.warmup_s
-	var dump: bool = _samples % config.body_dump_every_samples == 0
+	var playing: bool = _play_start_s >= 0.0 and Match.state() == Match.State.PLAYING
+	var checking: bool = _play_start_s >= 0.0 and now_s - _play_start_s >= config.warmup_s
+	var dump: bool = posmod(epoch, config.body_dump_every_samples) == 0
 	var fresh: bool = is_host and _samples % config.fresh_solve_every_samples == 0
 
 	var bodies: Array[SoakCheck.BodyObs] = _observer.bodies()
@@ -123,8 +124,9 @@ func sample_now() -> Array[SoakCheck.Violation]:
 		))
 		found.append_array(SoakCheck.territory(board, _observer.homes(now_s), config))
 		if is_host:
-			var fuzz_slot: int = _observer.fuzz_slot() if _fuzz_run else -1
-			found.append_array(SoakCheck.authority(_observer.intents(), fuzz_slot, config))
+			found.append_array(SoakCheck.authority(
+				_observer.intents(), _observer.fuzz_slot(), config
+			))
 		if _prev_wall_s >= 0.0:
 			found.append_array(SoakCheck.budget(
 				role, _curve, _sim_rate, Engine.physics_ticks_per_second, bps, _prev_monitor_us,
@@ -133,16 +135,17 @@ func sample_now() -> Array[SoakCheck.Violation]:
 		if _mem_start_mb < 0.0:
 			_mem_start_mb = SoakObserver.static_mem_mb()
 			_bodies_start = bodies.size()
-	_mem_end_mb = SoakObserver.static_mem_mb()
-	_bodies_end = bodies.size()
-	_orphans_end = int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
+	if playing:
+		_mem_end_mb = SoakObserver.static_mem_mb()
+		_bodies_end = bodies.size()
+		_orphans_end = int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 
 	_prev_wall_s = wall_s
 	_prev_physics_frames = frames
 	_prev_bytes = bytes_total
 	_last_epoch = epoch
 	_samples += 1
-	found = _record(found, epoch, wall_ms)
+	_record(found, epoch, wall_ms)
 	var fields: Dictionary = _observer.sample_fields(bodies.size(), board)
 	fields["mt"] = now_s - _play_start_s if _play_start_s >= 0.0 else 0.0
 	fields["tick_p99_ms"] = _worst_p99_ms()
@@ -152,7 +155,6 @@ func sample_now() -> Array[SoakCheck.Violation]:
 	if dump:
 		for line: String in _observer.body_lines(role, epoch):
 			print(line)
-	return found
 
 
 ## Every violation recorded so far; SOAK_END reports their count.
@@ -160,21 +162,16 @@ func violations() -> Array[SoakCheck.Violation]:
 	return _violations
 
 
-## Records and prints each (invariant, subject) at most once per epoch; returns those recorded.
-func _record(
-	found: Array[SoakCheck.Violation], epoch: int, wall_ms: int
-) -> Array[SoakCheck.Violation]:
-	var recorded: Array[SoakCheck.Violation] = []
+## Records and prints each (invariant, subject) at most once per epoch.
+func _record(found: Array[SoakCheck.Violation], epoch: int, wall_ms: int) -> void:
 	var match_time: float = _now_s() - _play_start_s if _play_start_s >= 0.0 else 0.0
 	for violation: SoakCheck.Violation in found:
 		var key: String = "%s|%s" % [violation.invariant, violation.subject]
 		if _last_recorded_epoch.get(key, -1) == epoch:
 			continue
 		_last_recorded_epoch[key] = epoch
-		recorded.append(violation)
 		_violations.append(violation)
 		print(SoakLine.violation(violation, role, epoch, wall_ms, match_time))
-	return recorded
 
 
 func _worst_p99_ms() -> float:
