@@ -251,6 +251,11 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## start_match() and flipped by ui/debug/SandboxPanel.gd's sandbox_toggle_timer hotkey.
 @export var sandbox: bool = false
 
+## True only for the tutorial: a lesson may grant a gift through
+## Match.debug_queue_special. Set only by MatchLaunch.tutorial_config, never by
+## the lobby or the wire, and not serialized (like `sandbox`).
+@export var scripted_gifts: bool = false
+
 ## Shared source for player_colors' default so sanitize() can pad a config
 ## that arrived over the wire with too few entries, without duplicating the
 ## literal (CLAUDE.md: no magic numbers). A static func rather than a const,
