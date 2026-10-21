@@ -43,7 +43,7 @@ extends CanvasLayer
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad pause_menu[Start] + X). While
 ## open: the mouse is released and gameplay input is suppressed (PlayerController.input_enabled).
 ##
-## Availability: open offline (sandbox) and by the host in a networked match; a client
+## Availability: open offline (sandbox or tutorial) and by the host in a networked match; a client
 ## only sees the client-visible tabs. Net.is_host() is already true offline, so it is the one
 ## predicate to gate on. Editing Physics/Territory/Feed on a client would be inert anyway (a
 ## client's bodies are frozen and moved by net/SnapshotSync.gd), not just hidden for tidiness.
