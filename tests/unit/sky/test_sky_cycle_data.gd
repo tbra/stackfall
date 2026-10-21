@@ -4,7 +4,6 @@ extends GutTest
 ## is well formed. Field-by-field values are pinned in test_sky_contract.gd.
 
 const Live := preload("res://tests/unit/sky/test_sky_parity_live.gd")
-const Evaluator := preload("res://tests/unit/sky/test_sky_evaluator.gd")
 const CYCLE_PATH: String = "res://config/sky/sky_cycle.tres"
 const OVERLAY_PATH: String = "res://config/sky/storm_overlay.tres"
 const DOME_PATH: String = "res://config/sky/sky_dome.tres"
@@ -521,17 +520,3 @@ func test_golden_fixture_is_well_formed() -> void:
 	assert_gt(float(aurora["aurora_visibility"]), 0.0, "the aurora seed shows the aurora")
 	for preset: String in ["low", "medium", "high"]:
 		assert_true(states.has("P_%s_boot" % preset), "preset %s boot state" % preset)
-
-
-func test_evaluate_of_the_shipped_cycle_equals_the_golden() -> void:
-	var states: Dictionary = Live.load_golden().get("states", {}) as Dictionary
-	var def: SkyCycleDef = SkyTestKit.cycle()
-	var compared: int = 0
-	for phase: float in Evaluator.LOCKED_GOLDEN_PHASES:
-		var name: String = "L_%.2f" % phase
-		var frame: SkyFrame = SkyEvaluator.evaluate(def, phase, SkyVariation.DEFAULT_SEED, 0, Evaluator.clear_weather(), true)
-		var problems: Array[String] = Evaluator.golden_mismatches(frame, states[name] as Dictionary, name)
-		for problem: String in problems:
-			fail_test(problem)
-		compared += 1
-	assert_eq(compared, Evaluator.LOCKED_GOLDEN_PHASES.size())
