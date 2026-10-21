@@ -3,8 +3,7 @@ extends Control
 ## The game's front door (spec 2.6 "LAN discovery").
 ##
 ## The menu offers Host, Join (LAN list or direct IP), Sandbox (spec 1.2), Tutorial, Options and
-## Quit. Hot-seat is unlisted: it is reachable only through the `--hot-seat` command-line flag,
-## which `Net.apply_command_line()` / `game/main/Main.gd` handle before this scene is shown.
+## Quit.
 ##
 ## Connects to Events and calls Net directly, the same "no deep node paths" convention
 ## ui/hud/HUD.gd uses; it does not know about ui/lobby/Lobby.gd or game/main/Main.gd. Whoever
@@ -17,8 +16,7 @@ var net_provider: Variant = null
 
 ## game/main/Main.gd instantiates this scene (`_show_main_menu()`) and connects to this signal
 ## directly, like ui/lobby/Lobby.gd's `start_requested`, not through the Events bus, since Main
-## already owns this node's lifetime. Sandbox is the one entry point spec 1.2 gives it (unlike
-## hot-seat, which stays command-line only).
+## already owns this node's lifetime. Sandbox is the one entry point spec 1.2 gives it.
 signal sandbox_requested
 
 ## %TutorialButton's own signal, a direct child-signal connection like sandbox_requested above;

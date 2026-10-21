@@ -39,7 +39,7 @@ const OVERLAY_LAYER: int = 100
 
 ## Emitted once Leave match is confirmed. game/main/Main.gd is the one listener: online, it calls
 ## Net.leave() (which tears the match world down and returns to the main menu); offline
-## (sandbox/hot-seat), it aborts the match and shows the main menu directly. PauseMenu itself
+## (sandbox or tutorial), it aborts the match and shows the main menu directly. PauseMenu itself
 ## never touches Net/Match.
 signal leave_match_requested
 
@@ -49,7 +49,7 @@ signal leave_match_requested
 signal return_to_lobby_requested
 
 ## What the Return to lobby entry shows, decided by whoever owns the session (game/main/Main.gd),
-## never by this menu: HIDDEN where no lobby exists to return to (offline sandbox/hot-seat; Leave
+## never by this menu: HIDDEN where no lobby exists to return to (offline sandbox or tutorial; Leave
 ## match already goes to the main menu there), ENABLED for the host (a hosted session always has a
 ## lobby, local vs-bots included), DISABLED for a client.
 enum ReturnEntry { HIDDEN, ENABLED, DISABLED }

@@ -6,8 +6,7 @@ extends Node
 ##
 ## Placement is intent-only (spec 2.6, "clients send intents; the host checks
 ## every intent before acting on it"): this script never builds a Block itself.
-## It positions the ghost, tracks whose turn it is in hot-seat (strict
-## alternation), and sends an intent; the host alone decides what happens next
+## It positions the ghost, tracks which slot it acts for, and sends an intent; the host alone decides what happens next
 ## and answers on the Events bus. Offline the intent is Match.request_place()
 ## for Events.turn_changed's slot; networked it goes through net/MatchNet.gd
 ## (inline to Match on the host, a reliable RPC on a client) and always for
@@ -69,7 +68,7 @@ var _match: Variant = null
 ## DECISION (game/player/PlayerController.gd): Net is an autoload for the same
 ## reason Match is, and needs the same seam for the same reason; null means
 ## the real one. Offline Net.is_offline() is true and every branch below
-## collapses to the hot-seat behaviour.
+## collapses to the offline behaviour.
 var _session_provider: Variant = null
 
 var _shapes_by_id: Dictionary = {}
@@ -79,8 +78,8 @@ var _shapes_by_id: Dictionary = {}
 ## client ever sets it: the host's intent resolves inline, in the same frame.
 var _intent_lock_left: float = 0.0
 
-## Hot-seat: which slot this controller currently acts for (strict alternation:
-## only the active slot's timer/controls do anything). -1 until the first Events.turn_changed.
+## Which slot this controller currently acts for (only that slot's timer/controls
+## do anything). -1 until set_acting_slot() or the first Events.turn_changed.
 var _active_slot: int = -1
 
 ## Bookkeeping only: both mouse and gamepad move the same _cursor, and
@@ -497,8 +496,8 @@ func _acting_slot() -> int:
 	return int(_session().local_slot())
 
 
-## Lets the integrator bind this controller to a slot directly. Hot-seat
-## under --hot-seat keeps using Events.turn_changed instead.
+## Lets the integrator bind this controller to a slot directly; an
+## unbound offline controller keeps using Events.turn_changed instead.
 func set_acting_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 
@@ -507,10 +506,10 @@ func set_acting_slot(slot_id: int) -> void:
 ## from its sandbox_next_slot hotkey handler. A thin alias over
 ## set_acting_slot() rather than a second field: offline, _acting_slot()
 ## already reads _active_slot regardless of which caller last set it
-## (HotSeat.bind_local_slot(), Events.turn_changed, or this), so a separate
+## (set_acting_slot(), Events.turn_changed, or this), so a separate
 ## sandbox field would be two sources of truth that could disagree. Naming it
 ## separately still keeps the call site readable as "the sandbox is choosing
-## this" rather than "this is a hot-seat turn hand-off".
+## this" rather than "this is a turn hand-off".
 func set_sandbox_slot(slot_id: int) -> void:
 	set_acting_slot(slot_id)
 
