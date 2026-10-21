@@ -55,6 +55,13 @@ class PureRuleTests(unittest.TestCase):
         self.assertEqual(mw.rising("layers", old, new, allow_new=["n.gd"]), [])
         self.assertEqual(mw.rising("layers", new, old), [])
 
+    def test_rising_layers_scc_shrink_is_not_a_rise(self):
+        old = {"autoload_scc_pairs": [["a/Match.gd"], ["a/Net.gd", "n/Sync.gd"]]}
+        shrunk = {"autoload_scc_pairs": [["a/Match.gd"], ["a/Net.gd"]]}
+        self.assertEqual(mw.rising("layers", old, shrunk), [])
+        grown = {"autoload_scc_pairs": [["a/Match.gd", "a/Net.gd"]]}
+        self.assertEqual(mw.rising("layers", old, grown), ["autoload_scc_pairs:a/Match.gd a/Net.gd"])
+
     def test_attribution(self):
         files = {"wt/a": {"game/a.gd"}, "wt/b": {"autoload/Net.gd", "game/b.gd"}}
         self.assertEqual(mw.attribute("test-only-func:autoload/Net.gd:report_stats", files), "wt/b")

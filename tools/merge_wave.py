@@ -48,6 +48,7 @@ REGENERATED = sorted("tools/" + v[2] for v in LOWERING.values())
 TOKEN_SPLIT = re.compile(r"[\s:,;()'\"]+")
 PROBLEM_RE = re.compile(r"^(VIOLATION |MAGIC LINT FAIL |not baselined |\S+:\d+: )")
 MAX_SHOWN = 6
+SCC_KEY = "autoload_scc_pairs:"
 
 
 def is_baseline_path(path):
@@ -86,7 +87,7 @@ def counters(kind, data):
             for e in data.get(field, []):
                 out["%s:%s" % (field, e)] = 1
         for pair in data.get("autoload_scc_pairs", []):
-            out["autoload_scc_pairs:" + " ".join(sorted(pair))] = 1
+            out[SCC_KEY + " ".join(sorted(pair))] = 1
     return out
 
 
@@ -95,9 +96,13 @@ def rising(kind, before, after, allow_new=()):
     entries that name an --allow-new file."""
     allow = set(allow_new)
     old, new = counters(kind, before), counters(kind, after)
+    # An autoload SCC whose members are a subset of a baselined one shrank (lint_layers allows it).
+    old_sccs = [set(p) for p in before.get("autoload_scc_pairs", [])] if kind == "layers" else []
     hits = []
     for k, n in sorted(new.items()):
         if n <= old.get(k, 0):
+            continue
+        if k.startswith(SCC_KEY) and any(set(k[len(SCC_KEY):].split(" ")) <= s for s in old_sccs):
             continue
         if allow and (k == "largest_scc" or allow & set(TOKEN_SPLIT.split(k))):
             continue
