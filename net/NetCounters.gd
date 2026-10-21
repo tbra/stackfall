@@ -35,9 +35,6 @@ var replicated_event_counts: Dictionary = {}
 ## [peer_id, slot_id, reason].
 var reject_replies_by_peer: Dictionary = {}
 var last_reject_reply: Array = []
-## The same pair for placement_relocated: [peer_id, slot_id, point].
-var relocate_replies_by_peer: Dictionary = {}
-var last_relocate_reply: Array = []
 ## Host: replay-pending refusals.
 var intents_refused_before_replay_ack: int = 0
 ## Impact replication: batches a client dropped as malformed, events it re-emitted, and

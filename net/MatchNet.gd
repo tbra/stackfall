@@ -116,15 +116,14 @@ const EVENT_CAT_ENDED: StringName = &"cat_ended"
 const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
 ## mid-match join replay only: one slot's absolute feed and
 ## gift state -- [slot_id, held_shape_id, next_shape_id, feed_seq, time_left,
-## release_locked, held_special_id, next_special_id]. See
+## release_locked, held_special_id, next_special_id, after_next_special_id, after_next_carrier_id]. See
 ## _apply_slot_replay().
 const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
-## EVENT_SLOT_REPLAY arity: 8 args before the current payload adds the
-## after-next gift id and its carrier shape id. Indices of the id-typed args for each.
-const SLOT_REPLAY_ARGS_BASE: int = 8
-const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_ARGS_BASE + 2
-const SLOT_REPLAY_ID_ARGS_BASE: Array[int] = [1, 2, 6, 7]
-const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, 8, 9]
+## EVENT_SLOT_REPLAY arity, and the indices of its id-typed args (after-next gift and carrier last).
+const SLOT_REPLAY_AFTER_SPECIAL: int = 8
+const SLOT_REPLAY_AFTER_CARRIER: int = SLOT_REPLAY_AFTER_SPECIAL + 1
+const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_AFTER_CARRIER + 1
+const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, SLOT_REPLAY_AFTER_SPECIAL, SLOT_REPLAY_AFTER_CARRIER]
 ## mid-match join replay only: [match_timer_left].
 const EVENT_MATCH_CLOCK: StringName = &"match_clock"
 ## mid-match join replay only, COUNTDOWN: the loading-screen ready
@@ -191,12 +190,6 @@ var reject_replies_by_peer: Dictionary:
 var last_reject_reply: Array:
 	get:
 		return counters.last_reject_reply
-var relocate_replies_by_peer: Dictionary:
-	get:
-		return counters.relocate_replies_by_peer
-var last_relocate_reply: Array:
-	get:
-		return counters.last_relocate_reply
 
 ## replicated block impacts (core/net/ImpactWire.gd).
 ## Host: coalesce bucket (ImpactWire.coalesce_key) -> strongest event this
@@ -1589,11 +1582,9 @@ func _slot_replay_args(slot_id: int) -> Array:
 ## and marked as the next carrier, the feed event activates it, then the
 ## queued next gift is queued behind it.
 func _apply_slot_replay(args: Array) -> void:
-	# 8 args before 10 adds the after-next gift and its carrier.
-	var has_after: bool = args.size() == SLOT_REPLAY_ARGS
-	if (args.size() != SLOT_REPLAY_ARGS_BASE and not has_after) or not args[0] is int or not args[3] is int or not args[5] is bool:
+	if args.size() != SLOT_REPLAY_ARGS or not args[0] is int or not args[3] is int or not args[5] is bool:
 		return
-	for index: int in (SLOT_REPLAY_ID_ARGS_BASE if not has_after else SLOT_REPLAY_ID_ARGS):
+	for index: int in SLOT_REPLAY_ID_ARGS:
 		if not (args[index] is StringName or args[index] is String):
 			return
 	if not (args[4] is float or args[4] is int):
@@ -1606,8 +1597,8 @@ func _apply_slot_replay(args: Array) -> void:
 	var locked: bool = args[5]
 	var held_special: StringName = StringName(args[6])
 	var next_special: StringName = StringName(args[7])
-	var after_special: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE]) if has_after else &""
-	var after_carrier: StringName = StringName(args[SLOT_REPLAY_ARGS_BASE + 1]) if has_after else &""
+	var after_special: StringName = StringName(args[SLOT_REPLAY_AFTER_SPECIAL])
+	var after_carrier: StringName = StringName(args[SLOT_REPLAY_AFTER_CARRIER])
 	var host: MatchHostPort = _host_port()
 	var replica: MatchReplicaPort = _replica_port()
 	if host.config() == null or slot_id < 0 or slot_id >= host.slot_count():
