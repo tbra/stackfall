@@ -292,3 +292,39 @@ func test_a_hole_in_the_packet_emits_the_hole_signal_on_the_client() -> void:
 	watch_signals(Events)
 	assert_true(_replicator(_raster()).apply(packet))
 	assert_signal_emitted(Events, "hole_cells_changed")
+
+
+## A decaying home claim changes no raster cell, so the host keeps sending (empty-diff) packets
+## while the ring falls, and stays silent for a rising hold on a static board.
+func test_a_falling_claim_sends_a_capture_packet_on_a_static_board() -> void:
+	var host_raster: TerritoryRaster = _raster()
+	var host: TerritoryReplicator = _replicator(host_raster)
+	var client: TerritoryReplicator = _replicator(_raster())
+	var shown: Array[Array] = []
+	var listener: Callable = func(team: int, progress: float) -> void:
+		shown.append([team, progress])
+	_seed(host_raster, {4: [1, 0]})
+	Events.goal_capture_progress.emit(1, 0.5)
+	assert_gt(host.encode_diff().size(), 0, "the first packet is the keyframe")
+	assert_eq(host.encode_diff().size(), 0, "a static board and a steady ring send nothing")
+
+	Events.goal_capture_progress.emit(1, 0.75)
+	assert_eq(host.encode_diff().size(), 0, "a rising hold is extrapolated by the client, not sent")
+
+	Events.goal_capture_progress.emit(1, 0.25)
+	var falling: PackedByteArray = host.encode_diff()
+	assert_gt(falling.size(), 0, "a falling ring sends although no cell changed")
+	Events.goal_capture_progress.connect(listener)
+	assert_true(client.apply(falling))
+	Events.goal_capture_progress.disconnect(listener)
+	assert_eq(shown, [[1, 0.25]], "the client shows the falling value")
+
+	Events.goal_capture_progress.emit(1, 0.125)
+	assert_gt(host.encode_diff().size(), 0, "each further step down is sent")
+	Events.goal_capture_progress.emit(1, 0.375)
+	assert_gt(host.encode_diff().size(), 0, "a fading ring keeps reporting even when it moves up")
+	assert_eq(host.encode_diff().size(), 0, "and goes quiet once the value stops changing")
+
+	Events.goal_capture_progress.emit(-1, 0.0)
+	host.encode_diff()
+	assert_eq(host.encode_diff().size(), 0, "a cleared ring is silent again")
