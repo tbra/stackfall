@@ -143,7 +143,7 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 ## DECISION (autoload/Rumble.gd): the only match-end signal is
 ## match_won(team_id); there is no "you lost" signal, so win/lose is derived per
 ## local slot by comparing team_of_slot() the way autoload/Sfx.gd does for a
-## null Match.config (offline/hot-seat: every slot is its own team). Stops any
+## null Match.config (offline sandbox or tutorial: every slot is its own team). Stops any
 ## lingering rumble first, then plays the appropriate pulse.
 func _on_match_won(team_id: int) -> void:
 	stop_all()

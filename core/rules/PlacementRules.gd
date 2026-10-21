@@ -50,7 +50,7 @@ const REASON_HOLE: StringName = &"hole"
 const REASON_OFF_DISK: StringName = &"off_disk"
 const REASON_EMPTY: StringName = &"empty_footprint"
 const REASON_GOAL_ZONE: StringName = &"goal_zone"
-## Raised by Match, not by validate_point(): the slot is not the hot-seat player
+## Raised by Match, not by validate_point(): the slot is not the player
 ## whose turn it is, or it is holding nothing.
 const REASON_NOT_YOUR_TURN: StringName = &"not_your_turn"
 const REASON_NO_BLOCK: StringName = &"no_block"

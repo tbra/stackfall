@@ -77,8 +77,8 @@ signal world_replay_changed(active: bool)
 ## Loading-screen ready gate (core/rules/LoadingReadyGate.gd, owned per
 ## match by autoload/match/MatchLifecycle.gd). `ready_peer_ids` are the required
 ## peers that pressed ready, `required_peer_ids` every peer the host waits for
-## (peers holding a human slot; bots never appear, they are auto-ready; offline
-## and hot-seat the single local peer id Net.HOST_PEER_ID stands for every local
+## (peers holding a human slot; bots never appear, they are auto-ready; in an offline
+## sandbox or tutorial the single local peer id Net.HOST_PEER_ID stands for every local
 ## human). Emitted on the host whenever either set changes and once at match
 ## start, and on a client when the host's mirror (Net._rpc_loading_ready_state)
 ## arrives. Presentation reads this; it never decides anything.
@@ -108,7 +108,7 @@ signal net_seat_pref_requested(peer_id: int, color_index: int, team_pick: int)
 ## One second of the 3 s pre-match countdown elapsed; 0 means "go".
 signal countdown_tick(seconds_left: int)
 
-## Hot-seat: it is now this slot's turn to hold and place a block.
+## Turn-based: it is now this slot's turn to hold and place a block.
 signal turn_changed(slot_id: int)
 
 ## A team met the win condition (spec 1.5). The match state goes to End.

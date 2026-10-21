@@ -1505,7 +1505,7 @@ func collision_half_size() -> float:
 
 ## The active slot's colour, used for the VALID tint. Setting it re-applies
 ## the material immediately if the ghost is currently showing VALID, so a
-## hot-seat turn change re-colours the ghost without waiting for the next
+## turn change re-colours the ghost without waiting for the next
 ## preview_placement() poll.
 func set_player_color(color: Color) -> void:
 	_player_color = color

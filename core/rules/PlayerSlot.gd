@@ -16,10 +16,10 @@ var color: Color = Color.WHITE
 ## Disk-local (x, z) of the home flag, at field_radius - home_flag_edge_inset,
 ## evenly spaced around the disk (spec 1.5).
 var home_position: Vector2 = Vector2.ZERO
-## True for the player sitting at this PC. In hot-seat every slot is local.
+## True for the player sitting at this PC. In an offline sandbox or tutorial every slot is local.
 var is_local: bool = true
 var is_bot: bool = false
-## MultiplayerAPI peer id, or 0 in hot-seat.
+## MultiplayerAPI peer id, or 0 offline.
 var peer_id: int = 0
 ## False once the home flag has left the disk; its home circle stops existing
 ## (spec 1.5: "It always exists while the flag is on the disk").

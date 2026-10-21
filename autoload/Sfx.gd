@@ -1244,7 +1244,7 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## "_local_watch_slot()" and ui/hud/HUD.gd's gift toast; a global "someone
 ## claimed a gift" chime would be noise in an 8-player match with crates
 ## spawning continuously. The loop gates on LocalFeedback.is_own_human_slot():
-## a human seat driven on this machine, so hot-seat humans still hear their
+## a human seat driven on this machine, so offline humans still hear their
 ## claims while offline bots (including bot teammates) never chime. No quieter
 ## variant for other teams' claims: they stay silent.
 ##
