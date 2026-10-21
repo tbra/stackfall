@@ -114,7 +114,7 @@ func homes(now_s: float) -> Array[SoakCheck.HomeObs]:
 	return found
 
 
-## Host only: the intent counters of every non-bot slot against the previous call.
+## Host only: the intent counters of every remote-driven slot against the previous call.
 func intents() -> Array[SoakCheck.IntentObs]:
 	var found: Array[SoakCheck.IntentObs] = []
 	if not Net.is_host():
@@ -122,7 +122,10 @@ func intents() -> Array[SoakCheck.IntentObs]:
 	var counters: NetCounters = MatchNet.counters
 	for slot_id: int in Match.slot_count():
 		var slot: PlayerSlot = Match.slot(slot_id)
-		if slot == null or slot.is_bot:
+		# DECISION: only slots a remote peer drives. The M3a identity (blocks_placed == accepted +
+		# auto_drops) holds for intents that pass through MatchIntentGateway; a host-local human
+		# places through Match directly and has no gateway counters.
+		if not _is_remote_driven(slot):
 			continue
 		var obs: SoakCheck.IntentObs = SoakCheck.IntentObs.new()
 		obs.slot = slot_id
@@ -144,9 +147,13 @@ func intents() -> Array[SoakCheck.IntentObs]:
 func fuzz_slot() -> int:
 	for slot_id: int in Match.slot_count():
 		var slot: PlayerSlot = Match.slot(slot_id)
-		if slot != null and not slot.is_bot and not slot.is_local:
+		if _is_remote_driven(slot):
 			return slot_id
 	return -1
+
+
+func _is_remote_driven(slot: PlayerSlot) -> bool:
+	return slot != null and not slot.is_bot and not slot.is_local
 
 
 func team_count() -> int:
