@@ -445,10 +445,10 @@ static func _capture_net(out: Dictionary) -> void:
 	# it on wall-clock cadence, so it differs run to run.
 	if Match.state() != Match.State.LOBBY:
 		out["net.cursors"] = _size_of(_p(MatchNet, &"_cursors"))
-		out["net.intents"] = [
-			_size_of(_p(MatchNet, &"_intents_sent")), _size_of(_p(MatchNet, &"_intents_accepted")),
-			_size_of(_p(MatchNet, &"_intents_refused")),
-		]
+		var intents: Array = []
+		for slot_id: int in Match.slot_count():
+			intents.append([MatchNet.intents_sent(slot_id), MatchNet.intents_accepted(slot_id), MatchNet.intents_refused(slot_id)])
+		out["net.intents"] = intents
 		# The claim progress is not fingerprinted: it is only broadcast (Events.goal_capture_progress)
 		# and no public member holds it between emissions.
 

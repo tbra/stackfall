@@ -12,7 +12,7 @@ extends MatchConfig
 ## Built via `existing_config.duplicate(true)` then `set_script()` to this
 ## script -- in that order, and *before* any other field is set on the
 ## result: Object.set_script() resets script-level state to the new script's
-## declared defaults, so a field set beforehand (player_count, hot_seat, ...)
+## declared defaults, so a field set beforehand (player_count, ...)
 ## would otherwise be silently discarded. Every call site below does the
 ## swap first, then sets its own fields on the now-TinyMapMatchConfig result.
 ##

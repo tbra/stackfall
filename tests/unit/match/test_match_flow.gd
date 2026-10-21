@@ -14,21 +14,30 @@ func after_each() -> void:
 ##
 ## Swaps the script *before* the caller sets any fields: Object.set_script()
 ## re-initializes script-level state to its new script's declared defaults,
-## so field values set on `config` before this call (player_count, hot_seat,
+## so field values set on `config` before this call (player_count, turn_based,
 ## etc. -- all plain MatchConfig @export vars, unrelated to the map) would
 ## otherwise be silently discarded (reproduced: player_count came back as the
 ## class default 4, not the 2 a caller had just set).
-func _hotseat_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
+func _real_time_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = true
+	config.hot_seat = false
+	config.turn_based = false
 	config.block_timer = block_timer
 	config.rng_seed = 12345
 	return config
 
 
+## Strict-order variant: one actor at a time, the turn passes only through
+## Match.advance_turn().
+func _turn_based_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
+	var config: MatchConfig = _real_time_config(player_count, block_timer)
+	config.turn_based = true
+	return config
+
+
 ## 's per-player-timer path (spec 1.4's "[ORIGINAL target]"
-## concurrent cadence, the normal non-hot-seat mode the interval lock
+## concurrent cadence, the normal real-time mode the interval lock
 ## targets): every slot's feed runs concurrently, so a lone slot can
 ## otherwise place blocks back to back with nothing to stop it.
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
@@ -51,7 +60,7 @@ func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 		MatchAutoload.SANDBOX_TERRITORY_CONE, 75.0,
 		SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.BASE_NONE
 	)
-	Match.start_match(_hotseat_config())
+	Match.start_match(_real_time_config())
 	assert_eq(Match._sandbox_territory_mode, MatchAutoload.DEFAULT_TERRITORY_MODE)
 	assert_almost_eq(Match._sandbox_cone_angle, MatchAutoload.DEFAULT_CONE_ANGLE_DEGREES, 0.001)
 	assert_eq(Match._sandbox_cone_height_source, SandboxConeExperiment.HEIGHT_TOP)
@@ -91,7 +100,7 @@ func test_loading_is_emitted_only_once_the_world_model_is_built() -> void:
 			seen_at_loading["cell_grid"] = Match.cell_grid()
 	Events.match_state_changed.connect(probe)
 
-	Match.start_match(_hotseat_config(3))
+	Match.start_match(_real_time_config(3))
 	Events.match_state_changed.disconnect(probe)
 
 	assert_true(seen_at_loading.has("raster"), "LOADING must be emitted")
@@ -103,7 +112,7 @@ func test_loading_is_emitted_only_once_the_world_model_is_built() -> void:
 
 
 func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_turn_based_config(2))
 	_run_countdown()
 	assert_eq(Match.state(), Match.State.PLAYING)
 	var old_raster: TerritoryRaster = Match.raster()
@@ -115,7 +124,7 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 
 	var transitions: Array[Array] = []
 	var recorder: Callable = _record_transitions(transitions)
-	Match.start_match(_hotseat_config(3))
+	Match.start_match(_turn_based_config(3))
 	Events.match_state_changed.disconnect(recorder)
 
 	assert_eq(
@@ -138,7 +147,7 @@ func test_start_match_from_playing_returns_through_lobby_with_a_fresh_world() ->
 	assert_eq(Match.feed_seq(0), 0, "A fresh feed sequence")
 
 
-# --- Hot-seat turn order and feed timer (spec 1.5, 2.4, 2.7) ----------------
+# --- Turn-based order and feed timer (spec 1.5, 2.4, 2.7) ----------------
 
 func test_feed_timer_expires_exactly_at_block_timer() -> void:
 	# spec 1.9's block_timer range is 3-12 s; sanitize() (called by
@@ -146,7 +155,7 @@ func test_feed_timer_expires_exactly_at_block_timer() -> void:
 	# arbitrary short value.
 	var block_timer: float = MatchConfig.BLOCK_TIMER_MIN
 	watch_signals(Events)
-	Match.start_match(_hotseat_config(2, block_timer))
+	Match.start_match(_turn_based_config(2, block_timer))
 	_run_countdown()
 
 	var frames_just_under: int = int(block_timer * 60.0) - 1
@@ -160,7 +169,7 @@ func test_feed_timer_expires_exactly_at_block_timer() -> void:
 
 
 # --- spec 1.4 "[ORIGINAL target]": the fixed-interval ------
-# --- placement cadence, outside hot-seat -------------------------------------
+# --- placement cadence, outside sequential play -------------------------------------
 # Every fixed config.block_timer interval permits exactly one release. An
 # early release hands the slot its next piece to aim, but locked until the
 # interval boundary; an untouched piece force-releases (auto-drops) at that
@@ -221,7 +230,7 @@ func test_an_untouched_piece_auto_drops_at_the_interval_boundary() -> void:
 # origin can never reach the raster (Beads .6).
 
 func test_request_place_refuses_a_malformed_pose_without_spending_the_block() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_turn_based_config(2))
 	_run_countdown()
 	var seq: int = Match.feed_seq(0)
 	var home: Vector3 = _home_world_position(0)
@@ -242,7 +251,7 @@ func test_request_place_refuses_a_malformed_pose_without_spending_the_block() ->
 
 	assert_eq(_blocks_root.get_child_count(), 0, "A malformed pose spawns nothing, not even a burned block.")
 	assert_eq(Match.feed_seq(0), seq, "and consumes nothing")
-	assert_eq(Match.active_slot(), 0, "and the hot-seat turn does not pass")
+	assert_eq(Match.active_slot(), 0, "and the turn does not pass")
 
 
 # --- REPRO: far-off-disk burns must not spawn past the ---
@@ -267,7 +276,7 @@ func test_request_place_refuses_a_malformed_pose_without_spending_the_block() ->
 # point), not the distance that used to trigger it.
 
 func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_real_time_config(2))
 	_run_countdown()
 	TerritoryTestHelpers.blank_owned_territory(Match.raster(), Match.team_of(0))
 	var hover: float = load("res://config/physics/physics_tuning.tres").hover_height as float
@@ -290,7 +299,7 @@ func test_repro_far_off_disk_burn_spawns_within_the_kill_plane_area() -> void:
 # --- : home flag lost to a hole eliminates the slot ----------
 
 func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_real_time_config(2))
 	_run_countdown()
 	watch_signals(Events)
 
@@ -303,7 +312,7 @@ func test_player_eliminated_when_holes_open_under_their_home_flag() -> void:
 
 
 func test_match_ends_when_only_one_team_remains() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_real_time_config(2))
 	_run_countdown()
 	watch_signals(Events)
 
@@ -333,7 +342,7 @@ func test_match_ends_when_only_one_team_remains() -> void:
 ## tests/unit/match/test_placement_refusal.gd for the focused regression case; this
 ## one stays to keep the v2 point-check names together).
 func test_request_place_v2_refuses_a_point_inside_another_teams_territory() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_real_time_config(2))
 	_run_countdown()
 
 	var reason: StringName = Match.request_place(0, _home_world_position(1), 0, Quaternion.IDENTITY, false)
@@ -354,7 +363,7 @@ func test_request_place_v2_refuses_a_point_inside_another_teams_territory() -> v
 ## enemy circle to a home (it only keeps home-anchored groups); the enemy
 ## circle's own radius, not the nudge, is what outscores slot 0's home.
 func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_its_home() -> void:
-	Match.start_match(_hotseat_config(2))
+	Match.start_match(_real_time_config(2))
 	_run_countdown()
 	watch_signals(Events)
 
@@ -381,7 +390,7 @@ func test_check_home_flags_v2_eliminates_a_slot_once_an_enemy_circle_outscores_i
 
 
 func test_slow_frame_coalesces_due_territory_solves_and_keeps_fractional_time() -> void:
-	var config: MatchConfig = _hotseat_config(2)
+	var config: MatchConfig = _real_time_config(2)
 	config.hole_mode = MatchConfig.HoleMode.OFF
 	Match.start_match(config)
 	_run_countdown()
@@ -423,7 +432,7 @@ class _TimeSpyChecker:
 
 
 func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
-	var config: MatchConfig = _hotseat_config(2)
+	var config: MatchConfig = _real_time_config(2)
 	config.hole_mode = MatchConfig.HoleMode.OFF
 	Match.start_match(config)
 	_run_countdown()
@@ -448,7 +457,7 @@ func test_awake_block_defers_solves_until_cap_then_forces_one() -> void:
 ## test_player_eliminated_when_holes_open_under_their_home_flag uses above,
 ## now that a match must set hole_mode explicitly to reach it at all.
 func test_legacy_hole_mode_still_opens_holes_and_eliminates_through_run_territory_step() -> void:
-	var config: MatchConfig = _hotseat_config(2)
+	var config: MatchConfig = _real_time_config(2)
 	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
 	Match.start_match(config)
 	_run_countdown()

@@ -224,7 +224,7 @@ static func future_radius(c: BotCandidate, view: BotWorldView) -> float:
 ## dissolve risk (0 safe .. 1 doomed) of the site's base under the overlap-hole
 ## rule; 0 under HoleMode.OFF, where nothing dissolves. The hole-mode fill turns every cell that
 ## home-connected circles of two teams cover CONTESTED, opens a hole there after
-## TerritoryTuning.hole_delay, and game/field/HoleDissolver.gd dissolves a disc-level block touching
+## TerritoryTuning.hole_delay, and game/blocks/HoleDissolver.gd dissolves a disc-level block touching
 ## the hole together with everything stacked on it. A block's own circle always covers its
 ## footprint, so the piece is lost as soon as an enemy circle covers any footprint cell:
 ##   1 a footprint cell is already enemy-held, contested or a hole (a raster read);

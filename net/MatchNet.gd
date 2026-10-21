@@ -39,7 +39,7 @@ const _REPLICA_PORT_METHODS: PackedStringArray = ["apply_replicated_cat_state", 
 
 ## The MatchHostPort reads the event mirror and the state handler make.
 const _MIRROR_SESSION_METHODS: PackedStringArray = ["is_host", "is_local_slot", "peer_of_slot"]
-const _MIRROR_HOST_METHODS: PackedStringArray = ["feed_seq", "feed_time_left", "is_release_locked", "eliminated_by"]
+const _MIRROR_HOST_METHODS: PackedStringArray = ["feed_seq", "feed_time_left", "is_release_locked", "eliminated_by", "slot", "registry", "blocks_parent"]
 ## The MatchHostPort reads the territory replicator makes.
 const _TERRITORY_HOST_METHODS: PackedStringArray = ["raster", "circle_render_arrays", "circle_wire_xz_bound", "circle_wire_radius_max", "territory_share", "config"]
 
@@ -141,9 +141,8 @@ const EVENT_LIVE_SCORES: StringName = &"live_scores"
 ## tuning the host built the originals with, so a frozen copy has the same
 ## collision shape and mass even though it never simulates.
 var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
-## Lazily built id -> BlockShape index; BlockShape.load_all_shapes() scans a
-## directory, so it happens once and only where a spawn needs it.
-var _shapes_by_id: Dictionary = {}
+## Client-side block spawns/despawns and the seat roster (net/match/ClientBlockMirror.gd), built on first use.
+var _block_mirror: ClientBlockMirror = null
 
 ## EVENT_SPECIAL_TRIGGERED's chain_depth wire bound
 ## (SpecialTuning.max_chain_depth). A separate preload rather than reading
@@ -163,9 +162,6 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon
 ## "what would have gone on the wire" records); net/NetCounters.gd. The old public/private
 ## names below are TRANSITIONAL read forwarders for tests outside this file.
 var counters: NetCounters = NetCounters.new()
-## Test seam (net/MatchNetTap.gd): null in every shipped build. A test installs one to force the
-## deferred activation path.
-var tap: MatchNetTap = null
 ## TRANSITIONAL: net_ids _on_block_dissolve_started() decided to replicate (NetCounters).
 var replicated_dissolve_starts: Array[int]:
 	get:
@@ -285,6 +281,7 @@ var _scores_send_accum: float = 0.0
 
 func _ready() -> void:
 	_authority().set_replicator(self)
+	bind_ports(_session_port(), _host_port(), _replica_port())
 	var mirror: MatchEventMirror = _event_mirror()
 	mirror.bind(Events)
 	Events.match_state_changed.connect(_on_match_state_changed)
@@ -304,7 +301,7 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_forget_peer)
 	# the WeatherNet child is built by late_activate(); headless
 	# and non-Boot runs activate right here, a windowed Boot run lets Boot prewarm first.
-	if LateScripts.boot_defers_activation(get_tree()) or (tap != null and tap.defer_activation):
+	if LateScripts.boot_defers_activation(get_tree()):
 		# _process reads Match state, which does not exist until
 		# Match.late_activate(); stay idle until our own late_activate() re-enables it.
 		set_process(false)
@@ -364,6 +361,23 @@ func _session_port() -> SessionPort:
 	return _session_port_cache
 
 
+## Binds the three ports the facade's collaborators share and rebinds the ones already built.
+## Returns false (and binds nothing) when any port is missing or invalid.
+func bind_ports(session: SessionPort, host: MatchHostPort, replica: MatchReplicaPort) -> bool:
+	if session == null or host == null or replica == null or not (session.is_valid() and host.is_valid() and replica.is_valid()):
+		push_error("MatchNet.bind_ports: a port is missing or invalid")
+		return false
+	_session_port_cache = session
+	_host_port_cache = host
+	_replica_port_cache = replica
+	_block_mirror = null
+	if _mirror != null:
+		_mirror.bind_ports(session, host)
+	if _applier != null:
+		_applier.call(&"bind_replica", replica)
+	return true
+
+
 ## The host Events subscribers, sending through the same seams shape the intent gateway uses. The
 ## ports are rebound whenever the providers change (set_providers), so the Events connections the
 ## mirror holds never go stale.
@@ -376,10 +390,6 @@ func _event_mirror() -> MatchEventMirror:
 		_mirror = MatchEventMirror.new(seams)
 		_mirror.bind_ports(_session_port(), _host_port())
 	return _mirror
-
-
-func _block_factory() -> GDScript:
-	return LateScripts.script(LateScripts.BLOCK_FACTORY)
 
 
 func _set_block_coated(block: BlockBody, coated: bool) -> void:
@@ -406,10 +416,9 @@ func set_providers(net_provider: Variant, match_provider: Variant) -> void:
 	_territory_host_port_cache = null
 	_territory = null
 	_territory_replicator()
-	if _mirror != null:
-		_mirror.bind_ports(_session_port(), _host_port())
-	if _applier != null:
-		_applier.call(&"bind_replica", _replica_port())
+	_block_mirror = null
+	if _mirror != null or _applier != null:
+		bind_ports(_session_port(), _host_port(), _replica_port())
 	if _weather_net != null:
 		_weather_net.set_providers(net_provider, match_provider)
 	if _match_provider != null:
@@ -925,11 +934,10 @@ func _now() -> float:
 	return float(Time.get_ticks_msec()) / 1000.0
 
 
-func _shape_for_id(shape_id: StringName) -> BlockShape:
-	if _shapes_by_id.is_empty():
-		for shape: BlockShape in BlockShape.load_all_shapes():
-			_shapes_by_id[shape.id] = shape
-	return _shapes_by_id.get(shape_id) as BlockShape
+func _client_blocks() -> ClientBlockMirror:
+	if _block_mirror == null:
+		_block_mirror = ClientBlockMirror.new(_session_port(), _host_port(), _gift_special_id_wire_ok, _physics_tuning)
+	return _block_mirror
 
 
 func _roster() -> Array:
@@ -1460,22 +1468,7 @@ func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0)
 	if replay_id > 0 and not _session().is_host():
 		_begin_world_replay(replay_id)
 	_authority().start_match(match_config)
-	_apply_roster(roster)
-
-
-func _apply_roster(roster: Array) -> void:
-	for entry: Variant in roster:
-		if not (entry is Dictionary):
-			continue
-		var info: Dictionary = entry
-		if not info.has(LobbySeats.FIELD_SLOT_ID):
-			continue
-		var target: PlayerSlot = _authority().slot(int(info[LobbySeats.FIELD_SLOT_ID]))
-		if target == null:
-			continue
-		target.peer_id = int(info.get(LobbySeats.FIELD_PEER_ID, 0))
-		target.display_name = String(info.get(LobbySeats.FIELD_NAME, target.display_name))
-		target.is_local = bool(_session().is_local_slot(target.slot_id))
+	_client_blocks().apply_roster(roster)
 
 
 ## the client half of the replay handshake. Lands after every
@@ -1520,63 +1513,14 @@ func net_block_spawned(
 ) -> void:
 	if _client_awaiting_world():
 		return
-	if not Quantize.is_wire_id(net_id):
-		# Defensive: a well-behaved host never sends this (replicate_spawn()'s
-		# own guard above), but this is the client's own boundary and must not
-		# trust the wire either -- a body built for an id the wire cannot
-		# carry would sit under blocks_parent forever with nothing able to
-		# address it for a despawn.
-		return
-	var registry: Node = _authority().registry()
-	var parent: Node3D = _authority().blocks_parent()
-	if registry == null or parent == null:
-		return
-	if registry.block_for_net_id(net_id) != null:
-		return
-	var shape: BlockShape = _shape_for_id(shape_id)
-	if shape == null:
-		return
-
-	# the same slot-colour tint as the host's own block (see
-	# autoload/Match.gd's _spawn_block DECISION on using the slot's own colour
-	# rather than a separate team lookup). `origin` below is already the
-	# host's exact spawned transform -- the bottom-centre pivot needs no extra
-	# conversion here either, since BlockFactory.build() offsets this shape's
-	# cells by the same shape.bottom_center() on every instance.
-	var owner_slot_ref: PlayerSlot = _authority().slot(owner_slot)
-	var color: Color = owner_slot_ref.color if owner_slot_ref != null else Color.WHITE
-	var block: BlockBody = _block_factory().call(&"build", shape, _physics_tuning, owner_slot, color) as BlockBody
-	# Spec 2.6: "Clients set every synced RigidBody3D to freeze = true
-	# (kinematic) and move them by interpolating snapshots." Freezing before
-	# the body enters the tree means it never simulates a single step here.
-	block.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
-	block.freeze = true
-	parent.add_child(block)
-	block.global_transform = Transform3D(Basis(rotation), origin)
-	# untrusted wire id; only a known roster gift swaps the look.
-	if gift_id != &"" and _gift_special_id_wire_ok(String(gift_id)):
-		_block_factory().call(&"apply_gift_visual", block, shape, _physics_tuning, gift_id)
-
-	# block_placed is what BlockRegistry tracks bodies on; with
-	# set_host_authority(false) it allocates no id of its own, so the host's
-	# is bound straight after and the two ends address the same body.
-	Events.block_placed.emit(block, shape.id)
-	registry.bind_net_id(block, net_id)
-	Events.block_replicated.emit(block, net_id)
+	_client_blocks().on_spawned(net_id, shape_id, owner_slot, origin, rotation, gift_id)
 
 
 @rpc("authority", "call_remote", "reliable")
 func net_block_despawned(net_id: int, reason: String) -> void:
 	if _client_awaiting_world():
 		return
-	var registry: Node = _authority().registry()
-	if registry == null:
-		return
-	var block: BlockBody = registry.block_for_net_id(net_id)
-	if block == null or not is_instance_valid(block):
-		return
-	Events.block_removed.emit(block, reason)
-	block.queue_free()
+	_client_blocks().on_despawned(net_id, reason)
 
 
 ## `payload` is one TerritoryReplicator packet (raster diff or keyframe, shares, capture ring,

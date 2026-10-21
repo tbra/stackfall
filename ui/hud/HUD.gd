@@ -2,24 +2,16 @@ class_name HUD
 extends CanvasLayer
 ## Spec 1.10's HUD: a timer ring numeral, held-block and next-block previews, max height,
 ## per-player territory share rows (diamond + bar, top-left), a capture ring, a greyed
-## locked ring, a hot-seat turn indicator, a pending-special queue indicator and the
+## locked ring, a pending-special queue indicator and the
 ## live minimap (ui/hud/Minimap.gd, a 2D draw off the live TerritoryRaster; see its
 ## class doc). The held and next cards sit in one grouped %HeldNextPanel in the
 ## bottom-left corner, and the previews are pre-rendered mesh thumbnails.
 ##
-## Outside hot-seat there is no "turn" — every slot plays at
-## once (spec 1.4 "[ORIGINAL target]") — so this HUD shows **the local
-## player's own status** instead of a turn banner. `_active_slot` doubles as
-## "whichever slot this HUD's widgets currently read": in hot-seat it is
-## whoever's turn it is (set_active_slot(), wired off Events.turn_changed);
-## outside hot-seat it is the local slot (set_local_slot(), also wired off
-## Events.turn_changed since net/MatchNet.gd already substitutes the local
-## slot into that signal there — see its own DECISION), and
-## game/sandbox/Sandbox.gd calls set_local_slot() directly when its debug hotkey
-## cycles which slot it is driving. The gate is Match.config.hot_seat
-## (_hot_seat_active()); config == null (no match running yet, or a bare
-## HUD-only test) behaves like real-time play, matching every other
-## HUD codepath that reads Match's config the same way.
+## There is no "turn" -- every slot plays at once (spec 1.4) -- so this HUD shows
+## **the local player's own status**. `_active_slot` is whichever slot this HUD's
+## widgets currently read: the local slot, set by set_local_slot() off
+## Events.turn_changed (net/MatchNet.gd substitutes the local slot into that signal)
+## and called directly by game/sandbox/Sandbox.gd when its debug hotkey cycles slots.
 ##
 ## "Connects to Events only — no node paths out of ui/": it
 ## wires itself to the Events bus in _ready() and never walks the scene tree
@@ -122,9 +114,7 @@ var _shapes_by_id: Dictionary = {}
 ## Placeholder id for a queued gift whose def id is unknown (icon falls back).
 const GENERIC_GIFT_ID: StringName = &"gift"
 var _preview_textures: Dictionary[StringName, Texture2D] = {}
-## Whichever slot this HUD's widgets currently read: the hot-seat active
-## slot, or (outside hot-seat) the local player's slot. See the class
-## doc comment above.
+## Whichever slot this HUD's widgets currently read: the local player's slot.
 var _active_slot: int = -1
 var _active_color: Color = Color.WHITE
 ## Stackfall Arcade: the shared design tokens, the stackfall theme (fonts for the
@@ -462,34 +452,9 @@ func timer_ring_bottom_px() -> float:
 
 # --- Public API ------------------------------------------------------------------
 
-## Hot-seat only: whoever's turn it is right now. Shows the "Player N's
-## turn" wording, the one place in the game a "turn" still exists (spec
-## Part 4: hot-seat is a test harness, not the shipped cadence).
-func set_active_slot(slot_id: int, color: Color) -> void:
-	_active_slot = slot_id
-	_active_color = color
-	_minimap.set_local_slot(slot_id)
-	_refresh_you_markers()
-	var eliminated: bool = _is_slot_eliminated(slot_id)
-	var display_name: String = _name_for_slot(slot_id)
-	_turn_label.text = (
-		"%s — eliminated" % display_name if eliminated else "%s's turn" % display_name
-	)
-	_turn_label.modulate = ELIMINATED_COLOR if eliminated else color
-	# DECISION: the name header is gone except in hot-seat, where
-	# the "<name>'s turn" banner is the only turn indicator there is.
-	_turn_label.visible = true
-	_pull_current_shapes(slot_id)
-	_refresh_special_indicator()
-	_timer_ring.queue_redraw()
-	_shape_preview.queue_redraw()
-
-
-## Real-time play and sandbox: points every per-slot widget (turn label sans
-## "turn" wording, timer ring, held/next previews, locked state) at
-## `slot_id` without implying anyone is "taking a turn". Called from
-## Events.turn_changed outside hot-seat (net/MatchNet.gd already substitutes
-## the local slot into that signal there) and from game/sandbox/Sandbox.gd whenever
+## Points every per-slot widget (timer ring, held/next previews, locked state) at
+## `slot_id`. Called from Events.turn_changed (net/MatchNet.gd already substitutes
+## the local slot into that signal) and from game/sandbox/Sandbox.gd whenever
 ## its debug hotkey cycles which slot it is driving.
 func set_local_slot(slot_id: int) -> void:
 	_active_slot = slot_id
@@ -509,10 +474,10 @@ func set_local_slot(slot_id: int) -> void:
 
 
 ## Pulls whatever `match_provider` holds for `slot_id` right now. Events.feed_block_issued
-## fires once, when Match first feeds a slot, usually before set_local_slot/
-## set_active_slot runs (the sandbox and MatchNet wire the local slot in after
+## fires once, when Match first feeds a slot, usually before set_local_slot
+## runs (the sandbox and MatchNet wire the local slot in after
 ## Match.start_match()), so the held/next previews would otherwise stay null for the
-## whole match. Called from both setters; later feed_block_issued ticks keep it current.
+## whole match. Later feed_block_issued ticks keep it current.
 func _pull_current_shapes(slot_id: int) -> void:
 	if match_provider == null:
 		return
@@ -687,15 +652,10 @@ func show_gift_toast(special_id: StringName) -> void:
 
 # --- Events reactions --------------------------------------------------------
 
-## In hot-seat this really is a turn changing hands (Match.advance_turn()); outside
-## hot-seat net/MatchNet.gd's EVENT_TURN_CHANGED handler already substitutes this
-## instance's local slot before re-emitting, so either way `slot_id` is the slot this
-## HUD should read; the gate below only picks which wording it shows.
+## net/MatchNet.gd's EVENT_TURN_CHANGED handler substitutes this instance's local slot
+## before re-emitting, so `slot_id` is the slot this HUD should read.
 func _on_turn_changed(slot_id: int) -> void:
-	if _hot_seat_active():
-		set_active_slot(slot_id, _color_for_slot(slot_id))
-	else:
-		set_local_slot(slot_id)
+	set_local_slot(slot_id)
 
 
 func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: StringName) -> void:
@@ -708,7 +668,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, next_shape_id: St
 
 func _on_placement_rejected(slot_id: int, reason: StringName) -> void:
 	# DECISION (ui/hud/HUD.gd): one HUD instance shows exactly one slot's status
-	# — whoever's turn it is in hot-seat, or the local slot otherwise (see
+	# — the local slot (see
 	# the class doc comment) — so every rejection for any other slot is
 	# silently ignored here. A per-viewer HUD for simultaneous multiplayer is
 	# already what _active_slot picks out; nothing else changes.
@@ -847,18 +807,14 @@ func _on_match_won(team_id: int) -> void:
 ## The status label already reads home_flag_alive, but it is only rebuilt on
 ## turn_changed/set_local_slot, so an elimination that lands in between would
 ## sit invisible until the next one. Repainting it here is the whole
-## reaction, through whichever of the two the hot-seat gate currently picks.
+## reaction.
 func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	if slot_id != _active_slot:
 		return
 	set_held_shape(null)
 	set_next_shape(null)
-	if not _hot_seat_active():
-		show_eliminated_banner(slot_id)
-	if _hot_seat_active():
-		set_active_slot(_active_slot, _active_color)
-	else:
-		set_local_slot(_active_slot)
+	show_eliminated_banner(slot_id)
+	set_local_slot(_active_slot)
 
 
 ## the large red "Eliminated by <name>" text for `slot_id`'s own
@@ -913,20 +869,8 @@ func _update_gift_markers() -> void:
 
 # --- Helpers -----------------------------------------------------------------
 
-## Whether Events.turn_changed still means "it is this slot's turn"
-## (set_active_slot(), "Player N's turn" wording) rather than "this is the local slot"
-## (set_local_slot(), no turn wording). config == null (no match built yet, or a bare
-## HUD-only test) behaves like real-time play, like every other read of Match.config
-## in this file.
-func _hot_seat_active() -> bool:
-	if match_provider == null:
-		return false
-	var running_config: Variant = match_provider.config
-	return running_config != null and bool(running_config.hot_seat)
-
-
 ## Forwards the running match's MapDef to the minimap. Null-safe like
-## _hot_seat_active()/_team_of_slot(): match_provider == null or no config yet
+## _team_of_slot(): match_provider == null or no config yet
 ## (pre-match, or a bare HUD-only test) leaves the minimap in its initial
 ## hidden/disabled state. Only pushes set_map_def() when the map actually changed, so
 ## a placement's territory-share tick doesn't re-frame the minimap.
@@ -989,7 +933,7 @@ func _style_card_caption(caption: Label) -> void:
 	caption.add_theme_color_override("font_color", _arcade.dust_color)
 
 
-## A small status plate under the scoreboard (queued special, round clock, hot-seat turn): the
+## A small status plate under the scoreboard (queued special, round clock): the
 ## label on a hud-plate with `ink` text.
 func _style_status_plate(label: Label, ink: Color) -> void:
 	var style: StyleBoxFlat = StyleBoxFlat.new()
@@ -1276,8 +1220,8 @@ func _names() -> Variant:
 
 
 ## The pending-special queue indicator, next to the next-shape preview. Reads
-## `_active_slot` the same way the previews do (hot-seat's acting slot, or the local
-## slot outside hot-seat) rather than tracking a slot of its own. No dedicated "a
+## `_active_slot` the same way the previews do (the local
+## slot) rather than tracking a slot of its own. No dedicated "a
 ## special was consumed at spawn" signal exists, so, like set_feed_progress/set_height/
 ## set_locked above, _process() polls it every frame; _on_gift_claimed() above only
 ## shortcuts the wait for the specific claim case.

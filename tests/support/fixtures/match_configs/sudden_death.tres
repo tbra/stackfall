@@ -20,5 +20,4 @@ match_timer_minutes = 0
 sudden_death = true
 turn_based = false
 per_player_timer = true
-hot_seat = true
 rng_seed = -1
