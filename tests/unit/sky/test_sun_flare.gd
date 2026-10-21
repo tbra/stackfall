@@ -134,10 +134,6 @@ func _single_puff_sea() -> CloudSea:
 	return sea
 
 
-func _puff_centre(sea: CloudSea) -> Vector3:
-	return Vector3(sea.occlusion().puffs[0], sea.occlusion().puffs[1], sea.occlusion().puffs[2])
-
-
 ## The visibility _process() last handed the flare shader, read off the rect's material.
 func _shown_visibility(flare: SunFlare) -> float:
 	var rect: ColorRect = flare.get_node("FlareRect") as ColorRect
@@ -146,7 +142,7 @@ func _shown_visibility(flare: SunFlare) -> float:
 
 func test_flare_is_hidden_by_a_cloud_and_follows_the_cloud_strength() -> void:
 	var sea: CloudSea = _single_puff_sea()
-	var centre: Vector3 = _puff_centre(sea)
+	var centre: Vector3 = SkyTestKit.puff_centre(sea)
 	var sun: Vector3 = Vector3(1.0, 0.0, 0.0)
 	var flare: SunFlare = _flare_aimed(sun)
 	flare.config.cloud_occlusion_refresh_s = 0.0
@@ -168,7 +164,7 @@ func test_flare_is_hidden_by_a_cloud_and_follows_the_cloud_strength() -> void:
 
 func test_cloud_occlusion_fades_in_over_time_instead_of_popping() -> void:
 	var sea: CloudSea = _single_puff_sea()
-	var centre: Vector3 = _puff_centre(sea)
+	var centre: Vector3 = SkyTestKit.puff_centre(sea)
 	var sun: Vector3 = Vector3(1.0, 0.0, 0.0)
 	var flare: SunFlare = _flare_aimed(sun)
 	flare.config.cloud_occlusion_refresh_s = 0.0

@@ -41,7 +41,7 @@ func _lighting(skybox: Skybox) -> CloudLighting:
 func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	var l: CloudLighting = _lighting(skybox)
 	var sea: CloudSea = skybox.get_node("CloudSea") as CloudSea
-	var puff: ShaderMaterial = sea.puff_material()
+	var puff: ShaderMaterial = SkyTestKit.puff_material(sea)
 	assert_true((puff.get_shader_parameter(&"light_direction") as Vector3).normalized().is_equal_approx(l.light_direction), "%s puff light" % label)
 	assert_true((puff.get_shader_parameter(&"lit_color") as Color).is_equal_approx(l.lit_color), "%s puff palette" % label)
 	assert_almost_eq(float(puff.get_shader_parameter(&"weather_dim")), l.dim, EPS, "%s puff dim" % label)
@@ -49,7 +49,7 @@ func _assert_layers_match(skybox: Skybox, label: String) -> void:
 	assert_not_null(_puffs(sea, true), "%s upper layer exists" % label)
 	assert_same(_puffs(sea, true).material_override, puff, "%s upper layer shares the puff material" % label)
 	assert_same(_puffs(sea, false).material_override, puff, "%s sea uses it too" % label)
-	var sky: ShaderMaterial = skybox.sky_material()
+	var sky: ShaderMaterial = SkyTestKit.sky_material(skybox)
 	if sky != null and sky.get_shader_parameter(&"sun_direction") is Vector3 and sky.get_shader_parameter(&"cycle_night_mix") is float:
 		assert_true((sky.get_shader_parameter(&"sun_direction") as Vector3).is_equal_approx(l.light_direction), "%s sea light" % label)
 		assert_almost_eq(float(sky.get_shader_parameter(&"cycle_night_mix")), l.night_mix, EPS, "%s sea night mix" % label)
@@ -71,7 +71,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	skybox.set_cycle_phase(0.3)
 	skybox.set_overcast(0.6, 0.5, 0.6, 0.7, Color(0.6, 0.65, 0.7), 0.4)
 	skybox.set_storm_sky(0.7, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var l: CloudLighting = _lighting(skybox)
 	assert_almost_eq(l.storm, 0.7, EPS)
 	assert_almost_eq(l.overcast, 0.6, EPS)
@@ -82,7 +82,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 	_assert_layers_match(skybox, "storm then phase")
 	skybox.set_storm_sky(0.0, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	skybox.set_overcast(0.0, 1.0, 1.0, 1.0, Color.WHITE, 0.0)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_eq(_lighting(skybox).storm, 0.0)
 	assert_eq(_lighting(skybox).dim, 0.0)
 	_assert_layers_match(skybox, "cleared")
@@ -90,7 +90,7 @@ func test_storm_and_overcast_reach_every_layer() -> void:
 
 ## One sun term, as the player sees it: its share of the clear-weather strength.
 func _sun_shares(skybox: Skybox, clear_glow: float, clear_ray: float) -> Dictionary:
-	var sky: ShaderMaterial = skybox.sky_material()
+	var sky: ShaderMaterial = SkyTestKit.sky_material(skybox)
 	var scale: float = float(sky.get_shader_parameter(&"sun_effect_scale"))
 	var flare: SunFlare = get_tree().get_nodes_in_group(SunFlare.GROUP)[0] as SunFlare
 	return {
@@ -118,17 +118,17 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 			skybox.configure_match_sky(config)
 			if mode == "cycle":
 				skybox.set_cycle_phase(0.2)
-		var sky: ShaderMaterial = skybox.sky_material()
+		var sky: ShaderMaterial = SkyTestKit.sky_material(skybox)
 		var clear_glow: float = float(sky.get_shader_parameter(&"proc_sun_glow_strength"))
 		var clear_ray: float = float(sky.get_shader_parameter(&"ray_intensity"))
 		assert_gt(clear_glow, 0.0, "%s: fixture has a sun glow to fade" % mode)
 		assert_gt(clear_ray, 0.0, "%s: fixture has god rays to fade" % mode)
 		var baseline: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 		skybox.set_weather_cloud_overcast(1.0)
-		skybox.flush_weather()
+		SkyTestKit.settle(skybox)
 		for storm: float in [0.3, 0.6, 1.0]:
 			skybox.set_storm_sky(storm, storm_theme)
-			skybox.flush_weather()
+			SkyTestKit.settle(skybox)
 			var shares: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 			var label: String = "%s storm %s" % [mode, storm]
 			for term: StringName in [&"rays", &"flare"]:
@@ -139,7 +139,7 @@ func test_every_sun_term_fades_with_the_disc_in_storm() -> void:
 				assert_eq(float(shares[&"flare"]), 0.0, "%s: no flare" % label)
 		skybox.set_storm_sky(0.0, storm_theme)
 		skybox.set_weather_cloud_overcast(0.0)
-		skybox.flush_weather()
+		SkyTestKit.settle(skybox)
 		var cleared: Dictionary = _sun_shares(skybox, clear_glow, clear_ray)
 		for term: StringName in [&"glow", &"rays", &"flare"]:
 			assert_almost_eq(float(cleared[term]), float(baseline[term]), EPS, "%s: clearing the weather restores the %s unchanged" % [mode, term])

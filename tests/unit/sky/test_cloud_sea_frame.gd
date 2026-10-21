@@ -99,7 +99,7 @@ func _set_gradient(frame: SkyFrame, seed_value: float) -> void:
 
 func _assert_gradient_matches(sea: CloudSea, frame: SkyFrame, label: String) -> void:
 	for parameter: StringName in GRADIENT_FIELDS:
-		assert_eq(sea.puff_material().get_shader_parameter(parameter), frame.get(GRADIENT_FIELDS[parameter]),
+		assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(parameter), frame.get(GRADIENT_FIELDS[parameter]),
 			"%s: %s follows the frame" % [label, parameter])
 
 
@@ -124,11 +124,11 @@ func _assert_matches_fixture(sea: CloudSea, key: String, label: String) -> void:
 	var checked: Dictionary = {}
 	for parameter: StringName in _compared_names():
 		if not expected.has(String(parameter)):
-			assert_null(sea.puff_material().get_shader_parameter(parameter), "%s: %s was not captured, so not written" % [label, parameter])
+			assert_null(SkyTestKit.puff_material(sea).get_shader_parameter(parameter), "%s: %s was not captured, so not written" % [label, parameter])
 			continue
 		checked[parameter] = true
 		var raw: Variant = expected[String(parameter)]
-		var actual: Variant = sea.puff_material().get_shader_parameter(parameter)
+		var actual: Variant = SkyTestKit.puff_material(sea).get_shader_parameter(parameter)
 		if raw is String and raw == TEXTURE_MARK:
 			assert_true(actual is Texture2D, "%s: %s" % [label, parameter])
 			continue
@@ -151,10 +151,10 @@ func test_apply_frame_writes_what_the_cycle_appearance_wrote() -> void:
 	var frame: SkyFrame = _frame("tick_frame")
 	sea.apply_frame(frame)
 	_assert_matches_fixture(sea, "expected_no_storm", "no storm")
-	assert_eq(sea.puff_material().get_shader_parameter(&"grade_amount"), NIGHT_WEIGHT)
-	assert_eq(sea.puff_material().get_shader_parameter(&"light_direction"), DIRECTION)
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), TICK_EXPOSURE, "the far fade of the puffs tracks the sky exposure")
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_coverage"), TICK_SEA_COVERAGE, "and its sea coverage")
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"grade_amount"), NIGHT_WEIGHT)
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"light_direction"), DIRECTION)
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"exposure"), TICK_EXPOSURE, "the far fade of the puffs tracks the sky exposure")
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"proc_sea_coverage"), TICK_SEA_COVERAGE, "and its sea coverage")
 	_assert_gradient_matches(sea, frame, "no storm")
 
 
@@ -166,9 +166,9 @@ func test_apply_frame_in_a_storm_writes_the_frames_tones_sea_colours_and_exposur
 	_assert_matches_fixture(sea, "expected_storm", "storm")
 	# Q1 fixed: the storm no longer re-copies the sky's shared set; the sea colours and exposure are
 	# the frame's own (the evaluator keeps the tick's night-mixed values there).
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), frame.puff_exposure)
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_color_near"), frame.puff_sea_color_near)
-	assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_color_far"), frame.puff_sea_color_far)
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"exposure"), frame.puff_exposure)
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"proc_sea_color_near"), frame.puff_sea_color_near)
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"proc_sea_color_far"), frame.puff_sea_color_far)
 	_assert_gradient_matches(sea, frame, "storm")
 
 
@@ -198,15 +198,15 @@ func test_configure_cycle_writes_the_live_frame_and_duplicates_the_material() ->
 	var sea: CloudSea = CloudSea.new()
 	add_child_autofree(sea)
 	sea.configure_cycle(def, live, 1.0, 1)
-	assert_ne(sea.puff_material(), shared_material, "the def's material is duplicated before it is written")
-	assert_eq(sea.puff_material().get_shader_parameter(&"exposure"), 0.42, "the live frame is the far-fade start")
+	assert_ne(SkyTestKit.puff_material(sea), shared_material, "the def's material is duplicated before it is written")
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"exposure"), 0.42, "the live frame is the far-fade start")
 	_assert_gradient_matches(sea, live, "configure")
 	sea.apply_frame(_frame("tick_frame"))
 	assert_ne(shared_material.get_shader_parameter(&"grade_amount"), NIGHT_WEIGHT, "the shipped material is untouched")
 	sea.configure_cycle(null, null, 1.0)
 	assert_false(sea.visible, "no def hides the cloud sea")
 	sea.apply_frame(_frame("tick_frame"))
-	assert_null(sea.puff_material())
+	assert_null(SkyTestKit.puff_material(sea))
 
 
 func test_configure_cycle_copies_the_cycles_static_sky_material() -> void:
@@ -216,5 +216,5 @@ func test_configure_cycle_copies_the_cycles_static_sky_material() -> void:
 	sea.configure_cycle(def, null, 1.0, 1)
 	var static_value: Variant = def.sky_material.get_shader_parameter(&"proc_sea_softness")
 	if static_value != null:
-		assert_eq(sea.puff_material().get_shader_parameter(&"proc_sea_softness"), static_value, "static sea key copied")
-	assert_eq(sea.puff_material().get_shader_parameter(&"procedural_sea_mix"), SkyDomeWriter.PROCEDURAL_SEA_MIX, "the cycle's constant sea mix")
+		assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"proc_sea_softness"), static_value, "static sea key copied")
+	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"procedural_sea_mix"), SkyDomeWriter.PROCEDURAL_SEA_MIX, "the cycle's constant sea mix")

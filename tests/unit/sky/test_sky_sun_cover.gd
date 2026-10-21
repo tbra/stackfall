@@ -58,9 +58,7 @@ func test_immediate_first_query_versus_waiting_a_period() -> void:
 
 func test_cover_matches_the_sea_query_and_holds_between_refreshes() -> void:
 	var sea: CloudSea = _sea_over_origin()
-	var puffs: PackedFloat32Array = sea.occlusion().puffs
-	var centre: Vector3 = Vector3(puffs[0], puffs[1], puffs[2])
-	var from: Vector3 = centre - Vector3(0.0, 5.0, 0.0)
+	var from: Vector3 = SkyTestKit.puff_centre(sea)
 	var cover: SunCloudCover = SunCloudCover.new(func() -> CloudSea: return sea, true)
 	var expected: float = sea.sun_ray_cloud_occlusion(from, Vector3.UP, null)
 	assert_gt(expected, 0.0, "fixture: the ray hits the puff")
@@ -72,8 +70,7 @@ func test_cover_matches_the_sea_query_and_holds_between_refreshes() -> void:
 
 func test_clear_and_reset() -> void:
 	var sea: CloudSea = _sea_over_origin()
-	var puffs: PackedFloat32Array = sea.occlusion().puffs
-	var from: Vector3 = Vector3(puffs[0], puffs[1] - 5.0, puffs[2])
+	var from: Vector3 = SkyTestKit.puff_centre(sea)
 	var cover: SunCloudCover = SunCloudCover.new(func() -> CloudSea: return sea, true)
 	assert_gt(cover.query(from, Vector3.UP, null, REFRESH_S), 0.0)
 	cover.clear()

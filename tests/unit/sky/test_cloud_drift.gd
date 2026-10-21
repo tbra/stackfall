@@ -71,7 +71,7 @@ func test_shadows_use_the_same_drift_vector_as_the_clouds() -> void:
 	assert_gt(ground.dot(wind), 0.999, "shadows sweep along the clouds' wind, not the config heading")
 	assert_eq(shadows._wind, skybox.cloud_wind_dir(), "the node took the skybox's drift heading")
 	# The puffs read the same integral the skybox accumulated.
-	var puffs: ShaderMaterial = (skybox.get_node("CloudSea") as CloudSea).puff_material()
+	var puffs: ShaderMaterial = SkyTestKit.puff_material(skybox.get_node("CloudSea") as CloudSea)
 	var offset: Vector2 = puffs.get_shader_parameter(CloudSea.DRIFT_OFFSET_PARAMETER) as Vector2
 	assert_gt(offset.normalized().dot(wind), 0.0, "the shared integral points downwind")
 
