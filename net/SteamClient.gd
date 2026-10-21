@@ -88,7 +88,7 @@ static func log_line(text: String) -> void:
 
 ## the GDScript caller chain of the current call (innermost
 ## first, this helper and its direct caller skipped), e.g.
-## "Net.gd:1023 _on_steam_lobby_joined < SteamClient.gd:290 _on_lobby_joined".
+## "NetSteamSession.gd:313 _on_lobby_joined < SteamClient.gd:290 _on_lobby_joined".
 ## get_stack() is empty in release exports; debug exports track it.
 static func call_origin() -> String:
 	var frames: Array = get_stack()
@@ -108,8 +108,8 @@ func is_available() -> bool:
 ## forwards (lobby_created, lobby_match_list, lobby_joined, lobby_data_update,
 ## join_requested) is queued internally and never actually fires unless this
 ## is called regularly, no matter how long a caller waits (createLobby() can
-## succeed and lobby_created still never arrive). `Net._process()` calls this
-## every frame once _steam_ready is true (autoload/Net.gd).
+## succeed and lobby_created still never arrive). `NetSteamSession.process()` calls this
+## every frame once the session is ready (net/session/NetSteamSession.gd).
 func run_callbacks() -> void:
 	if _steam == null:
 		return

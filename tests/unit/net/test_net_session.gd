@@ -305,7 +305,7 @@ func test_broadcast_roster_after_transport_closed_does_not_rpc() -> void:
 # installed in this checkout.
 #
 # steam_available() requires both steam_provider.is_available() *and* a
-# successful init_result (see autoload/Net.gd's `_steam_ready`), matching
+# successful init_result (see NetSteamSession.available()), matching
 # real usage where game/main/Main.gd always calls Net.init_steam() before the menu
 # can reach host_online()/join_lobby() — so every positive-path test below
 # calls _ready_steam() first. Net.gd additionally refuses to ever construct a
@@ -471,8 +471,8 @@ func test_apply_connect_lobby_from_the_full_command_line_calls_join_lobby() -> v
 ## get consumed as if it were the second (current) attempt's own, and the
 ## second attempt's real, later answer would then be dropped as stale in its
 ## place -- silently hosting the wrong (cancelled) lobby and abandoning the
-## live one. The generation queue fix (_steam_request_generation /
-## _steam_pending_generations) must resolve the two answers the other way
+## live one. The generation queue fix (NetSteamSession's request
+## generation queue) must resolve the two answers the other way
 ## around: whichever answer arrives *first* resolves the oldest still-
 ## outstanding (here, the cancelled) request, and whichever arrives *after*
 ## resolves the live one.
