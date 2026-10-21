@@ -26,3 +26,13 @@ func start_tower_topple_from_menu() -> void:
 
 func start_tutorial_from_menu() -> void:
 	pass
+
+
+## Starts a match for a non-lobby mode: MD-F2 overrides this.
+func launch(_config: MatchConfig, _extras: ModeExtras) -> void:
+	pass
+
+
+## Attaches the mode's node to the freshly built match world.
+func attach_extras(_extras: ModeExtras, _local_player: Node) -> void:
+	pass

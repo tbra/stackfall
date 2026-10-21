@@ -127,6 +127,9 @@ var _sandbox_preset: SandboxConfig = null
 ## Built and freed only by start_tutorial_from_menu() and _on_tutorial_finished() below --
 ## never touched by _build_match_world() or _end_match_world().
 var _tutorial: Node = null
+## What a non-lobby mode adds to the one match world; null for a lobby match, which
+## keeps every hook below inert. Cleared by the match flow when the session returns to the lobby.
+var _mode_extras: ModeExtras = null
 var _remote_cursors: Node = null
 var _debug_overlay: Node = null
 ## The four overlays (pause menu, results screen, scoreboard, loading screen) are
@@ -989,6 +992,14 @@ func _on_pause_leave_requested() -> void:
 	if Match.state() != Match.State.LOBBY:
 		Match.abort_match()
 	_show_main_menu()
+
+
+## Called by the match flow once the local player is built; the sandbox flow port
+## attaches the mode's node. Inert for a lobby match.
+func _attach_mode_extras(local_player: Node) -> void:
+	if _mode_extras == null:
+		return
+	_sandbox_flow_port().attach_extras(_mode_extras, local_player)
 
 
 ## What ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here because
