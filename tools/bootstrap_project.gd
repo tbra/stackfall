@@ -561,7 +561,7 @@ func _actions() -> Dictionary:
 	# --- Sandbox debug hotkeys -------------------------------
 	# Unlisted like net_debug_toggle above: only reachable through
 	# `godot --path . -- --sandbox` (game/main/Main.gd), never seen in the shipped
-	# hot-seat or networked flows. Every face/shoulder/stick/D-pad button is
+	# networked flows. Every face/shoulder/stick/D-pad button is
 	# already claimed by placement and camera controls (spec 2.5) or by
 	# net_debug_toggle's own Back+Y chord, so these reach for the buttons
 	# nothing else uses: BACK for the one binding the brief asked for by name
