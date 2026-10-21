@@ -70,6 +70,17 @@ func _first_block() -> Block:
 	return bodies[0] if not bodies.is_empty() else null
 
 
+## The violations this sample recorded: sample_now() returns nothing, so diff violations().
+func _sample(monitor: SoakMonitor) -> Array[SoakCheck.Violation]:
+	var before: int = monitor.violations().size()
+	monitor.sample_now()
+	var fresh: Array[SoakCheck.Violation] = []
+	var all: Array[SoakCheck.Violation] = monitor.violations()
+	for index: int in range(before, all.size()):
+		fresh.append(all[index])
+	return fresh
+
+
 func _below_plane(violations: Array[SoakCheck.Violation]) -> Array[SoakCheck.Violation]:
 	var below: Array[SoakCheck.Violation] = []
 	for v: SoakCheck.Violation in violations:
@@ -94,7 +105,7 @@ func test_block_below_the_kill_plane_is_reported_with_its_net_id() -> void:
 	var kill_y: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).kill_plane_y
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
 	var monitor: SoakMonitor = _monitor(&"host", 0.0)
-	var found: Array[SoakCheck.Violation] = monitor.sample_now()
+	var found: Array[SoakCheck.Violation] = _sample(monitor)
 	var below: Array[SoakCheck.Violation] = []
 	for v: SoakCheck.Violation in found:
 		if v.invariant == &"physics.below_kill_plane":
@@ -110,7 +121,7 @@ func test_clean_world_yields_zero_violations() -> void:
 	var block: Block = _first_block()
 	assert_not_null(block, "a placed block is tracked before the monitor looks")
 	var monitor: SoakMonitor = _monitor(&"host", 0.0)
-	var found: Array[SoakCheck.Violation] = monitor.sample_now()
+	var found: Array[SoakCheck.Violation] = _sample(monitor)
 	assert_eq(_ids_of(found), [] as Array[StringName], "a settled, in-field block breaks no invariant")
 	assert_eq(monitor.violations().size(), 0, "violations() agrees with the empty sample")
 
@@ -149,7 +160,7 @@ func test_host_local_slot_is_outside_the_spawn_identity() -> void:
 	MatchNet.counters.count_sent(0)
 	MatchNet.counters.count_accepted(0)
 	var monitor: SoakMonitor = _monitor(&"host", 0.0)
-	var found: Array[SoakCheck.Violation] = monitor.sample_now()
+	var found: Array[SoakCheck.Violation] = _sample(monitor)
 	assert_false(&"authority.spawn_identity" in _ids_of(found),
 		"a host-local slot's placements are not checked against gateway counters")
 
@@ -166,7 +177,7 @@ func test_client_role_reports_no_host_only_checks() -> void:
 	MatchNet.counters.count_sent(0)
 	MatchNet.counters.count_accepted(0)
 	var monitor: SoakMonitor = _monitor(&"client", 0.0)
-	var found: Array[SoakCheck.Violation] = monitor.sample_now()
+	var found: Array[SoakCheck.Violation] = _sample(monitor)
 	assert_true(&"physics.below_kill_plane" in _ids_of(found),
 		"the client still runs the local physics checks")
 	for v: SoakCheck.Violation in found:
@@ -185,10 +196,10 @@ func test_warm_up_suppresses_checks() -> void:
 	var kill_y: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).kill_plane_y
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
 	var monitor: SoakMonitor = _monitor(&"host", 600.0)
-	assert_eq(_below_plane(monitor.sample_now()).size(), 0, "inside warm-up no invariant is checked")
+	assert_eq(_below_plane(_sample(monitor)).size(), 0, "inside warm-up no invariant is checked")
 	assert_eq(monitor.violations().size(), 0, "inside warm-up nothing is recorded")
 	var after_warm_up: SoakMonitor = _monitor(&"host", 0.0)
-	assert_eq(_below_plane(after_warm_up.sample_now()).size(), 1, "the same bad block is reported once warm-up is over")
+	assert_eq(_below_plane(_sample(after_warm_up)).size(), 1, "the same bad block is reported once warm-up is over")
 
 
 func test_persistent_violation_is_recorded_once_per_epoch() -> void:
@@ -201,8 +212,8 @@ func test_persistent_violation_is_recorded_once_per_epoch() -> void:
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
 	# A long interval keeps both samples inside one wall-aligned epoch.
 	var monitor: SoakMonitor = _monitor(&"host", 0.0, 600.0)
-	var first: Array[SoakCheck.Violation] = _below_plane(monitor.sample_now())
-	var second: Array[SoakCheck.Violation] = _below_plane(monitor.sample_now())
+	var first: Array[SoakCheck.Violation] = _below_plane(_sample(monitor))
+	var second: Array[SoakCheck.Violation] = _below_plane(_sample(monitor))
 	assert_eq(first.size(), 1, "the first sample reports the bad block")
 	assert_eq(second.size(), 0, "the same violation in the same epoch is not reported again")
 	assert_eq(_below_plane(monitor.violations()).size(), 1, "one line per epoch, however many ticks keep it broken")
