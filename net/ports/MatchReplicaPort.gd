@@ -109,22 +109,42 @@ func apply_replicated_mode_state(mode_state: Dictionary) -> void:
 
 
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_gift_spawned(gift_id, position)
+		return
 	_call(&"apply_replicated_gift_spawned", [gift_id, position], null)
 
 
 func apply_replicated_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_gift_flight(gift_id, origin, landing)
+		return
 	_call(&"apply_replicated_gift_flight", [gift_id, origin, landing], null)
 
 
 func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_gift_landed(gift_id, landing)
+		return
 	_call(&"apply_replicated_gift_landed", [gift_id, landing], null)
 
 
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_gift_claimed(gift_id, slot_id, special_id)
+		return
 	_call(&"apply_replicated_gift_claimed", [gift_id, slot_id, special_id], null)
 
 
 func apply_replicated_gift_expired(gift_id: int) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_gift_expired(gift_id)
+		return
 	_call(&"apply_replicated_gift_expired", [gift_id], null)
 
 
@@ -165,14 +185,24 @@ func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> b
 
 
 func apply_replicated_block_owner(net_id: int, new_slot: int) -> bool:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		return real.apply_replicated_block_owner(net_id, new_slot)
 	return bool(_call(&"apply_replicated_block_owner", [net_id, new_slot], false))
 
 
 func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		return real.apply_replicated_cat_start(id, slot_id, position, duration)
 	return bool(_call(&"apply_replicated_cat_start", [id, slot_id, position, duration], false))
 
 
 func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
+	var real: MatchAutoload = _match as MatchAutoload
+	if real != null:
+		real.apply_replicated_cat_state(id, position, velocity, point, remaining)
+		return
 	_call(&"apply_replicated_cat_state", [id, position, velocity, point, remaining], null)
 
 
