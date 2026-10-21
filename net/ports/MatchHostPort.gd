@@ -30,22 +30,16 @@ const REQUIRED_METHODS: Array[StringName] = [
 	&"set_cat_target",
 	&"is_pose_well_formed",
 	&"feed_seq",
-	&"on_peer_left",
 	&"on_peer_rejoined",
 	&"abort_match",
 	&"start_match",
-	&"set_replicator",
-	&"replicator",
 	&"active_cat",
 	&"active_slot",
-	&"after_next_special",
 	&"blocks_parent",
 	&"circle_render_arrays",
 	&"circle_wire_radius_max",
 	&"circle_wire_xz_bound",
 	&"countdown_remaining",
-	&"default_ghost_origin",
-	&"disconnect_grace_left",
 	&"eliminated_by",
 	&"feed_time_left",
 	&"field",
@@ -55,13 +49,9 @@ const REQUIRED_METHODS: Array[StringName] = [
 	&"gift_states",
 	&"glue_drops_left",
 	&"glue_revision",
-	&"held_shape",
-	&"held_special",
 	&"is_release_locked",
 	&"match_timer_left",
 	&"mode_state_snapshot",
-	&"next_shape",
-	&"next_special",
 	&"qol_backlog_count",
 	&"qol_timer_paused",
 	&"raster",
@@ -191,10 +181,6 @@ func feed_seq(slot_id: int) -> int:
 	return int(_call(&"feed_seq", [slot_id], 0))
 
 
-func on_peer_left(slot_id: int) -> void:
-	_call(&"on_peer_left", [slot_id], null)
-
-
 func on_peer_rejoined(slot_id: int) -> void:
 	_call(&"on_peer_rejoined", [slot_id], null)
 
@@ -207,17 +193,6 @@ func start_match(match_config: MatchConfig) -> void:
 	_call(&"start_match", [match_config], null)
 
 
-## Installs the replication membrane (null turns replication off).
-func set_replicator(replicator_node: Variant) -> void:
-	_call(&"set_replicator", [replicator_node], null)
-
-
-## The installed membrane, so MatchNet can release it on exit without reading
-## Match's private `_replicator`.
-func replicator() -> Variant:
-	return _call(&"replicator", [], null)
-
-
 # --- reads ---------------------------------------------------------------------
 
 func active_cat() -> RigidBody3D:
@@ -226,10 +201,6 @@ func active_cat() -> RigidBody3D:
 
 func active_slot() -> int:
 	return int(_call(&"active_slot", [], -1))
-
-
-func after_next_special(slot_id: int) -> StringName:
-	return StringName(_call(&"after_next_special", [slot_id], &""))
 
 
 func blocks_parent() -> Node3D:
@@ -256,14 +227,6 @@ func circle_wire_xz_bound() -> float:
 
 func countdown_remaining() -> float:
 	return float(_call(&"countdown_remaining", [], 0.0))
-
-
-func default_ghost_origin(slot_id: int) -> Vector3:
-	return _call(&"default_ghost_origin", [slot_id], Vector3.ZERO) as Vector3
-
-
-func disconnect_grace_left(slot_id: int) -> float:
-	return float(_call(&"disconnect_grace_left", [slot_id], 0.0))
 
 
 func eliminated_by(slot_id: int) -> int:
@@ -302,14 +265,6 @@ func glue_revision(slot_id: int) -> int:
 	return int(_call(&"glue_revision", [slot_id], 0))
 
 
-func held_shape(slot_id: int) -> BlockShape:
-	return _call(&"held_shape", [slot_id], null) as BlockShape
-
-
-func held_special(slot_id: int) -> StringName:
-	return StringName(_call(&"held_special", [slot_id], &""))
-
-
 func is_release_locked(slot_id: int) -> bool:
 	return bool(_call(&"is_release_locked", [slot_id], false))
 
@@ -320,14 +275,6 @@ func match_timer_left() -> float:
 
 func mode_state_snapshot() -> Dictionary:
 	return _call(&"mode_state_snapshot", [], {}) as Dictionary
-
-
-func next_shape(slot_id: int) -> BlockShape:
-	return _call(&"next_shape", [slot_id], null) as BlockShape
-
-
-func next_special(slot_id: int) -> StringName:
-	return StringName(_call(&"next_special", [slot_id], &""))
 
 
 func qol_backlog_count(slot_id: int) -> int:
