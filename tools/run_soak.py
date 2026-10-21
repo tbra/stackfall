@@ -11,7 +11,7 @@ red. Per scenario the host starts first; the client starts when the host log sho
 logs are merged with `[host]`/`[client]` prefixes, joined by tools/soak_report.py and gated by
 `tools/triage_log.py --soak --no-classify`. Prints one line per scenario and one
 `SOAK RESULT PASS|REPORT|FAIL|INVALID: ...` line; exit 0 PASS/REPORT, 1 FAIL, 2 INVALID, 3 refused.
-SOAK_PLAN sections 4 and 7.4. --duration-s shortens host --seconds and the deadline for a dry run; the
+SOAK_PLAN sections 4 and 7.4. --duration-s shortens the host --seconds (duration + host_ready_timeout_s) and the deadline for a dry run; the
 monitors still end at their own duration_s, so a dry run is usually INVALID (truncated).
 Expected duration: about 18 minutes for `all`.
 """
@@ -146,9 +146,12 @@ def run_triage(merged_path):
 def run_scenario(name, path, out, cfg, duration_s, known, godot, runner, triage, clock, sleep, say):
     """Run and judge one scenario; returns the soak_report scenario result dict."""
     port = free_port()
+    # The host's --seconds clock starts at its launch, the client's duration at its first PLAYING: the lead
+    # covers the client's connect, so the client reaches its own SOAK_END before the host ends the session.
+    host_seconds = duration_s + cfg["host_ready_timeout_s"]
     host_log = os.path.join(out, "%s_host.log" % name)
     client_log = os.path.join(out, "%s_client.log" % name)
-    problem = run_processes(build_host_cmd(godot, path, port, name, cfg, duration_s),
+    problem = run_processes(build_host_cmd(godot, path, port, name, cfg, host_seconds),
                             build_client_cmd(godot, path, port, name, cfg),
                             host_log, client_log, cfg, duration_s, runner, clock, sleep)
     host_text, client_text = _read(host_log), _read(client_log)
@@ -165,8 +168,8 @@ def run_scenario(name, path, out, cfg, duration_s, known, godot, runner, triage,
         if rc == 1:
             res["violations"].append(soak_report.Violation("log.triage_gate", "both", 0, soak_report.SEV_FAIL, "", "", "", merged))
             res["verdict"], res["detail"] = soak_report.verdict(res["violations"], known)
-        elif rc != 0:
-            say("soak %s: triage_log --soak unavailable (rc %s), log gate skipped: %s" % (name, rc, text.strip()[:200]))
+        elif rc != 0:  # the log gate did not run, so the run cannot be called clean
+            res.update(verdict="INVALID", detail="triage_log --soak failed (rc %s): %s" % (rc, text.strip()[:200]))
     say(res["table"])
     say(soak_report.scenario_line(res))
     return res
@@ -206,14 +209,18 @@ def main(argv=None, runner=None, slots=None, triage=None, clock=time.time, sleep
         load = slots.cpu_load_pct()
         return "machine busy (cpu %d%% > %g%%)" % (load, limit) if load > limit else None
 
-    with slots.godot_exclusive("soak", wait_s=EXCLUSIVE_WAIT_S):
-        reason = busy()
-        results = []
-        if reason is None:
-            for name in names:
-                duration = a.duration_s or SCENARIOS[name][2] or cfg["duration_s"]
-                results.append(run_scenario(name, path, out, cfg, duration, known, godot, runner, triage, clock, sleep, say))
+    try:
+        with slots.godot_exclusive("soak", wait_s=EXCLUSIVE_WAIT_S):
             reason = busy()
+            results = []
+            if reason is None:
+                for name in names:
+                    duration = a.duration_s or SCENARIOS[name][2] or cfg["duration_s"]
+                    results.append(run_scenario(name, path, out, cfg, duration, known, godot, runner, triage, clock, sleep, say))
+                reason = busy()
+    except TimeoutError as e:
+        say("SOAK RESULT INVALID: could not take the whole machine within %gs (%s)" % (EXCLUSIVE_WAIT_S, e))
+        return soak_report.EXIT["INVALID"]
     if reason:  # a busy machine invalidates the timing, whatever the scenarios said
         results = [dict(r, verdict="INVALID", detail=reason) for r in results] or [
             {"name": "all", "verdict": "INVALID", "detail": reason, "violations": []}]
