@@ -156,7 +156,7 @@ func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -
 	Events.placement_relocated.emit(1, Vector2(3.0, -2.0))
 	assert_eq(
 		_toast_texts(hud).size(), 0,
-		"a relocation for a different slot shouldn't show on this hot-seat HUD."
+		"a relocation for a different slot shouldn't show on this HUD."
 	)
 	Events.placement_relocated.emit(0, Vector2(3.0, -2.0))
 	assert_not_null(_toast(hud, "relocated"))
@@ -173,7 +173,7 @@ func test_a_tied_results_payload_announces_a_shared_win() -> void:
 	assert_eq(hud._winner_label.text, "Teams 1 & 2 share the win!")
 
 
-func test_turn_changed_event_shows_no_turn_wording_outside_hot_seat() -> void:
+func test_turn_changed_event_repoints_the_hud_without_turn_wording() -> void:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
 	fake_match.config = MatchConfig.new()
@@ -184,18 +184,6 @@ func test_turn_changed_event_shows_no_turn_wording_outside_hot_seat() -> void:
 
 	assert_true(hud._turn_label.text.findn("turn") < 0)
 	assert_eq(hud._active_slot, 0)
-
-
-func test_turn_changed_event_still_shows_turn_wording_in_hot_seat() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = MatchConfig.new()
-	fake_match.config.hot_seat = true
-	hud.match_provider = fake_match
-
-	Events.turn_changed.emit(0)
-
-	assert_true(hud._turn_label.text.findn("turn") >= 0)
 
 
 func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
