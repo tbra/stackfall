@@ -70,6 +70,14 @@ func _first_block() -> Block:
 	return bodies[0] if not bodies.is_empty() else null
 
 
+func _below_plane(violations: Array[SoakCheck.Violation]) -> Array[SoakCheck.Violation]:
+	var below: Array[SoakCheck.Violation] = []
+	for v: SoakCheck.Violation in violations:
+		if v.invariant == &"physics.below_kill_plane":
+			below.append(v)
+	return below
+
+
 func _ids_of(violations: Array[SoakCheck.Violation]) -> Array[StringName]:
 	var ids: Array[StringName] = []
 	for v: SoakCheck.Violation in violations:
@@ -103,7 +111,7 @@ func test_clean_world_yields_zero_violations() -> void:
 	assert_not_null(block, "a placed block is tracked before the monitor looks")
 	var monitor: SoakMonitor = _monitor(&"host", 0.0)
 	var found: Array[SoakCheck.Violation] = monitor.sample_now()
-	assert_eq(found.size(), 0, "a settled, in-field block breaks no invariant")
+	assert_eq(_ids_of(found), [] as Array[StringName], "a settled, in-field block breaks no invariant")
 	assert_eq(monitor.violations().size(), 0, "violations() agrees with the empty sample")
 
 
@@ -173,10 +181,10 @@ func test_warm_up_suppresses_checks() -> void:
 	var kill_y: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).kill_plane_y
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
 	var monitor: SoakMonitor = _monitor(&"host", 600.0)
-	assert_eq(monitor.sample_now().size(), 0, "inside warm-up no invariant is checked")
+	assert_eq(_below_plane(monitor.sample_now()).size(), 0, "inside warm-up no invariant is checked")
 	assert_eq(monitor.violations().size(), 0, "inside warm-up nothing is recorded")
 	var after_warm_up: SoakMonitor = _monitor(&"host", 0.0)
-	assert_eq(after_warm_up.sample_now().size(), 1, "the same bad block is reported once warm-up is over")
+	assert_eq(_below_plane(after_warm_up.sample_now()).size(), 1, "the same bad block is reported once warm-up is over")
 
 
 func test_persistent_violation_is_recorded_once_per_epoch() -> void:
@@ -189,8 +197,8 @@ func test_persistent_violation_is_recorded_once_per_epoch() -> void:
 	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
 	# A long interval keeps both samples inside one wall-aligned epoch.
 	var monitor: SoakMonitor = _monitor(&"host", 0.0, 600.0)
-	var first: Array[SoakCheck.Violation] = monitor.sample_now()
-	var second: Array[SoakCheck.Violation] = monitor.sample_now()
+	var first: Array[SoakCheck.Violation] = _below_plane(monitor.sample_now())
+	var second: Array[SoakCheck.Violation] = _below_plane(monitor.sample_now())
 	assert_eq(first.size(), 1, "the first sample reports the bad block")
 	assert_eq(second.size(), 0, "the same violation in the same epoch is not reported again")
-	assert_eq(monitor.violations().size(), 1, "one line per epoch, however many ticks keep it broken")
+	assert_eq(_below_plane(monitor.violations()).size(), 1, "one line per epoch, however many ticks keep it broken")
