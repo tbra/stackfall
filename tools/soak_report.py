@@ -227,10 +227,11 @@ def _sample_checks(c, window, cfg):
     if "state" in c and not any(h.get("state") == c["state"] for h in window):
         out.append(_viol("agree.match_state", e, "", c["state"], "|".join(sorted(set(h.get("state", "") for h in window)))))
     if "scores" in c:
-        mine = _pairs(c["scores"])
-        ok = any(set(_pairs(h.get("scores", ""))) == set(mine)
-                 and all(abs(mine[k] - v) <= cfg["score_tol"] for k, v in _pairs(h.get("scores", "")).items())
-                 for h in window)
+        mine = _pairs(c["scores"])  # per-slot owned tracked body counts; a slot missing on one side owns 0
+
+        def close(theirs):
+            return all(abs(mine.get(k, 0) - theirs.get(k, 0)) <= cfg["score_tol"] for k in set(mine) | set(theirs))
+        ok = any(close(_pairs(h.get("scores", ""))) for h in window)
         if not ok:
             out.append(_viol("agree.scores", e, "", c["scores"], "score_tol=%s" % cfg["score_tol"]))
     if "timer" in c:
@@ -265,6 +266,12 @@ def _body_checks(epoch, client_bodies, host, k, cfg):
         if bid not in seen_before:
             out.append(_viol("authority.client_only_body", epoch, bid, "present", "never_on_host"))
     return out
+
+
+def compared_dumps(host, client, cfg):
+    """How many client body dumps have a host dump in their window (the ones _body_checks can judge)."""
+    k = _window_k(cfg)
+    return sum(1 for e in client.dumps if any(e - k <= he <= e for he in host.dumps))
 
 
 def join_violations(host, client, cfg):
@@ -391,6 +398,9 @@ def analyze(scenario, host_text, client_text, known_ids, tres_cfg=None):
     bad = invalid_reason(host, client)
     if bad:
         res.update(verdict="INVALID", detail=bad)
+        return res
+    if compared_dumps(host, client, cfg) == 0:
+        res.update(verdict="INVALID", detail="no client body dump has a host dump at its epoch: body checks never ran")
         return res
     violations = host.violations + client.violations + join_violations(host, client, cfg)
     v, detail = verdict(violations, known_ids)

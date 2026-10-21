@@ -45,6 +45,9 @@ def logs(host_extra=(), client_extra=(), host_samples=None, client_samples=None)
     """(host_text, client_text) of a clean run; *_samples replace the default sample lines."""
     host = (host_samples if host_samples is not None else [sample("host", 100), sample("host", 101)]) + list(host_extra) + [end("host")]
     client = (client_samples if client_samples is not None else [sample("client", 100), sample("client", 101)]) + list(client_extra) + [end("client")]
+    if not any(x.startswith("SOAK_BODY") for x in list(host_extra) + list(client_extra)):  # a clean run compares at least one dump
+        host.insert(0, body("host", 100, 1))
+        client.insert(0, body("client", 100, 1))
     return "\n".join(host), "\n".join(client)
 
 
@@ -95,7 +98,7 @@ class ParseTest(unittest.TestCase):
     def test_known_file_ships_the_di0_2_29_line(self):
         known = sr.load_known(os.path.join(os.path.dirname(os.path.abspath(__file__)), "soak_known.json"))
         self.assertEqual(known["known"], ["budget.client_tick_p99"])
-        self.assertEqual(len(known["engine_noise"]), 2)
+        self.assertEqual(len(known["engine_noise"]), 1)
         self.assertEqual(sr.load_known("no/such/file.json"), {"known": [], "engine_noise": []})
 
 
@@ -155,6 +158,18 @@ class JoinTest(unittest.TestCase):
         self.assertEqual(invs(run(client_samples=[sample("client", 100, timer="30.0000")])), ["agree.timer"])
         self.assertEqual(invs(run(client_samples=[sample("client", 100, state="ENDED"), sample("client", 101)])), ["agree.match_state"])
         self.assertEqual(invs(run(client_samples=[sample("client", 100, scores="0:6;1:4")])), ["agree.scores"])
+
+    def test_scores_slot_missing_on_one_side_owns_zero(self):
+        self.assertEqual(invs(run(client_samples=[sample("client", 100, scores="0:5;1:4;2:0"), sample("client", 101)])), [])
+        self.assertEqual(invs(run(client_samples=[sample("client", 100, scores="0:5"), sample("client", 101)])), ["agree.scores"])
+
+    def test_no_aligned_body_dump_is_invalid_not_skipped(self):
+        # a client dump at 100 against a host dump only at 90 (outside epoch-k..epoch): nothing was compared
+        res = run(host_extra=[body("host", 90, 1)], client_extra=[body("client", 100, 1)])
+        self.assertEqual(res["verdict"], "INVALID")
+        self.assertIn("body checks never ran", res["detail"])
+        res = run(host_extra=[body("host", 99, 1)], client_extra=[body("client", 100, 1)])  # e-1 is aligned
+        self.assertEqual(res["verdict"], "PASS")
 
     def test_raster_hash_is_only_a_warning(self):
         res = run(client_samples=[sample("client", 100, raster_hash=8)])

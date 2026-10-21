@@ -1,4 +1,4 @@
 {
   "known": ["budget.client_tick_p99"],
-  "engine_noise": ["ObjectDB instances leaked at exit", "Pages in use exist at exit in PagedAllocator"]
+  "engine_noise": ["Pages in use exist at exit in PagedAllocator"]
 }

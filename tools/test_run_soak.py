@@ -159,7 +159,7 @@ class RunSoakTest(unittest.TestCase):
         self.assertEqual(self.go(runner, scenario="all"), 0)
         hosts = [c for c in runner.cmds if "--headless-host" in c]
         self.assertEqual([[x for x in c if x.startswith("--seconds=")][0] for c in hosts],
-                         ["--seconds=900", "--seconds=180"])
+                         ["--seconds=960", "--seconds=240"])
         self.assertTrue(self.result()[0].startswith("SOAK RESULT PASS: load+authority"))
 
     def test_busy_machine_before_is_invalid_and_runs_nothing(self):
@@ -200,17 +200,30 @@ class RunSoakTest(unittest.TestCase):
         clock = Clock()
         self.assertEqual(self.go(FakeRunner(clock), triage=lambda p: (1, "gating")), 1)
         self.assertIn("log.triage_gate", self.result()[0])
-        self.lines.clear()
-        clock = Clock()
-        self.assertEqual(self.go(FakeRunner(clock), triage=lambda p: (2, "unrecognized arguments: --soak")), 0)
-        self.assertTrue(any("triage_log --soak unavailable" in x for x in self.lines))
+
+    def test_triage_rc_other_than_0_or_1_is_invalid(self):
+        for rc in (2, -1):
+            self.lines.clear()
+            self.assertEqual(self.go(FakeRunner(Clock()), triage=lambda p, rc=rc: (rc, "unrecognized arguments: --soak")), 2)
+            self.assertIn("triage_log --soak failed (rc %d)" % rc, self.result()[0])
+
+    def test_exclusive_wait_timeout_is_invalid_not_a_traceback(self):
+        class Busy(FakeSlots):
+            @contextlib.contextmanager
+            def godot_exclusive(self, label="exclusive", wait_s=None):
+                raise TimeoutError("machine held")
+                yield
+        runner = FakeRunner(Clock())
+        self.assertEqual(self.go(runner, slots=Busy()), 2)
+        self.assertEqual(runner.cmds, [])
+        self.assertTrue(self.result()[0].startswith("SOAK RESULT INVALID:"))
 
     def test_duration_override_sets_seconds_and_deadline(self):
         clock = Clock()
         runner = FakeRunner(clock, hang=True)
         rs.main(["--idle", "--path", self.checkout, "--out", self.out, "--duration-s", "10"], runner=runner,
                 slots=FakeSlots(), triage=lambda p: (0, ""), clock=clock.time, sleep=clock.sleep, say=self.lines.append, godot="godot")
-        self.assertIn("--seconds=10", runner.cmds[0])
+        self.assertIn("--seconds=70", runner.cmds[0])
         self.assertIn("timeout after 130s", self.result()[0])
 
     def test_missing_config_is_invalid(self):
