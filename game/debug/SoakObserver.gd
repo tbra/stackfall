@@ -41,6 +41,11 @@ func awake_blocks() -> int:
 	return int(_sampler.latest.get("blocks_awake", 0)) if _sampler != null else 0
 
 
+## Static memory in megabytes, the one conversion the monitor and the sample line share.
+static func static_mem_mb() -> float:
+	return Performance.get_monitor(Performance.MEMORY_STATIC) / _BYTES_PER_MB
+
+
 func kill_plane_y() -> float:
 	return _PHYSICS_TUNING.kill_plane_y
 
@@ -165,7 +170,7 @@ func sample_fields(bodies_count: int, territory_obs: SoakCheck.TerritoryObs) -> 
 		"raster_hash": raster.ownership_hash() if raster != null else 0,
 		"timer": Match.match_timer_left(),
 		"scores": scores,
-		"mem_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / _BYTES_PER_MB,
+		"mem_mb": static_mem_mb(),
 		"orphans": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
 		"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		"bytes_total": SnapshotSync.snapshot_bytes_total(),
