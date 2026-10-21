@@ -79,7 +79,7 @@
  "net/Interpolator.gd": 5,
  "net/LanDiscovery.gd": 5,
  "net/MatchEventApplier.gd": 8,
- "net/MatchNet.gd": 21,
+ "net/MatchNet.gd": 16,
  "net/SnapshotSync.gd": 8,
  "ui/debug/NetDebugOverlay.gd": 2,
  "ui/debug/PerfOverlay.gd": 2,
