@@ -228,7 +228,7 @@ func _config(mode: MatchConfig.GameMode, holes: MatchConfig.HoleMode, minutes: i
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 3
-	config.hot_seat = true
+	config.hot_seat = false
 	config.hole_mode = holes
 	config.block_timer = 6.0
 	config.rng_seed = 99

@@ -1,10 +1,10 @@
 extends "res://tests/unit/match/match_world_test.gd"
 ## Match.punch_special_hole (spec 1.6): HoleMode gating, home-flag elimination, no punch after END.
 
-func _hotseat_config(hole_mode: MatchConfig.HoleMode) -> MatchConfig:
+func _real_time_config(hole_mode: MatchConfig.HoleMode) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = 2
-	config.hot_seat = true
+	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 12345
 	config.hole_mode = hole_mode
@@ -12,7 +12,7 @@ func _hotseat_config(hole_mode: MatchConfig.HoleMode) -> MatchConfig:
 
 
 func test_punch_special_hole_is_a_noop_under_hole_mode_off() -> void:
-	Match.start_match(_hotseat_config(MatchConfig.HoleMode.OFF))
+	Match.start_match(_real_time_config(MatchConfig.HoleMode.OFF))
 	_run_countdown()
 	watch_signals(Events)
 
@@ -30,7 +30,7 @@ func test_punch_special_hole_is_a_noop_under_hole_mode_off() -> void:
 # --- Home-flag elimination (orchestrator decision 2) -----------
 
 func test_punch_special_hole_eliminates_a_home_flag_sitting_in_the_punched_disk() -> void:
-	Match.start_match(_hotseat_config(MatchConfig.HoleMode.TEMPORARY))
+	Match.start_match(_real_time_config(MatchConfig.HoleMode.TEMPORARY))
 	_run_countdown()
 	watch_signals(Events)
 
@@ -50,7 +50,7 @@ func test_punch_special_hole_eliminates_a_home_flag_sitting_in_the_punched_disk(
 # eliminate it after the match is already decided. Mirrors
 # MatchPlacement.spawn_special_projectile()'s own State.PLAYING guard.
 func test_punch_special_hole_is_a_noop_after_the_match_has_ended() -> void:
-	Match.start_match(_hotseat_config(MatchConfig.HoleMode.TEMPORARY))
+	Match.start_match(_real_time_config(MatchConfig.HoleMode.TEMPORARY))
 	_run_countdown()
 	assert_true(Match.slot(1).home_flag_alive, "Setup: slot 1 is still alive.")
 
