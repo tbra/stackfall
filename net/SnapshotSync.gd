@@ -70,6 +70,8 @@ func sky_cycle_seconds() -> float:
 		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
 	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
+## Cumulative snapshot bytes since begin_match(): sent (host) or applied (client).
+var _snapshot_bytes_total: int = 0
 var _keyframe_cursor: int = 0
 var _known_peer_count: int = 0
 ## Peer ids seen last tick (sorted); a new id forces a full snapshot even
@@ -150,6 +152,7 @@ func end_match() -> void:
 	if Events.block_replicated.is_connected(_on_block_replicated):
 		Events.block_replicated.disconnect(_on_block_replicated)
 	_running = false
+	_snapshot_bytes_total = 0
 	_registry = null
 	_bodies.clear()
 	_selector.reset()
@@ -166,6 +169,11 @@ func end_match() -> void:
 
 func is_running() -> bool:
 	return _running
+
+
+## Cumulative snapshot bytes this match: sent on the host, applied on a client.
+func snapshot_bytes_total() -> int:
+	return _snapshot_bytes_total
 
 
 ## Host only: makes the next snapshot carry every body, the
@@ -248,6 +256,7 @@ func host_tick(delta: float) -> void:
 	_last_snapshot_bytes = 0
 	for packet: PackedByteArray in packets:
 		_last_snapshot_bytes += packet.size()
+	_snapshot_bytes_total += _last_snapshot_bytes
 	_remember_sent(bodies)
 
 	for packet: PackedByteArray in packets:
@@ -405,6 +414,7 @@ func _apply_packet(packet: PackedByteArray) -> void:
 	var fragment: Dictionary = SnapshotWire.decode_fragment(packet, _bounds)
 	if fragment.is_empty():
 		return
+	_snapshot_bytes_total += packet.size()
 
 	var sequence: int = int(fragment["sequence"])
 	var host_time_ms: int = int(fragment["host_time_ms"])
