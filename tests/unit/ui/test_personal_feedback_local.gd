@@ -277,6 +277,36 @@ func test_a_teammates_claim_still_chimes_team_wide() -> void:
 # --- MatchNet: placement_relocated goes to the owning seat only ---------------
 
 
+func test_a_remote_clients_relocation_goes_to_that_peer_alone() -> void:
+	var sent: Array[Array] = []
+	var broadcasts: Array[Array] = []
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return true
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+		sent.append([peer_id, method, args])
+		return true
+	seams.broadcast = func(method: StringName, args: Array) -> void: broadcasts.append([method, args])
+	var peer_slots: Dictionary = {HOST_PEER: HOST_SLOT, REMOTE_PEER: REMOTE_SLOT}
+	var host_net: FakeNet = FakeNet.host(peer_slots, [HOST_SLOT])
+	host_net.slots_by_peer = peer_slots
+	var mirror: MatchEventMirror = MatchEventMirror.new(seams)
+	mirror.bind_ports(
+		SessionPort.new(host_net, PackedStringArray(["is_host", "is_local_slot", "peer_of_slot"])),
+		MatchHostPort.new(Match)
+	)
+
+	mirror.on_placement_relocated(REMOTE_SLOT, RELOCATED_POINT)
+
+	assert_eq(broadcasts.size(), 0, "never broadcast to every peer")
+	assert_eq(sent.size(), 1, "the owner is told exactly once and nobody else is addressed")
+	assert_eq(sent[0][0], REMOTE_PEER)
+	var client: MatchNetScript = _make_client_net(REMOTE_SLOT)
+	watch_signals(Events)
+	client.net_match_event(sent[0][2][0], sent[0][2][1])
+	assert_signal_emitted_with_parameters(Events, "placement_relocated", [REMOTE_SLOT, RELOCATED_POINT])
+
+
 func test_a_client_drops_a_malformed_relocation_payload() -> void:
 	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
 	watch_signals(Events)

@@ -485,13 +485,24 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 		Match._process(1.0 / 60.0)
 	assert_lt(Match.feed_time_left(1), 6.0)
 
-	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9, 6.0, false])
 
 	assert_eq(Match.held_shape(1).id, &"cube")
 	assert_almost_eq(Match.feed_time_left(1), 6.0, 0.001, "The host's feed is the client's clock.")
 	assert_eq(
 		Match.feed_seq(1), 9, "The client takes the host's sequence verbatim; it cannot count its own."
 	)
+
+
+func test_a_feed_event_missing_its_timer_and_lock_is_refused() -> void:
+	Match._net_provider = FakeNet.host({}, [0, 1])
+	_start_playing(2, 6.0)
+	var net: MatchNetScript = _make_net({}, [1], true)
+	var seq_before: int = Match.feed_seq(1)
+
+	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+
+	assert_eq(Match.feed_seq(1), seq_before, "a 4-argument feed event is not the wire form")
 
 
 func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
