@@ -127,13 +127,15 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
-		_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
+		var skip_loading: bool = main_node._mode_extras != null and main_node._mode_extras.skips_loading_screen()
+		if not skip_loading:
+			_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
 		# DECISION: the 3-2-1 must start once the loading screen
 		# is gone, not run down behind it. Held from here until
 		# _finish_loading_when_ready() releases it (a reset/abort also clears it).
 		# Skipped headless: no loading screen is ever rendered there, and tests
 		# and bot harnesses drive Match by hand.
-		if DisplayServer.get_name() != "headless":
+		if not skip_loading and DisplayServer.get_name() != "headless":
 			Match.set_countdown_held(true)
 		build_match_world()
 	elif to_state == Match.State.COUNTDOWN:
@@ -285,6 +287,7 @@ func build_match_world() -> void:
 		if stage_build:
 			hot_seat.controller().set_process(false)
 			hot_seat.controller().set_process_unhandled_input(false)
+		main_node._attach_mode_extras(hot_seat)
 
 	spawn_bot_controllers(config)
 
@@ -365,6 +368,7 @@ func end_match_world() -> void:
 		SnapshotSync.end_match()
 		_field.clear_match_state()
 		_reset_match_scope()
+		_end_mode_extras()
 		return
 	main_node._world_built = false
 	main_node._stop_headless_bots_diagnostics()
@@ -378,9 +382,9 @@ func end_match_world() -> void:
 	if main_node._remote_cursors != null and is_instance_valid(main_node._remote_cursors):
 		main_node._remote_cursors.queue_free()
 	main_node._remote_cursors = null
-	if main_node._hot_seat != null and is_instance_valid(main_node._hot_seat):
-		main_node._hot_seat.queue_free()
+	_free_inert(main_node._hot_seat)
 	main_node._hot_seat = null
+	_end_mode_extras()
 	if main_node._spectator != null and is_instance_valid(main_node._spectator):
 		(main_node._spectator as SpectatorController).reset_speed()
 		main_node._spectator.queue_free()
@@ -395,3 +399,25 @@ func end_match_world() -> void:
 	if main_node._debug_overlay != null and is_instance_valid(main_node._debug_overlay):
 		main_node._debug_overlay.queue_free()
 	main_node._debug_overlay = null
+
+
+## Disabling the subtree first stops its _process/_input at once; queue_free() only
+## frees at the end of the frame.
+func _free_inert(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	node.process_mode = Node.PROCESS_MODE_DISABLED
+	node.queue_free()
+
+
+## A mode's node goes with its world; the mode itself ends only on a real return to
+## the lobby, not on the (X -> LOBBY) half of a restart. Inert for a lobby match.
+func _end_mode_extras() -> void:
+	if main_node._mode_extras == null:
+		return
+	_free_inert(main_node._sandbox)
+	main_node._sandbox = null
+	_free_inert(main_node._tutorial)
+	main_node._tutorial = null
+	if not Match._lifecycle.is_starting_match():
+		main_node._mode_extras = null
