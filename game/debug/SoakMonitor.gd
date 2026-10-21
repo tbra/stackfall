@@ -129,9 +129,9 @@ func sample_now() -> Array[SoakCheck.Violation]:
 				config
 			))
 		if _mem_start_mb < 0.0:
-			_mem_start_mb = Performance.get_monitor(Performance.MEMORY_STATIC) / _BYTES_PER_MB
+			_mem_start_mb = SoakObserver.static_mem_mb()
 			_bodies_start = bodies.size()
-	_mem_end_mb = Performance.get_monitor(Performance.MEMORY_STATIC) / _BYTES_PER_MB
+	_mem_end_mb = SoakObserver.static_mem_mb()
 	_bodies_end = bodies.size()
 	_orphans_end = int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 
