@@ -418,6 +418,8 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Host to client:** `net_match_loading`, `net_match_start(config, roster, replay_id)`, `net_match_event`, `net_block_spawned`, `net_block_despawned`, `net_territory`, `net_cursor`, `net_block_impacts`, `net_snapshot`, plus weather, snow and breeze state RPCs and the lobby, roster and chat RPCs.
 
+**Match events.** The host's match-event subscribers (`net/match/MatchEventMirror.gd`) turn `Events` into `net_match_event` sends: a broadcast, or a reply to the owning peer only (placement refusals and relocations). A client checks every event against its argument-shape row in `core/net/MatchWireEvents.gd` (arity and types, with `core/net/WireLimits.gd` clamps) before `net/MatchEventApplier.gd` applies it through the replica port; a malformed or unknown event is refused without a script error and changes nothing.
+
 **Snapshots** (`net/SnapshotSync.gd`, `core/net/Quantize.gd`):
 - Sent at `snapshot_hz` = 30 as unreliable packets of at most `max_packet_bytes` = 1200, split into independently decodable fragments (78 bodies each).
 - Header 12 bytes (version, u16 sequence, fragment index and count, u32 host time in ms, flags, body count); the first fragment of a snapshot adds a 12-byte disc state (quantized offset and tilt quaternion).
