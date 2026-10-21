@@ -23,7 +23,7 @@ extends FieldBody
 ## lives in _hole_applied, batched at `TerritoryTuning.max_cell_toggles_per_
 ## frame` per physics frame through a FIFO backlog; each drained
 ## batch of newly opened cells is announced on hole_cells_applied, and
-## game/field/HoleDissolver.gd (host) dissolves the blocks that rest or land on a
+## game/blocks/HoleDissolver.gd (host) dissolves the blocks that rest or land on a
 ## hole cell instead of letting them fall through.
 ##
 ## **What this node does not do.** Field decides nothing. Whether a cell is a
@@ -54,7 +54,7 @@ const TRACE_ARG_PREFIX: String = "--trace-disk="
 
 ## a drained batch applied these cells as holes (opened
 ## only; closing a hole needs no reaction). Emitted on host and client alike;
-## game/field/HoleDissolver.gd ignores it off the host.
+## game/blocks/HoleDissolver.gd ignores it off the host.
 signal hole_cells_applied(opened: PackedInt32Array)
 
 @export var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
@@ -685,7 +685,7 @@ func _set_hole_applied(cell: int, hole: bool) -> void:
 	_applied_hole_total += 1 if hole else -1
 
 
-## Applied hole cells right now. game/field/HoleDissolver.gd skips its per-tick
+## Applied hole cells right now. game/blocks/HoleDissolver.gd skips its per-tick
 ## contact test entirely while this is zero.
 func applied_hole_count() -> int:
 	return _applied_hole_total
@@ -1180,7 +1180,7 @@ func _on_kill_plane_body_entered(body: Node3D) -> void:
 ## REASON_KILL_PLANE (BlockRegistry forgets it, MatchStats counts a lost block,
 ## MatchNet replicates the despawn, BlockEffectsManager plays the burst) and
 ## frees it. Host only; a client learns of removals from the despawn RPC.
-## game/field/HoleDissolver.gd removes a dissolved block through
+## game/blocks/HoleDissolver.gd removes a dissolved block through
 ## this same call, so a hole costs exactly what falling off the edge does.
 func remove_fallen_block(body: RigidBody3D) -> void:
 	if not MatchContext.current().net_is_host():
