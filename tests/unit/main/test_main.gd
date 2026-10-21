@@ -61,6 +61,24 @@ func _take_port() -> int:
 	return AgentProbe.free_udp_port()
 
 
+## Main does the global wiring (the chat bus connect), so a Main booted after the
+## connection was dropped restores it, and the wiring is never doubled.
+func test_main_ready_attaches_the_global_wiring() -> void:
+	remove_child(_main)
+	_main.free()
+	while Events.chat_send_requested.is_connected(Net.send_chat):
+		Events.chat_send_requested.disconnect(Net.send_chat)
+	_main = MAIN_SCENE.instantiate()
+	(_main.get_node("Field") as Field).map_def = _tiny_map
+	add_child_autofree(_main)
+	assert_true(Events.chat_send_requested.is_connected(Net.send_chat), "Main wired the UI chat bus to Net")
+	Net.attach_global_wiring()
+	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
+	watch_signals(Events)
+	Events.chat_send_requested.emit("hello")
+	assert_signal_emit_count(Events, "chat_line_received", 1, "one chat line per request, however often the wiring ran")
+
+
 func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_menu() -> void:
 	assert_eq(Sfx._music_context, &"menu", "main menu selects its own playlist")
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
@@ -90,6 +108,6 @@ func test_play_local_bots_opens_private_lobby_with_no_bot() -> void:
 	assert_not_null(_main._lobby)
 	assert_eq(int(Net.lobby_data().get("player_count", -1)), 2)
 	assert_eq(int(Net.lobby_data().get("ai_count", -1)), 0, "no bot is preloaded; the lobby adds bots")
-	assert_false(Net._lan.is_advertising(), "Play local must stay out of LAN discovery")
-	assert_false(Net._accepting_joins, "Local bots must reject remote peers")
-	assert_ne(Net._host_port, occupied_port, "Local bots must not depend on the standard game port")
+	assert_true(Net.is_private_session(), "Play local must stay out of LAN discovery")
+	assert_false(Net.accepting_joins(), "Local bots must reject remote peers")
+	assert_ne(Net.host_port(), occupied_port, "Local bots must not depend on the standard game port")

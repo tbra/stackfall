@@ -36,6 +36,7 @@ var _unanchored: bool = false
 
 
 func _ready() -> void:
+	RootWiring.attach()
 	_late = OS.get_cmdline_user_args().has("--late")
 	_unanchored = OS.get_cmdline_user_args().has("--unanchored")
 	if not Net.apply_command_line():

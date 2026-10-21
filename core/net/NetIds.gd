@@ -10,3 +10,6 @@ const DISCOVERY_MAGIC: StringName = &"stackfall"
 ## Steam's public test app ("Spacewar"), passed directly into
 ## Steam.steamInitEx() (no steam_appid.txt is needed once the app id is passed as an argument).
 const STEAM_APP_ID_EXPECTED: int = 480
+
+## Why a peer left, carried on Events.net_peer_left. Net keeps an alias.
+enum LeaveReason { GRACEFUL, TIMEOUT, KICKED, HOST_SHUTDOWN }
