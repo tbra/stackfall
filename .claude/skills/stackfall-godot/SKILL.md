@@ -16,7 +16,7 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 - Before handback run `python tools/affected_tests.py --path <checkout>` and the tests it lists. Also grep `tests/` for assertions on every value, ordering, label, node name or fingerprint you changed, and for fixtures that use any gift, piece or rule id whose behaviour you changed (`&"rocket"`, `"bomb"`, `held_special_by_slot`, ...). Name them all in `checks`.
 - Before calling a failure unrelated or pre-existing, rerun the same scripts on the base revision and report both results.
 - Tests touching MultiplayerAPI/RPC set up their own peer state or use a send seam: an earlier suite test can leave `multiplayer.multiplayer_peer` cleared.
-- Run an ENet harness (`tools/run_*_enet.ps1`, or `./tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02`) only for `net/`, `autoload/`, rules or lobby changes. Report PASS only from its single `ENET RESULT PASS` / `ENET RESULT FAIL: <reason>` line, never from per-peer lines.
+- Run an ENet harness (`python tools/run_enet_set.py --only <name>[,<name>] --path <checkout>` for a `tools/run_<name>_enet.ps1` harness, which holds one Godot slot per harness process, never the `.ps1` directly; or `./tools/run_m3a_local.ps1 -Peers 4 -SimLag 100 -SimLoss 0.02`) only for `net/`, `autoload/`, rules or lobby changes. Report PASS only from its single `ENET RESULT PASS` / `ENET RESULT FAIL: <reason>` line, never from per-peer lines.
 
 ## Lints
 
@@ -24,6 +24,7 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 - Baselines only shrink: fix the code (tunables into `config/` Resources, the concept's single owner API, `ui/components`, delete dead code) instead of adding entries. A new file needs an explicit `--update --allow-new <path>` (for new `core/` or `config/` files reachable from autoloads: `python tools/lint_layers.py --update --allow-new <files>`); a true dead-weight false positive needs an `allow` entry whose reason names the live caller (a test is never a reason; `lint_dead` ignores one) or the planned package that removes it. `lint_dead` and `lint_shader_uniforms` `--update-baseline` only drop entries and refuse new findings, so a new finding is fixed in the package, never handed to the orchestrator to baseline; on a baseline merge conflict re-run the lint's update command.
 - Every new numeric/bool/Color `@export` on an F4 tuning Resource (CameraTuning, GhostTuning, PhysicsTuning, TerritoryTuning, TerritoryVisuals, BlockFeedConfig) needs a one-sentence entry in `config/ui/tuning_panel_hints.tres` `descriptions` (and a slider range if the default is <= 0 or the useful range is not about [0, 4x default]); run `test_tuning_panel`.
 - Any added or changed `tools/*.gd` gets `godot --headless --check-only -s <script>`: headless import does not compile unreferenced tool scripts.
+- A new `.gd` or `.gdshader` file ships with its `.uid`: run `godot --headless --editor --path <checkout> --quit` after creating it and keep the generated `.uid` (integration refuses a script without one).
 
 ## Godot runs, probes and screenshots
 
