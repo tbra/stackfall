@@ -82,7 +82,7 @@ func _ready() -> void:
 
 ## Wires the tutorial onto the local player's world the one builder made; call before the match
 ## is PLAYING.
-func attach(player: HotSeat, _camera_rig: CameraRig) -> void:
+func attach(player: HotSeat) -> void:
 	_controller = player.controller()
 	_ghost = player.ghost()
 	_hud = player.hud()
@@ -190,7 +190,7 @@ func _begin_step(index: int) -> void:
 	elif step.completion_signal == SIGNAL_CAMERA_MOVED:
 		_camera_hold_elapsed_s = 0.0
 	elif step.completion_signal == SIGNAL_SPECIAL_CONSUMED:
-		# config.sandbox = true (game/main/Main.gd's _build_tutorial_config()) is
+		# config.scripted_gifts (game/main/MatchLaunch.gd's tutorial_config()) is
 		# what lets this through MatchGifts.debug_queue_special()'s own gate --
 		# see game/sandbox/Sandbox.gd's matching F9 seam for the same contract.
 		Match.debug_queue_special(TUTORIAL_SLOT, tutorial_config.demo_special_id)
