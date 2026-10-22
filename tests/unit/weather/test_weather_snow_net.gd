@@ -9,6 +9,9 @@ const LATE_NET_ID: int = 56
 const FIELD_RADIUS_M: float = 6.0
 const FLUSH_WAIT_FRAMES: int = 120
 const BIG_BUDGET: int = 1000
+## What the narrow doubles answer: the calls SnowNet makes on its two ports.
+const SESSION_CALLS: PackedStringArray = ["is_host", "is_offline"]
+const AUTHORITY_CALLS: PackedStringArray = ["field", "registry", "weather", "state"]
 
 
 class SnowFakeNet:
@@ -70,7 +73,7 @@ func before_each() -> void:
 	_match.registry_ref = _registry
 	_match.weather_ref = _weather
 	_snow_net = SnowNet.new()
-	assert_true(_snow_net.bind(SessionPort.new(_net, SnowNet.SESSION_METHODS), MatchHostPort.new(_match, SnowNet.AUTHORITY_METHODS)), "narrow doubles bind")
+	assert_true(_snow_net.bind(SessionPort.new(_net, SESSION_CALLS), MatchHostPort.new(_match, AUTHORITY_CALLS)), "narrow doubles bind")
 	_snow_net._tuning = _snow
 	add_child_autofree(_snow_net)
 
@@ -224,24 +227,36 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 func test_bind_refuses_a_double_missing_a_called_method() -> void:
 	var bare: SnowNet = autofree(SnowNet.new()) as SnowNet
 	var lacking: RefCounted = RefCounted.new()
-	var session: SessionPort = SessionPort.new(_net, SnowNet.SESSION_METHODS)
-	var authority: MatchHostPort = MatchHostPort.new(lacking, SnowNet.AUTHORITY_METHODS)
+	var session: SessionPort = SessionPort.new(_net, SESSION_CALLS)
+	var authority: MatchHostPort = MatchHostPort.new(lacking, AUTHORITY_CALLS)
 	assert_false(authority.is_valid())
 	assert_false(bare.bind(session, authority), "an invalid port is refused")
 	assert_false(bare.bind(null, null), "null ports are refused")
 	assert_push_error_count(1, "N0d's conformance check logs once")
 
 
-func test_set_providers_shim_binds_the_same_ports() -> void:
-	var shimmed: SnowNet = SnowNet.new()
-	shimmed.set_providers(_net, _match)
-	shimmed._tuning = _snow
-	add_child_autofree(shimmed)
+func test_snow_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> void:
+	assert_true(is_instance_of(_snow_net, PortBoundNode))
 	_start_client_snow()
-	var block: Block = _client_block(NET_ID, Vector3.ZERO)
-	assert_true(shimmed.apply_state(_state([NET_ID], -1)), "the shim reads the injected match")
-	shimmed.step_client(BIG_BUDGET)
-	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME))
-	_net.host = true
-	assert_false(shimmed.apply_state(_state([NET_ID], -1)), "and the injected session")
+	assert_true(_snow_net.apply_state(_state([NET_ID], -1)), "bound as a client")
+	var host_net: SnowFakeNet = SnowFakeNet.new()
+	host_net.host = true
+	assert_true(_snow_net.bind(SessionPort.new(host_net, SESSION_CALLS), MatchHostPort.new(_match, AUTHORITY_CALLS)))
+	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the new session is the host: it never applies a replicated state")
 
+
+func test_a_refused_bind_keeps_the_previous_binding() -> void:
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
+	assert_false(_snow_net.bind(SessionPort.new(SnowFakeNet.new(), SESSION_CALLS), broken))
+	assert_push_error_count(1, "one conformance error from the broken port")
+	_start_client_snow()
+	assert_true(_snow_net.apply_state(_state([NET_ID], -1)), "the earlier binding still answers")
+
+
+func test_an_unbound_snow_net_reads_the_real_net() -> void:
+	assert_true(Net.is_offline(), "fixture: the real Net is offline, so it is its own host")
+	var bare: SnowNet = SnowNet.new()
+	add_child_autofree(bare)
+	bare.net_snow_state(_empty_state())
+	assert_eq(bare.states_refused, 1, "no bind: the host check goes to the real Net")
+	assert_eq(bare.states_applied, 0)
