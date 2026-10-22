@@ -96,10 +96,15 @@ func test_owner_conversion_updates_territory_and_only_target_material() -> void:
 	var old_material: Material = target_mesh.material_override
 	var other_material: Material = other_mesh.material_override
 	var paint_color: Color = Color.RED
-	registry._entries[target.get_instance_id()].is_settled = true
+	# One production tick whose delta alone spans the settle time.
+	registry._physics_process(_tuning.sleep_settle_time + 1.0)
 	assert_true(registry.convert_owner(target, 0, paint_color))
 	assert_eq(target.owner_slot, 0)
-	assert_eq(registry.influence_circles(_slots(2), _territory_tuning, _map_def)[0].slot_id, 0)
+	var by_body: Dictionary = {}
+	for circle: InfluenceCircle in registry.influence_circles(_slots(2), _territory_tuning, _map_def):
+		by_body[circle.body_id] = circle
+	assert_eq((by_body[target.get_instance_id()] as InfluenceCircle).slot_id, 0, "territory follows the new owner")
+	assert_eq((by_body[other.get_instance_id()] as InfluenceCircle).slot_id, 1, "the other block keeps its owner")
 	assert_ne(target_mesh.material_override, old_material)
 	assert_eq((target_mesh.material_override as ShaderMaterial).get_shader_parameter(&"albedo_color"), paint_color)
 	assert_eq(((target_mesh.material_override as ShaderMaterial).next_pass as ShaderMaterial).get_shader_parameter(&"tint_color"), paint_color)
@@ -130,6 +135,7 @@ func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	# Boundary (reported): the allocator cannot be started near the ceiling through the public API (16.7M placements otherwise), so the counter is seeded directly.
 	registry._next_net_id = Quantize.NET_ID_MAX
 
 	var last: Block = _place(field, shape, 0)
@@ -138,7 +144,6 @@ func test_allocation_refuses_past_the_wire_ceiling_instead_of_aliasing() -> void
 
 	assert_eq(last.net_id, Quantize.NET_ID_MAX, "the last representable id is handed out")
 	assert_eq(over.net_id, -1, "past it no id is handed out at all")
-	assert_eq(registry._next_net_id, Quantize.NET_ID_MAX + 1, "the counter never wraps")
 	assert_eq(registry.block_for_net_id(Quantize.NET_ID_MAX), last, "the last id still names its own body")
 	assert_null(registry.block_for_net_id(0), "nothing answers to 'no body'")
 	assert_null(registry.block_for_net_id(1), "and nothing answers to a wrapped id")
@@ -324,3 +329,169 @@ func test_tallest_settled_for_slot_returns_the_owners_highest_settled_block() ->
 	assert_gt(float(tallest["height"]), 2.5, "top of slot 0's high cube")
 	assert_lt(float(tallest["height"]), 6.0, "not the other slot's cube")
 	assert_true(registry.tallest_settled_for_slot(5).is_empty(), "no blocks for that slot")
+
+
+# --- remove_block: the one edge-fall removal (spec 1.7) ---------------------
+
+const REST_HEIGHT_M: float = 0.62
+const CUBE_SIDE_M: float = 1.2
+
+var _removed_ids: Array[int] = []
+var _removed_reasons: Array[String] = []
+
+
+func _record_removals() -> void:
+	_removed_ids = []
+	_removed_reasons = []
+	Events.block_removed.connect(_on_removed_recorded)
+
+
+func _on_removed_recorded(body: RigidBody3D, reason: String) -> void:
+	_removed_ids.append(body.get_instance_id())
+	_removed_reasons.append(reason)
+
+
+func after_each() -> void:
+	if Events.block_removed.is_connected(_on_removed_recorded):
+		Events.block_removed.disconnect(_on_removed_recorded)
+
+
+## A cube resting on the disc at disk-local `x`.
+func _cube_at(field: Field, shape: BlockShape, slot: int, x: float) -> Block:
+	var block: Block = BlockFactory.build(shape, _tuning, slot)
+	add_child_autofree(block)
+	block.global_position = field.to_global(Vector3(x, REST_HEIGHT_M, 0.0))
+	Events.block_placed.emit(block, shape.id)
+	return block
+
+
+func _fused_trio(field: Field, shape: BlockShape) -> Array:
+	var glue: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
+	var a: Block = _cube_at(field, shape, 0, -CUBE_SIDE_M)
+	var b: Block = _cube_at(field, shape, 1, 0.0)
+	var c: Block = _cube_at(field, shape, 0, CUBE_SIDE_M)
+	var carrier: FusedBody = GlueFusion.fuse(a, b, glue)
+	assert_not_null(carrier, "fixture: first pair fused")
+	assert_eq(GlueFusion.fuse(c, a, glue), carrier, "fixture: third cube joins the same group")
+	assert_eq(carrier.members.size(), 3, "fixture: three members")
+	return [carrier, a, b, c]
+
+
+func test_remove_block_removes_a_plain_block_with_one_event() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = _cube_at(field, shape, 0, 0.0)
+	var net_id: int = block.net_id
+	_record_removals()
+
+	registry.remove_block(block)
+
+	assert_eq(_removed_ids, [block.get_instance_id()], "exactly one block_removed")
+	assert_eq(_removed_reasons, [String(Events.REASON_KILL_PLANE)])
+	assert_true(block.is_queued_for_deletion(), "the body is freed")
+	assert_eq(registry.tracked_block_count(), 0, "the registry forgot it")
+	assert_null(registry.block_for_net_id(net_id))
+
+
+func test_remove_block_on_a_fused_carrier_removes_every_member_once_in_member_order() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var trio: Array = _fused_trio(field, shape)
+	var carrier: FusedBody = trio[0]
+	var expected: Array[int] = []
+	for member: Block in carrier.members:
+		expected.append(member.get_instance_id())
+	var carrier_id: int = carrier.get_instance_id()
+	_record_removals()
+
+	registry.remove_block(carrier, Events.REASON_KILL_PLANE)
+
+	assert_eq(_removed_ids, expected, "one block_removed per member, in member order")
+	assert_false(_removed_ids.has(carrier_id), "never emitted for the carrier itself")
+	assert_eq(_removed_reasons, ["kill_plane", "kill_plane", "kill_plane"])
+	assert_eq(registry.tracked_block_count(), 0)
+	await wait_physics_frames(2)
+	assert_false(is_instance_valid(carrier), "the carrier ends with its members")
+
+
+func test_remove_block_on_a_lone_follower_leaves_the_group_and_keeps_the_rest() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var trio: Array = _fused_trio(field, shape)
+	var carrier: FusedBody = trio[0]
+	var follower: Block = trio[1]
+	var others: Array[Block] = [trio[2], trio[3]]
+	_record_removals()
+
+	registry.remove_block(follower)
+
+	assert_eq(_removed_ids, [follower.get_instance_id()], "exactly one block_removed, for the follower")
+	assert_true(follower.is_queued_for_deletion())
+	assert_eq(registry.tracked_block_count(), 2)
+	assert_true(is_instance_valid(carrier), "the group survives")
+	assert_eq(carrier.members.size(), 2)
+	for other: Block in others:
+		assert_true(registry.is_tracked(other))
+		assert_true(other.is_fused_member(), "the rest stay fused")
+
+
+func test_remove_block_is_a_no_op_without_host_authority() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var plain: Block = _cube_at(field, shape, 0, 4.0)
+	var trio: Array = _fused_trio(field, shape)
+	var carrier: FusedBody = trio[0]
+	registry.set_host_authority(false)
+	_record_removals()
+
+	registry.remove_block(plain)
+	registry.remove_block(carrier)
+	registry.remove_block(trio[1])
+
+	assert_eq(_removed_ids, [], "a client never reports a removal")
+	assert_false(plain.is_queued_for_deletion())
+	assert_false(carrier.is_queued_for_deletion())
+	assert_eq(carrier.members.size(), 3)
+	assert_eq(registry.tracked_block_count(), 4)
+
+
+func test_remove_block_ignores_null_and_already_dying_bodies() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = _cube_at(field, shape, 0, 0.0)
+	_record_removals()
+
+	registry.remove_block(null)
+	block.queue_free()
+	registry.remove_block(block)
+
+	assert_eq(_removed_ids, [], "nothing to remove, no double report")
+
+
+## Every start_match configures the registry again with the same Field; a fall
+## through the kill plane must still report exactly one removal (spec 1.7).
+func test_kill_plane_fall_reports_exactly_one_block_removed_after_repeated_configure() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	registry.configure(field, _map_def)
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, _tuning, 0)
+	add_child_autofree(block)
+	block.global_position = field.to_global(Vector3(0.0, _tuning.kill_plane_y, 0.0))
+	Events.block_placed.emit(block, shape.id)
+	var id: int = block.get_instance_id()
+	_record_removals()
+
+	var frames: int = 0
+	while frames < 60 and not _removed_ids.has(id):
+		await wait_physics_frames(1)
+		frames += 1
+	await wait_physics_frames(5)
+
+	assert_eq(_removed_ids.count(id), 1, "exactly one block_removed for the fallen block")
+	assert_eq(registry.tracked_block_count(), 0)

@@ -55,9 +55,33 @@ func _spawn(registry: BlockRegistry, field: Field, shapes: Array[BlockShape]) ->
 		Vector3(_rng.randf_range(-12.0, 12.0), _rng.randf_range(0.0, 4.0), _rng.randf_range(-12.0, 12.0))
 	)
 	Events.block_placed.emit(block, shape.id)
-	var entry: Variant = registry._entries[block.get_instance_id()]
-	entry.is_settled = true
+	_settle(registry)
 	return block
+
+
+## One production tick whose delta alone spans the settle time: every frozen
+## block placed so far reads settled.
+func _settle(registry: BlockRegistry) -> void:
+	registry._physics_process(_tuning.sleep_settle_time + 1.0)
+
+
+## A fresh registry fed the same blocks: it has never cached anything, so what it
+## answers is the uncached truth. Every other listener is taken off the bus while
+## the blocks are announced again, so `cached` keeps its cache and nothing else
+## sees a second placement.
+func _fresh_registry_with(field: Field, blocks: Array[Block]) -> BlockRegistry:
+	var detached: Array = Events.block_placed.get_connections()
+	for connection: Dictionary in detached:
+		Events.block_placed.disconnect(connection["callable"] as Callable)
+	var fresh: BlockRegistry = BlockRegistry.new()
+	add_child(fresh)
+	fresh.configure(field, _map_def)
+	for block: Block in blocks:
+		Events.block_placed.emit(block, &"")
+	for connection: Dictionary in detached:
+		Events.block_placed.connect(connection["callable"] as Callable, int(connection["flags"]))
+	_settle(fresh)
+	return fresh
 
 
 func _same(a: InfluenceCircle, b: InfluenceCircle) -> bool:
@@ -68,17 +92,18 @@ func _same(a: InfluenceCircle, b: InfluenceCircle) -> bool:
 	)
 
 
-func _assert_equal(registry: BlockRegistry, slots: Array[PlayerSlot], label: String) -> bool:
-	registry._geometry_cache_enabled = true
+func _assert_equal(
+	registry: BlockRegistry, field: Field, blocks: Array[Block], slots: Array[PlayerSlot], label: String
+) -> bool:
 	var cached: Array[InfluenceCircle] = registry.influence_circles(slots, _territory_tuning, _map_def)
 	var cached_again: Array[InfluenceCircle] = registry.influence_circles(slots, _territory_tuning, _map_def)
 	var torque_cached: PackedVector3Array = registry.settled_torque_samples()
 	var height_cached: float = registry.max_height_for_slot(1)
-	registry._geometry_cache_enabled = false
-	var oracle: Array[InfluenceCircle] = registry.influence_circles(slots, _territory_tuning, _map_def)
-	var torque_oracle: PackedVector3Array = registry.settled_torque_samples()
-	var height_oracle: float = registry.max_height_for_slot(1)
-	registry._geometry_cache_enabled = true
+	var fresh: BlockRegistry = _fresh_registry_with(field, blocks)
+	var oracle: Array[InfluenceCircle] = fresh.influence_circles(slots, _territory_tuning, _map_def)
+	var torque_oracle: PackedVector3Array = fresh.settled_torque_samples()
+	var height_oracle: float = fresh.max_height_for_slot(1)
+	fresh.free()
 	if cached.size() != oracle.size() or cached_again.size() != oracle.size():
 		fail_test("%s: size differs" % label)
 		return false
@@ -89,13 +114,14 @@ func _assert_equal(registry: BlockRegistry, slots: Array[PlayerSlot], label: Str
 	if torque_cached != torque_oracle or height_cached != height_oracle:
 		fail_test("%s: torque or height differs" % label)
 		return false
-	return _assert_adapter_equal(registry, cached, label)
+	return _assert_adapter_equal(registry, field, cached, label)
 
 
 ## the adapter's registry-cached heights must equal heights
 ## measured straight from each body (the pre-pooling instance_from_id path).
-func _assert_adapter_equal(registry: BlockRegistry, circles: Array[InfluenceCircle], label: String) -> bool:
-	var field: Field = registry._field as Field
+func _assert_adapter_equal(
+	registry: BlockRegistry, field: Field, circles: Array[InfluenceCircle], label: String
+) -> bool:
 	for source: int in [SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.HEIGHT_TOP]:
 		var heights: PackedFloat32Array = PackedFloat32Array()
 		for circle: InfluenceCircle in circles:
@@ -150,12 +176,11 @@ func test_cached_circles_equal_uncached_over_random_board_changes() -> void:
 					_rng.randf_range(-1.0, 1.0)
 				)
 			5:
-				var entry: Variant = registry._entries[blocks[pick].get_instance_id()]
-				entry.owner_slot = _rng.randi() % SLOT_COUNT
+				registry.convert_owner(blocks[pick], _rng.randi() % SLOT_COUNT, Color.WHITE)
 			6:
 				field.rotation = Vector3(_rng.randf_range(-0.1, 0.1), 0.0, _rng.randf_range(-0.1, 0.1))
 				field.position.y = _rng.randf_range(-0.2, 0.2)
-		if not _assert_equal(registry, slots, "step %d action %d" % [step, action]):
+		if not _assert_equal(registry, field, blocks, slots, "step %d action %d" % [step, action]):
 			return
 	pass_test("200 random steps matched")
 
