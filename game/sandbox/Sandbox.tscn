@@ -1,27 +1,9 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://game/sandbox/Sandbox.gd" id="1_sandbox"]
-[ext_resource type="PackedScene" path="res://game/player/GhostPreview.tscn" id="2_ghost"]
-[ext_resource type="Script" path="res://game/player/PlayerController.gd" id="3_controller"]
-[ext_resource type="PackedScene" path="res://ui/hud/HUD.tscn" id="4_hud"]
 [ext_resource type="PackedScene" path="res://ui/debug/SandboxPanel.tscn" id="5_panel"]
-[ext_resource type="PackedScene" path="res://ui/debug/TuningPanel.tscn" id="6_tuning"]
-[ext_resource type="PackedScene" path="res://game/player/ThrowArcPreview.tscn" id="7_arc"]
 
 [node name="Sandbox" type="Node"]
 script = ExtResource("1_sandbox")
 
-[node name="GhostPreview" parent="." instance=ExtResource("2_ghost")]
-
-[node name="ThrowArcPreview" parent="." instance=ExtResource("7_arc")]
-
-[node name="PlayerController" type="Node" parent="."]
-script = ExtResource("3_controller")
-ghost_path = NodePath("../GhostPreview")
-arc_preview_path = NodePath("../ThrowArcPreview")
-
-[node name="HUDLayer" parent="." instance=ExtResource("4_hud")]
-
 [node name="SandboxPanel" parent="." instance=ExtResource("5_panel")]
-
-[node name="TuningPanel" parent="." instance=ExtResource("6_tuning")]

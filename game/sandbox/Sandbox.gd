@@ -8,7 +8,7 @@ extends Node
 ## Every slot is locally controllable offline (autoload/Net.gd's
 ## is_local_slot() is already true for every slot there); this instance
 ## drives whichever one is "active" and sandbox_next_slot cycles it through
-## game/player/PlayerController.gd's set_sandbox_slot() seam. It decides nothing
+## game/player/PlayerController.gd's set_acting_slot() seam. It decides nothing
 ## about the rules itself — sandbox_spawn_tower still goes through
 ## Match.request_place() like every other placement, and sandbox_reset_field
 ## goes through Match.start_match() — so it survives a rules rewrite
@@ -16,17 +16,15 @@ extends Node
 
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
-@onready var _controller: PlayerController = $PlayerController
-@onready var _ghost: GhostPreview = $GhostPreview
-@onready var _hud: HUD = $HUDLayer
 @onready var _panel: SandboxPanel = $SandboxPanel
-## The in-game tuning panel (F4), self-contained here the
-## same way SandboxPanel is above -- see game/main/HotSeat.gd's matching field for
-## why this lives inside the subtree rather than being instanced separately
-## by game/main/Main.gd.
-@onready var _tuning_panel: TuningPanel = $TuningPanel
 
+## Set in attach(): the local player scene owns the controller, ghost, HUD and
+## tuning panel; the sandbox only drives them.
+var _controller: PlayerController = null
+var _ghost: GhostPreview = null
+var _hud: HUD = null
 var _field: Field = null
+var _extras: ModeExtras = null
 var _active_slot: int = 0
 var _frozen_block_states: Dictionary = {}
 var _block_physics_frozen: bool = false
@@ -69,18 +67,12 @@ var _physics_paused: bool = false
 
 
 func _ready() -> void:
-	Events.turn_changed.connect(_on_turn_changed)
-	_panel.configure(self, _ghost)
 	# The sandbox controls remain available through their documented hotkeys,
 	# but the diagnostic readout is opt-in so a gameplay capture has the same
 	# clean presentation as the approved mockup. Launch with --debug-ui when
 	# actively tuning or diagnosing a sandbox run.
 	_panel.visible = OS.get_cmdline_args().has("--debug-ui")
-	_tuning_panel.set_controller(_controller)
 	_special_roster_ids = _load_special_roster_ids()
-	# spec 1.5: see HotSeat.gd's matching _ready() comment --
-	# safe headless (a silent no-op with no window to capture).
-	_controller.enable_mouse_capture()
 	add_child(SandboxHintBar.new())
 	Events.block_placed.connect(_on_diagnostic_block_placed)
 	# sandbox_pause_physics (F11): PROCESS_MODE_ALWAYS so this whole
@@ -118,29 +110,22 @@ func _load_special_roster_ids() -> Array[StringName]:
 	return ids
 
 
-## Called once by game/main/Main.gd, the same way HotSeat.set_camera_rig() is —
-## CameraRig lives outside this subtree.
-func set_camera_rig(rig: CameraRig) -> void:
+## Wires the sandbox onto a world the one builder made: the local player's
+## controller, ghost and HUD, the camera rig and the field.
+func attach(player: HotSeat, camera_rig: CameraRig, field: Field, extras: ModeExtras) -> void:
+	_controller = player.controller()
+	_ghost = player.ghost()
+	_hud = player.hud()
 	# gamepad Back is sandbox_next_slot here, so it must not also
 	# focus home; see CameraRig.suppress_pad_home_focus.
-	rig.suppress_pad_home_focus = true
-	_controller.set_camera_rig(rig)
-	_tuning_panel.set_camera_rig(rig)
-
-
-## Called once by game/main/Main.gd. Only sandbox_reset_field/sandbox_spawn_tower
-## need it (Field.place_flags()/set_overlay_source() after a reset; the
-## ghost already gets its own placement ray from PlayerController without
-## this) -- and, from the tuning panel's Territory tab.
-func set_field(field: Field) -> void:
+	camera_rig.suppress_pad_home_focus = true
 	_field = field
-	_tuning_panel.set_field(field)
-
-
-## Wires the sandbox onto a world the one builder made.
-# STUB: filled by MD-SB
-func attach(_player: HotSeat, _camera_rig: CameraRig, _field: Field, _extras: ModeExtras) -> void:
-	pass
+	_extras = extras
+	_panel.configure(self, _ghost)
+	if extras.sandbox_preset != null:
+		apply_preset(extras.sandbox_preset)
+	if extras.forced_special != &"":
+		force_special_by_id(extras.forced_special)
 
 
 ## The slot this instance is currently driving. ui/debug/SandboxPanel.gd reads
@@ -300,7 +285,7 @@ func force_special_off() -> void:
 	_apply_forced_special()
 
 ## sandbox_next_slot (Tab / gamepad Back): the one seam PlayerController
-## exposes for this (set_sandbox_slot()), cycling 0..player_count-1. Wraps
+## exposes for this (set_acting_slot()), cycling 0..player_count-1. Wraps
 ## rather than stopping at the last slot so repeated presses are a simple
 ## round-robin.
 func _cycle_active_slot() -> void:
@@ -312,7 +297,7 @@ func _cycle_active_slot() -> void:
 
 func _set_active_slot(slot_id: int) -> void:
 	_active_slot = slot_id
-	_controller.set_sandbox_slot(slot_id)
+	_controller.set_acting_slot(slot_id)
 	# the HUD only re-reads Events.turn_changed's slot, which
 	# in sandbox (config.hot_seat == false) fires exactly once at match start
 	# (autoload/Match.gd's advance_turn() no-ops outside hot-seat) -- without
@@ -321,13 +306,10 @@ func _set_active_slot(slot_id: int) -> void:
 	_hud.set_local_slot(slot_id)
 
 
-## sandbox_reset_field (F5): "clear blocks, rebuild territory/flags for the
-## same config" — Match.start_match() already does exactly
-## that for any config, including a repeat of the one currently running (see
-## its own doc comment on a start from any state), so this only has to
-## replay the two calls game/main/Main.gd makes right after start_match() for
-## every other entry point: Field.place_flags()/set_overlay_source() need
-## the fresh raster and slots that only exist once start_match() returns.
+## sandbox_reset_field (F5): restore the territory state, then restart the
+## match for the same config. The rebuild frees this node and attaches a fresh
+## Sandbox, which re-places flags, the preset towers and the forced special and
+## resets the slot, slow motion and height record.
 func _reset_field() -> void:
 	_set_block_physics_frozen(false)
 	Match._territory_cache_enabled = true
@@ -335,19 +317,6 @@ func _reset_field() -> void:
 	if Match.config == null:
 		return
 	Match.start_match(Match.config)
-	var config: MatchConfig = Match.config
-	if _field != null:
-		_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-		_field.set_overlay_source(Match.raster(), config.player_colors)
-	_set_active_slot(0)
-	# A reset starts a brand new match, which must not silently
-	# inherit whatever slow-motion state the previous one left running (see
-	# _exit_tree()'s matching guarantee) or the previous match's tallest
-	# stack (ui/debug/SandboxPanel.gd's own height record).
-	_slow_motion_active = false
-	Engine.time_scale = 1.0
-	_panel.reset_height_record()
-	_preplace_preset_blocks()
 
 
 ## A/B diagnostic only: remove contacts but keep the block transforms and
@@ -545,26 +514,17 @@ func _apply_forced_special() -> void:
 	if _forced_special_index < 0 or _forced_special_index >= _special_roster_ids.size():
 		_forced_special_id = &""
 		_forced_special_queue_full = false
+		_remember_forced_special()
 		Match.restore_default_special_drawer()
 		return
 	var special_id: StringName = _special_roster_ids[_forced_special_index]
 	_forced_special_id = special_id
+	_remember_forced_special()
 	Match.set_special_drawer(func() -> StringName: return special_id)
 	_forced_special_queue_full = not Match.debug_queue_special(_active_slot, special_id)
 
 
-func _on_turn_changed(slot_id: int) -> void:
-	# Match._begin_playing() emits this once when every match starts (hot-seat
-	# or not) to seed whoever acts first; sandbox has no real "turn" after
-	# that (config.hot_seat is false), so this only sets the initial active
-	# slot. sandbox_next_slot/_reset_field() own every change after this.
-	_active_slot = slot_id
-	# This is sandbox's equivalent of HotSeat.
-	# bind_local_slot() -- the one-time "a controller is now bound to a real
-	# slot" moment -- so the very first frame looks from that slot's home
-	# flag toward the disk centre instead of the generic yaw = 0 default.
-	# DECISION (game/sandbox/Sandbox.gd): deliberately not repeated from
-	# sandbox_next_slot's _cycle_active_slot()/_set_active_slot() -- re-homing
-	# the camera on every debug Tab cycle would be a surprising jump for a
-	# tester mid-session; this only fires once, at match start.
-	_controller.set_home_position(Match.default_ghost_origin(slot_id))
+## Keeps the extras current so an F5 rebuild's new attach() reapplies F9.
+func _remember_forced_special() -> void:
+	if _extras != null:
+		_extras.forced_special = _forced_special_id
