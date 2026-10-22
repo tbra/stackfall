@@ -98,7 +98,7 @@ class ParseTest(unittest.TestCase):
     def test_known_file_ships_the_di0_2_29_line(self):
         known = sr.load_known(os.path.join(os.path.dirname(os.path.abspath(__file__)), "soak_known.json"))
         self.assertEqual(known["known"], ["budget.client_tick_p99"])
-        self.assertEqual(len(known["engine_noise"]), 1)
+        self.assertEqual(len(known["engine_noise"]), 3)
         self.assertEqual(sr.load_known("no/such/file.json"), {"known": [], "engine_noise": []})
 
 
