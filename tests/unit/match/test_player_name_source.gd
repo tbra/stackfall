@@ -9,8 +9,16 @@ var _net: Variant
 
 
 func before_each() -> void:
-	_net = _NET_SCRIPT.new()
-	add_child_autofree(_net)
+	_net = _make_side("PersonaNet")
+
+
+## A full Net instance with its own multiplayer root, so a second one can host to it.
+func _make_side(node_name: String) -> Variant:
+	var node: Node = _NET_SCRIPT.new()
+	node.name = node_name
+	get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), NodePath(String(get_path()) + "/" + node_name))
+	add_child_autofree(node)
+	return node
 
 
 func after_each() -> void:
@@ -69,6 +77,15 @@ func test_lan_host_and_join_use_persona_when_steam_up() -> void:
 	assert_eq(_net.host_game(AgentProbe.free_udp_port(), "Zed", false), OK)
 	assert_eq(_net.name_for_slot(0), "PersonaPat", "LAN host seat uses the persona")
 	_net.leave()
-	assert_eq(_net.join_game("127.0.0.1", AgentProbe.free_udp_port(), "Zed"), OK)
-	assert_eq(_net._pending_join_name, "PersonaPat")
+	var host: Variant = _make_side("HostNet")
+	var port: int = AgentProbe.free_udp_port()
+	assert_eq(host.host_game(port, "Hostie", false), OK)
+	host.set_accepting_joins(true)
+	assert_eq(_net.join_game("127.0.0.1", port, "Zed"), OK)
+	var seated: bool = await wait_until(func() -> bool: return _net.local_slot() == 1 and host.peer_ids().size() == 2, 10.0)
+	assert_true(seated, "the persona-named client is seated")
+	assert_eq(host.peer_info(_net.local_peer_id())["name"], "PersonaPat", "the joiner is seated under the persona")
+	host.leave()
+	await get_tree().process_frame
+	await get_tree().process_frame
 

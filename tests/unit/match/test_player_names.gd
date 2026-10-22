@@ -31,7 +31,7 @@ func after_each() -> void:
 		if node != null and is_instance_valid(node):
 			node.leave()
 	_nodes.clear()
-	# Net._reject_peer() closes a refused connection two frames later.
+	# The host closes a refused connection two frames after refusing it.
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -164,20 +164,11 @@ func test_client_name_reaches_the_host_and_both_rosters_and_slot_lookups() -> vo
 	assert_eq(host.name_for_slot(-1), "")
 
 
-func test_host_sanitises_a_hostile_handshake_name() -> void:
-	var host: Variant = _make_side("HostNet")
-	var client: Variant = _make_side("ClientNet")
-	var port: int = AgentProbe.free_udp_port()
-	assert_eq(host.host_game(port, "Hostie", false), OK)
-	host.set_accepting_joins(true)
-	assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
-	# A tampered client skips its own cleaning: overwrite what the handshake sends.
+func test_a_hostile_typed_name_is_stored_cut_and_cleaned_on_both_rosters() -> void:
 	var hostile: String = "\u202e  Mal\tlory\n" + "Z".repeat(_max_len() * 3)
-	client._pending_join_name = hostile
-	var seated: bool = await _wait_until(func() -> bool:
-		return client.local_slot() == 1 and client.peer_ids().size() == 2
-	)
-	assert_true(seated)
+	var sides: Array[Variant] = await _lobby_with_client("Hostie", hostile)
+	var host: Variant = sides[0]
+	var client: Variant = sides[1]
 	var stored: String = host.peer_info(client.local_peer_id())["name"]
 	assert_lte(stored.length(), _max_len(), "cut to the configured maximum")
 	assert_true(stored.begins_with("Mallory"), "control and bidi characters stripped: %s" % stored)

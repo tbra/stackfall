@@ -4,13 +4,11 @@ extends GutTest
 ## and a client sees every replicated spawn; none of those may play the local player's cue.
 
 var _tiny_map: MapDef
-var _saved_mode: Net.Mode
-var _saved_slot: int
+var _loopback: LoopbackSession
 
 
 func before_each() -> void:
-	_saved_mode = Net._mode
-	_saved_slot = Net._local_slot
+	_loopback = LoopbackSession.new(self)
 	Match.set_process(false)
 	Match.abort_match()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
@@ -33,8 +31,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Net._mode = _saved_mode
-	Net._local_slot = _saved_slot
+	await _loopback.end()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -50,7 +47,7 @@ func _block(slot: int) -> BlockBody:
 
 
 func test_host_hears_only_its_own_drop_not_bots_or_clients() -> void:
-	Net._mode = Net.Mode.HOST
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
 	assert_true(Sfx._plays_drop_cue_for(_block(0)), "the host's own seat")
 	assert_false(Sfx._plays_drop_cue_for(_block(1)), "a remote client's seat")
 	assert_false(Sfx._plays_drop_cue_for(_block(2)), "a bot seat")
@@ -58,8 +55,8 @@ func test_host_hears_only_its_own_drop_not_bots_or_clients() -> void:
 
 
 func test_client_hears_only_its_own_drop() -> void:
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = 1
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is a seated client")
+	assert_eq(Net.local_slot(), 1)
 	assert_true(Sfx._plays_drop_cue_for(_block(1)), "the client's own seat")
 	assert_false(Sfx._plays_drop_cue_for(_block(0)), "the host's seat")
 	assert_false(Sfx._plays_drop_cue_for(_block(2)), "a bot seat replicated from the host")

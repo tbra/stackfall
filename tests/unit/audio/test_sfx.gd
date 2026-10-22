@@ -51,14 +51,9 @@ func before_each() -> void:
 func after_each() -> void:
 	for filename: String in DirAccess.get_files_at(_tmp_dir):
 		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
-	# The gift-claimed tests below poke Net's own private mode/local-slot
-	# state directly (the same underscore direct-access convention
-	# tests/unit/gifts/test_gift_claim.gd documents for Match._gifts) to exercise
-	# the "not the local slot" branch without a real ENet connection. Net is
-	# a singleton that outlives this one test file, so it must always come
-	# back to its real default afterward.
-	Net._mode = Net.Mode.OFFLINE
-	Net._local_slot = 0
+	# The gift-claimed tests below host a real private loopback session; Net is a
+	# singleton that outlives this one test file, so it must always come back OFFLINE.
+	Net.leave()
 	# Restore the real Settings singleton to its own persisted file so later
 	# tests (and the user's real user://settings.cfg) never see this test
 	# file's temp master_volume_db values.
@@ -196,7 +191,7 @@ func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	# Net defaults to OFFLINE, where is_local_slot() is true for every slot
 	# (hot-seat/offline: one human drives all of them) -- no setup needed.
-	assert_eq(Net._mode, Net.Mode.OFFLINE, "fixture: Net starts OFFLINE")
+	assert_true(Net.is_offline(), "fixture: Net starts OFFLINE")
 
 	_sfx._on_gift_claimed(1, 0, &"anvil")
 
@@ -205,8 +200,9 @@ func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:
 
 func test_gift_claimed_for_a_non_local_slot_plays_nothing() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = 0
+	# A hosting Net drives slot 0 only, so slot 1 is somebody else's seat.
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
+	assert_false(Net.is_local_slot(1), "fixture: slot 1 is not this instance's seat")
 
 	_sfx._on_gift_claimed(1, 1, &"anvil")
 
