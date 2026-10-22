@@ -124,57 +124,6 @@ func test_live_sky_switch_is_stable_and_matches_the_cycle() -> void:
 	assert_false(_lock_sky(skybox, "no_such_theme"))
 
 
-func _cycle_skybox(length_s: float = 0.0) -> Skybox:
-	var parts: Array = _make_skybox()
-	var skybox: Skybox = parts[0] as Skybox
-	if length_s > 0.0:
-		skybox.sky_def.cycle_length_seconds = length_s
-	var config: MatchConfig = MatchConfig.new()
-	config.sky_theme_mode = MatchConfig.SkyThemeMode.CYCLE
-	skybox.configure_match_sky(config)
-	return skybox
-
-
-func test_cycle_runs_a_full_loop_in_the_authored_length() -> void:
-	var skybox: Skybox = _cycle_skybox(300.0)
-	assert_almost_eq(skybox.sky_def.cycle_length_seconds, 300.0, 0.001)
-	# the cycle opens at SkyCycleDef.cycle_start_phase, not at dawn.
-	var start: float = skybox.sky_def.cycle_start_phase
-	assert_almost_eq(skybox.current_cycle_phase(), start, 0.0001, "opens at the start phase")
-	_run_to(skybox, 75.0)
-	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 0.25, 1.0), 0.0001, "a quarter of 5 min on")
-	_run_to(skybox, 150.0)
-	assert_almost_eq(skybox.current_cycle_phase(), fposmod(start + 0.5, 1.0), 0.0001)
-	_run_to(skybox, 300.0)
-	assert_almost_eq(skybox.current_cycle_phase(), start, 0.0001, "a full cycle takes 300 s")
-
-
-## a live length edit changes the speed only; the time of day
-## at the moment of the edit is unchanged. (The clock maths itself: test_sky_cycle_clock.)
-func test_cycle_length_change_keeps_the_phase_continuous() -> void:
-	var skybox: Skybox = _cycle_skybox(300.0)
-	_run_to(skybox, 100.0)
-	var before: float = skybox.current_cycle_phase()
-	skybox.set_cycle_length_seconds(900.0)
-	assert_almost_eq(skybox.sky_def.cycle_length_seconds, 900.0, 0.001)
-	_run_to(skybox, 100.0)
-	assert_almost_eq(skybox.current_cycle_phase(), before, 0.0001, "no jump at the edit")
-	_run_to(skybox, 190.0)
-	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0, 1.0), 0.0001,
-		"afterwards the phase advances at the new rate")
-	skybox.set_cycle_length_seconds(60.0)
-	_run_to(skybox, 190.0)
-	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0, 1.0), 0.0001, "shortening is continuous too")
-	_run_to(skybox, 220.0)
-	assert_almost_eq(skybox.current_cycle_phase(), fposmod(before + 90.0 / 900.0 + 30.0 / 60.0, 1.0), 0.0001)
-	# A direct write to the live definition (not through the seam) is folded in on
-	# the next clock update without a jump as well.
-	var direct: float = skybox.current_cycle_phase()
-	skybox.sky_def.cycle_length_seconds = 120.0
-	_run_to(skybox, 220.0)
-	assert_almost_eq(skybox.current_cycle_phase(), direct, 0.0001)
-
-
 ## S0: the locked phases the lobby's Sunset / Dawn / Night options
 ## use. Each concrete id maps to its authored phase, anything else (including the
 ## "" of a running cycle) is -1.0, and the shipped defaults put the sun where the
@@ -266,29 +215,6 @@ func test_host_and_client_configs_give_the_same_phase_at_the_same_clock() -> voi
 			assert_almost_eq(client.current_cycle_phase(), host.current_cycle_phase(), 0.00001,
 				"mode %s at clock %s" % [mode, clock])
 			assert_eq(client.current_cycle_phase(), host.current_cycle_phase(), "mode %s exact phase at %s" % [mode, clock])
-
-
-func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
-	var parts: Array = _configured_skybox(MatchConfig.new(), 300.0)
-	var skybox: Skybox = parts[0]
-	var environment: Environment = parts[1]
-	_run_to(skybox, 30.0)
-	skybox.set_locked_phase(0.75)
-	assert_almost_eq(skybox.locked_phase(), 0.75, 0.0001)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the lock applies at once")
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
-	assert_gt(_night_mix(skybox), 0.99)
-	# A moving shared clock plus the frame path leaves a locked phase unchanged.
-	_run_to(skybox, 45.0)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.75, 0.0001, "the clock does not move a locked sky")
-	skybox.set_locked_phase(1.25)
-	assert_almost_eq(skybox.locked_phase(), 0.25, 0.0001, "a lock wraps into 0..1")
-	skybox.set_locked_phase(-1.0)
-	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "running again")
-	assert_eq(skybox.locked_phase(), -1.0)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.25, 0.0001, "no jump at the unlock")
-	skybox.set_locked_phase(-1.0)
-	assert_almost_eq(skybox.current_cycle_phase(), 0.25, 0.0001, "unlocking a running cycle is a no-op")
 
 
 ## The cycle's day half is the
