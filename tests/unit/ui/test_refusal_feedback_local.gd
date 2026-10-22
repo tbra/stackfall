@@ -175,8 +175,6 @@ func _deliver_reply_to_remote_client() -> void:
 	client.set_process(false)
 	add_child_autofree(client)
 	assert_true(client.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = REMOTE_SLOT
 	client.net_match_event(reply[2][0], reply[2][1])
 
 

@@ -30,7 +30,6 @@ var _fake_net: FakeNet
 
 
 func after_each() -> void:
-	Net._mode = Net.Mode.OFFLINE
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -119,7 +118,6 @@ func _client_net() -> MatchNetScript:
 	node.set_process(false)
 	add_child_autofree(node)
 	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-	Net._mode = Net.Mode.CLIENT
 	return node
 
 

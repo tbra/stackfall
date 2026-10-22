@@ -179,7 +179,6 @@ func test_client_ignores_malformed_or_host_side_gate_snapshots() -> void:
 	Events.loading_ready_changed.connect(on_set)
 	var session: FakeNet = FakeNet.client(1)
 	var client_net: MatchNetScript = _make_wire_net(session)
-	Net._mode = Net.Mode.CLIENT
 	var event: StringName = MatchNetScript.EVENT_LOADING_GATE
 	client_net.net_match_event(event, [])
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2])])
@@ -193,7 +192,6 @@ func test_client_ignores_malformed_or_host_side_gate_snapshots() -> void:
 	assert_eq(count[0], 0, "malformed, negative and oversized snapshots are dropped")
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2]), false])
 	assert_eq(count[0], 1, "a well-formed one is applied")
-	Net._mode = Net.Mode.HOST
 	assert_true(client_net.bind_ports(SessionPort.new(FakeNet.host({1: 0}, [0] as Array[int])), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1]), true])
 	assert_eq(count[0], 1, "a host never applies a snapshot")
