@@ -112,14 +112,14 @@ func test_earthquake_shakes_while_the_disc_shakes_and_not_after() -> void:
 	var ticks_in_quake: int = int(quake.disc_force.duration_s / tick)
 	for i: int in range(ticks_in_quake):
 		DiscForce.shake(field, quake.disc_force, elapsed, tick)
-		field._update_tilt(tick)
+		field._physics_process(tick)
 		rig._process(tick)
 		elapsed += tick
 		if i > ticks_in_quake / 4 and rig._current_shake_amplitude() > 0.0:
 			shaking_during += 1
 	assert_gt(shaking_during, ticks_in_quake / 2, "the camera shakes while the disc is being shaken.")
 	for i: int in range(int(10.0 / tick)):
-		field._update_tilt(tick)
+		field._physics_process(tick)
 		rig._process(tick)
 	assert_true(rig.shake_offset().is_equal_approx(Vector3.ZERO), "no shake once the quake is over and the disc has settled.")
 	Match.abort_match()
@@ -148,14 +148,14 @@ func test_slow_weight_tilt_never_shakes_at_high_frame_rates() -> void:
 	var slow_rate: float = load("res://config/physics/disc_shake.tres").disc_tilt_rate_threshold * 0.4
 	for frame_s: float in [1.0 / 144.0, 1.0 / 240.0]:
 		var rig: CameraRig = _make_rig()
-		field._tilt = Vector2.ZERO
+		field.apply_replicated_pose(Vector3.ZERO, Quaternion.IDENTITY)
 		var tilt: float = 0.0
 		var since_physics: float = 0.0
 		for i: int in range(int(2.0 / frame_s)):
 			since_physics += frame_s
 			if since_physics >= 1.0 / 60.0:
 				tilt += slow_rate * since_physics
-				field._tilt = Vector2(tilt, 0.0)
+				field.apply_replicated_pose(Vector3.ZERO, Quaternion(Vector3.RIGHT, tilt))
 				since_physics = 0.0
 			rig._process(frame_s)
 			assert_eq(rig._current_shake_amplitude(), 0.0, "slow tilt must not shake at %.0f fps" % (1.0 / frame_s))

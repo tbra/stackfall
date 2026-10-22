@@ -8,10 +8,10 @@ extends GutTest
 ##
 ## NOTE ON TICK HELPERS: Field.apply_tilt_impulse() only adds to the tilt
 ## spring's *velocity* (game/field/Field.gd:260-266) -- the tilt vector itself only
-## moves once _update_tilt() integrates that velocity for a step, exactly the
+## moves once Field._physics_process() integrates that velocity for a step, exactly the
 ## two-call shape tests/unit/field/test_field_tilt.gd's own tests use
-## (apply_tilt_impulse() then _update_tilt(TICK)). _tick() below drives both
-## SpecialBehavior.advance() and Field._update_tilt() together, once per
+## (apply_tilt_impulse() then _physics_process(TICK)). _tick() below drives both
+## SpecialBehavior.advance() and Field._physics_process() together, once per
 ## simulated physics step, mirroring what Field._physics_process()/
 ## SpecialBehavior._physics_process() do independently every real tick.
 
@@ -81,7 +81,7 @@ func _make_behavior(block: Block, def: SpecialDef) -> SpecialBehavior:
 ## integration -- see the file header note above.
 func _tick(behavior: SpecialBehavior, dt: float) -> void:
 	behavior.advance(dt)
-	_field._update_tilt(dt)
+	_field._physics_process(dt)
 
 
 # --- physics_tick shakes the field --------------------------------------------
@@ -135,7 +135,7 @@ func test_with_zero_shake_magnitude_leveling_shrinks_tilt_faster_than_natural_de
 
 	for _i: int in range(180):  # 3 s of ticks, still well inside the rising phase
 		_tick(behavior, TICK)
-		control_field._update_tilt(TICK)
+		control_field._physics_process(TICK)
 
 	assert_gt(
 		control_field.tilt_vector().length(), 0.0,
@@ -177,7 +177,12 @@ func test_the_shake_kick_comes_from_disc_force_and_stops_after_the_duration() ->
 	effect.disc_force.duration_s = 0.5
 	var behavior: SpecialBehavior = _make_behavior(_make_block(), _make_def(effect))
 	_tick(behavior, TICK)
-	assert_gt(_field._tilt_velocity.length(), 0.0, "the first armed tick kicks the disc")
-	_field._tilt_velocity = Vector2.ZERO
+	assert_gt(_field.tilt_vector().length(), 0.0, "the first armed tick kicks the disc")
+	# Level the disc (public reset path), then shake past the duration: nothing moves.
+	_field.set_tilt_enabled(false)
+	_field.set_tilt_enabled(true)
+	assert_eq(_field.tilt_vector(), Vector2.ZERO, "fixture: level again")
 	DiscForce.shake(_field, effect.disc_force, effect.disc_force.duration_s + 0.1, TICK)
-	assert_eq(_field._tilt_velocity, Vector2.ZERO, "no kick once past the duration")
+	for _i: int in range(10):
+		_field._physics_process(TICK)
+	assert_eq(_field.tilt_vector(), Vector2.ZERO, "no kick once past the duration")
