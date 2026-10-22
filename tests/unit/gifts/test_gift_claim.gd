@@ -56,7 +56,6 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.gifts_enabled = gifts_enabled
@@ -284,7 +283,7 @@ func test_all_disabled_sentinel_never_draws_a_real_special() -> void:
 	assert_true(Match._gifts._special_roster.is_empty())
 
 
-## Review fix #2: outside hot-seat every slot's own feed window
+## Review fix #2: in a real-time match every slot's own feed window
 ## fires on_feed_block_issued() independently, so an unconditional roll would
 ## have given a 3-player match ~3 rolls per window. Only the lowest-indexed
 ## alive slot (0, since all three are alive) actually rolls.
