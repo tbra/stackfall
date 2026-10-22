@@ -82,7 +82,7 @@ func _ready() -> void:
 
 ## Wires the tutorial onto the local player's world the one builder made; call before the match
 ## is PLAYING.
-func attach(player: HotSeat) -> void:
+func attach(player: LocalPlayer) -> void:
 	_controller = player.controller()
 	_ghost = player.ghost()
 	_hud = player.hud()

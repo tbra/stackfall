@@ -48,7 +48,7 @@
  "main_scene": "game/main/Main.tscn",
  "main_forbidden": [
   "game/bots/BotController.gd",
-  "game/main/HotSeat.gd",
+  "game/main/LocalPlayer.gd",
   "game/main/MainHeadlessBotsFlow.gd",
   "game/main/MainMatchFlow.gd",
   "game/main/MainSandboxFlow.gd",

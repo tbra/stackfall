@@ -1,17 +1,15 @@
-class_name HotSeat
+class_name LocalPlayer
 extends Node
-## Self-contained hot-seat subtree: one PlayerController + GhostPreview + HUD,
-## dropped into Main.tscn as a single instance. It decides no rules of its own:
-## every placement still goes through Match.request_place() even though every
-## slot is local (spec 2.6). Real hot-seat vs. real-time play is
-## MatchConfig.hot_seat, decided at the lobby.
+## The local player: controller, ghost, HUD, tuning panel; extras attach to it.
+## One self-contained subtree dropped into Main as a single instance. It decides
+## no rules of its own: every placement still goes through Match.request_place().
 
 @onready var _controller: PlayerController = $PlayerController
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 ## The in-game tuning panel (F4). Lives here rather than in Main so it exists on
-## every path that builds a HotSeat (the local --hot-seat entry point and the
-## networked match) with one wiring point.
+## every path that builds a LocalPlayer (sandbox, tutorial and the match) with one
+## wiring point.
 @onready var _tuning_panel: TuningPanel = $TuningPanel
 ## HUD.gd self-wires to Events in its own _ready(), and PlayerController's
 ## ghost_path is set inside this scene. Only the camera rig and Field, owned by
