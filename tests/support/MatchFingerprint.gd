@@ -311,10 +311,6 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	if light != null:
 		out["sky.light_basis"] = _basis(light.global_basis)
 		out["sky.light_color"] = _col(light.light_color)
-		# the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows frame count and
-		# the drifting clouds, so it is transient by design; the weather scale it divides out is not
-		# observable, so the fingerprint reads the energy as published.
-		out["sky.light_energy"] = _r(light.light_energy)
 	var sea: CloudSea = skybox.get_node_or_null("CloudSea") as CloudSea
 	var lighting: CloudLighting = sea.lighting if sea != null else null
 	if lighting != null:
