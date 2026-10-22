@@ -110,6 +110,13 @@ func hole_dissolver() -> HoleDissolver:
 ## Called once by Match.start_match() once the map is known. `field` supplies
 ## the disk-local projection; the map is not needed here (the second argument
 ## keeps the call sites' shape).
+## Removes a block that fell off the disc (P4-S stub; P4-Ireg fills it from
+## Field.remove_fallen_block). Host-only: clients ignore it.
+# STUB: filled by P4-Ireg
+func remove_block(_body: RigidBody3D, _reason: StringName = Events.REASON_KILL_PLANE) -> void:
+	pass
+
+
 func configure(field: Node3D, _map_def: MapDef) -> void:
 	_field = field
 	var dissolver: HoleDissolver = _ensure_dissolver()
