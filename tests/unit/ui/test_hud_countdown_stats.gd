@@ -52,11 +52,21 @@ func _make_hud() -> HUD:
 
 
 func _assert_rows_populated(hud: HUD) -> void:
-	assert_eq(hud._share_rows.size(), PLAYER_COUNT, "one stats row per player")
-	for i: int in range(hud._share_name_labels.size()):
-		assert_false((hud._share_name_labels[i] as Label).text.is_empty(), "row %d has a name" % i)
-		assert_false((hud._share_labels[i] as Label).text.is_empty(), "row %d has a value" % i)
-	assert_true(hud._shares_box.is_visible_in_tree(), "stats box is visible")
+	var shares_box: Control = hud.get_node("%SharesBox") as Control
+	var rows: Array[Node] = []
+	for child: Node in shares_box.get_children():
+		if not child.is_queued_for_deletion():
+			rows.append(child)
+	assert_eq(rows.size(), PLAYER_COUNT, "one stats row per player")
+	for i: int in range(rows.size()):
+		var texts: PackedStringArray = PackedStringArray()
+		for node: Node in rows[i].find_children("*", "Label", true, false):
+			if (node as Label).visible:
+				texts.append((node as Label).text)
+		assert_gte(texts.size(), 2, "row %d shows a name and a value" % i)
+		for text: String in texts:
+			assert_false(text.is_empty(), "row %d has no blank label" % i)
+	assert_true(shares_box.is_visible_in_tree(), "stats box is visible")
 
 
 func test_host_hud_built_before_countdown_has_rows_in_countdown() -> void:

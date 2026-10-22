@@ -1,26 +1,17 @@
 extends GutTest
-## HUD.gd "connects to Events only" and implements its
-## API exactly. Covers both halves: calling the public API directly (text and
-## ratios update) and driving it through the documented Events signals.
+## HUD behaviour as a player sees it: the HUD is driven through its public API and the
+## Events signals, and every assertion reads rendered Label text or node visibility found
+## through the scene tree (unique names from HUD.tscn, child types, Label text).
+
+const WAIT_MAX_S: float = 2.0
+const TOAST_HOLD_S: float = 0.1
+const TOAST_FADE_S: float = 0.05
+const TEAMS_2_PLAYERS: int = 4
 
 
-func _make_hud() -> HUD:
-	var scene: PackedScene = load("res://ui/hud/HUD.tscn")
-	var hud: HUD = autofree(scene.instantiate())
-	add_child_autofree(hud)
-	return hud
-
-
-## the special-indicator tests below drive Match._gifts
-## directly, the same way tests/unit/gifts/test_gift_claim.gd does (no full match
-## needs to be running for a FIFO queue read/write). Match is a singleton
-## that outlives this script, so a lingering pending-special queue or claim
-## left behind here would leak into whichever test file runs next -- the same
-## singleton-leak class of bug test_gift_claim.gd's own after_each documents.
-## Match.abort_match() resets MatchGifts entirely (autoload/match/
-## MatchLifecycle.gd's _reset_match_state() calls _gifts.reset()), so it is
-## both the setup and the teardown here.
 func before_each() -> void:
+	# Match is a singleton that outlives this script: reset it so a lingering state
+	# does not leak into the next test file.
 	Match.abort_match()
 
 
@@ -29,282 +20,70 @@ func after_each() -> void:
 	Settings._input(InputEventKey.new())
 
 
-## the eliminated local player gets the big red banner, naming
-## the eliminator, or plain "Eliminated" when none is known.
-func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
-	var hud: HUD = _make_hud()
+## Builds the HUD scene. `configure` (optional) runs before add_child, so tunings set there
+## are in place when the HUD builds itself.
+func _make_hud(configure: Callable = Callable()) -> HUD:
+	var hud: HUD = autofree((load("res://ui/hud/HUD.tscn") as PackedScene).instantiate()) as HUD
+	if configure.is_valid():
+		configure.call(hud)
+	add_child_autofree(hud)
+	return hud
+
+
+func _node(hud: HUD, unique_name: String) -> Node:
+	return hud.get_node("%" + unique_name)
+
+
+func _named_match(names: Array[String]) -> FakeMatch:
 	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.slots_by_id[0] = PlayerSlot.new(0, 0, "P1", Color.RED)
-	fake_match.slots_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
-	hud.match_provider = fake_match
-	hud.set_local_slot(0)
-	assert_false(hud._eliminated_label.visible)
-	hud.show_eliminated_banner(0)
-	assert_true(hud._eliminated_label.visible)
-	assert_eq(hud._eliminated_label.text, "Eliminated")
-	fake_match.eliminated_by_slot = 1
-	hud.show_eliminated_banner(0)
-	assert_true(hud._eliminated_label.text.begins_with("Eliminated by "))
-	assert_true(hud._eliminated_label.get_theme_font_size("font_size") > 0)
+	for slot_id: int in range(names.size()):
+		fake_match.slots_by_id[slot_id] = PlayerSlot.new(slot_id, slot_id, names[slot_id], Color.WHITE)
+	var config: MatchConfig = MatchConfig.new()
+	config.player_count = names.size()
+	fake_match.config = config
+	return fake_match
 
 
-func test_reach_the_sky_height_line_shows_the_target() -> void:
-	var hud: HUD = _make_hud()
-	hud._mode_state = {"mode_id": MatchConfig.GameMode.REACH_THE_SKY}
-	hud.set_height(3.14159)
-	assert_eq(hud._height_label.text, "Height: 3.14 m / 100 m")
-	hud.set_tower_and_block_height(3.0, 12.0)
-	assert_eq(hud._height_label.text, "Tower: 3.00 m / 100 m   Block: 12.0 m")
-	assert_eq(HUD.sky_target_suffix({"mode_id": MatchConfig.GameMode.CLASSIC}), "")
+## Texts of the visible Labels under `root`, in tree order.
+func _visible_texts(root: Node) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for node: Node in root.find_children("*", "Label", true, false):
+		var label: Label = node as Label
+		if label.visible:
+			out.append(label.text)
+	return out
 
 
-func test_set_territory_shares_builds_one_row_per_player_with_matching_width() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_territory_shares(PackedFloat32Array([0.25, 0.75]))
-	assert_eq(hud._share_bars.size(), 2)
-	var bar0: ShareBar = hud._share_bars[0]
-	var bar1: ShareBar = hud._share_bars[1]
-	assert_almost_eq(bar0.fraction, 0.25, 0.0001)
-	assert_almost_eq(bar1.fraction, 0.75, 0.0001)
-	assert_eq(bar0.get_child_count(), 0, "the fill is drawn inside the track control, not a child bar")
-	assert_true((hud._share_labels[0] as Label).text.contains("25"))
-	assert_true((hud._share_labels[1] as Label).text.contains("75"))
-
-
-func test_set_territory_shares_marks_eliminated_slots() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	var eliminated_slot: PlayerSlot = PlayerSlot.new(1, 1, "P2", Color.BLUE)
-	eliminated_slot.home_flag_alive = false
-	fake_match.slots_by_id[1] = eliminated_slot
-	hud.match_provider = fake_match
-
-	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
-
-	assert_true((hud._share_labels[1] as Label).text.findn("out") >= 0)
-
-
-func test_set_capture_shows_the_ring_only_while_someone_is_capturing() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_capture(0, 0.5, Color.GREEN)
-	assert_true(hud._capture_ring.visible)
-	assert_almost_eq(hud._capture_progress, 0.5, 0.001)
-
-	hud.set_capture(-1, 0.0, Color.GREEN)
-	assert_false(hud._capture_ring.visible)
+## The stats rows (one per player), top to bottom.
+func _rows(hud: HUD) -> Array[Node]:
+	var rows: Array[Node] = []
+	for child: Node in _node(hud, "SharesBox").get_children():
+		if not child.is_queued_for_deletion():
+			rows.append(child)
+	return rows
 
 
 ## Texts of the toasts currently on screen, oldest first.
 func _toast_texts(hud: HUD) -> PackedStringArray:
 	var out: PackedStringArray = PackedStringArray()
-	for entry: Dictionary in hud._toasts._active:
-		out.append((entry["label"] as Label).text)
+	for child: Node in _node(hud, "ToastStack").get_children():
+		if child is Label and not child.is_queued_for_deletion():
+			out.append((child as Label).text)
 	return out
 
 
-## The on-screen toast whose text contains `needle` (case-insensitive), or null.
 func _toast(hud: HUD, needle: String) -> Label:
-	for entry: Dictionary in hud._toasts._active:
-		var label: Label = entry["label"] as Label
-		if label.text.findn(needle) >= 0:
-			return label
+	for child: Node in _node(hud, "ToastStack").get_children():
+		if child is Label and (child as Label).text.findn(needle) >= 0:
+			return child as Label
 	return null
 
 
-func test_toasts_stack_in_arrival_order_and_extra_ones_queue() -> void:
-	var hud: HUD = _make_hud()
-	hud._toasts.max_visible = 2
-	hud.show_reject(&"hole")
-	hud.show_reject(&"off_disk")
-	hud.show_reject(&"goal_zone")
-	assert_eq(_toast_texts(hud), PackedStringArray([
-		hud.reject_messages.message_for(&"hole"), hud.reject_messages.message_for(&"off_disk")
-	]))
-	assert_eq(hud._toasts._queue.size(), 1)
-	hud.show_reject(&"hole")
-	assert_eq(_toast_texts(hud).size(), 2, "the same text restarts the showing toast, no duplicate")
-	assert_eq(hud._toasts._queue.size(), 1)
+func _special_indicator(hud: HUD) -> Label:
+	return _node(hud, "SpecialIndicator") as Label
 
 
-func test_toasts_expire_in_order_and_promote_the_queue() -> void:
-	var hud: HUD = _make_hud()
-	hud._toasts.max_visible = 1
-	hud._toasts.push("FIRST", Color.RED, HudCallout.Glyph.CROSS, 0.05, 0.05)
-	hud._toasts.push("SECOND", Color.RED, HudCallout.Glyph.CROSS, 0.05, 0.05)
-	assert_eq(_toast_texts(hud), PackedStringArray(["FIRST"]))
-	await get_tree().create_timer(0.3).timeout
-	assert_eq(_toast_texts(hud).size(), 0, "both have expired by now")
-	assert_eq(hud._toasts._queue.size(), 0)
-	hud._toasts.push("THIRD", Color.RED, HudCallout.Glyph.CROSS, 0.2, 0.05)
-	hud._toasts.push("FOURTH", Color.RED, HudCallout.Glyph.CROSS, 0.2, 0.05)
-	assert_eq(_toast_texts(hud), PackedStringArray(["THIRD"]), "the older toast shows first")
-	await get_tree().create_timer(0.4).timeout
-	assert_eq(_toast_texts(hud), PackedStringArray(["FOURTH"]), "the queued toast starts after the first expires")
-
-
-func test_show_reject_sets_the_message() -> void:
-	var hud: HUD = _make_hud()
-	hud.show_reject(&"outside_territory")
-	var label: Label = _toast(hud, "inside your territory")
-	assert_not_null(label)
-	assert_almost_eq(label.modulate.a, 1.0, 0.001)
-
-
-func test_placement_relocated_event_shows_relocated_only_for_the_active_slot() -> void:
-	var hud: HUD = _make_hud()
-	Events.turn_changed.emit(0)
-	Events.placement_relocated.emit(1, Vector2(3.0, -2.0))
-	assert_eq(
-		_toast_texts(hud).size(), 0,
-		"a relocation for a different slot shouldn't show on this HUD."
-	)
-	Events.placement_relocated.emit(0, Vector2(3.0, -2.0))
-	assert_not_null(_toast(hud, "relocated"))
-
-
-func test_a_tied_results_payload_announces_a_shared_win() -> void:
-	var hud: HUD = _make_hud()
-	Events.match_won.emit(0)
-	assert_eq(hud._winner_label.text, "Team 1 wins!")
-	Events.match_results_ready.emit({
-		"winner_kind": MatchStats.WINNER_KIND_TEAM, "winner_id": 0,
-		"mode": {"winners": "0,1"},
-	})
-	assert_eq(hud._winner_label.text, "Teams 1 & 2 share the win!")
-
-
-func test_turn_changed_event_repoints_the_hud_without_turn_wording() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = MatchConfig.new()
-	fake_match.config.hot_seat = false
-	hud.match_provider = fake_match
-
-	Events.turn_changed.emit(0)
-
-	assert_true(hud._turn_label.text.findn("turn") < 0)
-	assert_eq(hud._active_slot, 0)
-
-
-func test_process_shows_locked_when_the_local_slots_release_is_locked() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.release_locked_by_slot[0] = true
-	hud.match_provider = fake_match
-
-	hud.set_local_slot(0)
-	hud._process(0.0)
-
-	assert_true(hud._locked)
-	# the lock shows only as the greyed ring, never as text.
-	assert_null(hud.find_child("LockedLabel", true, false))
-
-	hud.set_local_slot(1)
-	hud._process(0.0)
-
-	assert_false(hud._locked)
-
-
-# --- pending-special queue indicator ------------------------
-# Drives the real Match/MatchGifts singleton, the same way
-# tests/unit/gifts/test_gift_claim.gd does, rather than FakeMatch -- these tests
-# are specifically about the indicator's read of held and next gifts.
-
-
-func test_glue_charges_show_for_the_active_slot_and_clear_when_spent() -> void:
-	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
-	fake_match.glue_drops_by_slot[0] = 3
-	hud.set_local_slot(0)
-	assert_true(hud._special_indicator.visible)
-	assert_eq(hud._special_indicator.text, "Glue ×3")
-	fake_match.held_special_by_slot[0] = &"paintball"
-	fake_match.pending_special_count_by_slot[0] = 1
-	hud._refresh_special_indicator()
-	assert_eq(hud._special_indicator.text, "Paintball · Glue ×3")
-	fake_match.glue_drops_by_slot[0] = 0
-	fake_match.pending_special_count_by_slot[0] = 0
-	hud._refresh_special_indicator()
-	assert_false(hud._special_indicator.visible)
-
-
-func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
-	for to_state: int in [Match.State.END, Match.State.LOBBY]:
-		var hud: HUD = _make_hud()
-		var fake_match: FakeMatch = FakeMatch.new()
-		hud.match_provider = fake_match
-		hud.set_local_slot(0)
-		fake_match.glue_drops_by_slot[0] = 5
-		hud._refresh_special_indicator()
-		assert_true(hud._glue_active)
-		Events.match_state_changed.emit(Match.State.PLAYING, to_state)
-		assert_false(hud._glue_active)
-
-
-func test_special_indicator_shows_special_after_a_claim_for_the_local_slot() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-	Events.gift_claimed.emit(0, 0, MatchGifts.PENDING_SPECIAL_ID)
-
-	assert_true(hud._special_indicator.visible)
-	assert_eq(hud._special_indicator.text, "Special")
-
-
-func test_special_indicator_shows_a_count_badge_once_a_second_special_is_queued() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	Match._gifts._ensure_capacity(0)
-	var queue: Array = Match._gifts._pending_queues[0]
-	Match._gifts._held_specials[0] = &"jumping_bean"
-	queue.append(&"jumping_bean")
-	Events.gift_claimed.emit(1, 0, &"jumping_bean")
-
-	assert_true(hud._special_indicator.visible)
-	assert_eq(hud._special_indicator.text, "Hopper ×2")
-
-
-func test_special_indicator_ignores_a_claim_for_a_different_slot() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	Match._gifts._ensure_capacity(1)
-	(Match._gifts._pending_queues[1] as Array).append(MatchGifts.PENDING_SPECIAL_ID)
-	Events.gift_claimed.emit(0, 1, MatchGifts.PENDING_SPECIAL_ID)
-	hud._process(0.0)
-
-	assert_false(hud._special_indicator.visible, "a claim for another slot must not show on this HUD")
-
-
-# --- claim toast -------------------------------------------------
-#  "I grabbed a yellow cube but nothing seemed to happen": the
-# claim itself already worked (the indicator tests above), but nothing told
-# the player it had. show_gift_toast()/_on_gift_claimed() add a one-line
-# "Special queued: <name>" message next to the pending-special indicator.
-
-func test_gift_claimed_for_the_local_slot_shows_the_toast_with_the_special_name() -> void:
-	var hud: HUD = _make_hud()
-	hud.set_local_slot(0)
-
-	Match._gifts._ensure_capacity(0)
-	(Match._gifts._pending_queues[0] as Array).append(&"jumping_bean")
-	Events.gift_claimed.emit(0, 0, &"jumping_bean")
-
-	assert_eq(_toast_texts(hud), PackedStringArray(["SPECIAL QUEUED: HOPPER"]))
-	assert_almost_eq(_toast(hud, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001)
-
-
-func _teams_2_config() -> MatchConfig:
-	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
-	config.player_count = 4
-	config.team_mode = MatchConfig.TeamMode.TEAMS_2
-	return config
-
-
+## `hud` showing the local slot `slot_id` of `config`'s match.
 func _hud_for_slot(slot_id: int, config: MatchConfig) -> HUD:
 	var hud: HUD = _make_hud()
 	var fake_match: FakeMatch = FakeMatch.new()
@@ -314,148 +93,288 @@ func _hud_for_slot(slot_id: int, config: MatchConfig) -> HUD:
 	return hud
 
 
-func test_gift_claimed_toast_reaches_both_teammates_under_teams_2() -> void:
-	var config: MatchConfig = _teams_2_config()
-	var hud_slot0: HUD = _hud_for_slot(0, config)
-	var hud_slot2: HUD = _hud_for_slot(2, config)
-
-	Events.gift_claimed.emit(0, 0, &"jumping_bean")
-
-	assert_eq(
-		_toast_texts(hud_slot0), PackedStringArray(["SPECIAL QUEUED: HOPPER"]),
-		"team 0's claim must show on slot 0's own HUD"
-	)
-	assert_eq(
-		_toast_texts(hud_slot2), PackedStringArray(["SPECIAL QUEUED: HOPPER"]),
-		"team 0's claim must also show on its teammate slot 2's HUD"
-	)
-
-
-func test_gift_claimed_toast_skips_the_other_team_under_teams_2() -> void:
-	var config: MatchConfig = _teams_2_config()
-	var hud_slot1: HUD = _hud_for_slot(1, config)
-	var hud_slot3: HUD = _hud_for_slot(3, config)
-
-	Events.gift_claimed.emit(0, 0, &"jumping_bean")
-
-	assert_eq(
-		_toast_texts(hud_slot1).size(), 0,
-		"team 1's slot 1 HUD must not react to a team 0 claim"
-	)
-	assert_eq(
-		_toast_texts(hud_slot3).size(), 0,
-		"team 1's slot 3 HUD must not react to a team 0 claim"
-	)
-
-
-# --- HUD minimap ------------------------------------
-## Rebuilt after the report that the minimap was
-## "reflecting the sky depending on the camera angle" --
-## see ui/hud/Minimap.gd's own class doc DECISION for the root cause and fix.)
-
-
-func test_domination_readout_only_in_domination() -> void:
+func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	var hud: HUD = _make_hud()
-	var dom: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 125.0}
-	hud._on_mode_state_changed(dom)
-	assert_not_null(hud._mode_score_label)
-	assert_eq(hud._mode_score_label.text, "Leading: 2 (41%)")
-	var tied: Dictionary = {"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.3, 0.3], "extra": {}, "round_left": 0.0}
-	assert_eq(HUD.mode_score_text(tied), "Leading: 1 & 2 (30%)")
-	var ctf: Dictionary = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 2.0], "extra": {}, "round_left": 0.0}
-	assert_eq(HUD.mode_score_text(ctf).find("Leading"), -1)
-	var hud2: HUD = _make_hud()
-	assert_null(hud2._mode_score_label, "no readout without a mode state (Classic)")
-
-
-# --- experiments line + gift-slot card glyph ----------------
-
-const INPUT_GLYPH_SCENE: PackedScene = preload("res://ui/hud/InputGlyph.tscn")
-const LAYOUT_SIZES: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(3440, 1440)]
-const LAYOUT_SETTLE_FRAMES: int = 4
-const LAYOUT_PLAYER_COUNT: int = 8
-const EDGE_EPS: float = 1.0
-
-
-## FakeMatch plus the two gift-slot reads the HUD polls (the real Match has them).
-class GiftFakeMatch:
-	extends FakeMatch
-
-	var gift_head: StringName = &""
-	var gift_count: int = 0
-
-	func gift_slot_head(_slot_id: int) -> StringName:
-		return gift_head
-
-	func gift_slot_count(_slot_id: int) -> int:
-		return gift_count
-
-
-func _named_match(names: Array[String]) -> FakeMatch:
 	var fake_match: FakeMatch = FakeMatch.new()
-	for slot_id: int in range(names.size()):
-		var slot: PlayerSlot = PlayerSlot.new(slot_id, slot_id, names[slot_id], Color.WHITE)
-		fake_match.slots_by_id[slot_id] = slot
-	var config: MatchConfig = MatchConfig.new()
-	config.player_count = names.size()
-	fake_match.config = config
-	return fake_match
+	fake_match.slots_by_id[0] = PlayerSlot.new(0, 0, "P1", Color.RED)
+	fake_match.slots_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	var banner: Label = hud.find_child("EliminatedLabel", true, false) as Label
+	assert_false(banner.visible, "no banner while alive")
+
+	Events.player_eliminated.emit(1, 1)
+	assert_false(banner.visible, "another player's elimination is not announced here")
+
+	Events.player_eliminated.emit(0, 0)
+	assert_true(banner.visible)
+	assert_eq(banner.text, hud.hud_visual_tuning.eliminated_text, "plain wording when no eliminator is known")
+
+	fake_match.eliminated_by_slot = 1
+	Events.player_eliminated.emit(0, 0)
+	assert_eq(banner.text, hud.hud_visual_tuning.eliminated_by_text % "Rival")
+
+	Events.match_state_changed.emit(Match.State.PLAYING, Match.State.LOBBY)
+	assert_false(banner.visible, "the banner clears when the match leaves play")
 
 
-func test_rows_show_player_names_not_p_numbers() -> void:
+func test_reach_the_sky_height_line_shows_the_target() -> void:
+	var hud: HUD = _make_hud()
+	var height_label: Label = _node(hud, "HeightLabel") as Label
+	Events.mode_state_changed.emit({"mode_id": MatchConfig.GameMode.REACH_THE_SKY})
+	hud.set_height(3.14159)
+	assert_eq(height_label.text, "Height: 3.14 m / 100 m")
+	hud.set_tower_and_block_height(3.0, 12.0)
+	assert_eq(height_label.text, "Tower: 3.00 m / 100 m   Block: 12.0 m")
+	Events.mode_state_changed.emit({"mode_id": MatchConfig.GameMode.CLASSIC})
+	hud.set_height(3.14159)
+	assert_eq(height_label.text, "Height: 3.14 m", "no target outside Reach the Sky")
+
+
+func test_rows_show_player_names_and_shares_not_p_numbers() -> void:
 	var hud: HUD = _make_hud()
 	hud.match_provider = _named_match(["Tonyflow", "Mira"])
 	hud.set_territory_shares(PackedFloat32Array([0.09, 0.5]))
-	assert_eq((hud._share_name_labels[0] as Label).text, "Tonyflow")
-	assert_eq((hud._share_name_labels[1] as Label).text, "Mira")
-	assert_eq((hud._share_labels[0] as Label).text, "9%")
-	assert_eq((hud._share_labels[1] as Label).text, "50%")
-	for name_label: Label in hud._share_name_labels:
-		assert_eq(name_label.text_overrun_behavior, TextServer.OVERRUN_TRIM_ELLIPSIS, "long names ellipsize")
+	var rows: Array[Node] = _rows(hud)
+	assert_eq(rows.size(), 2, "one row per player")
+	assert_eq(_visible_texts(rows[0]), PackedStringArray(["Tonyflow", "9%"]))
+	assert_eq(_visible_texts(rows[1]), PackedStringArray(["Mira", "50%"]))
+	var bar: ShareBar = rows[1].find_children("*", "ShareBar", true, false)[0] as ShareBar
+	assert_almost_eq(bar.fraction, 0.5, 0.0001, "the bar fills to the share")
+
+
+func test_rows_mark_eliminated_players() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = _named_match(["A", "B"])
+	(fake_match.slots_by_id[1] as PlayerSlot).home_flag_alive = false
+	hud.match_provider = fake_match
+	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
+	var rows: Array[Node] = _rows(hud)
+	assert_eq(_visible_texts(rows[0]), PackedStringArray(["A", "60%"]))
+	var eliminated_texts: PackedStringArray = _visible_texts(rows[1])
+	assert_true(eliminated_texts[eliminated_texts.size() - 1].findn("out") >= 0, "the eliminated row reads out")
+
+
+func test_only_the_local_row_carries_the_you_marker() -> void:
+	var hud: HUD = _make_hud()
+	hud.match_provider = _named_match(["A", "B"])
+	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
+	hud.set_local_slot(1)
+	var rows: Array[Node] = _rows(hud)
+	var you: String = hud.hud_visual_tuning.hud_you_text
+	assert_false(_visible_texts(rows[0]).has(you))
+	assert_true(_visible_texts(rows[1]).has(you))
+	hud.set_local_slot(0)
+	assert_true(_visible_texts(rows[0]).has(you), "the marker follows the local slot")
+	assert_false(_visible_texts(rows[1]).has(you))
 
 
 func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	var hud: HUD = _make_hud()
 	hud.match_provider = _named_match(["A", "B"])
 	hud.set_territory_shares(PackedFloat32Array([0.4, 0.6]))
-	var ctf: Dictionary = {"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [58.0, 0.0], "extra": {}, "round_left": 209.0}
-	hud._on_mode_state_changed(ctf)
-	assert_eq((hud._share_labels[0] as Label).text, "58.0 s")
-	assert_eq((hud._share_labels[1] as Label).text, "0.0 s")
-	assert_null(hud._mode_score_label, "the round clock moved to the UiRoundTimer; no CTF status line is left")
-	assert_eq(HUD.mode_status_text(ctf).find("58"), -1)
+	Events.mode_state_changed.emit({
+		"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [58.0, 0.0], "extra": {}, "round_left": 209.0,
+	})
+	var rows: Array[Node] = _rows(hud)
+	assert_eq(_visible_texts(rows[0]), PackedStringArray(["A", "58.0 s"]))
+	assert_eq(_visible_texts(rows[1]), PackedStringArray(["B", "0.0 s"]))
+	for text: String in _visible_texts(_node(hud, "StatusPill")):
+		assert_eq(text.find("58"), -1, "the hold time lives in the rows, not a status line")
 
 
-## a client gets sparse capture updates on a static board; the
-## ring must rise between them at the hold rate, snap on each update, and stop.
-func test_client_capture_ring_rises_between_sparse_updates_and_snaps() -> void:
+func test_domination_readout_only_in_domination() -> void:
 	var hud: HUD = _make_hud()
-	Events.goal_capture_progress.emit(0, 0.1)
-	hud.extrapolate_capture(2.0, 20.0)
-	assert_almost_eq(hud._capture_progress, 0.2, 0.0001)
-	hud.extrapolate_capture(2.0, 20.0)
-	assert_almost_eq(hud._capture_progress, 0.3, 0.0001, "monotonic rise")
-	Events.goal_capture_progress.emit(0, 0.6)
-	assert_almost_eq(hud._capture_progress, 0.6, 0.0001, "snaps to the received value")
-	hud.extrapolate_capture(1000.0, 20.0)
-	assert_almost_eq(hud._capture_progress, 1.0, 0.0001, "capped")
+	var pill: Node = _node(hud, "StatusPill")
+	assert_eq(_leading_texts(pill).size(), 0, "no readout without a mode state (Classic)")
+	Events.mode_state_changed.emit({
+		"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.25, 0.41], "extra": {}, "round_left": 125.0,
+	})
+	assert_eq(_leading_texts(pill), PackedStringArray(["Leading: 2 (41%)"]))
+	Events.mode_state_changed.emit({
+		"mode_id": MatchConfig.GameMode.DOMINATION, "scores": [0.3, 0.3], "extra": {}, "round_left": 0.0,
+	})
+	assert_eq(_leading_texts(pill), PackedStringArray(["Leading: 1 & 2 (30%)"]), "a tie lists every leader")
+	Events.mode_state_changed.emit({
+		"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [1.0, 2.0], "extra": {}, "round_left": 0.0,
+	})
+	assert_eq(_leading_texts(pill).size(), 0, "other modes show no Leading line")
 
 
-func test_scoreboard_marks_only_the_local_row_with_you() -> void:
+func _leading_texts(root: Node) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for text: String in _visible_texts(root):
+		if text.begins_with("Leading"):
+			out.append(text)
+	return out
+
+
+func test_capture_ring_shows_only_while_someone_is_capturing() -> void:
 	var hud: HUD = _make_hud()
-	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
+	var ring: Control = _node(hud, "CaptureRing") as Control
+	assert_false(ring.visible)
+	Events.goal_capture_progress.emit(0, 0.5)
+	assert_true(ring.visible)
+	hud.extrapolate_capture(2.0, 20.0)
+	assert_true(ring.visible, "a client's extrapolated rise keeps the ring up between updates")
+	Events.goal_capture_progress.emit(-1, 0.0)
+	assert_false(ring.visible)
+	hud.extrapolate_capture(2.0, 20.0)
+	assert_false(ring.visible, "nothing is being captured, so nothing rises")
+
+
+func test_toasts_stack_in_arrival_order_and_extra_ones_queue() -> void:
+	var hud: HUD = _make_hud()
+	var max_visible: int = hud.hud_visual_tuning.toast_max_visible
+	var reasons: Array[StringName] = [&"hole", &"off_disk", &"goal_zone", &"no_block", &"contested"]
+	assert_gt(reasons.size(), max_visible, "fixture: more reasons than visible slots")
+	var expected: PackedStringArray = PackedStringArray()
+	for i: int in range(max_visible):
+		expected.append(hud.reject_messages.message_for(reasons[i]))
+	for reason: StringName in reasons:
+		hud.show_reject(reason)
+	assert_eq(_toast_texts(hud), expected, "the oldest messages show, in arrival order")
+	hud.show_reject(reasons[0])
+	assert_eq(_toast_texts(hud), expected, "the same text restarts the showing toast, no duplicate")
+
+
+func test_toasts_expire_in_order_and_promote_the_queue() -> void:
+	var hud: HUD = _make_hud(func(h: HUD) -> void:
+		var tuning: HUDVisualTuning = h.hud_visual_tuning.duplicate() as HUDVisualTuning
+		tuning.toast_max_visible = 1
+		h.hud_visual_tuning = tuning
+		var ghost: GhostTuning = h.ghost_tuning.duplicate() as GhostTuning
+		ghost.hud_reject_message_duration = TOAST_HOLD_S
+		ghost.hud_reject_fade_duration = TOAST_FADE_S
+		h.ghost_tuning = ghost)
+	var first: String = hud.reject_messages.message_for(&"hole")
+	var second: String = hud.reject_messages.message_for(&"off_disk")
+	hud.show_reject(&"hole")
+	hud.show_reject(&"off_disk")
+	assert_eq(_toast_texts(hud), PackedStringArray([first]), "only the older toast shows first")
+	var promoted: bool = await wait_until(func() -> bool: return _toast_texts(hud) == PackedStringArray([second]), WAIT_MAX_S)
+	assert_true(promoted, "the queued toast starts once the first expires")
+	var cleared: bool = await wait_until(func() -> bool: return _toast_texts(hud).is_empty(), WAIT_MAX_S)
+	assert_true(cleared, "and it expires in turn")
+
+
+func test_toasts_show_only_for_the_local_slot() -> void:
+	var hud: HUD = _make_hud()
+	Events.turn_changed.emit(0)
+	Events.placement_rejected.emit(1, &"outside_territory")
+	Events.placement_relocated.emit(1, Vector2(3.0, -2.0))
+	assert_eq(_toast_texts(hud).size(), 0, "another slot's refusal or relocation does not show here")
+	Events.placement_rejected.emit(0, &"outside_territory")
+	var reject: Label = _toast(hud, "inside your territory")
+	assert_not_null(reject)
+	assert_almost_eq(reject.modulate.a, 1.0, 0.001, "a fresh toast is fully visible")
+	Events.placement_relocated.emit(0, Vector2(3.0, -2.0))
+	assert_not_null(_toast(hud, "relocated"))
+
+
+func test_a_tied_results_payload_announces_a_shared_win() -> void:
+	var hud: HUD = _make_hud()
+	var winner: Label = _node(hud, "WinnerLabel") as Label
+	Events.match_won.emit(0)
+	assert_eq(winner.text, "Team 1 wins!")
+	Events.match_results_ready.emit({
+		"winner_kind": MatchStats.WINNER_KIND_TEAM, "winner_id": 0,
+		"mode": {"winners": "0,1"},
+	})
+	assert_eq(winner.text, "Teams 1 & 2 share the win!")
+
+
+func test_release_locked_slot_greys_the_cards_and_shows_no_text() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	fake_match.release_locked_by_slot[0] = true
+	hud.match_provider = fake_match
+	var held: Control = _node(hud, "HeldShapeCard") as Control
+	var next: Control = _node(hud, "NextShapeCard") as Control
+
+	hud.set_local_slot(0)
+	await wait_frames(1)
+	assert_almost_eq(held.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
+	assert_almost_eq(next.modulate.a, hud.hud_visual_tuning.locked_card_alpha, 0.001)
+	assert_null(hud.find_child("LockedLabel", true, false), "the lock shows only as the greyed cards")
+
 	hud.set_local_slot(1)
-	assert_false((hud._share_you_labels[0] as Label).visible)
-	assert_true((hud._share_you_labels[1] as Label).visible)
-	assert_eq((hud._share_you_labels[1] as Label).get_theme_color("font_color"), hud._arcade.rim_color)
+	await wait_frames(1)
+	assert_almost_eq(held.modulate.a, 1.0, 0.001, "a slot that is not locked draws its cards normally")
 
 
-## a gift staged as the block AFTER next marks the NEXT label and leaves the
-## next preview an ordinary block.
-class StagedGiftFakeMatch:
-	extends FakeMatch
+func test_glue_charges_show_beside_the_pending_special_and_clear_when_spent() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+	var indicator: Label = _special_indicator(hud)
+	fake_match.glue_drops_by_slot[0] = 3
+	hud.set_local_slot(0)
+	assert_true(indicator.visible)
+	assert_eq(indicator.text, "Glue ×3")
+	fake_match.held_special_by_slot[0] = &"paintball"
+	fake_match.pending_special_count_by_slot[0] = 1
+	await wait_frames(1)
+	assert_eq(indicator.text, "Paintball · Glue ×3")
+	fake_match.glue_drops_by_slot[0] = 0
+	fake_match.pending_special_count_by_slot[0] = 0
+	await wait_frames(1)
+	assert_false(indicator.visible, "nothing queued and no glue left")
 
-	var staged_id: StringName = &""
 
-	func after_next_special(_slot_id: int) -> StringName:
-		return staged_id
+func test_special_indicator_follows_a_claim_for_the_local_slot_only() -> void:
+	var hud: HUD = _make_hud()
+	var fake_match: FakeMatch = FakeMatch.new()
+	hud.match_provider = fake_match
+	hud.set_local_slot(0)
+	var indicator: Label = _special_indicator(hud)
+	assert_false(indicator.visible)
+
+	# A claim for another slot leaves this HUD alone.
+	fake_match.pending_special_count_by_slot[1] = 1
+	Events.gift_claimed.emit(0, 1, MatchGifts.PENDING_SPECIAL_ID)
+	await wait_frames(1)
+	assert_false(indicator.visible, "a claim for another slot must not show on this HUD")
+
+	fake_match.pending_special_count_by_slot[0] = 1
+	Events.gift_claimed.emit(1, 0, MatchGifts.PENDING_SPECIAL_ID)
+	assert_true(indicator.visible)
+	assert_eq(indicator.text, "Special", "an unrevealed gift reads as a generic special")
+
+	fake_match.held_special_by_slot[0] = &"jumping_bean"
+	fake_match.pending_special_count_by_slot[0] = 2
+	Events.gift_claimed.emit(2, 0, &"jumping_bean")
+	assert_eq(indicator.text, "Hopper ×2", "a second queued special adds a count badge")
+
+
+func test_gift_claim_toast_reaches_the_claiming_team_only() -> void:
+	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
+	config.player_count = TEAMS_2_PLAYERS
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	var claimer: HUD = _hud_for_slot(0, config)
+	var teammate: HUD = _hud_for_slot(2, config)
+	var rival_a: HUD = _hud_for_slot(1, config)
+	var rival_b: HUD = _hud_for_slot(3, config)
+
+	Events.gift_claimed.emit(0, 0, &"jumping_bean")
+
+	var expected: PackedStringArray = PackedStringArray(["SPECIAL QUEUED: HOPPER"])
+	assert_eq(_toast_texts(claimer), expected)
+	assert_eq(_toast_texts(teammate), expected, "a teammate sees the team's claim")
+	assert_eq(_toast_texts(rival_a).size(), 0, "the other team does not")
+	assert_eq(_toast_texts(rival_b).size(), 0, "the other team does not")
+	assert_almost_eq(_toast(claimer, "SPECIAL QUEUED").modulate.a, 1.0, 0.0001)
+
+
+func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
+	for to_state: int in [Match.State.END, Match.State.LOBBY]:
+		var hud: HUD = _make_hud()
+		var fake_match: FakeMatch = FakeMatch.new()
+		hud.match_provider = fake_match
+		hud.set_local_slot(0)
+		fake_match.glue_drops_by_slot[0] = 5
+		await wait_frames(1)
+		# BOUNDARY: the glue overlay is draw-only, so its state is read from the HUD (the file's single private read).
+		assert_true(hud._glue_active)
+		Events.match_state_changed.emit(Match.State.PLAYING, to_state)
+		assert_false(hud._glue_active)
