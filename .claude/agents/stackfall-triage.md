@@ -1,7 +1,7 @@
 ---
 name: stackfall-triage
 description: Performs bounded Stackfall log triage, file searches, status summaries and explicitly specified mechanical edits with focused verification.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, TaskStop
 model: haiku
 maxTurns: 300
 skills:

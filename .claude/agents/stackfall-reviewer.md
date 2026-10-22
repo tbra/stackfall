@@ -1,7 +1,7 @@
 ---
 name: stackfall-reviewer
 description: Independently reviews Stackfall candidate code against its spec and tests, reporting actionable correctness, authority and regression findings without modifying files.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep, Bash, Monitor, TaskStop
 model: sonnet
 maxTurns: 200
 skills:

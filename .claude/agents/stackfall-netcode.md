@@ -1,7 +1,7 @@
 ---
 name: stackfall-netcode
 description: Implements and tests Stackfall ENet and Steam transport, host-authoritative intents, snapshot replication and malformed-network-input fixes.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: sonnet
 maxTurns: 450
 skills:

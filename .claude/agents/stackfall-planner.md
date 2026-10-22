@@ -1,7 +1,7 @@
 ---
 name: stackfall-planner
 description: Designs Stackfall milestone packages with disjoint file ownership, typed interfaces, dependencies and acceptance checks grounded in existing Godot code.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: sonnet
 maxTurns: 400
 skills:

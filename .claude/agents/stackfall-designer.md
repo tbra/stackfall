@@ -1,7 +1,7 @@
 ---
 name: stackfall-designer
-description: Stackfall's design worker - UI, UX and visual design: the token-styled ui/components library and gallery, screens and flows, HUD and in-world readability, iconography, colour, type and UI motion, UI bugs and performance - plus design proposals and reviews from off-screen captures.
-tools: Read, Glob, Grep, Bash, Write, Edit
+description: Stackfall's design worker - UI, UX and visual design, the token-styled ui/components library and gallery, screens and flows, HUD and in-world readability, iconography, colour, type and UI motion, UI bugs and performance - plus design proposals and reviews from off-screen captures.
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: sonnet
 maxTurns: 400
 skills:
@@ -29,6 +29,7 @@ the relevant spec sections and the existing `ui/components` and `ui/theme` token
 before editing.
 
 Your brief asks for one of three kinds of work:
+
 - **Build:** components, screens and flows, following the principles below.
 - **Propose:** for a new screen, flow or visual treatment, explore two or three
   options as off-screen captures on one contact sheet, with trade-offs and a
@@ -41,6 +42,7 @@ Your brief asks for one of three kinds of work:
   the theme tokens. Open every image you cite.
 
 Principles:
+
 - One design component = one Godot component in `ui/components/` (a scene and/or a
   typed script with a small public API), styled only from tokens (no literal colours,
   sizes or spacings in screens; values live in config Resources). Screens compose

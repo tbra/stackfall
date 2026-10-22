@@ -1,7 +1,7 @@
 ---
 name: stackfall-implementer
 description: Implements and fixes assigned Stackfall Godot gameplay, physics, resources, UI and tests; produces runnable changes and measured acceptance evidence.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: sonnet
 maxTurns: 450
 skills:

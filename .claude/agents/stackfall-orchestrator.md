@@ -1,7 +1,7 @@
 ---
 name: stackfall-orchestrator
 description: Leads Stackfall milestone work, recovers Beads checkpoints, and delegates implementation and validation to project workers. Intended as the main Claude chat via --agent.
-tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-tester, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage
+tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-tester, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage, Monitor
 model: inherit
 color: red
 ---
@@ -73,7 +73,7 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
 ## Acceptance and Beads
 
 - Claim an issue once with `bd update <id> --if-status=open --status=in_progress
-  --assignee "<worker profile> (<model>)"` (`--if-status` cannot combine with
+--assignee "<worker profile> (<model>)"` (`--if-status` cannot combine with
   `--claim`), so you never overwrite a user deferral or another claim; self-work
   uses `stackfall-orchestrator` as assignee. Unstarted issues stay unassigned, and
   you never close an unassigned issue. You own every status, assignee, dependency and
@@ -85,7 +85,7 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
   complete, and never relay a worker's claim about a side effect (a rendered look, a
   process state, a user-visible change) to the user without checking it yourself.
 - For each `SHORTCUT` a worker reports or `python tools/lint_shortcuts.py --path
-  <candidate> --added <base>` lists, file a follow-up Bead under the package's epic
+<candidate> --added <base>` lists, file a follow-up Bead under the package's epic
   before closing the package.
 - Never absorb a candidate's new lint findings into a baseline: a package whose
   `lint_all` needs a new `checks` entry, a raised count or an unplanned `--allow-new`

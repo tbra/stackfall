@@ -1,7 +1,7 @@
 ---
 name: stackfall-tester
 description: Writes and rewrites Stackfall behaviour tests against a module's public interface and the spec, independent of the implementer; never edits game code; proves test strength with mutate_core.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: sonnet
 maxTurns: 450
 skills:
@@ -45,6 +45,7 @@ it: report the boundary to the orchestrator with the behaviour, why it is hidden
 the smallest interface change that would expose it.
 
 Evidence, in your handback `checks`:
+
 - Against the interface stubs (when the brief supplies them), the new tests fail for
   the missing behaviour, not for a parse or setup error.
 - Against the implementation they pass (`tools/run_gut.ps1 <scripts> -Path <checkout>`).

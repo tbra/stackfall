@@ -1,7 +1,7 @@
 ---
 name: stackfall-integrator
 description: Validates combined Stackfall changes, fixes assigned integration defects, and runs Godot import, GUT, multiplayer acceptance and isolated benchmarks.
-tools: Read, Glob, Grep, Bash, Write, Edit
+tools: Read, Glob, Grep, Bash, Write, Edit, Monitor, TaskStop
 model: haiku
 maxTurns: 400
 skills:
