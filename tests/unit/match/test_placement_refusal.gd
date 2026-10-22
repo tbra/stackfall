@@ -6,6 +6,7 @@ extends "res://tests/unit/match/match_world_test.gd"
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
 func after_each() -> void:
+	Net._mode = Net.Mode.OFFLINE
 	Match._net_provider = null
 	Match.abort_match()
 	Match.set_process(true)
@@ -165,7 +166,8 @@ func test_client_preview_waives_territory_for_replicated_gift_then_refuses_again
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(fake, Match)
+	assert_true(net.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	Net._mode = Net.Mode.CLIENT
 	var foreign: Vector3 = _home_world_position(1)
 	var shape_id: StringName = Match.held_shape(0).id
 	var seq: int = Match.feed_seq(0)

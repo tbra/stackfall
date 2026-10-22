@@ -30,7 +30,6 @@ const GAMEPAD_DEVICE: int = 0
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
-var _net: MatchNetScript
 var _fake_net: FakeNet
 var _tiny_map: MapDef
 var _sfx: Node
@@ -92,9 +91,6 @@ func before_each() -> void:
 func after_each() -> void:
 	if Events.placement_rejected.is_connected(_rejected_listener):
 		Events.placement_rejected.disconnect(_rejected_listener)
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
 	Net._mode = Net.Mode.OFFLINE
 	Net._local_slot = 0
 	Match._net_provider = null
@@ -178,8 +174,9 @@ func _deliver_reply_to_remote_client() -> void:
 	var client: MatchNetScript = MatchNetScript.new()
 	client.set_process(false)
 	add_child_autofree(client)
-	client.set_providers(_fake_net, Match)
-	_net = client
+	assert_true(client.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	Net._mode = Net.Mode.CLIENT
+	Net._local_slot = REMOTE_SLOT
 	client.net_match_event(reply[2][0], reply[2][1])
 
 
@@ -195,8 +192,7 @@ func _make_client_net(local_slot_id: int) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
-	_net = node
+	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	Net._mode = Net.Mode.CLIENT
 	Net._local_slot = local_slot_id
 	return node
