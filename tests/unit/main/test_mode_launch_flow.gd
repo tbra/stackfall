@@ -8,7 +8,7 @@ const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
 ## The mode entries only route through the one world path once the launch step
 ## exists; until then the cases that need it stay pending. Flip when it lands.
-const MODE_LAUNCH_PATH_LANDED: bool = false
+const MODE_LAUNCH_PATH_LANDED: bool = true
 const PENDING_REASON: String = "needs the mode launch path"
 
 ## Main has no class_name (a scene root), so it is held as a Variant.
