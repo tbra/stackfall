@@ -241,6 +241,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 
 	assert_eq(Match.registry().all_blocks().size(), 0, "a freshly reset match has spawned nothing yet")
 	assert_eq(Match.slot_count(), 2, "the same config's player count survives the reset")
+	sandbox = _main._sandbox  # F5 rebuilds the world: Main now holds the new node
 	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
 	assert_eq(_main._field._home_flags.size(), 2, "flags are rebuilt for the same config")
 	assert_not_null(Match.raster(), "territory is rebuilt")
