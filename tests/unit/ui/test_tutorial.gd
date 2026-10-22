@@ -24,7 +24,7 @@ const CLOCK_FRAMES: int = 10
 const END_TICK_CAP: int = 200
 
 
-func _setup_menu(match_timer_minutes: int = 0) -> void:
+func _setup_menu(timed_round: bool = false) -> void:
 	Match.set_process(false)
 	Net.leave()
 	Match.abort_match()
@@ -43,7 +43,10 @@ func _setup_menu(match_timer_minutes: int = 0) -> void:
 	tiny_config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(tiny_config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	tiny_config.rng_seed = 24681
-	tiny_config.match_timer_minutes = match_timer_minutes
+	if timed_round:
+		# A timed round is how a real-rules match ends on its clock without sudden death.
+		tiny_config.game_mode = MatchConfig.GameMode.CAPTURE_THE_FLAG
+		tiny_config.round_timer_minutes = MatchConfig.ROUND_TIMER_MIN_MINUTES
 	_main.match_config = tiny_config
 
 	add_child_autofree(_main)
@@ -297,7 +300,7 @@ func test_pause_menu_action_aborts_cleanly_from_any_step() -> void:
 # --- Match end, pause menu -------------------------------------------------------
 
 func test_the_match_reaching_end_ends_the_tutorial_once() -> void:
-	_setup_menu(1)
+	_setup_menu(true)
 	_start_tutorial()
 	var finished_count: Array[int] = [0]
 	_tutorial.finished.connect(func() -> void: finished_count[0] += 1)
@@ -319,14 +322,15 @@ func test_the_match_reaching_end_ends_the_tutorial_once() -> void:
 	await _teardown_menu()
 
 
-func test_the_pause_menu_is_suppressed_while_the_tutorial_runs_and_restored_after() -> void:
+func test_the_pause_menu_is_suppressed_while_the_tutorial_runs_and_inert_at_the_menu_after() -> void:
 	_setup_menu()
 	_start_tutorial()
 	assert_true(_main._pause_menu.suppressed, "Escape quits the tutorial; the pause menu stays closed.")
 
 	_tutorial._unhandled_input(_pause_event())
 
-	assert_false(_main._pause_menu.suppressed, "the pause menu works again once the tutorial is over.")
+	assert_not_null(_main._main_menu, "the player is back at the main menu.")
+	assert_true(_main._pause_menu.suppressed, "the pause menu stays inert over the main menu.")
 
 	await _teardown_menu()
 
