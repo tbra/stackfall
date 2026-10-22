@@ -116,3 +116,34 @@ func test_clear_forgets_applied_and_waiting_cells() -> void:
 	assert_eq(backlog.applied_count(), 0)
 	assert_false(backlog.is_applied(11))
 	assert_true(backlog.drain(10).is_empty(), "No waiting cell survives clear().")
+
+
+func test_is_applied_is_false_for_cells_beyond_the_known_disk() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	backlog.want(_cells([17]), PackedInt32Array(), IN_DISK)
+	backlog.drain(10)
+
+	assert_true(backlog.is_applied(17))
+	assert_false(backlog.is_applied(18), "The cell just past the last in-disk cell.")
+	assert_false(backlog.is_applied(-1))
+
+
+func test_the_first_cell_of_the_grid_can_open() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	var disk: PackedInt32Array = _cells([0, 1, 2])
+	backlog.want(_cells([0]), PackedInt32Array(), disk)
+
+	assert_eq(backlog.drain(10), _cells([0]))
+	assert_true(backlog.is_applied(0))
+
+
+func test_a_cleared_cell_can_be_wanted_open_again() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	backlog.want(_cells([11]), PackedInt32Array(), IN_DISK)
+	backlog.drain(10)
+	backlog.clear()
+
+	backlog.want(_cells([11]), PackedInt32Array(), IN_DISK)
+
+	assert_eq(backlog.drain(10), _cells([11]), "A hole closed by clear() opens again on a new wish.")
+	assert_true(backlog.is_applied(11))
