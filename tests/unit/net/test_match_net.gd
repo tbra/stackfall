@@ -67,7 +67,7 @@ func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = fa
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
+	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	_net = node
 	return node
 
@@ -711,10 +711,11 @@ func test_rebinding_the_session_port_changes_who_the_facade_acts_as() -> void:
 	assert_eq(as_host, PlacementRules.REASON_OK, "bound to a host session the facade places for its own seat")
 	assert_eq(_block_count(), 1)
 
+	_unlock_slot(0)
 	var client_session: FakeNet = FakeNet.client(0)
-	Match._net_provider = client_session
 	assert_true(net.bind_ports(SessionPort.new(client_session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-	net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	var free_origin: Vector3 = _home_world_position(0) + Vector3(2.0, 0.0, 0.0)
+	net.submit_place(0, free_origin, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
 	assert_eq(_block_count(), 1, "rebound to a client session it sends the intent instead of placing")
 
 
@@ -761,7 +762,6 @@ func test_the_hosts_own_seat_is_not_auto_dropped_by_the_facade() -> void:
 func test_bind_ports_accepts_valid_ports() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	assert_true(net.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-
 
 func test_bind_ports_refuses_an_invalid_port_and_keeps_working() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])

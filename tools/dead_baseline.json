@@ -53,7 +53,6 @@
    "autoload/match/WindEffect.gd:wake_stable_frozen",
    "core/ai/BotThink.gd:decision",
    "core/sky/SkyCycleClock.gd:clear",
-   "core/sky/SkyEvaluator.gd:evaluate",
    "core/territory/TerritoryRaster.gd:_rebuild_team_counts",
    "core/territory/TerritoryRaster.gd:_write_replicated_cell",
    "core/territory/TerritoryRaster.gd:apply_replicated_diff",
@@ -71,8 +70,6 @@
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/player/RemoteCursors.gd:set_providers",
-   "game/sky/CloudSea.gd:occlusion",
-   "game/sky/CloudSea.gd:puff_material",
    "game/sky/Skybox.gd:cloud_overcast_amount",
    "game/sky/Skybox.gd:current_frame",
    "game/sky/Skybox.gd:cycle_phase_at",
@@ -162,6 +159,16 @@
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.tscn",
    "reason": "designer gallery scene (stackfall-designer tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_authority.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_load.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
   },
   {
    "id": "test-only-func",
