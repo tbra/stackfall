@@ -357,7 +357,18 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 			differing += 1
 			resource.set(prop_name, float(shipped.get(prop_name)) + 1.0 if type == TYPE_FLOAT else int(shipped.get(prop_name)) + 1)
 			edited.append({"resource": resource, "prop": prop_name, "type": type, "shipped": shipped.get(prop_name)})
+	# The keyframes and night keyframe are sub-resources of the cycle: reset keeps the live objects
+	# and reloads their values from the shipped file.
+	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[1]
+	var night: SkyNightKeyframe = _panel.sky_cycle.night
+	var key_fog: float = key.fog_density
+	var night_fog: float = night.fog_density
+	key.fog_density = key_fog + 0.1
+	night.fog_density = night_fog + 0.1
 	_panel.reset_all()
+	assert_eq(_panel.sky_cycle.day_keyframes[1], key, "reset keeps the live keyframe objects")
+	assert_almost_eq(key.fog_density, key_fog, 0.00001)
+	assert_almost_eq(night.fog_density, night_fog, 0.00001)
 	for entry: Dictionary in edited:
 		var resource: Resource = entry["resource"] as Resource
 		var prop_name: String = entry["prop"] as String
@@ -512,3 +523,30 @@ func test_sky_edit_copies_the_cycle_fields_onto_each_live_skybox_and_refreshes_i
 	_panel._on_field_changed(_panel.storm_overlay, "fog_density")
 	assert_eq(spy.refresh_calls, 5, "keyframe, night and overlay edits refresh too")
 	assert_eq(key.fog_density, fog_before)
+
+
+func test_cycle_length_edit_keeps_its_own_seam() -> void:
+	_own_panel(false)
+	var spy: SpySkybox = _make_spy_skybox(true)
+	_panel._on_field_changed(_panel.sky_cycle, "cycle_length_seconds")
+	assert_eq(spy.refresh_calls, 0, "the length goes through set_cycle_length_seconds, not a definition refresh")
+
+
+func test_persistence_disallowed_for_headless_non_gut_run() -> void:
+	assert_false(UserPaths.persistence_allowed_for(false, "headless"))
+	assert_true(UserPaths.persistence_allowed_for(false, "windows"))
+	assert_true(UserPaths.persistence_allowed_for(true, "headless"))
+	assert_true(UserPaths.persistence_allowed(), "GUT runs keep writing to the per-PID files.")
+
+
+## a GUT run must never touch the owner's real overrides file.
+func test_gut_run_save_overrides_never_touches_real_file() -> void:
+	var real: String = TuningPanel.SAVE_PATH
+	var existed: bool = FileAccess.file_exists(real)
+	var mtime: int = FileAccess.get_modified_time(real) if existed else 0
+	assert_ne(TuningPanel.save_path(), real, "GUT run maps to a per-PID file")
+	assert_eq(_panel.save_overrides(), OK)
+	assert_true(FileAccess.file_exists(TuningPanel.save_path()), "wrote the GUT file")
+	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
+	if existed:
+		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")
