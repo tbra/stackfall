@@ -10,16 +10,19 @@ const PAD_HIDDEN: Array[StringName] = [
 ]
 const WALK_LIMIT: int = 64
 
-var _cfg_path: String = OS.get_user_data_dir().path_join("test_controls_pad_rows_1014.cfg")
-var _default_cfg_path: String = Settings.REAL_CONFIG_PATH
+func before_each() -> void:
+	_delete_settings_file()
 
 
 func after_each() -> void:
-	Settings.set_config_path_for_test(_default_cfg_path)
 	Settings._input(InputEventKey.new())
 	InputMap.load_from_project_settings()
-	if FileAccess.file_exists(_cfg_path):
-		DirAccess.remove_absolute(_cfg_path)
+	_delete_settings_file()
+
+
+func _delete_settings_file() -> void:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
 
 
 func _make_menu() -> OptionsMenu:
@@ -27,7 +30,6 @@ func _make_menu() -> OptionsMenu:
 	add_child_autofree(menu)
 	var fresh: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(fresh)
-	fresh.set_config_path_for_test(_cfg_path)
 	menu.settings_provider = fresh
 	return menu
 
@@ -40,9 +42,6 @@ func _row(menu: OptionsMenu, action: StringName) -> KeyRebindRow:
 
 
 func test_rebinding_rotate_snap_on_the_pad_persists() -> void:
-	if FileAccess.file_exists(_cfg_path):
-		DirAccess.remove_absolute(_cfg_path)
-	Settings.set_config_path_for_test(_cfg_path)
 	var menu: OptionsMenu = _make_menu()
 	Settings._input(InputEventJoypadButton.new())
 	var row: KeyRebindRow = _row(menu, &"rotate_snap")
@@ -56,12 +55,17 @@ func test_rebinding_rotate_snap_on_the_pad_persists() -> void:
 	assert_eq(live.size(), 1)
 	assert_eq((live[0] as InputEventJoypadButton).button_index, JOY_BUTTON_Y)
 
+	# A fresh Settings reads the saved file and reapplies the override.
+	InputMap.load_from_project_settings()
 	var reloaded: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(reloaded)
-	reloaded.set_config_path_for_test(_cfg_path)
-	var stored: Array = reloaded._key_overrides.get(&"rotate_snap", [])
-	assert_eq(stored.size(), 1, "the override is saved and reloaded")
-	assert_eq((stored[0] as InputEventJoypadButton).button_index, JOY_BUTTON_Y)
+	var stored: Array[InputEvent] = InputMap.action_get_events(&"rotate_snap")
+	var stored_pad: Array[InputEventJoypadButton] = []
+	for event: InputEvent in stored:
+		if event is InputEventJoypadButton:
+			stored_pad.append(event)
+	assert_eq(stored_pad.size(), 1, "the override is saved and reloaded")
+	assert_eq(stored_pad[0].button_index, JOY_BUTTON_Y)
 
 
 func _pad_press(button: JoyButton) -> void:

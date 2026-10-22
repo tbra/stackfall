@@ -5,19 +5,18 @@ extends GutTest
 ## Rumble.start_vibration_fn/stop_vibration_fn for a recording Callable instead
 ## of touching the real Input singleton.
 ##
-## Settings is redirected to a temp cfg (Settings.set_config_path_for_test),
-## restored in after_each -- the same pattern tests/unit/player/test_camera_shake.gd
-## uses for the same real "Settings" autoload dependency.
+## The two rumble settings are set through the public setters and restored in
+## after_each (GUT runs write the per-PID settings file, never the player's).
 
-var _settings_cfg_path: String
+var _prior_enabled: bool = true
+var _prior_strength: float = 1.0
 var _calls: Array[Dictionary] = []
 var _stop_calls: Array[int] = []
 
 
 func before_each() -> void:
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_rumble_settings_tmp.cfg")
-	_delete_if_exists(_settings_cfg_path)
-	Settings.set_config_path_for_test(_settings_cfg_path)
+	_prior_enabled = Settings.rumble_enabled()
+	_prior_strength = Settings.rumble_strength()
 	Settings.set_rumble_enabled(true)
 	Settings.set_rumble_strength(1.0)
 
@@ -34,13 +33,8 @@ func after_each() -> void:
 	Rumble.stop_vibration_fn = Callable(Rumble, "_stop_vibration_real")
 	Rumble._last_device_id = Rumble.DEVICE_NONE
 	Rumble._last_family = &""
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	_delete_if_exists(_settings_cfg_path)
-
-
-func _delete_if_exists(path: String) -> void:
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	Settings.set_rumble_enabled(_prior_enabled)
+	Settings.set_rumble_strength(_prior_strength)
 
 
 func _record_start(device: int, weak_magnitude: float, strong_magnitude: float, duration_s: float) -> void:

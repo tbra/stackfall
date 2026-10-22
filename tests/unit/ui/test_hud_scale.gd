@@ -8,18 +8,17 @@ const WINDOWS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1920, 1080)]
 const SETTLE_FRAMES: int = 4
 const EDGE_EPS: float = 1.5
 
-var _cfg_path: String
-
-
 func before_each() -> void:
-	_cfg_path = OS.get_user_data_dir().path_join("test_hud_scale_tmp.cfg")
-	if FileAccess.file_exists(_cfg_path):
-		DirAccess.remove_absolute(_cfg_path)
+	_delete_settings_file()
+
+
+func _delete_settings_file() -> void:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
 
 
 func after_each() -> void:
-	if FileAccess.file_exists(_cfg_path):
-		DirAccess.remove_absolute(_cfg_path)
+	_delete_settings_file()
 	Settings.reset_ui_scale()
 	Settings.reset_hud_scale()
 	Settings.reset_minimap_size()
@@ -31,7 +30,6 @@ func after_each() -> void:
 func _fresh() -> Node:
 	var settings: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(settings)
-	settings.set_config_path_for_test(_cfg_path)
 	return settings
 
 
@@ -55,7 +53,7 @@ func test_defaults_persist_and_sanitize() -> void:
 func test_old_save_without_hud_keys_migrates_hud_scale_from_ui_scale() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value("graphics", "ui_scale", 1.5)
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 	var settings: Node = _fresh()
 	assert_almost_eq(settings.hud_scale(), 1.5, 0.0001, "the HUD keeps its old UI-scaled size")
 	assert_eq(settings.minimap_size_preset(), UiScaleTuning.shared().minimap_default_preset)

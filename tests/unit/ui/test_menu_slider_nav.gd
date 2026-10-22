@@ -10,6 +10,8 @@ const SHORT_VIEW_PX: float = 200.0
 
 
 func after_each() -> void:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
 	Input.flush_buffered_events()
 	for action: StringName in InputMap.get_actions():
 		Input.action_release(action)
@@ -23,10 +25,10 @@ func _settle() -> void:
 func _menu() -> OptionsMenu:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(menu)
-	# Meters write their setting on every step: keep that off the real Settings autoload.
+	# Meters write their setting on every step: keep that off the real Settings autoload
+	# (a fresh instance saves to the per-PID GUT file; it is deleted in after_each).
 	var fresh: Node = autofree((load("res://autoload/Settings.gd") as GDScript).new())
 	add_child_autofree(fresh)
-	fresh.set_config_path_for_test(OS.get_user_data_dir().path_join("test_menu_slider_nav_tmp.cfg"))
 	menu.settings_provider = fresh
 	await _settle()
 	return menu
