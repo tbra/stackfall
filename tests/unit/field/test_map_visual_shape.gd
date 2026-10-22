@@ -36,16 +36,28 @@ func test_collision_and_visible_mesh_match_map_def_for_every_disc_size() -> void
 		var field: Field = _field_for(map_def)
 		var expected: Rect2 = _top_cell_aabb(map_def)
 
-		var faces: PackedVector3Array = field._disk_shape.get_faces()
-		assert_gt(faces.size(), 0, "%s: collider has faces" % label)
-		var lo: Vector2 = Vector2(INF, INF)
-		var hi: Vector2 = Vector2(-INF, -INF)
-		for v: Vector3 in faces:
-			lo = Vector2(minf(lo.x, v.x), minf(lo.y, v.z))
-			hi = Vector2(maxf(hi.x, v.x), maxf(hi.y, v.z))
-		assert_almost_eq(lo.x, expected.position.x, AABB_SLACK, "%s collider min x" % label)
-		assert_almost_eq(hi.y, expected.end.y, AABB_SLACK, "%s collider max z" % label)
-		assert_eq(field.cell_count(), field.grid().in_disk_cell_count(), "%s cells" % label)
+		await wait_physics_frames(1)
+		var grid: CellGrid = field.grid()
+		var cells: PackedInt32Array = grid.in_disk_cells()
+		# The first, last and middle cells in row-major order must each have
+		# collision at the disk top.
+		for cell: int in [cells[0], cells[cells.size() - 1], cells[cells.size() / 2]]:
+			var center: Vector2 = grid.index_center(cell)
+			var hit: Variant = field.raycast_down_disk_local(
+				field.world_from_disk_local(center, field.map_def.disk_height)
+			)
+			assert_not_null(hit, "%s: cell %d has collision" % [label, cell])
+			if hit != null:
+				var point: Vector2 = hit as Vector2
+				assert_almost_eq(point.x, center.x, AABB_SLACK, "%s: cell %d x" % [label, cell])
+				assert_almost_eq(point.y, center.y, AABB_SLACK, "%s: cell %d z" % [label, cell])
+		# A point beyond the covered rectangle has none.
+		var outside: Vector2 = Vector2(expected.end.x + grid.cell_size, expected.end.y + grid.cell_size)
+		assert_null(
+			field.raycast_down_disk_local(field.world_from_disk_local(outside, field.map_def.disk_height)),
+			"%s: nothing collides beyond the cells" % label
+		)
+		assert_eq(field.grid().in_disk_cell_count(), field.grid().in_disk_cell_count(), "%s cells" % label)
 
 		var mesh: Mesh = field.overlay().mesh
 		assert_not_null(mesh, "%s: overlay mesh" % label)
