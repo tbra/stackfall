@@ -10,7 +10,17 @@ const BUDGET_MS: float = 1000.0 / 60.0
 const HOST: StringName = &"host"
 const CLIENT: StringName = &"client"
 
-var _config: SoakConfig = load("res://config/soak/soak_config.tres") as SoakConfig
+## The shipped config with the calibrated tolerances these rule tests state their numbers against
+## pinned, so recalibrating the shipped file never changes what a rule means.
+var _config: SoakConfig = _pinned_config()
+
+
+func _pinned_config() -> SoakConfig:
+	var config: SoakConfig = (load("res://config/soak/soak_config.tres") as SoakConfig).duplicate() as SoakConfig
+	config.kill_plane_margin_m = 1.0
+	config.awake_fraction_max = 0.6
+	config.snapshot_bps_max = 5.0e6
+	return config
 
 
 func _config_with(changes: Dictionary) -> SoakConfig:
@@ -68,37 +78,38 @@ func test_no_bodies_is_sound() -> void:
 	assert_eq(_physics([]).size(), 0)
 
 
-func test_a_body_above_the_kill_plane_margin_is_sound() -> void:
+func test_a_body_above_the_kill_plane_is_sound() -> void:
 	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, 5.0, 0.0))]
 	assert_eq(_physics(bodies, 0, 1).size(), 0)
 
 
-func test_a_body_just_inside_the_margin_is_sound() -> void:
-	# kill plane -40 plus the default 1 m margin: -38.99 is still above the line.
-	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -38.99, 0.0))]
-	assert_eq(_physics(bodies, 0, 1).size(), 0)
+func test_a_body_just_above_the_kill_plane_is_sound() -> void:
+	# A positive margin reaches below the plane (-40 minus 1 m): a body above the plane itself,
+	# or still inside the margin under it, is not a violation.
+	var above: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -39.5, 0.0))]
+	assert_eq(_physics(above, 0, 1).size(), 0, "just above the kill plane")
+	var inside: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -40.5, 0.0))]
+	assert_eq(_physics(inside, 0, 1).size(), 0, "under the plane but inside the margin")
 
 
 func test_a_body_exactly_on_the_margin_line_is_sound() -> void:
-	# The rule is "lower than kill_plane_y + margin", so the line itself is not a violation.
-	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -39.0, 0.0))]
+	# The rule is "lower than kill_plane_y - margin", so the line itself is not a violation.
+	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -41.0, 0.0))]
 	assert_eq(_physics(bodies, 0, 1).size(), 0)
 
 
 func test_a_body_just_past_the_margin_is_a_violation() -> void:
-	var bodies: Array[SoakCheck.BodyObs] = [_body(1204, Vector3(1.0, -39.01, 2.0), 3)]
+	var bodies: Array[SoakCheck.BodyObs] = [_body(1204, Vector3(1.0, -41.01, 2.0), 3)]
 	var found: Array[SoakCheck.Violation] = _physics(bodies, 0, 1)
 	assert_eq(found.size(), 1)
-	if found.is_empty():
-		return
 	if found.is_empty():
 		return
 	var violation: SoakCheck.Violation = found[0]
 	assert_eq(violation.invariant, &"physics.below_kill_plane")
 	assert_eq(violation.severity, SoakCheck.SEVERITY_FAIL)
 	assert_eq(violation.subject, "1204", "The subject is the body id.")
-	assert_almost_eq(violation.value, -39.01, 0.001)
-	assert_almost_eq(violation.limit, -39.0, 0.001)
+	assert_almost_eq(violation.value, -41.01, 0.001)
+	assert_almost_eq(violation.limit, -41.0, 0.001)
 
 
 func test_a_far_fallen_body_is_a_violation() -> void:
@@ -108,16 +119,16 @@ func test_a_far_fallen_body_is_a_violation() -> void:
 
 func test_the_margin_comes_from_the_config() -> void:
 	var wide: SoakConfig = _config_with({"kill_plane_margin_m": 3.0})
-	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -37.5, 0.0))]
-	assert_eq(_physics(bodies, 0, 1, true, wide).size(), 1, "-37.5 is below -40 + 3.")
-	assert_eq(_physics(bodies, 0, 1, true, _config).size(), 0, "-37.5 is above -40 + 1.")
-	var bodies_inside: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -36.5, 0.0))]
-	assert_eq(_physics(bodies_inside, 0, 1, true, wide).size(), 0)
+	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -42.5, 0.0))]
+	assert_eq(_physics(bodies, 0, 1, true, _config).size(), 1, "-42.5 is below -40 - 1.")
+	assert_eq(_physics(bodies, 0, 1, true, wide).size(), 0, "-42.5 is above -40 - 3.")
+	var deeper: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -43.5, 0.0))]
+	assert_eq(_physics(deeper, 0, 1, true, wide).size(), 1)
 
 
 func test_the_kill_plane_comes_from_the_argument() -> void:
 	var bodies: Array[SoakCheck.BodyObs] = [_body(1, Vector3(0.0, -20.0, 0.0))]
-	assert_eq(_physics(bodies, 0, 1, true, _config, -10.0).size(), 1, "-20 is below -10 + 1.")
+	assert_eq(_physics(bodies, 0, 1, true, _config, -10.0).size(), 1, "-20 is below -10 - 1.")
 	assert_eq(_physics(bodies, 0, 1, true, _config, -40.0).size(), 0)
 
 

@@ -104,7 +104,8 @@ func test_curve_matches_the_golden_line() -> void:
 
 
 func test_config_matches_the_golden_line() -> void:
-	var line: String = SoakLine.config_line(&"host", &"load", _config)
+	# The field defaults, not the shipped file: calibration retunes the file, not the line format.
+	var line: String = SoakLine.config_line(&"host", &"load", SoakConfig.new())
 	assert_eq(line, _golden().get("SOAK_CONFIG", "missing"))
 
 
