@@ -473,6 +473,7 @@
   "game/main/MainMatchFlowPort.gd",
   "game/main/MainSandboxFlowPort.gd",
   "game/main/MenuPrewarmQueue.gd",
+  "game/main/ModeExtras.gd",
   "game/main/QuitFlag.gd",
   "game/main/TuningOverrides.gd",
   "game/net/DiskPoseSmoother.gd",

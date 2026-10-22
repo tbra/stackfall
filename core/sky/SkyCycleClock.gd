@@ -75,21 +75,8 @@ func is_active() -> bool:
 	return _active
 
 
-## The length (s) in force; 0 before start().
-func length_s() -> float:
-	return _length_s if _active else 0.0
-
-
 ## Integer cycle count of the running cycle; a locked sky is night 0.
 func night_index() -> int:
 	if _locked_phase >= 0.0:
 		return 0
 	return int(floori(_clock_s / _length_s + _offset))
-
-
-func clear() -> void:
-	_active = false
-	_length_s = MIN_LENGTH_S
-	_offset = 0.0
-	_clock_s = 0.0
-	_locked_phase = -1.0

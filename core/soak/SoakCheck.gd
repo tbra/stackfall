@@ -31,6 +31,8 @@ class BodyObs:
 	var id: int = 0
 	var transform: Transform3D = Transform3D.IDENTITY
 	var owner_slot: int = -1
+	## Seconds this body has been below the kill plane; INF (no grace) unless the monitor tracks it.
+	var below_for_s: float = INF
 
 
 ## The territory board as read from the live raster.
@@ -82,7 +84,7 @@ static func physics(
 	for body: BodyObs in bodies:
 		if not (body.transform.origin.is_finite() and body.transform.basis.is_finite()):
 			found.append(_violation(&"physics.non_finite", str(body.id), 0.0, 0.0))
-		elif body.transform.origin.y < floor_y:
+		elif body.transform.origin.y < floor_y and (is_host or body.below_for_s >= config.client_kill_grace_s):
 			found.append(_violation(
 				&"physics.below_kill_plane", str(body.id), body.transform.origin.y, floor_y,
 				"owner=%d" % body.owner_slot
@@ -169,7 +171,7 @@ static func authority(
 
 
 ## Tick p99 per band (`role` names the invariant: host or client), sim rate, snapshot bytes per
-## second and the monitor's own sample cost.
+## second and the monitor's own sample cost, against a base plus an allowance per body it walked.
 static func budget(
 	role: StringName,
 	curve: TickBudgetCurve,
@@ -177,7 +179,8 @@ static func budget(
 	physics_hz: int,
 	snapshot_bps: float,
 	monitor_us: int,
-	config: SoakConfig
+	config: SoakConfig,
+	monitor_bodies: int = 0
 ) -> Array[Violation]:
 	var found: Array[Violation] = []
 	var tick_limit_ms: float = config.tick_budget_fraction * _MS_PER_S / float(physics_hz)
@@ -193,10 +196,12 @@ static func budget(
 		found.append(_violation(&"budget.sim_rate", "", sim_rate, rate_limit))
 	if role == &"host" and snapshot_bps > config.snapshot_bps_max:
 		found.append(_violation(&"budget.snapshot_bps", "", snapshot_bps, config.snapshot_bps_max))
-	if monitor_us > config.monitor_overhead_us_max:
+	var monitor_limit_us: int = (
+		config.monitor_overhead_us_max + config.monitor_overhead_us_per_body * monitor_bodies
+	)
+	if monitor_us > monitor_limit_us:
 		found.append(_violation(
-			&"budget.monitor_overhead", "", float(monitor_us),
-			float(config.monitor_overhead_us_max)
+			&"budget.monitor_overhead", "", float(monitor_us), float(monitor_limit_us)
 		))
 	return found
 

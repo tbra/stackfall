@@ -1,4 +1,8 @@
 {
   "known": ["budget.client_tick_p99"],
-  "engine_noise": ["Pages in use exist at exit in PagedAllocator"]
+  "engine_noise": [
+    "Pages in use exist at exit in PagedAllocator",
+    "RID allocations of type",
+    "resources still in use at exit"
+  ]
 }

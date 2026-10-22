@@ -63,7 +63,6 @@ func _run_host() -> void:
 	config.disc_size_step = 1
 	config.player_count = 3
 	config.ai_count = 1
-	config.hot_seat = false
 	config.game_mode = MatchConfig.GameMode.ELIMINATION
 	config.hole_mode = MatchConfig.HoleMode.PERMANENT
 	config.sudden_death = false

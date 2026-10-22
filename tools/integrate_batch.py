@@ -16,7 +16,8 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               touches the gate runner (GATE_RUNNER_PATHS: tools/full_gate.py, tools/full_gate_serial.txt,
               tools/run_gut.ps1, .gutconfig.json, addons/gut/) the candidate tree's own
               <wt>/tools/full_gate.py is ALSO run on the temp worktree ("gate2"); both must be GREEN
-              and both verdict lines are reported.
+              and both verdict lines are reported. With --no-game-code the gate is skipped and
+              tools/lint_all.py runs on the merged tree instead (`lint` step; RED stops the batch).
   5b enet     after a GREEN gate, when the merged diff (base..merge) touches net/ or tests/enet/ (ENET_PATHS)
               or a harness runner, tools/run_enet_set.py runs the ENet harness set on the temp worktree
               (its docstring owns the per-harness limit and slot/exclusive rules). Selection
@@ -441,6 +442,16 @@ def soak_step(ctx, wt, changed, soak_idle, say):
     say("soak      %s %s" % ("ok" if m.group(1) == "PASS" else m.group(1), m.group(0)))
 
 
+def lint_step(ctx, wt, say):
+    """lint_all on the merged tree (no Godot), for --merge-only and --no-game-code batches. The merged tree's
+    own lints judge it, so a batch that fixes a lint or its baseline is not judged by main's copy."""
+    code, text, log = run_cmd(ctx, "lint", [sys.executable, os.path.join(wt, "tools", "lint_all.py"), "--path", wt], wt, STEP_TIMEOUT_S)
+    lint_line = ([l for l in text.splitlines() if l.startswith("LINT ALL")] or ["no LINT ALL line"])[-1]
+    say("lint      %s %s" % ("ok  " if code == 0 else "FAIL", lint_line))
+    if code != 0:
+        raise StepFailed("lint", "lint_all RED on the merged tree; log %s" % log)
+
+
 def enet_step(ctx, wt, changed, skip_reason, say):
     """Step 5b: run the ENet harness set when the merged diff touches net/, tests/enet/ or a harness
     runner: the whole set for any net/ (or unnamed shared) change, only the changed harnesses when the
@@ -671,13 +682,7 @@ def integrate(args, ctx, say, res):
     res["result"] = result
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
     if getattr(args, "merge_only", False):
-        # Lints need no Godot, so a lint RED (e.g. a dropped dead_baseline edit) shows here, not after a gate.
-        # The merged tree's own lints judge it, so a batch that fixes a lint or its baseline is not judged by main's copy.
-        code, text, log = run_cmd(ctx, "lint", [sys.executable, os.path.join(wt, "tools", "lint_all.py"), "--path", wt], wt, STEP_TIMEOUT_S)
-        lint_line = ([l for l in text.splitlines() if l.startswith("LINT ALL")] or ["no LINT ALL line"])[-1]
-        say("lint      %s %s" % ("ok  " if code == 0 else "FAIL", lint_line))
-        if code != 0:
-            raise StepFailed("lint", "lint_all RED on the merged tree; log %s" % log)
+        lint_step(ctx, wt, say)
         say("merge-only stop before import/gate (no Godot started)")
         return
     # 3 import
@@ -729,6 +734,7 @@ def integrate(args, ctx, say, res):
         soak_step(ctx, wt, changed, getattr(args, "soak_idle", False), say)
     else:
         say("gate      skip not game code")
+        lint_step(ctx, wt, say)  # the full gate runs the lints itself; a tooling/config batch gets them here
     res["verdict"] = verdict
     if args.dry_run:
         for bead in args.beads:

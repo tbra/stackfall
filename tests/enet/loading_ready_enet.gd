@@ -105,7 +105,6 @@ func _run_host() -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = LATE_SEATS if _late_step else 2
-	config.hot_seat = false
 	if _late_step:
 		# Production admission: Main keeps the match "in progress" and installs the
 		# seat policy, so a mid-gate joiner takes the open third seat.

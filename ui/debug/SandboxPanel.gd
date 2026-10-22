@@ -50,7 +50,7 @@ var _refresh_accum: float = 0.0
 
 ## The tallest point any of the active slot's settled blocks has reached this match
 ## (BlockRegistry.max_height_for_slot(), polled once per _refresh()). Monotone within one match;
-## only reset_height_record() (F5) lowers it.
+## a rebuilt panel starts from zero.
 var _height_record: float = 0.0
 
 
@@ -85,8 +85,9 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if match_provider == null:
 		return
-	var typed_sandbox: Sandbox = _sandbox as Sandbox
-	var slot_id: int = typed_sandbox.active_slot() if typed_sandbox != null else -1
+	# DECISION: _sandbox stays Variant here; typing it `Sandbox` closes a Sandbox <-> SandboxPanel
+	# script cycle that leaks the script graph at editor exit.
+	var slot_id: int = int(_sandbox.active_slot()) if _sandbox != null else -1
 	_refresh_active_slot(slot_id)
 	_refresh_held_block(slot_id)
 	_refresh_timer(slot_id)
@@ -209,13 +210,6 @@ func _refresh_height_record(slot_id: int) -> void:
 		if registry != null:
 			_height_record = maxf(_height_record, registry.max_height_for_slot(slot_id))
 	_height_record_label.text = "Height record: %.2f m" % _height_record
-
-
-## Called on sandbox_reset_field (F5): a freshly reset match starts a new tallest stack, so the
-## previous match's record must not linger.
-func reset_height_record() -> void:
-	_height_record = 0.0
-	_height_record_label.text = "Height record: 0.00 m"
 
 
 # --- Block picker / special spawn dropdowns --------------------------

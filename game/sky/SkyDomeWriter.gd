@@ -17,9 +17,6 @@ const PROCEDURAL_SEA_MIX: float = 1.0
 const MOON_DISC_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_disc.png")
 const MOON_HALO_TEXTURE: Texture2D = preload("res://assets/textures/sky/moon/moon_halo.png")
 
-## Total uniform writes since bind (tests and the bench read it).
-var total_writes: int = 0
-
 var _material: ShaderMaterial = null
 ## Uniform name -> value staged for the next flush.
 var _wanted: Dictionary[StringName, Variant] = {}
@@ -38,11 +35,6 @@ func bind(sky: Sky, template: ShaderMaterial) -> ShaderMaterial:
 	_material.set_shader_parameter(&"procedural_sea_mix", PROCEDURAL_SEA_MIX)
 	if sky != null:
 		sky.sky_material = _material
-	return _material
-
-
-## The bound duplicate (null before bind).
-func material() -> ShaderMaterial:
 	return _material
 
 
@@ -111,7 +103,6 @@ func flush() -> int:
 		_written[key] = value
 		_material.set_shader_parameter(key, value)
 		count += 1
-	total_writes += count
 	return count
 
 

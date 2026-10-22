@@ -212,12 +212,8 @@ func test_set_running_picks_the_radiance_mode() -> void:
 	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY)
 
 
-func test_step_reports_a_radiance_tick_at_radiance_hz_and_frozen_suppresses_it() -> void:
+func test_step_reports_a_radiance_tick_at_radiance_hz() -> void:
 	var reflections: SkyReflections = _bound(null, null, null, _visuals(), 10.0)
 	assert_false(reflections.step(0.05))
 	assert_true(reflections.step(0.06), "0.11 s >= 0.1 s interval")
 	assert_false(reflections.step(0.05), "the remainder (0.01) carries over")
-	reflections.frozen = true
-	assert_false(reflections.step(0.5), "frozen: due but not reported")
-	reflections.frozen = false
-	assert_true(reflections.step(0.02), "the frozen overflow was capped at one interval, so the next step is due at once")

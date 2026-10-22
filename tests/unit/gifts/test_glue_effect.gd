@@ -38,7 +38,6 @@ func _config() -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.gifts_enabled = false
 	return config
 

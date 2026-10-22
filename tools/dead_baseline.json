@@ -52,7 +52,6 @@
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",
    "core/ai/BotThink.gd:decision",
-   "core/sky/SkyCycleClock.gd:clear",
    "core/territory/TerritoryRaster.gd:_rebuild_team_counts",
    "core/territory/TerritoryRaster.gd:_write_replicated_cell",
    "core/territory/TerritoryRaster.gd:apply_replicated_diff",
@@ -70,18 +69,6 @@
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/player/RemoteCursors.gd:set_providers",
-   "game/sandbox/Sandbox.gd:apply_preset",
-   "game/sky/Skybox.gd:cloud_overcast_amount",
-   "game/sky/Skybox.gd:current_frame",
-   "game/sky/Skybox.gd:cycle_phase_at",
-   "game/sky/Skybox.gd:effective_probe_mode",
-   "game/sky/Skybox.gd:retrigger_reflection_probe",
-   "game/sky/Skybox.gd:set_capture_pin",
-   "game/sky/Skybox.gd:set_cycle_phase",
-   "game/sky/Skybox.gd:set_cycle_writes_frozen",
-   "game/sky/Skybox.gd:start_cycle",
-   "game/sky/Skybox.gd:update_cycle_clock",
-   "game/sky/Skybox.gd:weather_state",
    "game/weather/SnowClientRenderer.gd:apply",
    "game/weather/SnowClientRenderer.gd:clear",
    "net/BreezeNet.gd:bind",
@@ -151,6 +138,16 @@
   ]
  },
  "allow": [
+  {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_authority.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_load.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
   {
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
@@ -898,8 +895,28 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/sandbox/Sandbox.gd:active_slot",
+   "reason": "live: ui/debug/SandboxPanel.gd:90 (untyped call; the panel keeps _sandbox Variant to avoid a script cycle)"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/sky/Skybox.gd:set_capture_pin",
+   "reason": "tools/shot_targets.gd:410 (capture tool)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/sky/Skybox.gd:set_cycle_phase",
+   "reason": "game/debug/AgentProbe.gd:229 skybox.call(&set_cycle_phase) (string call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/sky/Skybox.gd:start_cycle",
+   "reason": "game/debug/AgentProbe.gd:235,244 skybox.call(&start_cycle) (string call)"
   },
   {
    "id": "test-only-func",

@@ -432,6 +432,17 @@ class Tests(unittest.TestCase):
         fake = Fake()
         run(fake, game_code=False, dry_run=True)
         self.assertNotIn("gate", fake.names())
+        self.assertIn("lint", fake.names())
+
+    def test_no_game_code_lint_red_fails(self):
+        class Red(Fake):
+            def __call__(s, ctx, name, args, cwd, timeout):
+                if name == "lint":
+                    s.calls.append((name, args))
+                    return 1, "LINT ALL RED: lint_dead" + chr(10), "/l"
+                return Fake.__call__(s, ctx, name, args, cwd, timeout)
+        err, _, _ = run(Red(), game_code=False)
+        self.assertEqual(err.step, "lint")
 
     def test_import_issue_fails(self):
         class Imp(Fake):

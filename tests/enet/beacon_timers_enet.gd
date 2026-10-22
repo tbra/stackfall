@@ -54,7 +54,6 @@ func _run_host() -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = 2
-	config.hot_seat = false
 	config.goal_flag_count = 2
 	if _ctf:
 		config.game_mode = MatchConfig.GameMode.CAPTURE_THE_FLAG

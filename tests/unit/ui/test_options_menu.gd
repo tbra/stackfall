@@ -5,26 +5,23 @@ extends GutTest
 ## listen/capture state machine).
 ##
 ## Preset/volume/music-dir assertions swap OptionsMenu.settings_provider for
-## a fresh Settings instance pointed at a temp cfg path after add_child()
-## (ui/menus/OptionsMenu.gd's own settings_provider doc comment; mirrors
-## test_settings.gd's own set_config_path_for_test() seam), so they never
-## touch the real Settings autoload or the real InputMap.
+## a fresh Settings instance after add_child() (ui/menus/OptionsMenu.gd's own
+## settings_provider doc comment); under GUT every Settings reads and writes
+## the per-run file, never the player's, and the tests never touch the real
+## Settings autoload or the real InputMap.
 ##
 ## The KeyRebindRow capture tests are the one exception: ui/menus/KeyRebindRow.gd
 ## calls Settings.set_key_override() directly against the real autoload (no
 ## provider seam there -- ui/menus/OptionsMenu.gd's settings_provider doc explains
 ## why a per-row seam wouldn't solve the actual problem, which is InputMap
 ## itself being a global singleton with no per-instance state). Those tests
-## redirect the real Settings autoload's own config path to a temp file
-## (Settings.set_config_path_for_test(), the same seam test_settings.gd
-## uses) and exercise a synthetic action added to InputMap for the duration
-## of the test, restoring both in after_each -- so they never touch a real
-## rebindable action's binding or the real settings.cfg.
+## exercise a synthetic action added to InputMap for the duration of the
+## test and clear the key overrides and the per-run settings file in
+## after_each -- so they never touch a real rebindable action's binding.
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
-var DEFAULT_SETTINGS_CFG_PATH: String = Settings.REAL_CONFIG_PATH
 
 var _test_action: StringName = &"options_menu_test_action"
 
@@ -43,26 +40,21 @@ func after_each() -> void:
 	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
-	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
-	Settings._input(InputEventKey.new())
+	Settings.reset_key_overrides()
+	_delete_if_exists(Settings.effective_path())
 
 
-## A fresh temp cfg path per call (not one shared filename) -- _make_menu()
-## runs once per test in this file, and Settings._save() persists every
-## setter immediately, so a shared path would leak one test's preset/volume
+## _make_menu() deletes the per-run settings file first: Settings persists
+## every setter immediately, so a leftover file would leak one test's values
 ## into the next test's "defaults" assertions.
-var _menu_cfg_counter: int = 0
 
 
 func _make_menu() -> OptionsMenu:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate())
 	add_child_autofree(menu)
-	_menu_cfg_counter += 1
-	var cfg_path: String = OS.get_user_data_dir().path_join("test_options_menu_tmp_%d.cfg" % _menu_cfg_counter)
-	_delete_if_exists(cfg_path)
+	_delete_if_exists(Settings.effective_path())
 	var fresh: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(fresh)
-	fresh.set_config_path_for_test(cfg_path)
 	menu.settings_provider = fresh
 	return menu
 
@@ -321,14 +313,7 @@ func test_gamepad_b_emits_closed_via_real_binding() -> void:
 	assert_signal_emitted(menu, "closed")
 
 
-## Redirects the real Settings autoload's own config path to a temp file for
-## the duration of this test (see the file header) so KeyRebindRow's direct
-## Settings.set_key_override() call never touches the real settings.cfg.
 func test_capturing_a_keyboard_event_calls_set_key_override_and_exits_listening() -> void:
-	var cfg_path: String = OS.get_user_data_dir().path_join("test_options_menu_rebind_kbd_tmp.cfg")
-	_delete_if_exists(cfg_path)
-	Settings.set_config_path_for_test(cfg_path)
-
 	var row: KeyRebindRow = _make_row()
 	row.rebind_button().pressed.emit()
 
@@ -342,8 +327,6 @@ func test_capturing_a_keyboard_event_calls_set_key_override_and_exits_listening(
 	assert_eq(events.size(), 1)
 	assert_true(events[0] is InputEventKey)
 	assert_eq((events[0] as InputEventKey).keycode, KEY_F9)
-
-	_delete_if_exists(cfg_path)
 
 
 func _delete_if_exists(path: String) -> void:

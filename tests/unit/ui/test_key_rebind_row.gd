@@ -15,7 +15,6 @@ extends GutTest
 ## Control/Button layout with neither artifact, fully headlessly.
 
 const KEY_REBIND_ROW_SCENE: PackedScene = preload("res://ui/menus/KeyRebindRow.tscn")
-var DEFAULT_SETTINGS_CFG_PATH: String = Settings.REAL_CONFIG_PATH
 const VIEWPORT_SIZE: Vector2i = Vector2i(1280, 720)
 
 var _test_action: StringName = &"key_rebind_row_test_action"
@@ -30,6 +29,7 @@ func before_each() -> void:
 	# joypad event (e.g. test_playercontroller_throw earlier in the same shard).
 	# The row only shows keyboard glyphs while it is keyboard_mouse.
 	_prior_device = Settings.active_input_device()
+	_delete_settings_file()
 	Settings._input(InputEventKey.new())
 	if not InputMap.has_action(_test_action):
 		InputMap.add_action(_test_action)
@@ -58,11 +58,17 @@ func before_each() -> void:
 func after_each() -> void:
 	if InputMap.has_action(_test_action):
 		InputMap.erase_action(_test_action)
-	Settings.set_config_path_for_test(DEFAULT_SETTINGS_CFG_PATH)
+	Settings.reset_key_overrides()
+	_delete_settings_file()
 	Settings._input(InputEventJoypadButton.new() if _prior_device == Settings.DEVICE_GAMEPAD else InputEventKey.new())
 	_row = null
 	_sub_viewport = null
 	_cover = null
+
+
+func _delete_settings_file() -> void:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
 
 
 ## Coordinates read back from the row's own Button are already expressed in
@@ -101,11 +107,6 @@ func _press_key(keycode: Key) -> void:
 
 
 func test_real_click_then_real_key_press_replaces_the_binding() -> void:
-	var cfg_path: String = OS.get_user_data_dir().path_join("test_key_rebind_row_kbd_tmp.cfg")
-	if FileAccess.file_exists(cfg_path):
-		DirAccess.remove_absolute(cfg_path)
-	Settings.set_config_path_for_test(cfg_path)
-
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -126,9 +127,6 @@ func test_real_click_then_real_key_press_replaces_the_binding() -> void:
 	assert_true(events[0] is InputEventKey)
 	assert_eq((events[0] as InputEventKey).keycode, KEY_F9)
 
-	if FileAccess.file_exists(cfg_path):
-		DirAccess.remove_absolute(cfg_path)
-
 
 func test_the_click_that_starts_listening_is_not_itself_captured_as_the_new_binding() -> void:
 	await get_tree().process_frame
@@ -147,12 +145,7 @@ func test_the_click_that_starts_listening_is_not_itself_captured_as_the_new_bind
 ## accelerator/focus-navigation handling (Space, Enter, Left, Tab) or by the
 ## full-screen mouse_filter=STOP _cover Control (the mouse click) -- neither
 ## ever reached ui/menus/KeyRebindRow.gd's old _unhandled_input().
-func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
-	var cfg_path: String = OS.get_user_data_dir().path_join("test_key_rebind_row_%s_tmp.cfg" % cfg_name)
-	if FileAccess.file_exists(cfg_path):
-		DirAccess.remove_absolute(cfg_path)
-	Settings.set_config_path_for_test(cfg_path)
-
+func _assert_key_replaces_binding(keycode: Key) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -176,17 +169,18 @@ func _assert_key_replaces_binding(keycode: Key, cfg_name: String) -> void:
 	var glyph: InputGlyph = glyph_row.get_child(0) as InputGlyph
 	assert_eq(glyph.label_text(), events[0].as_text(), "the glyph must reflect the new binding")
 
-	var persisted: Array = Settings._key_overrides.get(_test_action, [])
+	# A fresh Settings reads the saved file and reapplies the binding.
+	InputMap.action_erase_events(_test_action)
+	var reloaded: Node = autofree((load("res://autoload/Settings.gd") as GDScript).new())
+	add_child_autofree(reloaded)
+	var persisted: Array[InputEvent] = InputMap.action_get_events(_test_action)
 	assert_eq(persisted.size(), 1)
 	assert_true(persisted[0] is InputEventKey)
 	assert_eq((persisted[0] as InputEventKey).keycode, keycode, "the new binding must persist through Settings")
 
-	if FileAccess.file_exists(cfg_path):
-		DirAccess.remove_absolute(cfg_path)
-
 
 func test_tab_key_replaces_the_binding() -> void:
-	await _assert_key_replaces_binding(KEY_TAB, "tab")
+	await _assert_key_replaces_binding(KEY_TAB)
 
 
 func test_click_over_the_covering_control_while_listening_replaces_the_binding() -> void:

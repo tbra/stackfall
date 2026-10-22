@@ -1,14 +1,16 @@
 class_name Tutorial
 extends Node
-## Spec 1.2 "Tutorial": a one-slot match built the same way Sandbox.gd and HotSeat.gd are (one
-## PlayerController + GhostPreview + HUD subtree, wired the same way, driving the one slot
-## config.player_count = 1 gives it; game/main/Main.gd's start_tutorial_from_menu()), plus a
-## five-step scripted sequence (config/match/TutorialConfig.gd) that teaches placing, rotating,
-## territory, specials/throwing and the camera in order.
+## Spec 1.2 "Tutorial": an extra over the one real one-player match the mode launcher builds
+## (config.player_count = 1, normal rules, the scripted-gifts gate). This node holds no world of its
+## own: attach() takes the local player's controller, ghost and HUD, and the five-step scripted
+## sequence (config/match/TutorialConfig.gd) teaches placing, rotating, territory, specials/throwing
+## and the camera in order.
+##
+## It is attached while the match is still LOADING, so nothing starts, shows or counts until
+## Events.match_state_changed reports PLAYING (`_started`); the match reaching END ends it.
 ##
 ## Does not know about game/main/Main.gd: it only emits `finished`, once, when the last step
-## completes or the player cancels (pause_menu). start_tutorial_from_menu() adds this node, connects
-## to that signal, and frees it again.
+## completes, the player cancels (pause_menu) or the match ends.
 ##
 ## Each step's completion condition is checked only while that step is the *current* one
 ## (`_current_step()`), because Events.block_placed/special_consumed/territory_share_changed are
@@ -19,9 +21,9 @@ signal finished
 
 @export var tutorial_config: TutorialConfig = preload("res://config/match/tutorial_config.tres")
 
-@onready var _controller: PlayerController = $PlayerController
-@onready var _ghost: GhostPreview = $GhostPreview
-@onready var _hud: HUD = $HUDLayer
+var _controller: PlayerController
+var _ghost: GhostPreview
+var _hud: HUD
 @onready var _prompt_label: InputPromptFlow = %PromptLabel
 @onready var _prompt_panel: PanelContainer = %PromptLabel.get_parent().get_parent() as PanelContainer
 @onready var _step_label: Label = %StepLabel
@@ -34,6 +36,9 @@ var _step_index: int = -1
 ## _process()/every Events handler below so a second trigger can never call Match.abort_match() or
 ## emit `finished` twice.
 var _finished: bool = false
+## True once the match is PLAYING: before that no step is current, no prompt shows and no
+## completion handler counts.
+var _started: bool = false
 
 ## Step "rotating"'s poll baseline: GhostPreview.orientation_index at the moment that step began
 ## (no Events signal exists for a purely local ghost manipulation: rotation never reaches the host
@@ -59,29 +64,29 @@ const SIGNAL_TERRITORY_CLAIMED: StringName = &"territory_claimed"
 const SIGNAL_SPECIAL_CONSUMED: StringName = &"special_consumed"
 const SIGNAL_CAMERA_MOVED: StringName = &"camera_moved"
 
-## game/main/Main.gd's _build_tutorial_config() always sets config.player_count = 1, so there is
+## The mode launcher always builds the tutorial match with config.player_count = 1, so there is
 ## only ever one tutorial participant and every Match call below that needs a slot id uses this.
 const TUTORIAL_SLOT: int = 0
 
 
 func _ready() -> void:
-	Events.turn_changed.connect(_on_turn_changed)
+	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.block_placed.connect(_on_block_placed)
 	Events.territory_share_changed.connect(_on_territory_share_changed)
 	Events.special_consumed.connect(_on_special_consumed)
-	# Same as HotSeat.gd/Sandbox.gd's _ready(): a silent no-op headless, so every test that builds
-	# this scene without a display keeps working.
-	_controller.enable_mouse_capture()
 	_style_tip_banner()
+	_prompt_panel.visible = false
 	Settings.hud_scale_changed.connect(_on_hud_scale_changed)
 	Settings.ui_scale_changed.connect(_on_hud_scale_changed)
-	_begin_step(0)
 
 
-## Called once by game/main/Main.gd, the same hand-off as HotSeat.set_camera_rig()/
-## Sandbox.set_camera_rig() -- CameraRig lives outside this subtree.
-func set_camera_rig(rig: CameraRig) -> void:
-	_controller.set_camera_rig(rig)
+## Wires the tutorial onto the local player's world the one builder made; call before the match
+## is PLAYING.
+func attach(player: HotSeat) -> void:
+	_controller = player.controller()
+	_ghost = player.ghost()
+	_hud = player.hud()
+	_place_tip_banner()
 
 
 ## A HUD plate with a rim step block ("1/5") and the sentence in cream, centred directly under the
@@ -116,13 +121,14 @@ func _style_tip_banner() -> void:
 	var half_width: float = hud_visual_tuning.tip_max_width_px * 0.5
 	_prompt_panel.offset_left = -half_width
 	_prompt_panel.offset_right = half_width
-	_place_tip_banner()
 
 
 ## DECISION: the banner lives in its own CanvasLayer, outside the HUD's scale root, so it
 ## follows the HUD scale by scaling the panel itself (same factor as the scale root) around its top-centre
 ## pivot; the ring gap scales too, so the banner stays centred directly under the (scaled) timer ring.
 func _place_tip_banner() -> void:
+	if _hud == null:
+		return
 	var factor: float = UiScaleTuning.hud_relative_factor()
 	var height: float = _prompt_panel.offset_bottom - _prompt_panel.offset_top
 	var top: float = _hud.timer_ring_bottom_px() + hud_visual_tuning.tip_ring_gap_px * factor
@@ -156,7 +162,7 @@ func _process(delta: float) -> void:
 ## bound on both devices, collides with no gameplay action, and the real PauseMenu never opens
 ## while Tutorial owns the scene (see its `suppressed`), so the input is otherwise unclaimed.
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed(&"pause_menu"):
+	if _started and event.is_action_pressed(&"pause_menu"):
 		_end_tutorial()
 		get_viewport().set_input_as_handled()
 
@@ -169,7 +175,7 @@ func _any_camera_action_held() -> bool:
 
 
 func _current_step() -> TutorialStep:
-	if _finished or _step_index < 0 or _step_index >= tutorial_config.steps.size():
+	if _finished or not _started or _step_index < 0 or _step_index >= tutorial_config.steps.size():
 		return null
 	return tutorial_config.steps[_step_index]
 
@@ -184,7 +190,7 @@ func _begin_step(index: int) -> void:
 	elif step.completion_signal == SIGNAL_CAMERA_MOVED:
 		_camera_hold_elapsed_s = 0.0
 	elif step.completion_signal == SIGNAL_SPECIAL_CONSUMED:
-		# config.sandbox = true (game/main/Main.gd's _build_tutorial_config()) is
+		# config.scripted_gifts (game/main/MatchLaunch.gd's tutorial_config()) is
 		# what lets this through MatchGifts.debug_queue_special()'s own gate --
 		# see game/sandbox/Sandbox.gd's matching F9 seam for the same contract.
 		Match.debug_queue_special(TUTORIAL_SLOT, tutorial_config.demo_special_id)
@@ -200,9 +206,9 @@ func _advance() -> void:
 
 
 ## The one place this class ends the match: step 5 completing (_advance()) and pause_menu
-## (_unhandled_input()) both reach this, so Match.abort_match() and `finished` can never be skipped
-## for one path or double-fired for the other. game/main/Main.gd's start_tutorial_from_menu() is
-## connected to `finished`; it frees this node and shows the Main Menu again.
+## (_unhandled_input()) and the match reaching END all reach this, so Match.abort_match() and
+## `finished` can never be skipped for one path or double-fired for another. The mode launcher's
+## owner is connected to `finished` and tears the match down.
 func _end_tutorial() -> void:
 	if _finished:
 		return
@@ -211,11 +217,13 @@ func _end_tutorial() -> void:
 	finished.emit()
 
 
-func _on_turn_changed(slot_id: int) -> void:
-	# The one-time "a controller is now bound to a real slot" moment (like Sandbox.gd's
-	# _on_turn_changed()): the first frame looks from the tutorial slot's home flag toward the disk
-	# centre instead of the generic yaw = 0 default.
-	_controller.set_home_position(Match.default_ghost_origin(slot_id))
+func _on_match_state_changed(_from_state: int, to_state: int) -> void:
+	if to_state == Match.State.PLAYING and not _started and not _finished:
+		_started = true
+		_prompt_panel.visible = true
+		_begin_step(0)
+	elif to_state == Match.State.END:
+		_end_tutorial()
 
 
 func _on_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
