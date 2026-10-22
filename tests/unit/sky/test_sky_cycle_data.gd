@@ -1,7 +1,7 @@
 extends GutTest
 ## The shipped sky data (config/sky/sky_cycle.tres, storm_overlay.tres, sky_dome.tres,
-## cloud_puffs.tres) loads and owns its materials. Field-by-field values are pinned in test_sky_contract.gd;
-## the golden fixture is checked by test_sky_parity_live.gd.
+## cloud_puffs.tres) loads and owns its materials. Shipped art values are not pinned field by field;
+## the live parity golden (test_sky_parity_live.gd) catches a changed rendered state.
 
 const CYCLE_PATH: String = "res://config/sky/sky_cycle.tres"
 const OVERLAY_PATH: String = "res://config/sky/storm_overlay.tres"
