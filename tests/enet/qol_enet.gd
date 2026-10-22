@@ -193,7 +193,6 @@ func _host_cell(cell: int) -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = SLOTS
-	config.hot_seat = false
 	config.block_timer = BLOCK_TIMER_S
 	config.countdown_seconds = COUNTDOWN_S
 	config.qol = _cell_qol(mask)
