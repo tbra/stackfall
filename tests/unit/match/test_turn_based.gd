@@ -5,7 +5,6 @@ extends "res://tests/unit/match/match_world_test.gd"
 func _turn_based_config(player_count: int = 2) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = false
 	config.turn_based = true
 	config.block_timer = 6.0
 	config.rng_seed = 12345
@@ -75,8 +74,8 @@ func test_request_place_rejects_the_slot_whose_turn_it_isnt_under_turn_based() -
 
 # --- stackfall-reviewer findings (MatchFeed.gd review fix) --
 # autoload/match/MatchFeed.gd's _tick_feed()/_consume_and_refeed() used to gate
-# only on config.hot_seat, so turn_based fell into the concurrent "every slot
-# ticks" branch instead of hot-seat's single-active-slot one.
+# only on a removed mode flag, so turn_based fell into the concurrent
+# "every slot ticks" branch instead of the single-active-slot one.
 
 func test_eliminated_active_slot_advances_the_turn_before_it_ever_places() -> void:
 	# Free-for-all (TeamMode.OFF, this fixture's default): three players, three
@@ -107,9 +106,8 @@ func test_eliminated_active_slot_advances_the_turn_before_it_ever_places() -> vo
 
 func test_only_the_active_slots_timer_runs_under_turn_based() -> void:
 	# Mirrors test_match_flow.gd's own
-	# test_only_the_active_slot_timer_runs_in_hot_seat() -- turn_based shares
-	# hot-seat's single-active-slot feed branch (this package's fix), not the
-	# concurrent "every slot ticks" branch spec 1.4's free-for-all uses.
+	# turn_based shares the single-active-slot feed branch (this package's fix),
+	# not the concurrent "every slot ticks" branch spec 1.4's free-for-all uses.
 	Match.start_match(_turn_based_config(2))
 	_run_countdown()
 	assert_eq(Match.active_slot(), 0)

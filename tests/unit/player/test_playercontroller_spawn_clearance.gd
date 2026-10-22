@@ -62,7 +62,6 @@ func _config(player_count: int = 2) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 24680
 	return config
@@ -74,7 +73,7 @@ func _run_countdown() -> void:
 
 
 ## Advances the host's own feed tick past a full block_timer interval
-## (autoload/match/MatchFeed.gd's non-hot-seat _tick_feed()) so a slot that
+## (autoload/match/MatchFeed.gd's concurrent-ticks _tick_feed()) so a slot that
 ## released early this same interval (_release_locked) crosses the boundary
 ## and may release again -- spec 1.4's "[ORIGINAL target]" cadence, which two
 ## back-to-back manual placements in one test would otherwise trip on their
