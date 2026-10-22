@@ -14,8 +14,6 @@ const PAD_DEVICE: int = 0
 const MIN_TEXT_RATIO: float = 4.5
 const MIN_LARGE_TEXT_RATIO: float = 3.0
 
-var _cfg_counter: int = 0
-
 
 func after_each() -> void:
 	Settings._input(InputEventKey.new())
@@ -29,10 +27,11 @@ func _settle() -> void:
 func _make_options() -> OptionsMenu:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(menu)
-	_cfg_counter += 1
+	var path: String = Settings.effective_path()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
 	var fresh: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(fresh)
-	fresh.set_config_path_for_test(OS.get_user_data_dir().path_join("test_options_arcade_tmp_%d.cfg" % _cfg_counter))
 	menu.settings_provider = fresh
 	return menu
 
