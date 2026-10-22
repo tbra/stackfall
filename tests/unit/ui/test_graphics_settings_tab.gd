@@ -6,17 +6,14 @@ const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 const PAD_DEVICE: int = 0
 
-var _cfg_path: String = ""
 var _settings: Node = null
 var _menu: OptionsMenu = null
 
 
 func before_each() -> void:
-	_cfg_path = OS.get_user_data_dir().path_join("test_graphics_tab_tmp.cfg")
-	_delete_if_exists(_cfg_path)
+	_delete_if_exists(Settings.effective_path())
 	_settings = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(_settings)
-	_settings.set_config_path_for_test(_cfg_path)
 	_menu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(_menu)
 	_menu.settings_provider = _settings
@@ -25,8 +22,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	_delete_if_exists(_cfg_path)
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
+	_delete_if_exists(Settings.effective_path())
 	Settings._input(InputEventKey.new())
 
 
@@ -42,7 +38,6 @@ func _tab() -> GraphicsSettingsTab:
 func _fresh_at_same_path() -> Node:
 	var other: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(other)
-	other.set_config_path_for_test(_cfg_path)
 	return other
 
 
@@ -100,7 +95,7 @@ func test_old_saved_per_field_overrides_load_and_show_in_the_combined_rows() -> 
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value("graphics", "preset", "medium")
 	cfg.set_value("graphics", "overrides", {"aurora_enabled": false, "ssr_enabled": false, "shadow_atlas_size": 8192})
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 	_menu.settings_provider = _fresh_at_same_path()
 	_tab().refresh_from_settings()
 	assert_eq(_tab().preset_option.selected, GraphicsSettingsTab.PRESET_IDS.size())
@@ -127,7 +122,7 @@ func test_overrides_persist_across_restart_and_old_files_load_unchanged() -> voi
 	# An old file (preset id only, no overrides key) loads unchanged.
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value("graphics", "preset", "high")
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 	var old: Node = _fresh_at_same_path()
 	assert_false(old.graphics_preset_is_custom())
 	assert_eq(old.current_graphics_preset().id, &"high")
@@ -181,7 +176,7 @@ func test_out_of_range_and_bogus_saved_overrides_are_clamped_or_dropped() -> voi
 		"shadow_atlas_size": 3000, "msaa_3d": 99, "frame_cap_mode": 7, "reflection_probe_mode": -1,
 		"cloud_puff_density": 9.0,
 	})
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 	var loaded: Node = _fresh_at_same_path()
 	var effective: GraphicsPreset = loaded.current_graphics_preset()
 	var medium: GraphicsPreset = load("res://config/graphics/presets/medium.tres") as GraphicsPreset
