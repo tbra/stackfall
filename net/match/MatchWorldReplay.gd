@@ -64,10 +64,11 @@ var _sent_at_s: Dictionary = {}
 var _next_replay_id: int = 1
 
 
-## `session_node` / `match_node` are the Net and Match autoloads (or test doubles).
+## `session_node` / `match_node` are the ports MatchNet shares, or the Net and Match autoloads (or test
+## doubles), which are bound with exactly the subset of the ports this class calls.
 func _init(session_node: Object, match_node: Object, config: NetConfig, seams: Seams) -> void:
-	_session = SessionPort.new(session_node, _SESSION_METHODS)
-	_host = MatchHostPort.new(match_node, _HOST_METHODS)
+	_session = session_node as SessionPort if session_node is SessionPort else SessionPort.new(session_node, _SESSION_METHODS)
+	_host = match_node as MatchHostPort if match_node is MatchHostPort else MatchHostPort.new(match_node, _HOST_METHODS)
 	_config = config
 	_seams = seams
 	if config != null:
