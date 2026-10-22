@@ -97,15 +97,15 @@ func _assert_field_matches_the_match_map() -> void:
 	assert_almost_eq(_field().grid().cell_size, _match_map.cell_size, 0.001)
 
 
-# --- Call site: _start_hot_seat_match() --------------------------------------
+# --- Call site: the sandbox entry (the one match path) -----------------------
 
-func test_hot_seat_rebuilds_field_for_the_match_map() -> void:
+func test_sandbox_rebuilds_field_for_the_match_map() -> void:
 	assert_eq(
 		_field().map_definition(), _field_default_map,
 		"fixture: Field starts on its own default map, not the match's"
 	)
 
-	_main._start_hot_seat_match()
+	_main.start_sandbox_from_menu()
 
 	_assert_field_matches_the_match_map()
 

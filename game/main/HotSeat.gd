@@ -7,6 +7,7 @@ extends Node
 ## MatchConfig.hot_seat, decided at the lobby.
 
 @onready var _controller: PlayerController = $PlayerController
+@onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
 ## The in-game tuning panel (F4). Lives here rather than in Main so it exists on
 ## every path that builds a HotSeat (the local --hot-seat entry point and the
@@ -56,4 +57,12 @@ func bind_local_slot(slot_id: int) -> void:
 
 func controller() -> PlayerController:
 	return _controller
+
+
+func ghost() -> GhostPreview:
+	return _ghost
+
+
+func hud() -> HUD:
+	return _hud
 

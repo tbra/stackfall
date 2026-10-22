@@ -50,7 +50,7 @@ var _refresh_accum: float = 0.0
 
 ## The tallest point any of the active slot's settled blocks has reached this match
 ## (BlockRegistry.max_height_for_slot(), polled once per _refresh()). Monotone within one match;
-## only reset_height_record() (F5) lowers it.
+## a rebuilt panel starts from zero.
 var _height_record: float = 0.0
 
 
@@ -209,13 +209,6 @@ func _refresh_height_record(slot_id: int) -> void:
 		if registry != null:
 			_height_record = maxf(_height_record, registry.max_height_for_slot(slot_id))
 	_height_record_label.text = "Height record: %.2f m" % _height_record
-
-
-## Called on sandbox_reset_field (F5): a freshly reset match starts a new tallest stack, so the
-## previous match's record must not linger.
-func reset_height_record() -> void:
-	_height_record = 0.0
-	_height_record_label.text = "Height record: 0.00 m"
 
 
 # --- Block picker / special spawn dropdowns --------------------------
