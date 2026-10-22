@@ -172,6 +172,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/sandbox/Sandbox.gd:active_slot",
+   "reason": "live: ui/debug/SandboxPanel.gd:90 (untyped call; the panel keeps _sandbox Variant to avoid a script cycle)"
+  },
+  {
+   "id": "test-only-func",
    "entry": "autoload/Match.gd:after_next_special",
    "reason": "live: net/MatchNet.gd:2317 (untyped or dynamic call)"
   },
