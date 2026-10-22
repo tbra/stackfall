@@ -2,6 +2,7 @@ extends GutTest
 ## The lobby players row has switchable looks (Classic, Roster tiles, Table, Versus board), all built by ONE LobbySeatRow for the vs-bots and the hosted lobby. Every control of the requirement
 ## table exists, is operable (synthetic clicks, ui_accept from a pad press, dropdown picks), a client cannot use
 ## the host's controls, pad focus reaches every control and the footer, and the debug-only switch keeps seat state.
+## Each test builds its lobby once and walks the looks through the debug-only switch the game itself uses.
 
 const HUMANS: int = 5
 const BOTS: int = 3
@@ -81,6 +82,12 @@ func _panel(lobby: Lobby) -> LobbyPlayersPanel:
 	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
 
 
+## Switch the open lobby to `style` (the debug-only switch) and let the rows rebuild.
+func _show_look(lobby: Lobby, style: int) -> void:
+	_panel(lobby).set_row_style(style)
+	await wait_frames(1)
+
+
 func _rows(lobby: Lobby) -> Array[LobbySeatRow]:
 	var rows: Array[LobbySeatRow] = []
 	for node: Node in _panel(lobby)._player_rows:
@@ -106,11 +113,15 @@ func _style_label(style: int) -> String:
 # --- Requirement table: every control exists and works (host) ---------------------------
 
 func test_every_look_has_every_control_in_vsbots_and_hosted_lobbies() -> void:
-	for style: int in STYLES:
-		for hosted: bool in [false, true]:
-			var humans: int = HUMANS if hosted else 1
-			for teams: bool in [true, false]:
-				var lobby: Lobby = await _host_lobby(style, hosted, humans, BOTS, teams)
+	for hosted: bool in [false, true]:
+		var humans: int = HUMANS if hosted else 1
+		var lobby: Lobby = await _host_lobby(STYLES[0], hosted, humans, BOTS, true)
+		for teams: bool in [true, false]:
+			if not teams:
+				_panel(lobby).teams_toggled.emit(false)
+				await wait_frames(1)
+			for style: int in STYLES:
+				await _show_look(lobby, style)
 				var label: String = "%s %s teams=%s" % [_style_label(style), "hosted" if hosted else "vs-bots", teams]
 				var rows: Array[LobbySeatRow] = _rows(lobby)
 				assert_eq(rows.size(), humans + BOTS, "%s: one row per seat" % label)
@@ -131,23 +142,25 @@ func test_every_look_has_every_control_in_vsbots_and_hosted_lobbies() -> void:
 						var can_mute: bool = hosted and row.seat_key != Net.local_peer_id() and row.seat_key != 1
 						assert_eq(row.mute_button != null, can_mute, "%s: mute only on other humans of a hosted lobby (%s)" % [label, row.display_name])
 				assert_eq(_panel(lobby)._open_seat_row.visible, humans + BOTS < MatchConfig.PLAYER_COUNT_MAX, "%s: open seat + Add bot while a seat is free" % label)
-				lobby.queue_free()
-				await wait_frames(1)
+		lobby.queue_free()
+		await wait_frames(1)
 
 
 func test_host_can_operate_difficulty_remove_team_and_mute_in_every_look() -> void:
+	# One bot more than looks are walked, so every look has a bot to remove.
+	var lobby: Lobby = await _host_lobby(STYLES[0], true, HUMANS - 1, BOTS + 1, true)
+	var panel: LobbyPlayersPanel = _panel(lobby)
 	for style: int in STYLES:
-		var lobby: Lobby = await _host_lobby(style, true, HUMANS, BOTS, true)
-		var panel: LobbyPlayersPanel = _panel(lobby)
+		await _show_look(lobby, style)
 		var label: String = _style_label(style)
 		# Difficulty: a press on the skill block / a step on the cycler.
 		var bot_key: int = _bot_rows(lobby)[0].seat_key
 		var skill: Control = _row_of(lobby, bot_key).difficulty_control()
 		if skill is UiIconButton:
-			(skill as UiIconButton).pressed.emit()  # Normal -> Hard
+			(skill as UiIconButton).pressed.emit()
 		else:
 			(skill as UiCycler).nudge(1)
-		assert_eq(LobbySeats.difficulty_of(panel._seats, bot_key), MatchConfig.AiDifficulty.HARD, "%s: bot difficulty changed" % label)
+		assert_eq(LobbySeats.difficulty_of(panel._seats, bot_key), MatchConfig.AiDifficulty.HARD, "%s: bot difficulty changed (Normal to Hard)" % label)
 		# Team: the cycling team block / the classic dropdown pick.
 		var human_key: int = LobbySeats.human_key(2)
 		var before: int = LobbySeats.team_of(panel._seats, human_key)
@@ -168,13 +181,15 @@ func test_host_can_operate_difficulty_remove_team_and_mute_in_every_look() -> vo
 		var bots_before: int = LobbySeats.bot_count(panel._seats)
 		_row_of(lobby, bot_key).remove_button.pressed.emit()
 		assert_eq(LobbySeats.bot_count(panel._seats), bots_before - 1, "%s: bot removed" % label)
-		lobby.queue_free()
 		await wait_frames(1)
+	lobby.queue_free()
+	await wait_frames(1)
 
 
 func test_a_client_cannot_operate_host_only_controls_in_any_look() -> void:
+	var lobby: Lobby = await _client_lobby(STYLES[0])
 	for style: int in STYLES:
-		var lobby: Lobby = await _client_lobby(style)
+		await _show_look(lobby, style)
 		var label: String = _style_label(style)
 		var rows: Array[LobbySeatRow] = _rows(lobby)
 		assert_eq(rows.size(), HUMANS + BOTS, "%s: the client sees every seat" % label)
@@ -195,32 +210,38 @@ func test_a_client_cannot_operate_host_only_controls_in_any_look() -> void:
 		var offered: Array[Control] = _panel(lobby).focus_entries()
 		for control: Control in offered:
 			assert_false(control is UiIconButton and (control as UiIconButton).tone == UiIconButton.Tone.DANGER, "%s: no remove X is offered" % label)
-		lobby.queue_free()
-		await wait_frames(1)
+	lobby.queue_free()
+	await wait_frames(1)
 
 
 # --- One row class for both lobbies ------------------------------------------------------
 
 
 func test_vsbots_and_hosted_lobbies_build_the_same_row_for_the_same_seat() -> void:
-	for style: int in STYLES:
-		var shapes: Array[Array] = []
-		for hosted: bool in [false, true]:
-			var lobby: Lobby = await _host_lobby(style, hosted, 1, BOTS, true)
+	var shapes_by_style: Dictionary = {}
+	for hosted: bool in [false, true]:
+		var lobby: Lobby = await _host_lobby(STYLES[0], hosted, 1, BOTS, true)
+		for style: int in STYLES:
+			await _show_look(lobby, style)
 			var shape: Array = []
 			for row: LobbySeatRow in _rows(lobby):
 				shape.append([row.get_script(), row.focusable_controls().size()])
-			shapes.append(shape)
-			lobby.queue_free()
-			await wait_frames(2)
-		assert_eq(shapes[0].size(), 1 + BOTS, "%s: every seat is drawn" % _style_label(style))
+			if not shapes_by_style.has(style):
+				shapes_by_style[style] = []
+			(shapes_by_style[style] as Array).append(shape)
+		lobby.queue_free()
+		await wait_frames(1)
+	for style: int in STYLES:
+		var shapes: Array = shapes_by_style[style]
+		assert_eq((shapes[0] as Array).size(), 1 + BOTS, "%s: every seat is drawn" % _style_label(style))
 		assert_eq(shapes[0], shapes[1], "%s: one row class with the same operable controls in both lobbies" % _style_label(style))
 
 
 func test_pad_focus_reaches_every_control_and_a_pad_press_operates_it() -> void:
+	var lobby: Lobby = await _host_lobby(STYLES[0], true, HUMANS, BOTS, true)
+	var panel: LobbyPlayersPanel = _panel(lobby)
 	for style: int in STYLES:
-		var lobby: Lobby = await _host_lobby(style, true, HUMANS, BOTS, true)
-		var panel: LobbyPlayersPanel = _panel(lobby)
+		await _show_look(lobby, style)
 		var offered: Array[Control] = panel.focus_entries()
 		var label: String = _style_label(style)
 		for row: LobbySeatRow in _rows(lobby):
@@ -256,14 +277,15 @@ func test_pad_focus_reaches_every_control_and_a_pad_press_operates_it() -> void:
 			Input.parse_input_event(release)
 			await wait_frames(2)
 			assert_ne(LobbySeats.difficulty_of(panel._seats, bot_key), before, "%s: a pad accept changes the skill" % label)
-		lobby.queue_free()
-		await wait_frames(1)
+	lobby.queue_free()
+	await wait_frames(1)
 
 
 func test_right_click_cycles_team_and_skill_backwards() -> void:
+	var lobby: Lobby = await _host_lobby(LobbySeatVariants.Style.CLASSIC, true, HUMANS, BOTS, true)
+	var panel: LobbyPlayersPanel = _panel(lobby)
 	for style: int in [LobbySeatVariants.Style.TILES, LobbySeatVariants.Style.TABLE, LobbySeatVariants.Style.BOARD]:
-		var lobby: Lobby = await _host_lobby(style, true, HUMANS, BOTS, true)
-		var panel: LobbyPlayersPanel = _panel(lobby)
+		await _show_look(lobby, style)
 		var bot: LobbySeatRow = _bot_rows(lobby)[0]
 		var click: InputEventMouseButton = InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_RIGHT
@@ -276,8 +298,8 @@ func test_right_click_cycles_team_and_skill_backwards() -> void:
 		var row: LobbySeatRow = _row_of(lobby, human_key)
 		row.team_cycle_button.gui_input.emit(click)
 		assert_ne(LobbySeats.team_of(panel._seats, human_key), team_before, "%s: right click moves the team" % _style_label(style))
-		lobby.queue_free()
-		await wait_frames(1)
+	lobby.queue_free()
+	await wait_frames(1)
 
 
 func test_switching_the_look_rebuilds_the_rows_without_touching_the_seats() -> void:
@@ -298,18 +320,18 @@ func test_switching_the_look_rebuilds_the_rows_without_touching_the_seats() -> v
 
 
 func test_board_makes_a_lane_per_team_and_free_for_all_two_neutral_lanes() -> void:
-	var teams: Lobby = await _host_lobby(LobbySeatVariants.Style.BOARD, true, HUMANS, BOTS, true)
-	var lanes: Array[Node] = _panel(teams).find_children("*", "LobbySeatLane", true, false)
+	var lobby: Lobby = await _host_lobby(LobbySeatVariants.Style.BOARD, true, HUMANS, BOTS, true)
+	var lanes: Array[Node] = _panel(lobby).find_children("*", "LobbySeatLane", true, false)
 	assert_gte(lanes.size(), 2, "a lane for each team")
 	var seated: int = 0
 	for lane: Node in lanes:
 		seated += (lane as LobbySeatLane).rows_box.get_children().filter(func(child: Node) -> bool: return child is LobbySeatRow).size()
 	assert_eq(seated, HUMANS + BOTS, "every seat sits in exactly one lane")
-	teams.queue_free()
-	var ffa: Lobby = await _host_lobby(LobbySeatVariants.Style.BOARD, true, HUMANS, BOTS, false)
-	var ffa_lanes: Array[Node] = _panel(ffa).find_children("*", "LobbySeatLane", true, false)
+	_panel(lobby).teams_toggled.emit(false)
+	await wait_frames(2)
+	var ffa_lanes: Array[Node] = _panel(lobby).find_children("*", "LobbySeatLane", true, false)
 	assert_eq(ffa_lanes.size(), 2, "free-for-all: two lanes")
 	for lane: Node in ffa_lanes:
 		assert_null((lane as LobbySeatLane).cap, "free-for-all lanes carry no team cap")
-	ffa.queue_free()
+	lobby.queue_free()
 	await wait_frames(1)
