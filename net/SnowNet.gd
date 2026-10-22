@@ -1,5 +1,5 @@
 class_name SnowNet
-extends Node
+extends PortBoundNode
 ## Snow replication and client rendering, a child of
 ## WeatherNet so its RPC path (/root/MatchNet/WeatherNet/SnowNet) is the same
 ## on every instance.
@@ -27,8 +27,6 @@ const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
 const AUTHORITY_METHODS: PackedStringArray = ["weather", "state", "field", "registry"]
 
 var _tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
-var _session_port: SessionPort = null
-var _authority_port: MatchHostPort = null
 var _pending: Dictionary = {}
 var _has_pending: bool = false
 var _since_send: float = INF
@@ -56,43 +54,12 @@ func _exit_tree() -> void:
 var awaiting_world: Callable = Callable()
 
 
-## Typed seam: the session and the Match this node reads. Returns false (and
-## binds nothing) when a port is invalid. Build the ports with SESSION_METHODS /
-## AUTHORITY_METHODS (default_session() / default_authority()).
-func bind(session: SessionPort, authority: MatchHostPort) -> bool:
-	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
-		return false
-	_session_port = session
-	_authority_port = authority
-	return true
+func _session_methods() -> PackedStringArray:
+	return SESSION_METHODS
 
 
-## The port over the real Net autoload (or `session_node`).
-static func default_session(session_node: Object = null) -> SessionPort:
-	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
-
-
-## The port over the real Match autoload (or `match_node`).
-static func default_authority(match_node: Object = null) -> MatchHostPort:
-	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
-
-
-## TRANSITIONAL shim for callers that still inject providers; null keeps the
-## real autoload.
-func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
-
-
-func _session() -> SessionPort:
-	if _session_port == null:
-		_session_port = default_session()
-	return _session_port
-
-
-func _authority() -> MatchHostPort:
-	if _authority_port == null:
-		_authority_port = default_authority()
-	return _authority_port
+func _authority_methods() -> PackedStringArray:
+	return AUTHORITY_METHODS
 
 
 func _process(delta: float) -> void:

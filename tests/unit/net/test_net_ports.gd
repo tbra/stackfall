@@ -100,7 +100,6 @@ func test_session_port_wraps_the_real_net_autoload() -> void:
 	assert_eq(port.slot_of_peer(PEER_A), Net.slot_of_peer(PEER_A))
 	assert_eq(port.peer_ids(), Net.peer_ids())
 	assert_eq(port.is_peer_disconnecting(PEER_A), Net.is_peer_disconnecting(PEER_A))
-	assert_eq(port.host_peer_id(), Net.HOST_PEER_ID)
 	assert_eq(port.timeout_leave_reason(), int(Net.LeaveReason.TIMEOUT))
 
 

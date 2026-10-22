@@ -12,22 +12,21 @@ extends RefCounted
 ## DECISION: filter at the send rather than force the kick to finish first.
 ## Net.kick_peer() stays graceful (the kicked client still gets its disconnect
 ## reason), and one helper serves every broadcast site, ENet and Steam alike: it
-## only reads MultiplayerAPI.get_peers() and Net.is_peer_disconnecting(), never a
+## only reads MultiplayerAPI.get_peers() and SessionPort.is_peer_disconnecting(), never a
 ## transport class. With nobody disconnecting broadcast() is the very rpc() it
 ## replaces (same packet count and bytes per peer); only while a kick is in flight
 ## does it fan out with rpc_id() to the remaining peers.
 
 
 ## The connected peers a broadcast may address: everything in `api.get_peers()`
-## that `session` is not disconnecting. `session` is the Net autoload (or a test
-## double); one without is_peer_disconnecting() never has a peer in that state.
-static func targets(api: MultiplayerAPI, session: Variant) -> Array[int]:
+## that `session` is not disconnecting. A session that cannot answer
+## is_peer_disconnecting() (SessionPort says false) never has a peer in that state.
+static func targets(api: MultiplayerAPI, session: SessionPort) -> Array[int]:
 	var ids: Array[int] = []
 	if api == null or not api.has_multiplayer_peer():
 		return ids
-	var can_ask: bool = session != null and session.has_method(&"is_peer_disconnecting")
 	for peer_id: int in api.get_peers():
-		if can_ask and bool(session.is_peer_disconnecting(peer_id)):
+		if session.is_peer_disconnecting(peer_id):
 			continue
 		ids.append(peer_id)
 	return ids
@@ -44,14 +43,12 @@ static func targets(api: MultiplayerAPI, session: Variant) -> Array[int]:
 ## class is not a transport assumption (CLAUDE.md): it is the engine's own
 ## stand-in for "no transport", and ENet and Steam are equally unaffected.
 ##
-## DECISION: the one owner of this predicate. It lives here as
-## a static helper beside broadcast() rather than only on the Net autoload
-## because every caller (MatchNet, WeatherNet, SnowNet, BreezeNet) tests against
-## its own node's MultiplayerAPI and an injectable `session` double; Net.can_send()
-## delegates here. Host-ness has one owner too: Net.is_host() (callers go through
-## their `_session()`).
-static func can_send(api: MultiplayerAPI, session: Variant) -> bool:
-	if session != null and bool(session.is_offline()):
+## DECISION: the one owner of this predicate, a static helper beside broadcast()
+## because every caller (MatchNet, SnapshotSync, WeatherNet, SnowNet, BreezeNet)
+## tests against its own node's MultiplayerAPI and its bound SessionPort. Host-ness
+## has one owner too: the session's is_host() (callers go through their port).
+static func can_send(api: MultiplayerAPI, session: SessionPort) -> bool:
+	if session.is_offline():
 		return false
 	var peer: MultiplayerPeer = api.multiplayer_peer if api != null else null
 	if peer == null or peer is OfflineMultiplayerPeer:
@@ -62,7 +59,7 @@ static func can_send(api: MultiplayerAPI, session: Variant) -> bool:
 ## Calls `method` with `args` on `node`'s counterpart on every peer
 ## targets(node.multiplayer, session) lists. Callers keep their own "is this
 ## instance the host and is there a live transport" gate.
-static func broadcast(node: Node, session: Variant, method: StringName, args: Array = []) -> void:
+static func broadcast(node: Node, session: SessionPort, method: StringName, args: Array = []) -> void:
 	var api: MultiplayerAPI = node.multiplayer
 	var connected: PackedInt32Array = api.get_peers()
 	var addressed: Array[int] = targets(api, session)
@@ -78,17 +75,16 @@ static func broadcast(node: Node, session: Variant, method: StringName, args: Ar
 ## reporting it as disconnecting (a kick in flight, or ENet already showing its
 ## link as not connected, which logs "Unable to send packet on channel 0, max
 ## channels: 0" on every packet).
-static func can_send_to(api: MultiplayerAPI, session: Variant, peer_id: int) -> bool:
+static func can_send_to(api: MultiplayerAPI, session: SessionPort, peer_id: int) -> bool:
 	if not can_send(api, session) or not api.get_peers().has(peer_id):
 		return false
-	var can_ask: bool = session != null and session.has_method(&"is_peer_disconnecting")
-	return not (can_ask and bool(session.is_peer_disconnecting(peer_id)))
+	return not session.is_peer_disconnecting(peer_id)
 
 
 ## The one per-peer send: rpc_id(peer_id, method, args) on `node` only when
 ## can_send_to() allows it. Returns whether a packet was queued. For a connected
 ## peer it is exactly the rpc_id() it replaces.
-static func send_to(node: Node, session: Variant, peer_id: int, method: StringName, args: Array = []) -> bool:
+static func send_to(node: Node, session: SessionPort, peer_id: int, method: StringName, args: Array = []) -> bool:
 	if not can_send_to(node.multiplayer, session, peer_id):
 		return false
 	node.callv(&"rpc_id", [peer_id, method] + args)

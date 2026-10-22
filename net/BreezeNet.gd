@@ -1,5 +1,5 @@
 class_name BreezeNet
-extends Node
+extends PortBoundNode
 ## Breeze gust replication, a child of WeatherNet so its RPC
 ## path (/root/MatchNet/WeatherNet/BreezeNet) is the same on every instance.
 ## Uses only MultiplayerAPI.
@@ -28,8 +28,6 @@ var gusts_refused: int = 0
 var last_sent_gust: Dictionary = {}
 
 var _tuning: BreezeTuning = preload("res://config/breeze/breeze.tres")
-var _session_port: SessionPort = null
-var _authority_port: MatchHostPort = null
 var _last_id: int = 0
 
 
@@ -41,43 +39,12 @@ func _ready() -> void:
 	Events.match_state_changed.connect(_on_match_state_changed)
 
 
-## Typed seam: the session and the Match this node reads. Returns false (and
-## binds nothing) when a port is invalid. Build the ports with SESSION_METHODS /
-## AUTHORITY_METHODS (default_session() / default_authority()).
-func bind(session: SessionPort, authority: MatchHostPort) -> bool:
-	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
-		return false
-	_session_port = session
-	_authority_port = authority
-	return true
+func _session_methods() -> PackedStringArray:
+	return SESSION_METHODS
 
 
-## The port over the real Net autoload (or `session_node`).
-static func default_session(session_node: Object = null) -> SessionPort:
-	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
-
-
-## The port over the real Match autoload (or `match_node`).
-static func default_authority(match_node: Object = null) -> MatchHostPort:
-	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
-
-
-## TRANSITIONAL shim for callers that still inject providers; null keeps the
-## real autoload.
-func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
-
-
-func _session() -> SessionPort:
-	if _session_port == null:
-		_session_port = default_session()
-	return _session_port
-
-
-func _authority() -> MatchHostPort:
-	if _authority_port == null:
-		_authority_port = default_authority()
-	return _authority_port
+func _authority_methods() -> PackedStringArray:
+	return AUTHORITY_METHODS
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:

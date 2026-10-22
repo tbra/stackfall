@@ -37,6 +37,12 @@ class Session:
 	func is_peer_disconnecting(peer_id: int) -> bool:
 		return transport.is_peer_disconnecting(api, peer_id)
 
+	func is_host() -> bool:
+		return true
+
+	func is_offline() -> bool:
+		return false
+
 
 var _transport: NetTransport = null
 var _config: NetConfig = null
@@ -136,7 +142,7 @@ func _fanout_targets(api: MultiplayerAPI) -> Array[int]:
 	var session: Session = Session.new()
 	session.transport = _transport
 	session.api = api
-	return NetFanout.targets(api, session)
+	return NetFanout.targets(api, SessionPort.new(session, PackedStringArray(["is_host", "is_offline"])))
 
 
 func test_targets_skip_marked_peers_and_equal_netfanout_targets() -> void:

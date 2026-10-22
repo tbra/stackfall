@@ -19,11 +19,6 @@ extends Node3D
 ## slot_id -> GhostPreview.
 var _ghosts: Dictionary = {}
 
-## DECISION (game/player/RemoteCursors.gd): the same Net seam PlayerController
-## uses, for the same reason (GUT cannot double an autoload). null is the real Net.
-var _session_provider: Variant = null
-var _match_provider: Variant = null
-
 var _shapes_by_id: Dictionary = {}
 
 
@@ -35,17 +30,12 @@ func _ready() -> void:
 	Events.glue_charges_changed.connect(_on_glue_charges_changed)
 
 
-func set_providers(session_provider: Variant, match_provider: Variant) -> void:
-	_session_provider = session_provider
-	_match_provider = match_provider
-
-
 func _session() -> Variant:
-	return _session_provider if _session_provider != null else Net
+	return Net
 
 
 func _authority() -> Variant:
-	return _match_provider if _match_provider != null else Match
+	return Match
 
 
 ## The ghost drawn for `slot_id`, or null when that slot has none — this

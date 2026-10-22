@@ -9,6 +9,9 @@ const HIGH_M: float = 20.0
 const SIM_STEP: float = 0.1
 const BUSY_INTERVAL_S: float = 1.2
 const BUSY_DURATION_S: float = 0.5
+## What the narrow doubles below answer: the calls BreezeNet makes on its two ports.
+const SESSION_CALLS: PackedStringArray = ["is_host", "is_offline"]
+const AUTHORITY_CALLS: PackedStringArray = ["state"]
 
 var _tuning: BreezeTuning = null
 var _blocks: Array[Block] = []
@@ -244,7 +247,7 @@ class BreezeFakeMatch:
 func _breeze_net(net: BreezeFakeNet, authority: BreezeFakeMatch) -> BreezeNet:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
-	assert_true(node.bind(SessionPort.new(net, BreezeNet.SESSION_METHODS), MatchHostPort.new(authority, BreezeNet.AUTHORITY_METHODS)), "narrow doubles bind")
+	assert_true(node.bind(SessionPort.new(net, SESSION_CALLS), MatchHostPort.new(authority, AUTHORITY_CALLS)), "narrow doubles bind")
 	return node
 
 
@@ -262,26 +265,50 @@ func test_breeze_net_client_applies_a_good_gust_and_refuses_the_rest() -> void:
 	assert_eq(node.gusts_applied, 1)
 
 
-func test_breeze_net_host_refuses_replicated_gusts_and_set_providers_shim_binds() -> void:
+func test_breeze_net_host_refuses_replicated_gusts_and_rebinding_swaps_the_session() -> void:
 	var net: BreezeFakeNet = BreezeFakeNet.new()
 	net.host = true
-	var node: BreezeNet = BreezeNet.new()
-	add_child_autofree(node)
-	node.set_providers(net, BreezeFakeMatch.new())
+	var node: BreezeNet = _breeze_net(net, BreezeFakeMatch.new())
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_refused, 1, "the host never applies a replicated gust")
 	assert_eq(node.gusts_applied, 0)
-	net.host = false
+	var client_net: BreezeFakeNet = BreezeFakeNet.new()
+	assert_true(node.bind(SessionPort.new(client_net, SESSION_CALLS), MatchHostPort.new(BreezeFakeMatch.new(), AUTHORITY_CALLS)))
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_applied, 1, "the shim bound the injected session and match")
+	assert_eq(node.gusts_applied, 1, "the new binding answers: this node is now a client")
+
+
+func test_breeze_net_binds_through_the_shared_port_bound_base() -> void:
+	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), BreezeFakeMatch.new())
+	assert_true(is_instance_of(node, PortBoundNode))
+	assert_true(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), MatchHostPort.new(BreezeFakeMatch.new(), AUTHORITY_CALLS)))
 
 
 func test_breeze_net_bind_refuses_an_invalid_port() -> void:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), BreezeNet.AUTHORITY_METHODS)
-	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), BreezeNet.SESSION_METHODS), broken))
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
+	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), broken))
 	assert_push_error_count(1, "one conformance error from the broken port")
+	assert_false(node.bind(null, null), "null ports are refused")
+
+
+func test_breeze_net_bind_keeps_the_previous_binding_when_refused() -> void:
+	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), BreezeFakeMatch.new())
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
+	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), broken))
+	assert_push_error_count(1, "one conformance error from the broken port")
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_applied, 1, "the earlier binding still answers")
+
+
+func test_an_unbound_breeze_net_reads_the_real_net() -> void:
+	assert_true(Net.is_offline(), "fixture: the real Net is offline, so it is its own host")
+	var node: BreezeNet = BreezeNet.new()
+	add_child_autofree(node)
+	node.net_breeze_gust(_wire(1))
+	assert_eq(node.gusts_refused, 1, "no bind: the host check goes to the real Net")
+	assert_eq(node.gusts_applied, 0)
 
 
 func test_tuning_panel_breeze_toggle_is_host_only() -> void:
