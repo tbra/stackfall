@@ -34,20 +34,41 @@ func test_is_applied_agrees_with_what_drain_returned() -> void:
 	assert_eq(backlog.applied_count(), opened.size())
 
 
-func test_a_cell_toggled_twice_before_a_drain_nets_out() -> void:
+func test_a_cell_opened_then_closed_before_a_drain_is_reported_opened_but_ends_closed() -> void:
 	var backlog: HoleBacklog = HoleBacklog.new()
 	backlog.want(_cells([12]), PackedInt32Array(), IN_DISK)
 	backlog.want(PackedInt32Array(), _cells([12]), IN_DISK)
 
-	assert_true(backlog.drain(10).is_empty(), "Opened then closed before a drain opens nothing.")
-	assert_false(backlog.is_applied(12))
+	assert_eq(backlog.drain(10), _cells([12]), "Both toggles apply in order; the open is still reported.")
+	assert_false(backlog.is_applied(12), "The final state is closed.")
 	assert_eq(backlog.applied_count(), 0)
 
+
+func test_open_close_open_before_a_drain_reports_each_open_and_ends_open() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
 	backlog.want(_cells([12]), PackedInt32Array(), IN_DISK)
 	backlog.want(PackedInt32Array(), _cells([12]), IN_DISK)
 	backlog.want(_cells([12]), PackedInt32Array(), IN_DISK)
-	assert_eq(backlog.drain(10), _cells([12]), "The last wish wins.")
+
+	assert_eq(backlog.drain(10), _cells([12, 12]))
 	assert_true(backlog.is_applied(12))
+	assert_eq(backlog.applied_count(), 1)
+
+
+func test_a_budget_below_one_still_applies_one_toggle() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	backlog.want(_cells([11, 12]), PackedInt32Array(), IN_DISK)
+
+	assert_eq(backlog.drain(0), _cells([11]), "The budget is clamped to at least one.")
+	assert_eq(backlog.drain(-5), _cells([12]))
+
+
+func test_closing_a_cell_that_was_never_opened_does_nothing() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	backlog.want(PackedInt32Array(), _cells([11]), IN_DISK)
+
+	assert_true(backlog.drain(10).is_empty())
+	assert_eq(backlog.applied_count(), 0)
 
 
 func test_closing_an_applied_cell_removes_it_without_reopening_it() -> void:
