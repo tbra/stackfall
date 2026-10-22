@@ -9,9 +9,11 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _loopback: LoopbackSession
 
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	Match.set_process(false)
 	Match.abort_match()
 	Match.stats().reset_session_wins()  # the tally outlives a match, not a test
@@ -29,7 +31,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Net.leave()
+	await _loopback.end()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -247,6 +249,15 @@ func _host_session() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "A", false), OK)
 
 
+## A hosted session with one remote client seated in slot 1.
+func _host_with_client(client_name: String) -> Node:
+	_host_session()
+	var client: Node = await _loopback.join_remote_client(client_name)
+	assert_not_null(client, "fixture: the remote client is seated")
+	assert_eq(Net.slot_of_peer(client.local_peer_id()), 1)
+	return client
+
+
 func _wins_of(results: Dictionary) -> Array[int]:
 	var wins: Array[int] = []
 	for row: Dictionary in (results["rows"] as Array):
@@ -261,7 +272,7 @@ func _play_round(winner: int) -> Dictionary:
 
 
 func test_session_wins_accumulate_across_rounds_and_reset_with_the_host_session() -> void:
-	_host_session()
+	await _host_with_client("B")
 	assert_eq(_wins_of(_play_round(0)), [1, 0] as Array[int])
 	assert_eq(_wins_of(_play_round(0)), [2, 0] as Array[int], "wins carry over a replay")
 	assert_eq(_wins_of(_play_round(1)), [2, 1] as Array[int])

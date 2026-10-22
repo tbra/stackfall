@@ -22,6 +22,10 @@ func before_each() -> void:
 	_screen.tuning.ready_timeout_s = STALL_TIMEOUT_S
 
 
+func after_each() -> void:
+	await _loopback.end()
+
+
 func _config(disc_step: int = MatchConfig.DISC_SIZE_STEP_DEFAULT) -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
 	config.disc_size_step = disc_step
