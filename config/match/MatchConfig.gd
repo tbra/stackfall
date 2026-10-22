@@ -223,7 +223,9 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## stated default is per player, which is what true means here.
 @export var per_player_timer: bool = true
 ## Hot-seat: one PC, players take turns. Networked play turns this off.
-@export var hot_seat: bool = true
+## DECISION: the hot-seat rule is being removed (MODES_PLAN MD-RU1); the default
+## flips to false now, and the field itself is deleted by the later MD-RU2 package.
+@export var hot_seat: bool = false
 ## Slot colors, indexed by slot_id. Eight entries, one per possible player.
 @export var player_colors: PackedColorArray = PackedColorArray([
 	Color(0.90, 0.25, 0.25),
