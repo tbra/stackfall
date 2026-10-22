@@ -1,5 +1,5 @@
 {
-  "known": ["budget.client_tick_p99"],
+  "known": ["budget.client_tick_p99", "budget.host_tick_p99", "budget.sim_rate"],
   "engine_noise": [
     "Pages in use exist at exit in PagedAllocator",
     "RID allocations of type",
