@@ -37,7 +37,7 @@ DEFAULTS = {
     "sample_interval_s": 5.0, "warmup_s": 30.0, "agree_window_s": 1.5, "spawn_grace_s": 3.0,
     "converge_pos_tol_m": 0.01, "converge_angle_tol_deg": 1.0, "at_rest_min_dumps": 2,
     "body_count_slack": 8, "share_tol": 0.005, "timer_tol_s": 2.0, "score_tol": 0,
-    "curve_bands": [250, 500, 1000, 1500], "curve_min_ticks": 600,
+    "client_despawn_grace_s": 6.0, "curve_bands": [250, 500, 1000, 1500], "curve_min_ticks": 600,
 }
 
 Violation = collections.namedtuple("Violation", "inv role epoch sev subject value limit detail")
@@ -248,7 +248,7 @@ def _sample_checks(c, window, cfg):
     return out
 
 
-def _body_checks(epoch, client_bodies, host, k, cfg):
+def _body_checks(epoch, client_bodies, host, k, cfg, client_dumps):
     """Violations of the client dump at `epoch` against the host dumps of epochs epoch-k..epoch."""
     win = [e for e in sorted(host.dumps) if epoch - k <= e <= epoch]
     if not win:
@@ -270,9 +270,18 @@ def _body_checks(epoch, client_bodies, host, k, cfg):
         if e <= epoch:
             seen_before.update(d)
     for bid in sorted(client_bodies):
-        if bid not in seen_before:
+        if bid not in seen_before and not _despawn_pending(epoch, bid, client_bodies[bid], client_dumps, cfg):
             out.append(_viol("authority.client_only_body", epoch, bid, "present", "never_on_host"))
     return out
+
+
+def _despawn_pending(epoch, bid, body, client_dumps, cfg):
+    """A moving (rest=0) client body first seen in a client dump less than client_despawn_grace_s ago:
+    the host may have despawned it already and the client holds it until that arrives."""
+    if body[2]:
+        return False
+    first = min(e for e, d in client_dumps.items() if bid in d)
+    return (epoch - first) * cfg["sample_interval_s"] < cfg["client_despawn_grace_s"]
 
 
 def compared_dumps(host, client, cfg):
@@ -297,7 +306,7 @@ def join_violations(host, client, cfg):
         if window:
             out.extend(_sample_checks(c, window, cfg))
     for epoch in sorted(client.dumps):
-        out.extend(_body_checks(epoch, client.dumps[epoch], host, k, cfg))
+        out.extend(_body_checks(epoch, client.dumps[epoch], host, k, cfg, client.dumps))
     return out
 
 

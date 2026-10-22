@@ -217,3 +217,27 @@ func test_persistent_violation_is_recorded_once_per_epoch() -> void:
 	assert_eq(first.size(), 1, "the first sample reports the bad block")
 	assert_eq(second.size(), 0, "the same violation in the same epoch is not reported again")
 	assert_eq(_below_plane(monitor.violations()).size(), 1, "one line per epoch, however many ticks keep it broken")
+
+
+func test_client_body_held_below_the_plane_is_reported_once_the_grace_has_passed() -> void:
+	await _start_match_with_block()
+	var block: Block = _first_block()
+	assert_not_null(block, "a placed block is tracked before the monitor looks")
+	if block == null:
+		return
+	var kill_y: float = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).kill_plane_y
+	block.global_position = Vector3(block.global_position.x, kill_y - 5.0, block.global_position.z)
+	# The field frees a body below the plane; a client holds it at its last snapshot, so the
+	# test stops the field's sweep to keep the body there across both samples.
+	(_main.get_node("Field") as Field).set_physics_process(false)
+	var monitor: SoakMonitor = _monitor(&"client", 0.0, 600.0)
+	var grace_s: float = 0.2
+	monitor.config.client_kill_grace_s = grace_s
+	assert_eq(_below_plane(_sample(monitor)).size(), 0, "first sight of the fall is graced")
+	# The monitor reads the wall clock, which a headless engine-time timer does not follow.
+	OS.delay_msec(int(grace_s * 2.0 * 1000.0))
+	assert_true(is_instance_valid(block), "the held body is still tracked")
+	var later: Array[SoakCheck.Violation] = _below_plane(_sample(monitor))
+	assert_eq(later.size(), 1, "the same body still below the plane after the grace is reported")
+	if later.size() == 1:
+		assert_eq(later[0].subject, str(block.net_id))
