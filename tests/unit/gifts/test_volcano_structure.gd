@@ -43,7 +43,6 @@ func _start() -> void:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.gifts_enabled = false
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
