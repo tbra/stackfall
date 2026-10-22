@@ -1,7 +1,8 @@
 extends GutTest
 ## The shipped sky data (config/sky/sky_cycle.tres, storm_overlay.tres, sky_dome.tres,
 ## cloud_puffs.tres) loads, owns its materials, and evaluates to the golden fixture; the fixture
-## is well formed. Field-by-field values are pinned in test_sky_contract.gd.
+## is well formed. Shipped art values are not pinned field by field; the live parity golden
+## (test_sky_parity_live.gd) catches a changed rendered state.
 
 const Live := preload("res://tests/unit/sky/test_sky_parity_live.gd")
 const CYCLE_PATH: String = "res://config/sky/sky_cycle.tres"
