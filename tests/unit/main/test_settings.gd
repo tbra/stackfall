@@ -1,31 +1,26 @@
 extends GutTest
 ## autoload/Settings.gd + config/graphics/GraphicsPreset.gd: user settings persisted to
-## a single user://settings.cfg ConfigFile. Uses
-## a fresh Settings instance pointed at a temp cfg path
-## (set_config_path_for_test) rather than the real "Settings" autoload
-## singleton, mirroring autoload/Sfx.gd's own set_root_dir_for_test()
-## test-seam precedent (Sfx.gd:159).
+## a single user://settings.cfg ConfigFile. Uses fresh Settings instances; under
+## GUT every instance reads and writes the per-PID file (Settings.effective_path()),
+## so the file is deleted before each test and instances share it by design.
 
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 
 var _settings: Node
-var _cfg_path: String
 var _test_action: StringName = &"settings_test_action"
 
 
 func before_each() -> void:
-	_cfg_path = OS.get_user_data_dir().path_join("test_settings_tmp.cfg")
-	_delete_if_exists(_cfg_path)
+	_delete_if_exists(Settings.effective_path())
 	if not InputMap.has_action(_test_action):
 		InputMap.add_action(_test_action)
 
 	_settings = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(_settings)
-	_settings.set_config_path_for_test(_cfg_path)
 
 
 func after_each() -> void:
-	_delete_if_exists(_cfg_path)
+	_delete_if_exists(Settings.effective_path())
 	# review: the published UI scale is static; never leak it into later tests.
 	UiScaleTuning.current_scale = -1.0
 	if InputMap.has_action(_test_action):
@@ -40,7 +35,6 @@ func _delete_if_exists(path: String) -> void:
 func _fresh_settings_at_same_path() -> Node:
 	var other: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(other)
-	other.set_config_path_for_test(_cfg_path)
 	return other
 
 
@@ -92,7 +86,7 @@ func test_old_settings_file_with_removed_keys_still_loads() -> void:
 	cfg.set_value("audio", "master_db", -6.0206)
 	cfg.set_value("audio", "custom_music_dir", "old/music")
 	cfg.set_value("audio", "music_volume_percent", 0.25)
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 
 	var reloaded: Node = _fresh_settings_at_same_path()
 	assert_almost_eq(reloaded.music_volume_percent(), 0.25, 0.0001)
@@ -140,7 +134,7 @@ func test_window_mode_round_trips_and_persists() -> void:
 func test_unknown_window_mode_id_on_disk_falls_back_to_default() -> void:
 	var cfg: ConfigFile = ConfigFile.new()
 	cfg.set_value("graphics", "window_mode", "not_a_real_window_mode")
-	cfg.save(_cfg_path)
+	cfg.save(Settings.effective_path())
 
 	var reloaded: Node = _fresh_settings_at_same_path()
 	assert_eq(reloaded.window_mode(), &"borderless_fullscreen")
@@ -252,8 +246,8 @@ func _events_contain_joy(events: Array[InputEvent], button_index: JoyButton) -> 
 	return false
 
 
-## in a GUT run, restoring the "default" (real) path then saving
-## must never touch the user's user://settings.cfg.
+## in a GUT run, a default instance saving must never touch the user's
+## user://settings.cfg.
 func test_gut_run_never_touches_real_settings_file() -> void:
 	var real: String = Settings.REAL_CONFIG_PATH
 	var existed: bool = FileAccess.file_exists(real)
@@ -261,8 +255,7 @@ func test_gut_run_never_touches_real_settings_file() -> void:
 	var content: String = FileAccess.get_file_as_string(real) if existed else ""
 	var other: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(other)
-	other.set_config_path_for_test(real)
-	assert_ne(other.effective_path(), real, "real path maps to the per-PID GUT path")
+	assert_ne(other.effective_path(), real, "a default instance uses the per-PID GUT path")
 	other.set_master_volume_percent(0.5)
 	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
 	if existed:
