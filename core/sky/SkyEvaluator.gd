@@ -188,17 +188,6 @@ static func apply_weather(source: SkyFrame, weather: SkyWeatherState, into: SkyF
 	into.floor_mid_ratio = tuning.puff_floor_mid_ratio
 
 
-## Stages A, B and C in order (tests and the golden fixture only).
-static func evaluate(def: SkyCycleDef, phase: float, variation_seed: int, night_index: int,
-		weather: SkyWeatherState, aurora_preset_on: bool, into: SkyFrame = null) -> SkyFrame:
-	var tick: SkyFrame = evaluate_tick(def, phase, variation_seed, night_index, aurora_preset_on)
-	var storm: SkyFrame = SkyFrame.new()
-	apply_storm(tick, weather.storm_amount, weather.storm_overlay, _tuning_of(weather).storm_flare_off_amount, storm)
-	var out: SkyFrame = into if into != null else SkyFrame.new()
-	apply_weather(storm, weather, out)
-	return out
-
-
 # --- helpers ------------------------------------------------------------------------------
 
 ## Weight of a key whose phase window is `window` (x, y, z, w) at `phase`:

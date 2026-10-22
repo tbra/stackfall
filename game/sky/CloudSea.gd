@@ -75,9 +75,6 @@ const OCC_LIVE_DRIFT: Vector2 = Vector2(-1.0e30, -1.0e30)
 const DRIFT_OFFSET_PARAMETER: StringName = &"drift_offset"
 const DRIFT_EDGE_FADE_PARAMETER: StringName = &"drift_edge_fade_m"
 const DRIFT_EXCLUSION_FADE_PARAMETER: StringName = &"drift_exclusion_fade_m"
-const SHADER_TIME_ROLLOVER_SETTING: String = "rendering/limits/time/time_rollover_secs"
-## Engine default of the setting above (the shader's TIME wraps here).
-const SHADER_TIME_ROLLOVER_DEFAULT_S: float = 3600.0
 ## One placement layer: the sea below the disc, or the cloud banks past its
 ## edge. Both draw through the same MultiMesh.
 class _Layer:
@@ -604,15 +601,6 @@ func sun_ray_cloud_occlusion(from: Vector3, dir: Vector3, tuning: SunFlareConfig
 ## With flat = 1 the puff just rests on base_y.
 static func puff_centre_y(top: float, radius: float, base_y: float, flat: float, sink_m: float = 0.0) -> float:
 	return maxf(top - radius, base_y + radius * flat - sink_m)
-
-
-## The sun-occlusion bounds recorded by the last configure.
-func occlusion() -> CloudOcclusionBounds:
-	return _bounds
-
-
-func puff_material() -> ShaderMaterial:
-	return _material
 
 
 ## Unit icosphere whose part below y = -`flat_base` is squashed onto that
