@@ -224,7 +224,7 @@ func _play_dirty_a(main: Node) -> void:
 	var ceiling: CloudCeiling = _ceiling(main)
 	assert_not_null(ceiling, "fixture: the weather presenter exists")
 	ceiling.step(CEILING_FADE_S)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_gt((skybox.get_node("CloudSea") as CloudSea).lighting.storm, 0.0, "fixture: the storm tinted the sky")
 	assert_true(Match.weather().set_debug_override(&"rain"), "fixture: rain started")
 	_run_seconds(RAIN_RUN_S)
