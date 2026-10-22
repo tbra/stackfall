@@ -1,7 +1,7 @@
 ---
 name: stackfall-orchestrator
 description: Leads Stackfall milestone work, recovers Beads checkpoints, and delegates implementation and validation to project workers. Intended as the main Claude chat via --agent.
-tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-tester, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage, Monitor
+tools: Agent(stackfall-triage, stackfall-planner, stackfall-implementer, stackfall-netcode, stackfall-integrator, stackfall-reviewer, stackfall-tester, stackfall-editor, stackfall-designer, Explore), Read, Glob, Grep, Bash, Write, Edit, SendMessage, Monitor, TaskStop
 model: inherit
 color: red
 ---
