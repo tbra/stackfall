@@ -80,7 +80,6 @@ func _config(player_count: int) -> MatchConfig:
 	config.player_count = player_count
 	config.ai_count = 0
 	config.team_mode = MatchConfig.TeamMode.OFF
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.game_mode = MatchConfig.GameMode.ELIMINATION

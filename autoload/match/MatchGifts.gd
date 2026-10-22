@@ -469,12 +469,13 @@ const DEBUG_GIFT_ID: int = -1
 ## the normal path. Skips the crate roll and the territory-tick claim sweep --
 ## there is no crate to free.
 ##
-## Gated on the host plus `_match.config.sandbox`, so a real match can never be
-## handed a free special through this seam.
+## Gated on the host plus `_match.config.sandbox or _match.config.scripted_gifts`
+## (the tutorial's scripted lesson, set only by MatchLaunch.tutorial_config), so a
+## real match can never be handed a free special through this seam.
 func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	if not _match._is_host():
 		return false
-	if _match.config == null or not _match.config.sandbox:
+	if _match.config == null or not (_match.config.sandbox or _match.config.scripted_gifts):
 		return false
 	if slot_id < 0 or slot_id >= _match.slot_count():
 		return false

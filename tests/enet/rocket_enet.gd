@@ -105,7 +105,6 @@ func _run_host() -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = PEERS
-	config.hot_seat = false
 	config.rng_seed = SEED
 	config.gifts_enabled = false
 	config.weather_mode = MatchConfig.WeatherMode.OFF

@@ -63,6 +63,29 @@ func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	assert_false((Match._gifts._crates as Dictionary).is_empty(), "at least one gift crate spawned")
 
 
+## F5 rebuilds the world; the preset's opponent towers are placed again, once.
+func test_f5_re_places_the_preset_towers() -> void:
+	_main.start_gift_demo_from_menu()
+	_run_countdown()
+	await get_tree().process_frame
+	var preset: SandboxConfig = load("res://config/match/sandbox_gift_demo.tres") as SandboxConfig
+	var expected: int = (Match.slot_count() - 1) * preset.preplaced_tower_blocks
+	assert_eq(Match.blocks_parent().get_child_count(), expected, "fixture: towers are up before the reset")
+
+	var key: InputEventKey = InputEventKey.new()
+	key.device = -1
+	key.physical_keycode = KEY_F5
+	key.pressed = true
+	assert_true(key.is_action_pressed(&"sandbox_reset_field"))
+	_main._sandbox._unhandled_input(key)
+	_run_countdown()
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	assert_true(Match.config.sandbox)
+	assert_eq(Match.blocks_parent().get_child_count(), expected, "the towers are re-placed, not doubled or missing")
+
+
 var _silent_at_placement: Array[bool] = []
 
 

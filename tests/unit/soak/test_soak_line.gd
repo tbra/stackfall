@@ -205,7 +205,7 @@ func test_value_types_are_written_as_the_plan_says() -> void:
 	assert_eq(values.get("c_true"), "1")
 	assert_eq(values.get("d_false"), "0")
 	assert_eq(values.get("e_vec"), "1.0000,-2.5000,3.0000")
-	assert_eq(values.get("f_quat"), "0.0000,0.5000,0.0000,1.0000")
+	assert_eq(values.get("f_quat"), "0.00000000,0.50000000,0.00000000,1.00000000")
 	assert_eq(values.get("g_text"), "two_words")
 	assert_eq(values.get("h_ints"), "1;2;3")
 	assert_eq(values.get("i_floats"), "0.5000;1.0000")
@@ -220,7 +220,7 @@ func test_body_encodes_rest_as_zero_or_one() -> void:
 	assert_eq(asleep.get("rest"), "0")
 	assert_eq(asleep.get("id"), "9")
 	assert_eq(asleep.get("p"), "0.0000,0.0000,0.0000")
-	assert_eq(asleep.get("q"), "0.0000,0.0000,0.0000,1.0000")
+	assert_eq(asleep.get("q"), "0.00000000,0.00000000,0.00000000,1.00000000")
 	assert_eq(asleep.get("role"), "client")
 
 

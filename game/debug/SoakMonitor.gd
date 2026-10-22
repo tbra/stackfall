@@ -39,6 +39,9 @@ var _prev_wall_s: float = -1.0
 var _prev_physics_frames: int = 0
 var _prev_bytes: int = 0
 var _prev_monitor_us: int = 0
+var _prev_monitor_bodies: int = 0
+# Body id -> seconds-clock reading when it was first seen below the kill plane (client only).
+var _below_since: Dictionary = {}
 var _mem_start_mb: float = -1.0
 var _mem_end_mb: float = 0.0
 var _bodies_start: int = 0
@@ -112,6 +115,8 @@ func sample_now() -> void:
 	var fresh: bool = is_host and _samples % config.fresh_solve_every_samples == 0
 
 	var bodies: Array[SoakCheck.BodyObs] = _observer.bodies()
+	if not is_host:
+		_track_below_plane(bodies, now_s)
 	var board: SoakCheck.TerritoryObs = _observer.territory(fresh and checking)
 	var bytes_total: int = SnapshotSync.snapshot_bytes_total()
 	var frames: int = Engine.get_physics_frames()
@@ -134,7 +139,7 @@ func sample_now() -> void:
 		if _prev_wall_s >= 0.0:
 			found.append_array(SoakCheck.budget(
 				role, _curve, _sim_rate, Engine.physics_ticks_per_second, bps, _prev_monitor_us,
-				config
+				config, _prev_monitor_bodies
 			))
 		if _mem_start_mb < 0.0:
 			_mem_start_mb = SoakObserver.static_mem_mb()
@@ -154,11 +159,24 @@ func sample_now() -> void:
 	fields["mt"] = now_s - _play_start_s if _play_start_s >= 0.0 else 0.0
 	fields["tick_p99_ms"] = _worst_p99_ms()
 	_prev_monitor_us = Time.get_ticks_usec() - started_us
+	_prev_monitor_bodies = bodies.size()
 	fields["mon_us"] = _prev_monitor_us
 	print(SoakLine.sample(role, epoch, wall_ms, fields))
 	if dump:
 		for line: String in _observer.body_lines(role, epoch):
 			print(line)
+
+
+# DECISION: only the time below the plane is graced, not whether the body is at rest: a client
+# body held at its last snapshot is not moving either, so rest cannot tell it from a stuck one.
+func _track_below_plane(bodies: Array[SoakCheck.BodyObs], now_s: float) -> void:
+	var floor_y: float = _observer.kill_plane_y() + config.kill_plane_margin_m
+	var still_below: Dictionary = {}
+	for body: SoakCheck.BodyObs in bodies:
+		if body.transform.origin.y < floor_y:
+			still_below[body.id] = _below_since.get(body.id, now_s)
+			body.below_for_s = now_s - float(still_below[body.id])
+	_below_since = still_below
 
 
 ## Every violation recorded so far; SOAK_END reports their count.

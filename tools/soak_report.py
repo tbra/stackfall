@@ -174,8 +174,15 @@ def effective_config(host, tres_cfg=None):
 # --- agreement join (SOAK_PLAN 6.1) ------------------------------------------
 
 def _angle_deg(qa, qb):
-    dot = abs(sum(a * b for a, b in zip(qa, qb)))
-    return math.degrees(2.0 * math.acos(min(1.0, dot)))
+    # Relative rotation qa^-1 * qb; atan2 of its vector and scalar parts is exact near identity,
+    # where acos of a rounded dot product is not.
+    ax, ay, az, aw = qa
+    bx, by, bz, bw = qb
+    vx = aw * bx - ax * bw - ay * bz + az * by
+    vy = aw * by - ay * bw - az * bx + ax * bz
+    vz = aw * bz - az * bw - ax * by + ay * bx
+    w = aw * bw + ax * bx + ay * by + az * bz
+    return math.degrees(2.0 * math.atan2(math.sqrt(vx * vx + vy * vy + vz * vz), abs(w)))
 
 
 def _pose_close(a, b, cfg):

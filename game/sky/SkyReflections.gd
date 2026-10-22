@@ -14,9 +14,6 @@ const PROBE_RETRIGGER_NUDGE_M: float = 0.001
 ## Lowest radiance rate accepted; guards the division.
 const MIN_RADIANCE_HZ: float = 0.001
 
-## Bench hook: while true, step() never reports a radiance tick (the accumulator still runs).
-var frozen: bool = false
-
 var _environment: Environment = null
 var _probe: ReflectionProbe = null
 var _registry: BlockRegistry = null
@@ -109,7 +106,7 @@ func set_running(running: bool) -> void:
 
 
 ## Advances the probe interval (INTERVAL mode re-renders once when the block layout changed)
-## and the radiance accumulator; true when a radiance tick is due (never while `frozen`).
+## and the radiance accumulator; true when a radiance tick is due.
 func step(delta: float) -> bool:
 	_step_probe_interval(delta)
 	if _radiance == null:
@@ -119,7 +116,7 @@ func step(delta: float) -> bool:
 	if _radiance_accum_s < interval:
 		return false
 	_radiance_accum_s = minf(_radiance_accum_s - interval, interval)
-	return not frozen
+	return true
 
 
 ## Re-configures the probe (last disc radius and preset) and toggles it so an UPDATE_ONCE probe

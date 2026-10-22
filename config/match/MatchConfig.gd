@@ -223,7 +223,9 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## stated default is per player, which is what true means here.
 @export var per_player_timer: bool = true
 ## Hot-seat: one PC, players take turns. Networked play turns this off.
-@export var hot_seat: bool = true
+## DECISION: the hot-seat rule is being removed (MODES_PLAN MD-RU1); the default
+## flips to false now, and the field itself is deleted by the later MD-RU2 package.
+@export var hot_seat: bool = false
 ## Slot colors, indexed by slot_id. Eight entries, one per possible player.
 @export var player_colors: PackedColorArray = PackedColorArray([
 	Color(0.90, 0.25, 0.25),
@@ -240,9 +242,9 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 @export var rng_seed: int = -1
 
 ## True only for the unlisted `godot --path . -- --sandbox` debug entry point
-## (game/main/Main.gd's _build_sandbox_config()). Never set by the
-## lobby, a wire message or Steam lobby data — Main sets it only on the
-## sandbox config it builds itself, offline.
+## (game/main/MatchLaunch.gd's sandbox_config()). Never set by the
+## lobby, a wire message or Steam lobby data — MatchLaunch sets it only on the
+## sandbox config it builds, offline.
 ##
 ## DECISION: a MatchConfig field rather than a global PLAYER_COUNT_MIN-like floor, because
 ## sanitize() needs *this config's* intent: it lets a 1-player match through so a sandbox
@@ -250,6 +252,11 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## sandbox match with is a runtime flag on Match (_feed_timer_enabled), read once at
 ## start_match() and flipped by ui/debug/SandboxPanel.gd's sandbox_toggle_timer hotkey.
 @export var sandbox: bool = false
+
+## True only for the tutorial: a lesson may grant a gift through
+## Match.debug_queue_special. Set only by MatchLaunch.tutorial_config, never by
+## the lobby or the wire, and not serialized (like `sandbox`).
+@export var scripted_gifts: bool = false
 
 ## Shared source for player_colors' default so sanitize() can pad a config
 ## that arrived over the wire with too few entries, without duplicating the

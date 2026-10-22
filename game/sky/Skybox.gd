@@ -7,7 +7,7 @@ extends Node3D
 ##   - SkyDomeWriter, SkyEnvironmentWriter and CloudSea.apply_frame write the
 ##     result; SkyReflections owns the probe, SSR and the radiance cadence.
 ## Weather setters only store state and set a dirty bit. `_process` runs after the presenters
-## (process_priority) and calls flush_weather() once per frame; every accessor that reads
+## (process_priority) and calls _flush_weather() once per frame; every accessor that reads
 ## written state flushes on demand. Stage A (keyframes) runs only at a radiance tick, a lock,
 ## a cycle start, a preset change or a definition refresh, so a locked sky with no weather
 ## writes nothing to the sky material after its first frame.
@@ -48,14 +48,8 @@ const PROCESS_PRIORITY: int = 100
 const SECONDS_PER_MSEC: float = 0.001
 
 var radiance_config: SkyRadianceConfig = preload("res://config/sky/sky_radiance_config.tres")
-## Counts disc writes and keeps the last sun direction written (tests / probes).
-var disc_publish_count: int = 0
-var last_disc_sun_direction: Vector3 = Vector3.ZERO
-## Test-visible evaluation counters: stage A, B and C runs and sky-material uniform writes.
-var tick_runs: int = 0
-var storm_runs: int = 0
-var weather_runs: int = 0
-var sky_material_writes: int = 0
+## The last sun direction published (the globals keep it between clock ticks).
+var _last_disc_sun_direction: Vector3 = Vector3.ZERO
 
 var _clock: SkyCycleClock = SkyCycleClock.new()
 var _weather: SkyWeatherState = SkyWeatherState.new()
@@ -135,7 +129,7 @@ func _ready() -> void:
 	_launch_lock_phase = _launch_lock_for(config.theme_name)
 	_launch_captured = true
 	Settings.graphics_preset_changed.connect(_on_graphics_preset_changed)
-	Events.match_scope_reset.connect(reset_to_launch)
+	Events.match_scope_reset.connect(_reset_to_launch)
 	# Boot (and every teardown) is the cycle locked at SkyboxConfig.theme_name, or running for "cycle".
 	_start_cycle_at(_shared_clock_s(), _launch_lock_phase, -1.0)
 
@@ -143,8 +137,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if Settings.graphics_preset_changed.is_connected(_on_graphics_preset_changed):
 		Settings.graphics_preset_changed.disconnect(_on_graphics_preset_changed)
-	if Events.match_scope_reset.is_connected(reset_to_launch):
-		Events.match_scope_reset.disconnect(reset_to_launch)
+	if Events.match_scope_reset.is_connected(_reset_to_launch):
+		Events.match_scope_reset.disconnect(_reset_to_launch)
 
 
 func _process(delta: float) -> void:
@@ -154,13 +148,13 @@ func _process(delta: float) -> void:
 		_sky_clock_s = _pinned_sky_time_s
 	else:
 		_sky_clock_s += delta
-	_publish_globals(true)
+	_publish_globals()
 	# The sky material is written at radiance_hz (a write re-renders the radiance octmap); the
 	# phase comes from the exact shared clock at each write so host and client agree. A locked
 	# sky is never ticked.
 	if radiance_due and _clock.is_active() and _clock.locked_phase() < 0.0:
 		_advance_cycle(_shared_clock_s())
-	flush_weather()
+	_flush_weather()
 	_probe_wait_s += delta
 	_service_storm_probe()
 
@@ -186,13 +180,11 @@ func _shared_clock_s() -> float:
 
 ## Writes the shader globals every frame: the sky clock and the exact (not tick-stepped) sun and
 ## moon disc directions. A global lives in the shared buffer, so there is no material dirty.
-func _publish_globals(count_frame: bool) -> void:
-	var direction: Vector3 = last_disc_sun_direction
+func _publish_globals() -> void:
+	var direction: Vector3 = _last_disc_sun_direction
 	if _clock.is_active() and sky_def != null:
 		direction = SkyEvaluator.sun_direction(sky_def, _clock.phase_at(_shared_clock_s()))
-		if count_frame:
-			disc_publish_count += 1
-		last_disc_sun_direction = direction
+		_last_disc_sun_direction = direction
 	var wrap: float = radiance_config.time_wrap_seconds
 	_dome.publish_globals(direction, fposmod(_sky_clock_s, wrap))
 
@@ -203,7 +195,7 @@ func _publish_globals(count_frame: bool) -> void:
 ## clock. CYCLE runs the cycle from `sky_start_phase`; Sunset, Night, Dawn (and the host's RANDOM
 ## roll of those) are the same cycle locked at sky_def.locked_phase_for(id).
 func configure_match_sky(match_config: MatchConfig) -> void:
-	refresh_reflection_capture_config()
+	_refresh_reflection_capture_config()
 	var locked: float = -1.0
 	if not match_config.is_sky_cycle_running():
 		locked = sky_def.locked_phase_for(match_config.locked_sky_id())
@@ -218,7 +210,7 @@ func configure_match_sky(match_config: MatchConfig) -> void:
 ## Events.match_scope_reset: returns this long-lived Skybox to a fresh launch (the cycle locked at
 ## the launch sky id, or running for "cycle"), with no storm, overcast or weather-fog request.
 ## Idempotent and cheap when the sky is already at launch.
-func reset_to_launch() -> void:
+func _reset_to_launch() -> void:
 	if not _launch_captured:
 		return
 	var weather_active: bool = _weather.any_active()
@@ -265,11 +257,11 @@ func _start_cycle_at(clock_seconds: float, lock_phase: float, start_phase: float
 	_rebuild_ambient(true)
 	_push_flare_reset()
 	_tick_to(_clock.phase_at(clock_seconds), true)
-	flush_weather()
+	_flush_weather()
 	if _clock.locked_phase() >= 0.0:
 		# A locked sky is written once, then its radiance is built to full quality and left alone.
 		_reflections.set_running(false)
-		refresh_reflection_capture()
+		_refresh_reflection_capture()
 	else:
 		# DECISION: REALTIME, not INCREMENTAL: one octmap render + cheap fast filter per refresh.
 		_reflections.set_running(true)
@@ -288,9 +280,9 @@ func set_locked_phase(phase: float) -> void:
 		return
 	_clock.set_locked(phase)
 	_tick_to(_clock.locked_phase())
-	flush_weather()
+	_flush_weather()
 	_reflections.set_running(false)
-	refresh_reflection_capture()
+	_refresh_reflection_capture()
 
 
 func locked_phase() -> float:
@@ -310,22 +302,6 @@ func variation_seed() -> int:
 	return _variation_seed
 
 
-func cycle_phase_at(clock_seconds: float) -> float:
-	return _clock.phase_at(clock_seconds)
-
-
-func cycle_length_seconds() -> float:
-	return _clock.length_s()
-
-
-## Advances the cycle to the shared clock and writes the result now (tests and probes).
-func update_cycle_clock(clock_seconds: float) -> void:
-	if not _clock.is_active():
-		return
-	_advance_cycle(clock_seconds)
-	flush_weather()
-
-
 func _advance_cycle(clock_seconds: float) -> void:
 	_cycle_clock_s = clock_seconds
 	_tick_to(_clock.advance(clock_seconds, sky_def.cycle_length_seconds))
@@ -336,7 +312,7 @@ func set_cycle_phase(phase: float) -> void:
 	if not _clock.is_active():
 		return
 	if _tick_to(phase):
-		flush_weather()
+		_flush_weather()
 
 
 ## F4 cycle length: applies to the running cycle and to the definition the next match uses. The
@@ -347,11 +323,6 @@ func set_cycle_length_seconds(seconds: float) -> void:
 	var length: float = maxf(seconds, SkyCycleClock.MIN_LENGTH_S)
 	sky_def.cycle_length_seconds = length
 	_clock.advance(_cycle_clock_s, length)
-
-
-## Bench hook: while true the running cycle never reports a radiance tick.
-func set_cycle_writes_frozen(frozen: bool) -> void:
-	_reflections.frozen = frozen
 
 
 ## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global and the cloud drift
@@ -374,7 +345,6 @@ func _tick_to(phase: float, force: bool = false) -> bool:
 		return false
 	_cycle_phase_last = phase
 	SkyEvaluator.evaluate_tick(sky_def, phase, _variation_seed, _clock.night_index(), _aurora_preset_on, _tick_frame)
-	tick_runs += 1
 	_has_tick = true
 	_tick_fresh = true
 	_dirty_b = true
@@ -384,8 +354,8 @@ func _tick_to(phase: float, force: bool = false) -> bool:
 
 
 ## Runs the dirty stages (B, then C) and the writers, at most once each. No-op until a stage A
-## frame exists. `_process` calls it once per frame; tests and accessors call it on demand.
-func flush_weather() -> void:
+## frame exists. `_process` calls it once per frame; the accessors call it on demand.
+func _flush_weather() -> void:
 	if not _has_tick:
 		return
 	var tick_ran: bool = _tick_fresh
@@ -395,22 +365,20 @@ func flush_weather() -> void:
 			CEILING_TUNING.storm_flare_off_amount, _storm_frame)
 		_dirty_b = false
 		_dirty_c = true
-		storm_runs += 1
 		storm_ran = true
 	if not _dirty_c:
 		return
 	SkyEvaluator.apply_weather(_storm_frame, _weather, _out_frame)
 	_dirty_c = false
 	_tick_fresh = false
-	weather_runs += 1
 	_write_frame(tick_ran, storm_ran)
 
 
 func _write_frame(tick_ran: bool, storm_ran: bool) -> void:
 	if tick_ran:
-		_publish_globals(false)
+		_publish_globals()
 	_dome.stage(_out_frame)
-	sky_material_writes += _dome.flush()
+	_dome.flush()
 	_env_writer.apply(_out_frame, get_tree() if is_inside_tree() else null)
 	if _cloud_sea != null and (tick_ran or storm_ran):
 		_cloud_sea.apply_frame(_out_frame)
@@ -435,7 +403,7 @@ func _rebind_light() -> void:
 	_env_writer.bind(environment, light)
 	if _has_tick:
 		_dirty_c = true
-		flush_weather()
+		_flush_weather()
 
 
 ## The cloud inputs the layers share, published once from the evaluated frame.
@@ -485,40 +453,19 @@ func _push_flares(tick_ran: bool, storm_ran: bool) -> void:
 
 # --- accessors --------------------------------------------------------------------------------
 
-## The evaluated output frame (tests / probes).
-func current_frame() -> SkyFrame:
-	flush_weather()
-	return _out_frame
-
-
-## The live sky dome material (what the old `theme.sky_material` shim pointed at). Null until a
-## cycle start binds the dome; the dome writer is its only writer.
-func sky_material() -> ShaderMaterial:
-	return _dome.material()
-
-
-## The weather requests currently held (tests / fingerprint).
-func weather_state() -> SkyWeatherState:
-	return _weather
-
-
 func sun_direction() -> Vector3:
-	flush_weather()
+	_flush_weather()
 	return _sun_direction
 
 
 func daylight() -> float:
-	flush_weather()
+	_flush_weather()
 	return _daylight
-
-
-func cloud_overcast_amount() -> float:
-	return _weather.cloud_overcast_amount()
 
 
 ## The fog colour currently in the Environment (the disc's own fog uses it).
 func weather_fog_color() -> Color:
-	flush_weather()
+	_flush_weather()
 	return _env_writer.weather_fog_color() if environment != null else _weather.wfog_tint
 
 
@@ -658,7 +605,7 @@ func _on_graphics_preset_changed(preset: GraphicsPreset) -> void:
 	# The rebuild reset the puff palette and ambient life; put the current phase back on top.
 	if _has_tick:
 		_tick_to(_cycle_phase_last, true)
-		flush_weather()
+		_flush_weather()
 
 
 ## The single entry Main calls when a graphics preset is applied: probe, SSR/SSAO, glow,
@@ -675,23 +622,14 @@ func refresh_from_visuals() -> void:
 	_reflections.configure_ssr(_preset)
 
 
-static func effective_probe_mode(tuning: TerritoryVisuals, preset: GraphicsPreset) -> int:
-	return SkyReflections.effective_probe_mode(tuning, preset)
-
-
-func refresh_reflection_capture_config() -> void:
+func _refresh_reflection_capture_config() -> void:
 	_reflections.configure_probe(_largest_disc_radius(), _preset)
 
 
 ## Forces the ReflectionProbe to re-capture the (new) sky.
-func refresh_reflection_capture() -> void:
+func _refresh_reflection_capture() -> void:
 	_reflections.configure_probe(_largest_disc_radius(), _preset)
 	_reflections.refresh_capture()
-
-
-## Re-renders the (UPDATE_ONCE) probe in place.
-func retrigger_reflection_probe() -> void:
-	_reflections.retrigger_probe()
 
 
 func _largest_disc_radius() -> float:
@@ -719,4 +657,4 @@ func refresh_sky_def() -> void:
 	_rebuild_ambient(true)
 	if _has_tick:
 		_tick_to(_cycle_phase_last, true)
-		flush_weather()
+		_flush_weather()

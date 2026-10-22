@@ -42,7 +42,6 @@ func _run_host() -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 20260918
 	var field: Field = (load("res://game/field/Field.tscn") as PackedScene).instantiate() as Field

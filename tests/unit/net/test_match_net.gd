@@ -101,7 +101,6 @@ func _config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = block_timer
 	config.rng_seed = 4242
 	return config
@@ -459,8 +458,8 @@ func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
 	# The host emits turn_changed(0) for its own player when play begins.
 	net.net_match_event(MatchNetScript.EVENT_TURN_CHANGED, [0])
 
-	# Outside hot-seat the signal points at the controls that are live on this
-	# instance, not at whoever the host named.
+	# On this instance the signal points at the controls that are live here,
+	# not at whoever the host named.
 	assert_signal_emitted_with_parameters(Events, "turn_changed", [1])
 	assert_eq(Match.active_slot(), 1)
 

@@ -3,16 +3,16 @@ extends GutTest
 
 const OPTIONS_MENU_SCENE: PackedScene = preload("res://ui/menus/OptionsMenu.tscn")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
-var _counter: int = 0
 
 
 func _make_menu() -> OptionsMenu:
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate())
 	add_child_autofree(menu)
-	_counter += 1
+	var path: String = Settings.effective_path()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
 	var fresh: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(fresh)
-	fresh.set_config_path_for_test(OS.get_user_data_dir().path_join("test_options_1014_%d.cfg" % _counter))
 	menu.settings_provider = fresh
 	return menu
 
@@ -53,15 +53,18 @@ func test_left_right_swaps_reset_and_back() -> void:
 	assert_true(reset.has_focus(), "ui_left: Back -> Reset")
 
 
-func test_fov_meter_steps_five_degrees_and_snaps_old_values() -> void:
-	var menu: OptionsMenu = _make_menu()
+func test_fov_meter_snaps_a_stored_off_step_value_to_the_nearest_cell() -> void:
+	var path: String = Settings.effective_path()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var stored: Node = autofree(SETTINGS_SCRIPT.new())
+	add_child_autofree(stored)
+	stored.set_fov_override_deg(63.0)
+	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate())
+	menu.settings_provider = stored
+	add_child_autofree(menu)
 	var meter: UiSegmentMeter = menu.get_node("%FovSlider") as UiSegmentMeter
-	var lens: CameraTuning = CameraTuning.new()
 	assert_eq(meter.step_count, 12)
-	assert_almost_eq(menu._meter_value(meter, 1) - menu._meter_value(meter, 0), 5.0, 0.001)
-	assert_almost_eq(menu._meter_value(meter, 0), lens.fov_min_deg, 0.001)
-	assert_almost_eq(menu._meter_value(meter, 12), lens.fov_max_deg, 0.001)
-	menu.settings_provider.set_fov_override_deg(63.0)
-	menu._show_meter_value(meter, 63.0)
 	assert_eq(meter.value, 5, "63 deg snaps to the 65 deg cell")
-	assert_almost_eq(menu._meter_value(meter, meter.value), 65.0, 0.001)
+	meter.value_changed.emit(meter.value + 1)
+	assert_almost_eq(stored.fov_override_deg(), 70.0, 0.001, "each cell is 5 deg")

@@ -502,18 +502,6 @@ func set_acting_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 
 
-## game/sandbox/Sandbox.gd's own typed name for the same seam, called
-## from its sandbox_next_slot hotkey handler. A thin alias over
-## set_acting_slot() rather than a second field: offline, _acting_slot()
-## already reads _active_slot regardless of which caller last set it
-## (set_acting_slot(), Events.turn_changed, or this), so a separate
-## sandbox field would be two sources of truth that could disagree. Naming it
-## separately still keeps the call site readable as "the sandbox is choosing
-## this" rather than "this is a turn hand-off".
-func set_sandbox_slot(slot_id: int) -> void:
-	set_acting_slot(slot_id)
-
-
 ## Spec 2.6's update_cursor, every frame. MatchNet keeps the local record and
 ## throttles the send to NetConfig.cursor_hz, so calling it per frame is both
 ## correct and cheap; offline there is nobody to tell.

@@ -487,7 +487,6 @@ func _run_host() -> void:
 	if _late_join_after_seconds > 0:
 		initial_player_count -= 1  # The late joiner is not counted in the initial config
 	config.player_count = initial_player_count
-	config.hot_seat = false
 	# enable mid-match join for late-join scenario
 	config.allow_mid_match_join = (_late_join_after_seconds > 0)
 	# the shortest legal interval, not the longest (this

@@ -59,7 +59,7 @@ func after_each() -> void:
 
 
 ## Mirrors game/main/Main.gd's _build_headless_bot_config(): duplicate, ai_count
-## set, player_count = maxi(bots, players), hot_seat/sandbox forced false --
+## set, player_count = maxi(bots, players), sandbox forced false --
 ## plus the tiny-map swap (see class doc above) applied first, exactly the
 ## order TinyMapMatchConfig's own doc comment requires (set_script() resets
 ## every one of MatchConfig's own @export fields to their script defaults, so
@@ -70,7 +70,6 @@ func _bot_match_config(bots: int = 3, players: int = 4) -> MatchConfig:
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.ai_count = bots
 	config.player_count = maxi(bots, players)
-	config.hot_seat = false
 	config.sandbox = false
 	config.rng_seed = 4242
 	# gifts_enabled deliberately NOT set here: it comes from match_defaults.tres,
