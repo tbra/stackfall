@@ -20,11 +20,12 @@ var _menu: PauseMenu = null
 var _main: Variant = null
 var _tiny_map: MapDef
 var _context: Dictionary = {}
-var _forced_client: bool = false
+var _loopback: LoopbackSession
 var _saved_gravity_multiplier: float
 
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	Match.set_process(false)
 	Match.abort_match()
 	SnapshotSync.end_match()
@@ -33,11 +34,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _forced_client:
-		Net._mode = Net.Mode.HOST
-		_forced_client = false
 	Input.action_release(&"pause_menu")
-	Net.leave()
+	await _loopback.end()
 	Match.abort_match()
 	SnapshotSync.end_match()
 	Match.set_process(true)
@@ -106,6 +104,18 @@ func _host_a_playing_match() -> void:
 	_main._on_lobby_start_requested(_config())
 	_run_seconds(Match.COUNTDOWN_SECONDS + 0.2)
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the match is live")
+	assert_true(_main._world_built, "fixture: the match world exists")
+
+
+## A real client (the Net autoload joined a loopback host) whose Main mirrors a match the host
+## started: the host's start config applied through Match, then the host's PLAYING.
+func _client_in_a_playing_match() -> void:
+	_make_main()
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is a seated client")
+	assert_not_null(_main._lobby, "fixture: joining swaps the menu for the lobby")
+	Match.start_match(_config())
+	Match.apply_replicated_state_change(Match.State.PLAYING)
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the mirrored match is live")
 	assert_true(_main._world_built, "fixture: the match world exists")
 
 
@@ -255,9 +265,7 @@ func test_the_abandoned_match_has_no_winner_and_no_results() -> void:
 
 
 func test_a_client_request_is_ignored_by_main() -> void:
-	_host_a_playing_match()
-	Net._mode = Net.Mode.CLIENT
-	_forced_client = true
+	await _client_in_a_playing_match()
 
 	_main._on_pause_return_to_lobby_requested()
 
@@ -266,10 +274,8 @@ func test_a_client_request_is_ignored_by_main() -> void:
 
 
 func test_a_client_mirrors_the_hosts_return_into_its_lobby() -> void:
-	_host_a_playing_match()
+	await _client_in_a_playing_match()
 	var pause: PauseMenu = _main._pause_menu
-	Net._mode = Net.Mode.CLIENT
-	_forced_client = true
 	pause._open()
 	assert_true(pause._return_button.disabled, "client: disabled entry")
 	pause._on_leave_pressed()

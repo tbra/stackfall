@@ -46,8 +46,11 @@ var _tmp_dir: String
 var _settings_cfg_path: String
 var _rumble_calls: Array[Dictionary] = []
 
+var _loopback: LoopbackSession
+
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	_settings_cfg_path = OS.get_user_data_dir().path_join("test_personal_feedback_settings_tmp.cfg")
 	_delete_if_exists(_settings_cfg_path)
 	Settings.set_config_path_for_test(_settings_cfg_path)
@@ -87,8 +90,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	Net._mode = Net.Mode.OFFLINE
-	Net._local_slot = 0
+	await _loopback.end()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -143,13 +145,16 @@ func _make_host_net() -> MatchNetScript:
 	add_child_autofree(node)
 	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	# Sfx/Rumble read the real Net: a host drives slot 0 only.
-	Net._mode = Net.Mode.HOST
-	Net._local_slot = HOST_SLOT
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
+	assert_eq(Net.local_slot(), HOST_SLOT)
 	return node
 
 
 ## A client instance whose own seat is `local_slot_id`.
 func _make_client_net(local_slot_id: int) -> MatchNetScript:
+	# A real client of a loopback host: the first joiner always takes REMOTE_SLOT.
+	assert_eq(local_slot_id, REMOTE_SLOT)
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is a seated client")
 	Match._net_provider = FakeNet.host({}, [HOST_SLOT, REMOTE_SLOT])
 	_start_playing()
 	_fake_net = FakeNet.client(local_slot_id)
@@ -158,8 +163,6 @@ func _make_client_net(local_slot_id: int) -> MatchNetScript:
 	node.set_process(false)
 	add_child_autofree(node)
 	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = local_slot_id
 	return node
 
 
@@ -295,14 +298,14 @@ func test_a_remote_clients_relocation_goes_to_that_peer_alone() -> void:
 	assert_eq(broadcasts.size(), 0, "never broadcast to every peer")
 	assert_eq(sent.size(), 1, "the owner is told exactly once and nobody else is addressed")
 	assert_eq(sent[0][0], REMOTE_PEER)
-	var client: MatchNetScript = _make_client_net(REMOTE_SLOT)
+	var client: MatchNetScript = await _make_client_net(REMOTE_SLOT)
 	watch_signals(Events)
 	client.net_match_event(sent[0][2][0], sent[0][2][1])
 	assert_signal_emitted_with_parameters(Events, "placement_relocated", [REMOTE_SLOT, RELOCATED_POINT])
 
 
 func test_a_client_drops_a_malformed_relocation_payload() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
+	var net: MatchNetScript = await _make_client_net(REMOTE_SLOT)
 	watch_signals(Events)
 	var payloads: Array = [
 		[],

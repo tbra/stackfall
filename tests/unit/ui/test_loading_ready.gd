@@ -54,8 +54,7 @@ func after_each() -> void:
 	Match._lifecycle.set_loading_gate_forced(false)
 	Match._lifecycle._loading_tuning = Match._lifecycle.LOADING_TUNING
 	Match._net_provider = null
-	Net._mode = Net.Mode.OFFLINE
-	Net._peers = {}
+	Net.leave()
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()

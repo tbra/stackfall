@@ -43,8 +43,11 @@ var _replies: Array[Array] = []
 var _broadcasts: int = 0
 var _rejected_listener: Callable
 
+var _loopback: LoopbackSession
+
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	_settings_cfg_path = OS.get_user_data_dir().path_join("test_refusal_feedback_settings_tmp.cfg")
 	_delete_if_exists(_settings_cfg_path)
 	Settings.set_config_path_for_test(_settings_cfg_path)
@@ -91,8 +94,7 @@ func before_each() -> void:
 func after_each() -> void:
 	if Events.placement_rejected.is_connected(_rejected_listener):
 		Events.placement_rejected.disconnect(_rejected_listener)
-	Net._mode = Net.Mode.OFFLINE
-	Net._local_slot = 0
+	await _loopback.end()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -158,8 +160,8 @@ func _make_host_gateway() -> MatchIntentGateway:
 	var gateway: MatchIntentGateway = MatchIntentGateway.new(_fake_net, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
 	assert_true(gateway.is_valid(), "fixture: the gateway bound the faked session and the real Match")
 	# Sfx/Rumble read the real Net: a host drives slot 0 only.
-	Net._mode = Net.Mode.HOST
-	Net._local_slot = HOST_SLOT
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
+	assert_eq(Net.local_slot(), HOST_SLOT)
 	return gateway
 
 
@@ -181,6 +183,9 @@ func _deliver_reply_to_remote_client() -> void:
 ## A client instance whose own seat is `local_slot_id`. Its MatchNet applies
 ## whatever the host sends through net_match_event().
 func _make_client_net(local_slot_id: int) -> MatchNetScript:
+	# A real client of a loopback host: the first joiner always takes REMOTE_SLOT.
+	assert_eq(local_slot_id, REMOTE_SLOT)
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is a seated client")
 	# A client mirrors a world the host built: start one as the host, then
 	# swap the session (test_match_net.gd's own client fixtures do the same).
 	Match._net_provider = FakeNet.host({}, [HOST_SLOT, REMOTE_SLOT])
@@ -191,8 +196,6 @@ func _make_client_net(local_slot_id: int) -> MatchNetScript:
 	node.set_process(false)
 	add_child_autofree(node)
 	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
-	Net._mode = Net.Mode.CLIENT
-	Net._local_slot = local_slot_id
 	return node
 
 
@@ -306,7 +309,7 @@ func test_the_hosts_own_refusal_still_plays_sound_and_rumble_and_is_not_sent_any
 
 
 func test_a_client_ignores_a_refusal_for_someone_elses_slot() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
+	var net: MatchNetScript = await _make_client_net(REMOTE_SLOT)
 
 	# What an older build's host broadcast for the host's own refusal looks like.
 	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_REJECTED, [HOST_SLOT, PlacementRules.REASON_CONTESTED])
@@ -316,7 +319,7 @@ func test_a_client_ignores_a_refusal_for_someone_elses_slot() -> void:
 
 
 func test_a_client_drops_a_malformed_refusal_payload() -> void:
-	var net: MatchNetScript = _make_client_net(REMOTE_SLOT)
+	var net: MatchNetScript = await _make_client_net(REMOTE_SLOT)
 	var payloads: Array = [
 		[],
 		[REMOTE_SLOT],

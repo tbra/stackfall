@@ -262,6 +262,26 @@ func test_roster_seats_an_honest_handshake() -> void:
 	assert_eq(decision.slot_id, 1)
 
 
+func test_roster_stores_a_raw_control_and_bidi_name_cleaned() -> void:
+	# A tampered client skips the cleaning join_game() does: the host's own check is what stores the name.
+	var roster: NetRoster = _roster()
+	var raw: String = "\u202e  Mal\tlory\n\u200b"
+	var decision: HandshakePolicy.Decision = roster.handle_handshake(SENDER, HOST_BUILD, raw, "", 0.0)
+	assert_eq(decision.kind, HandshakePolicy.Decision.Kind.ACCEPT, "control characters alone are not a refusal")
+	roster.accept(SENDER, HOST_BUILD, raw, decision.slot_id)
+	assert_eq(roster.peer_info(SENDER)["name"], "Mallory", "trimmed, control and bidi characters stripped")
+	assert_eq(roster.peer_info(SENDER)["name"], PlayerNames.clean(raw, roster.config.max_player_name_length))
+
+
+func test_roster_seats_a_name_of_only_control_characters_as_player_n() -> void:
+	var roster: NetRoster = _roster()
+	var raw: String = "\u202e\t\u200b\n"
+	var decision: HandshakePolicy.Decision = roster.handle_handshake(SENDER, HOST_BUILD, raw, "", 0.0)
+	roster.accept(SENDER, HOST_BUILD, raw, decision.slot_id)
+	assert_eq(roster.peer_info(SENDER)["name"], PlayerNames.fallback_for_slot(decision.slot_id))
+	assert_true(roster.peer_info(SENDER)["name_auto"], "the host's Player N, not a typed name")
+
+
 func test_roster_default_name_cap_admits_the_longest_cleaned_name() -> void:
 	var roster: NetRoster = _roster()
 	var longest: String = "n".repeat(roster.config.max_player_name_length)

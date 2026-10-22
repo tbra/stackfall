@@ -7,9 +7,11 @@ extends GutTest
 ## MatchLifecycle state at all.
 
 var _screen: LoadingScreen = null
+var _loopback: LoopbackSession
 
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	_screen = autofree(load("res://ui/menus/LoadingScreen.tscn").instantiate())
 	add_child_autofree(_screen)
 	# Keep the fade fast enough for a test to actually wait it out.
@@ -18,6 +20,10 @@ func before_each() -> void:
 	_screen.tuning.fade_out_duration_s = 0.05
 	# The runner fast-forwards frames, so the game-time stall timeout would fire before a real-time image load.
 	_screen.tuning.ready_timeout_s = STALL_TIMEOUT_S
+
+
+func after_each() -> void:
+	await _loopback.end()
 
 
 func _config(disc_step: int = MatchConfig.DISC_SIZE_STEP_DEFAULT) -> MatchConfig:
@@ -218,8 +224,7 @@ func test_early_client_territory_completes_readiness_after_build() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	var main: Node = _real_main()
-	Net._mode = Net.Mode.CLIENT
-	Net._joined_accepted = true
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is an accepted client")
 	var overlay: LoadingScreen = main._loading_screen
 	overlay.show_for_match(_flow_config(main), _slots(2))
 	Events.territory_replicated.emit(null)
@@ -254,8 +259,7 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	var main: Node = _real_main()
-	Net._mode = Net.Mode.CLIENT
-	Net._joined_accepted = true
+	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is an accepted client")
 	var overlay: LoadingScreen = main._loading_screen
 	Events.match_loading_announced.emit()
 	overlay.show_for_match(_flow_config(main), _slots(2))

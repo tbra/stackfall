@@ -9,14 +9,15 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _loopback: LoopbackSession
 
 
 func before_each() -> void:
+	_loopback = LoopbackSession.new(self)
 	Match.set_process(false)
 	Match.abort_match()
 	Match.stats().reset_session_wins()  # the tally outlives a match, not a test
-	Net._mode = Net.Mode.OFFLINE
-	Net._peers.clear()
+	Net.leave()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
@@ -30,6 +31,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	await _loopback.end()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -241,10 +243,19 @@ func _finish_and_capture(winner: int) -> Dictionary:
 	return captured[0]
 
 
-## Seats two human peers (ids 101/102) in slots 0/1 of a hosted session.
-func _host_two_peers() -> void:
-	Net._mode = Net.Mode.HOST
-	Net._peers = {101: {"slot_id": 0, "name": "A"}, 102: {"slot_id": 1, "name": "B"}}
+## Hosts a real private loopback session: the host's own peer holds slot 0, so the tally keys
+## its seats on a live roster.
+func _host_session() -> void:
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "A", false), OK)
+
+
+## A hosted session with one remote client seated in slot 1.
+func _host_with_client(client_name: String) -> Node:
+	_host_session()
+	var client: Node = await _loopback.join_remote_client(client_name)
+	assert_not_null(client, "fixture: the remote client is seated")
+	assert_eq(Net.slot_of_peer(client.local_peer_id()), 1)
+	return client
 
 
 func _wins_of(results: Dictionary) -> Array[int]:
@@ -261,12 +272,13 @@ func _play_round(winner: int) -> Dictionary:
 
 
 func test_session_wins_accumulate_across_rounds_and_reset_with_the_host_session() -> void:
-	_host_two_peers()
+	await _host_with_client("B")
 	assert_eq(_wins_of(_play_round(0)), [1, 0] as Array[int])
 	assert_eq(_wins_of(_play_round(0)), [2, 0] as Array[int], "wins carry over a replay")
 	assert_eq(_wins_of(_play_round(1)), [2, 1] as Array[int])
 
-	Events.net_mode_changed.emit(Net.Mode.OFFLINE)  # host session ended
+	Net.leave()  # host session ended
+	_host_session()
 	assert_eq(_wins_of(_play_round(1)), [0, 1] as Array[int], "a new session starts the tally at zero")
 
 
