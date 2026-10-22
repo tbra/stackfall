@@ -19,5 +19,5 @@ hole_mode = 0
 match_timer_minutes = 0
 sudden_death = false
 per_player_timer = true
-hot_seat = true
+hot_seat = false
 rng_seed = -1
