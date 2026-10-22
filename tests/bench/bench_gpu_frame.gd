@@ -20,8 +20,7 @@ extends Node
 ## runs in RenderingServerDefault::_draw outside the vp_begin/vp_end timestamps).
 ## Sky state (before the blocks spawn): --sky=day|dawn|night|cycle and --phase=<0..1>. day/dawn/night
 ## lock the cycle at 0.25/0.0/0.75; --phase=<p> alone locks at p; --sky=cycle runs it (from --phase
-## when given). Sky toggles (see --list): sky_radiance_frozen (Skybox.set_cycle_writes_frozen; keeps
-## REALTIME radiance, unlike sky_radiance), puff_sea/puff_banks/puff_far (zero that layer's clump
+## when given). Sky toggles (see --list): puff_sea/puff_banks/puff_far (zero that layer's clump
 ## count on the live sky definition, then re-apply it), puff_upper, puff_billboard (preset billboard
 ## distance 0), puff_detail, puff_fade_sky, sea_noise, decals_only, disc_term, sun_flare_rect,
 ## sun_flare_cpu, probe_interval4, probe_interval05, storm_fade_writes (starts a storm fade-in on the
@@ -66,7 +65,7 @@ const FEATURES: PackedStringArray = [
 	"cloud_shadows", "sun_flare", "blocks", "fog_volume", "scale50", "aurora",
 	"probe_once", "ssao", "ssil", "sdfgi", "lights", "ssao_on",
 	"ssr_steps32", "ssr_steps16", "ssr_fade1",
-	"sky_radiance_frozen", "puff_sea", "puff_banks", "puff_far", "puff_upper", "puff_billboard",
+	"puff_sea", "puff_banks", "puff_far", "puff_upper", "puff_billboard",
 	"puff_detail", "puff_fade_sky", "sea_noise", "decals_only", "disc_term", "sun_flare_rect",
 	"sun_flare_cpu", "storm_fade_writes", "probe_interval4", "probe_interval05",
 	"cpu_sun_flare", "cpu_cloud_shadows", "cpu_cloud_ceiling",
@@ -188,7 +187,7 @@ func _apply_sky_state(sky_mode: String, phase: float) -> void:
 	else:
 		var lock: float = float(SKY_PHASES[sky_mode]) if SKY_PHASES.has(sky_mode) else phase
 		skybox.start_cycle(lock, NO_PHASE)
-	print("GPU_BENCH sky=%s phase=%.3f" % [sky_mode if not sky_mode.is_empty() else "locked", skybox.cycle_phase_at(MatchContext.current().shared_clock_seconds())])
+	print("GPU_BENCH sky=%s phase=%.3f" % [sky_mode if not sky_mode.is_empty() else "locked", skybox.current_cycle_phase()])
 
 
 func _skybox() -> Skybox:
@@ -229,8 +228,8 @@ func _toggle_param(feature: String, material: ShaderMaterial, parameter: StringN
 
 func _puff_material() -> ShaderMaterial:
 	var skybox: Skybox = _skybox()
-	var sea: Object = skybox.get("_cloud_sea") as Object if skybox != null else null
-	return sea.get("_material") as ShaderMaterial if sea != null else null
+	var sea: CloudSea = skybox.get_node_or_null("CloudSea") as CloudSea if skybox != null else null
+	return SkyTestKit.puff_material(sea) if sea != null else null
 
 
 ## Puff MultiMeshInstance3Ds under every CloudSea by node name (Puffs, PuffsFar, UpperPuffs, UpperPuffsFar).
@@ -507,10 +506,6 @@ func _set_feature(feature: String, on: bool) -> void:
 				if not on:
 					_saved[feature] = sky_material.get_shader_parameter(&"aurora_visibility")
 				sky_material.set_shader_parameter(&"aurora_visibility", 0.0 if not on else _saved.get(feature, 0.0))
-		"sky_radiance_frozen":
-			# The cycle's 10 Hz material writes stop; radiance stays REALTIME (no GGX refilter).
-			if _skybox() != null:
-				_skybox().set_cycle_writes_frozen(not on)
 		"puff_sea":
 			_toggle_rebuild(feature, _sky_def(), "cloud_clump_count", 0, on)
 		"puff_banks":

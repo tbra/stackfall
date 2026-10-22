@@ -22,7 +22,7 @@ func _fade(ceiling: CloudCeiling, seconds: float) -> void:
 
 ## The storm sky blend the ceiling has pushed to the Skybox, as the shared cloud lighting publishes it.
 func _sky_storm(skybox: Skybox) -> float:
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	return (skybox.get_node("CloudSea") as CloudSea).lighting.storm
 
 
@@ -89,7 +89,7 @@ func test_upper_layer_is_the_sea_puff_field_and_always_present() -> void:
 	Events.weather_stopped.emit(&"rain")
 	_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
 	assert_true(upper.visible)
-	sea.configure_cycle(skybox.sky_def, skybox.current_frame(), 1.0)
+	sea.configure_cycle(skybox.sky_def, SkyEvaluator.evaluate_tick(skybox.sky_def, skybox.current_cycle_phase(), skybox.variation_seed(), 0, true), 1.0)
 	assert_true(_puffs(sea, true).visible, "a rebuild keeps the layer")
 
 
@@ -127,14 +127,14 @@ func test_storm_sky_blends_and_restores_the_match_sky() -> void:
 	skybox.refresh_sky_def()
 	var base_fog: Color = environment.fog_light_color
 	skybox.set_storm_sky(0.5, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var halfway: Color = environment.fog_light_color
 	assert_true(halfway.is_equal_approx(base_fog.lerp(storm.fog_color, 0.5)))
 	skybox.set_storm_sky(1.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_true(environment.fog_light_color.is_equal_approx(storm.fog_color))
 	skybox.set_storm_sky(0.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_eq(environment.fog_light_color, base_fog, "match sky restored exactly")
 	assert_eq(_sky_storm(skybox), 0.0)
 
@@ -146,24 +146,24 @@ func test_storm_haze_keeps_distances_and_blends_the_tint() -> void:
 	var skybox: Skybox = wired["skybox"] as Skybox
 	var storm: SkyOverlayDef = load("res://config/sky/storm_overlay.tres") as SkyOverlayDef
 	skybox.refresh_sky_def()
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var strength: float = WeatherFogShader.ambient_strength
 	var begin: float = WeatherFogShader.ambient_begin_m
 	var finish: float = WeatherFogShader.ambient_end_m
 	var base_tint: Color = WeatherFogShader.ambient_color
 	skybox.set_storm_sky(0.5, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(WeatherFogShader.ambient_strength, strength, 0.0001, "storm 0.5 strength")
 	assert_almost_eq(WeatherFogShader.ambient_begin_m, begin, 0.0001, "storm 0.5 begin")
 	assert_almost_eq(WeatherFogShader.ambient_end_m, finish, 0.0001, "storm 0.5 end")
 	assert_true(WeatherFogShader.ambient_color.is_equal_approx(base_tint.lerp(storm.fog_color, 0.5)), "storm 0.5 tint")
 	skybox.set_storm_sky(1.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(WeatherFogShader.ambient_strength, strength, 0.0001, "storm 1.0 strength")
 	assert_almost_eq(WeatherFogShader.ambient_end_m, finish, 0.0001, "storm 1.0 end")
 	assert_true(WeatherFogShader.ambient_color.is_equal_approx(storm.fog_color), "storm 1.0 tint")
 	skybox.set_storm_sky(0.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_true(WeatherFogShader.ambient_color.is_equal_approx(base_tint), "storm over: tint restored")
 
 
@@ -177,22 +177,26 @@ func test_storm_end_restores_the_switched_sky_without_a_rebuild() -> void:
 	skybox.set_storm_sky(1.0, storm)
 	skybox.set_locked_phase(SkyTestKit.locked_phase("night"))
 	skybox.set_storm_sky(0.0, storm)
-	skybox.flush_weather()
-	var chosen: SkyFrame = skybox.current_frame()
+	SkyTestKit.settle(skybox)
+	var chosen_fog_color: Color = environment.fog_light_color
+	var chosen_fog_density: float = environment.fog_density
+	var chosen_fog_sky_affect: float = environment.fog_sky_affect
+	var chosen_ambient_energy: float = environment.ambient_light_energy
+	var chosen_volumetric_density: float = environment.volumetric_fog_density
+	var chosen_shadow_color: Color = SkyTestKit.puff_material(skybox.get_node("CloudSea") as CloudSea).get_shader_parameter(&"shadow_color") as Color
 	var puffs: MultiMeshInstance3D = _puffs(skybox.get_node("CloudSea") as CloudSea, false)
 	skybox.set_storm_sky(1.0, storm)
 	skybox.set_storm_sky(0.0, storm)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_same(_puffs(skybox.get_node("CloudSea") as CloudSea, false), puffs, "no puff rebuild on restore")
-	assert_true(environment.fog_light_color.is_equal_approx(chosen.fog_light_color))
-	assert_almost_eq(environment.fog_density, chosen.fog_density, 0.0001)
-	assert_almost_eq(environment.fog_sky_affect, chosen.fog_sky_affect, 0.0001)
-	assert_almost_eq(environment.ambient_light_energy, chosen.ambient_light_energy, 0.0001)
-	assert_almost_eq(environment.volumetric_fog_density, chosen.volumetric_fog_density, 0.0001)
+	assert_true(environment.fog_light_color.is_equal_approx(chosen_fog_color))
+	assert_almost_eq(environment.fog_density, chosen_fog_density, 0.0001)
+	assert_almost_eq(environment.fog_sky_affect, chosen_fog_sky_affect, 0.0001)
+	assert_almost_eq(environment.ambient_light_energy, chosen_ambient_energy, 0.0001)
+	assert_almost_eq(environment.volumetric_fog_density, chosen_volumetric_density, 0.0001)
 	var fog_material: FogMaterial = skybox._fog_volume.material as FogMaterial
-	assert_almost_eq(fog_material.density, chosen.fog_density, 0.0001, "fog volume restored")
-	var expected: Color = chosen.puff_shadow_color
-	assert_true(((skybox.get_node("CloudSea") as CloudSea).puff_material().get_shader_parameter(&"shadow_color") as Color).is_equal_approx(expected))
+	assert_almost_eq(fog_material.density, chosen_fog_density, 0.0001, "fog volume restored")
+	assert_true((SkyTestKit.puff_material(skybox.get_node("CloudSea") as CloudSea).get_shader_parameter(&"shadow_color") as Color).is_equal_approx(chosen_shadow_color))
 
 
 func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
@@ -210,12 +214,12 @@ func test_rain_snow_and_storm_all_drive_the_shared_overcast() -> void:
 		_fade(ceiling, ceiling.tuning.fade_in_s + 1.0)
 		var expected: float = ceiling.tuning.overcast_for(weather_id, 1.0)
 		assert_gt(expected, 0.0, "%s sets overcast" % weather_id)
-		skybox.flush_weather()
+		SkyTestKit.settle(skybox)
 		assert_almost_eq(lighting.overcast, expected, 0.001, "%s reaches the shared lighting" % weather_id)
 		seen[weather_id] = lighting.dim
 		Events.weather_stopped.emit(weather_id)
 		_fade(ceiling, ceiling.tuning.fade_out_s + 1.0)
-		skybox.flush_weather()
+		SkyTestKit.settle(skybox)
 		assert_eq(lighting.overcast, 0.0, "clear again")
 	assert_lt(float(seen[&"snow"]), 0.0, "snow lifts the clouds (negative dim)")
 
