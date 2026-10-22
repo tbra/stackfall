@@ -80,7 +80,7 @@ static func physics(
 	config: SoakConfig
 ) -> Array[Violation]:
 	var found: Array[Violation] = []
-	var floor_y: float = kill_plane_y + config.kill_plane_margin_m
+	var floor_y: float = kill_plane_y - config.kill_plane_margin_m
 	for body: BodyObs in bodies:
 		if not (body.transform.origin.is_finite() and body.transform.basis.is_finite()):
 			found.append(_violation(&"physics.non_finite", str(body.id), 0.0, 0.0))

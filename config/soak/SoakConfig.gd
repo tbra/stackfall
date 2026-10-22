@@ -65,13 +65,16 @@ extends Resource
 
 # --- Physics ------------------------------------------------------------------
 
-## A tracked block lower than PhysicsTuning.kill_plane_y plus this margin, in metres, is a
-## violation (the field frees such a body, so a tracked one means it never did).
+## A tracked block lower than PhysicsTuning.kill_plane_y minus this margin, in metres (this far
+## below the plane), is a violation (the field frees such a body, so a tracked one means it never did).
 @export_range(0.0, 10.0, 0.1, "or_greater") var kill_plane_margin_m: float = 1.0
 ## A client body below the kill plane for less than this many seconds is not a violation: the
 ## client holds a falling body at its last snapshot until the host's despawn arrives. A host
 ## body below the plane is always one.
 @export_range(0.0, 60.0, 0.5, "or_greater") var client_kill_grace_s: float = 6.0
+## A client body that is not at rest and first appeared in a client dump less than this many
+## seconds ago is not "client only": the host may have despawned it already. Host never graced.
+@export_range(0.0, 60.0, 0.5, "or_greater") var client_despawn_grace_s: float = 6.0
 ## Largest awake / total block fraction once enough blocks exist.
 @export_range(0.0, 1.0, 0.01) var awake_fraction_max: float = 0.6
 ## Block count from which the awake fraction is checked.

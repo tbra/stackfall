@@ -170,7 +170,7 @@ func sample_now() -> void:
 # DECISION: only the time below the plane is graced, not whether the body is at rest: a client
 # body held at its last snapshot is not moving either, so rest cannot tell it from a stuck one.
 func _track_below_plane(bodies: Array[SoakCheck.BodyObs], now_s: float) -> void:
-	var floor_y: float = _observer.kill_plane_y() + config.kill_plane_margin_m
+	var floor_y: float = _observer.kill_plane_y() - config.kill_plane_margin_m
 	var still_below: Dictionary = {}
 	for body: SoakCheck.BodyObs in bodies:
 		if body.transform.origin.y < floor_y:

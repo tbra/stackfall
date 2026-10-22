@@ -2,6 +2,7 @@
 Pure text; no Godot is launched.
 Run: python tools/test_soak_report.py
 """
+import math
 import os
 import sys
 import unittest
@@ -97,9 +98,23 @@ class ParseTest(unittest.TestCase):
 
     def test_known_file_ships_the_di0_2_29_line(self):
         known = sr.load_known(os.path.join(os.path.dirname(os.path.abspath(__file__)), "soak_known.json"))
-        self.assertEqual(known["known"], ["budget.client_tick_p99"])
+        self.assertEqual(
+            known["known"], ["budget.client_tick_p99", "budget.host_tick_p99", "budget.sim_rate"])
         self.assertEqual(len(known["engine_noise"]), 3)
         self.assertEqual(sr.load_known("no/such/file.json"), {"known": [], "engine_noise": []})
+
+
+class AngleTest(unittest.TestCase):
+    def test_angle_deg(self):
+        ident = (0.0, 0.0, 0.0, 1.0)
+        self.assertEqual(sr._angle_deg(ident, ident), 0.0)
+        half = math.radians(1.0) / 2.0
+        tilt = (math.sin(half), 0.0, 0.0, math.cos(half))
+        self.assertAlmostEqual(sr._angle_deg(ident, tilt), 1.0, places=6)
+        self.assertAlmostEqual(sr._angle_deg(ident, tuple(-c for c in tilt)), 1.0, places=6)  # q == -q
+        # eight-digit text of a 0.01 degree tilt stays near 0.01, not the ~1 degree acos(w) rounding gives
+        small = (round(math.sin(math.radians(0.01) / 2.0), 8), 0.0, 0.0, 1.0)
+        self.assertLess(sr._angle_deg(ident, small), 0.02)
 
 
 class JoinTest(unittest.TestCase):
@@ -122,6 +137,20 @@ class JoinTest(unittest.TestCase):
         res = run(host_extra=[body("host", 100, 1)], client_extra=[body("client", 100, 1), body("client", 100, 99)])
         self.assertEqual([(v.inv, v.subject) for v in res["violations"]], [("authority.client_only_body", "99")])
         self.assertEqual(res["verdict"], "FAIL")
+
+    def test_falling_client_only_body_gets_the_despawn_grace_but_a_resting_one_does_not(self):
+        host = [body("host", 100, 1)]
+        falling = body("client", 100, 99, rest=0)
+        self.assertEqual(invs(run(host_extra=host, client_extra=[body("client", 100, 1), falling])), [])
+        resting = body("client", 100, 99, rest=1)
+        self.assertEqual(invs(run(host_extra=host, client_extra=[body("client", 100, 1), resting])),
+                         ["authority.client_only_body"])
+
+    def test_falling_client_only_body_seen_past_the_grace_is_reported(self):
+        host = [body("host", 94, 1), body("host", 100, 1)]
+        client = [body("client", 94, 1), body("client", 94, 99, rest=0),
+                  body("client", 100, 1), body("client", 100, 99, rest=0)]
+        self.assertEqual(invs(run(host_extra=host, client_extra=client)), ["authority.client_only_body"])
 
     def test_client_body_removed_on_host_since_is_not_local_only(self):
         res = run(host_extra=[body("host", 94, 7), body("host", 100, 1)], client_extra=[body("client", 100, 1), body("client", 100, 7)])
