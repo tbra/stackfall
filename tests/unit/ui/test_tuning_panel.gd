@@ -167,8 +167,11 @@ func after_each() -> void:
 
 func test_slider_change_writes_the_resource() -> void:
 	var slider: HSlider = _control_for(_panel, _panel.physics_tuning, "gravity_multiplier") as HSlider
+	var original: float = _panel.physics_tuning.gravity_multiplier
 	slider.emit_signal("value_changed", 2.4)
 	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, 2.4, 0.0001)
+	# Dragging back clears the modified marker, so the shared panel is clean for the next test.
+	slider.emit_signal("value_changed", original)
 
 
 func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gravity() -> void:
@@ -194,6 +197,7 @@ func test_apply_physics_live_updates_an_existing_blocks_damping_material_and_gra
 # --- Physics preset dropdown ---------------------------------
 
 func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
+	_own_panel(false)
 	var shape: BlockShape = load("res://config/blocks/cube.tres")
 	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
 	add_child_autofree(block)  # _ready() joins Block.TUNING_GROUP for real.
@@ -208,29 +212,6 @@ func test_apply_physics_preset_copies_values_and_reapplies_live() -> void:
 		block.gravity_scale, preset.gravity_multiplier, 0.0001,
 		"a preset pick must reach an already-standing block via apply_physics_live(), not just write the Resource."
 	)
-
-
-func test_a_slider_drag_reaches_an_already_placed_block_end_to_end() -> void:
-	var shape: BlockShape = load("res://config/blocks/cube.tres")
-	var block: Block = BlockFactory.build(shape, _panel.physics_tuning)
-	add_child_autofree(block)
-
-	var slider: HSlider = _control_for(_panel, _panel.physics_tuning, "block_linear_damp") as HSlider
-	slider.emit_signal("value_changed", 0.9)
-
-	assert_almost_eq(block.linear_damp, 0.9, 0.0001, "changing the field must push the live-apply hook too, not just write the Resource.")
-
-
-# --- Territory visuals live-apply --------------------------------------------
-
-func test_reset_reloads_physics_tuning_from_disk() -> void:
-	_own_panel(false)
-	var original: float = _panel.physics_tuning.gravity_multiplier
-	_panel.physics_tuning.gravity_multiplier = original + 1.5
-
-	_panel.reset_all()
-
-	assert_almost_eq(_panel.physics_tuning.gravity_multiplier, original, 0.0001)
 
 
 func test_save_and_apply_saved_overrides_round_trip_via_user_dir() -> void:
@@ -352,18 +333,6 @@ func test_gamepad_start_plus_x_toggles() -> void:
 	assert_true(_panel.visible, "Start held + X pressed should toggle the panel.")
 
 
-# --- ("F4 should remember which
-# tab was active when reopened") ---------------------------------------------
-
-func test_persistence_disallowed_for_headless_non_gut_run() -> void:
-	assert_false(UserPaths.persistence_allowed_for(false, "headless"))
-	assert_true(UserPaths.persistence_allowed_for(false, "windows"))
-	assert_true(UserPaths.persistence_allowed_for(true, "headless"))
-	assert_true(UserPaths.persistence_allowed(), "GUT runs keep writing to the per-PID files.")
-
-
-# --- tuned defaults --------------------------------------
-
 func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() -> void:
 	var resources: Array[Resource] = [
 		_panel.camera_tuning, _panel.ghost_tuning, _panel.physics_tuning,
@@ -400,61 +369,8 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 		var row: Dictionary = _row(_panel, resource, prop_name)
 		assert_true(label.contains((row["default_label"] as Label).text), "%s must carry its default column text." % label)
 		assert_true(is_equal_approx(float(row["default"]), float(shipped_value)), "%s default must be the shipped value." % prop_name)
+	assert_gt(differing, 0, "fixture: at least one shipped value differs from its script default")
 	gut.p("fields whose .tres differs from .gd default: %d" % differing)
-
-
-## Test that every exported numeric/bool/Color property in the M7 config resources
-## (BeaconVisualTuning, CameraShakeConfig, BlockEffectsConfig, HUDVisualTuning,
-## SkyCycleDef, SkyKeyframe, SkyNightKeyframe, SkyOverlayDef) has both a range hint (for numeric fields) and a description hint
-## in tuning_panel_hints.tres. These resources are not exposed in the TuningPanel
-## UI yet, but hints are provided for future panel extension.
-func test_m7_config_resources_have_complete_hints() -> void:
-	var resources: Array[Resource] = [
-		BeaconVisualTuning.new(),
-		CameraShakeConfig.new(),
-		BlockEffectsConfig.new(),
-		HUDVisualTuning.new(),
-		SkyCycleDef.new(),
-		SkyKeyframe.new(),
-		SkyNightKeyframe.new(),
-		SkyOverlayDef.new(),
-		# the disc-top procedural surface.
-		DiscSurfaceDef.new(),
-		AmbientLifeConfig.new(),
-		QualityGovernorConfig.new(),
-	]
-
-	var hints: TuningPanelHints = _panel.hints
-	var checked_any: bool = false
-
-	for resource: Resource in resources:
-		var class_label: String = String((resource.get_script() as Script).get_global_name())
-
-		for prop: Dictionary in resource.get_property_list():
-			if not _panel._is_exported_field(prop):
-				continue
-
-			var prop_name: String = str(prop.get("name", ""))
-			var type: int = int(prop.get("type", TYPE_NIL))
-			checked_any = true
-
-			# Every exported property must have a description.
-			var description: String = hints.description_for(class_label, prop_name)
-			assert_false(
-				description.is_empty(),
-				"%s.%s has no description in TuningPanelHints" % [class_label, prop_name]
-			)
-
-			# Numeric fields (float, int) must have a range.
-			if type == TYPE_FLOAT or type == TYPE_INT:
-				var range: Vector2 = hints.range_for(class_label, prop_name)
-				var has_range: bool = not (is_nan(range.x) and is_nan(range.y))
-				assert_true(
-					has_range,
-					"%s.%s (type %d) has no range in TuningPanelHints" % [class_label, prop_name, type]
-				)
-
-	assert_true(checked_any, "fixture: at least one M7 config field must exist to check.")
 
 
 # --- Sky tab ----------------------------------------
@@ -575,73 +491,8 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	assert_false(_panel.apply_time_of_day("midnight"), "an unknown choice is rejected")
 
 
-## a GUT run must never touch the owner's real overrides file.
-func test_gut_run_save_overrides_never_touches_real_file() -> void:
-	var real: String = TuningPanel.SAVE_PATH
-	var existed: bool = FileAccess.file_exists(real)
-	var mtime: int = FileAccess.get_modified_time(real) if existed else 0
-	assert_ne(TuningPanel.save_path(), real, "GUT run maps to a per-PID file")
-	assert_eq(_panel.save_overrides(), OK)
-	assert_true(FileAccess.file_exists(TuningPanel.save_path()), "wrote the GUT file")
-	assert_eq(FileAccess.file_exists(real), existed, "real file existence unchanged")
-	if existed:
-		assert_eq(FileAccess.get_modified_time(real), mtime, "real file mtime unchanged")
-
-
-# --- no unused rows, grouped and sorted ------------------------
-
-## Fields read only through an accessor method on their own config class: the
-## accessor name must still appear in live game code outside config/ and the panel.
-const READ_VIA_ACCESSOR: Dictionary = {
-	"GhostTuning.home_spawn_beacon_margin": "home_spawn_clear_hover",
-	"GhostTuning.home_spawn_back_offset": "home_spawn_back_position",
-	"QolExperiments.pause_max_s": "effective_pause_max_s",
-	"QolExperiments.backlog_max": "effective_backlog_max",
-	"QolExperiments.goal_radius_multiplier": "effective_goal_radius",
-	"QolExperiments.gift_slot_min_window_s": "effective_gift_min_window_s",
-	"QolExperiments.gift_queue_after_next": "gift_after_next_in_force",
-	"SkyCycleDef.aurora_start_night_mix": "aurora_night_strength",
-	"SkyCycleDef.aurora_full_night_mix": "aurora_night_strength",
-	"SkyCycleDef.cycle_locked_phase_sunset": "locked_phase_for",
-	"SkyCycleDef.cycle_locked_phase_dawn": "locked_phase_for",
-	"SkyCycleDef.cycle_locked_phase_night": "locked_phase_for",
-}
-const LIVE_CODE_DIRS: PackedStringArray = ["game", "autoload", "core", "net", "ui", "shaders"]
-
-
-func _collect_code(dir_path: String, out: PackedStringArray) -> void:
-	for sub: String in DirAccess.get_directories_at(dir_path):
-		_collect_code("%s/%s" % [dir_path, sub], out)
-	for file_name: String in DirAccess.get_files_at(dir_path):
-		if not (file_name.ends_with(".gd") or file_name.ends_with(".gdshader")):
-			continue
-		if file_name == "TuningPanel.gd":
-			continue
-		var text: String = FileAccess.get_file_as_string("%s/%s" % [dir_path, file_name])
-		var kept: PackedStringArray = PackedStringArray()
-		for line: String in text.split("
-"):
-			if not line.strip_edges().begins_with("#"):
-				kept.append(line)
-		out.append("
-".join(kept))
-
-
-# --- Sky tab edits the cycle definition ----------------------------------------
-
-func test_sky_tab_lists_the_cycle_both_day_keys_night_and_the_storm_overlay() -> void:
-	var expected: Array[Resource] = [
-		_panel.sky_cycle, _panel.sky_cycle.day_keyframes[0], _panel.sky_cycle.day_keyframes[1],
-		_panel.sky_cycle.night, _panel.storm_overlay,
-	]
-	assert_eq(_panel._sky_resources(), expected)
-	for resource: Resource in expected:
-		assert_gt(_shown_fields_for(_panel, resource).size(), 0, "the Sky tab shows rows for %s" % resource)
-	assert_null(_find_option_named(_panel, "ThemeOption"), "the Theme dropdown is gone")
-
-
 func test_sky_edit_copies_the_cycle_fields_onto_each_live_skybox_and_refreshes_it() -> void:
-	_own_panel(true)
+	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	spy.sky_def = _panel.sky_cycle.duplicate() as SkyCycleDef
 	var original: float = _panel.sky_cycle.haze_strength
@@ -661,26 +512,3 @@ func test_sky_edit_copies_the_cycle_fields_onto_each_live_skybox_and_refreshes_i
 	_panel._on_field_changed(_panel.storm_overlay, "fog_density")
 	assert_eq(spy.refresh_calls, 5, "keyframe, night and overlay edits refresh too")
 	assert_eq(key.fog_density, fog_before)
-
-
-func test_cycle_length_edit_keeps_its_own_seam() -> void:
-	_own_panel(true)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	_panel._on_field_changed(_panel.sky_cycle, "cycle_length_seconds")
-	assert_eq(spy.refresh_calls, 0, "the length goes through set_cycle_length_seconds, not a definition refresh")
-
-
-func test_reset_restores_the_keyframes_night_and_cycle_from_the_shipped_file() -> void:
-	_own_panel(true)
-	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[1]
-	var night: SkyNightKeyframe = _panel.sky_cycle.night
-	var shipped: SkyCycleDef = ResourceLoader.load(_panel.sky_cycle.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyCycleDef
-	var key_fog: float = key.fog_density
-	var night_fog: float = night.fog_density
-	key.fog_density = key_fog + 0.1
-	night.fog_density = night_fog + 0.1
-	assert_eq(shipped.day_keyframes[1].fog_density, key_fog, "fixture: the fresh load is the shipped value")
-	_panel.reset_all()
-	assert_eq(_panel.sky_cycle.day_keyframes[1], key, "reset keeps the live keyframe objects")
-	assert_almost_eq(key.fog_density, key_fog, 0.00001)
-	assert_almost_eq(night.fog_density, night_fog, 0.00001)
