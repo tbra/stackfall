@@ -162,7 +162,7 @@ func test_tower_topple_preset_builds_the_row_and_it_stands() -> void:
 		expected += height
 	_bodies_at_start = PhysicsServer3D.get_process_info(PhysicsServer3D.INFO_ACTIVE_OBJECTS)
 	_main.start_tower_topple_from_menu()
-	assert_eq(_main._sandbox_preset, preset)
+	assert_eq(_main._mode_extras.sandbox_preset, preset)
 	assert_true(Match.config.gifts_enabled)
 	_run_countdown()
 	await get_tree().process_frame
