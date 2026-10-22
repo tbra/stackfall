@@ -316,6 +316,50 @@ class Tests(unittest.TestCase):
         rs.assert_not_called()
         self.assertTrue([l for l in out if "no runner" in l])
 
+    def _soak(self, changed, soak_text=None, **kw):
+        ov = {"gate_touched": (0, changed)}
+        if soak_text is not None:
+            ov["soak"] = (1, soak_text)
+        fake = Fake(ov)
+        out, res, err = [], {}, None
+        with mock.patch.object(ib, "run_cmd", fake), mock.patch.object(ib, "enet_step"):
+            try:
+                ib.integrate(args_for(dry_run=True, **kw), ib.Ctx(tempfile.gettempdir()), out.append, res)
+            except ib.StepFailed as e:
+                err = e
+        return err, out, fake
+
+    def test_soak_selection(self):
+        self.assertTrue(ib.soak_selection(["net/a.gd"]))
+        self.assertTrue(ib.soak_selection(["core\\territory\\t.gd"]))
+        self.assertTrue(ib.soak_selection(["tools/run_soak.py"]))
+        self.assertFalse(ib.soak_selection(["core/a.gd", "autoload/Match.gd", "tools/soak_known.json", ""]))
+
+    def test_soak_not_run_without_idle_flag(self):
+        err, out, fake = self._soak("net/a.gd\n")
+        self.assertIsNone(err)
+        self.assertNotIn("soak", fake.names())
+        self.assertTrue([l for l in out if l.startswith("soak      NOT RUN: batch touches soak paths")])
+
+    def test_soak_silent_when_untouched(self):
+        err, out, fake = self._soak("core/a.gd\n", soak_idle=True)
+        self.assertIsNone(err)
+        self.assertNotIn("soak", fake.names())
+        self.assertFalse([l for l in out if l.startswith("soak")])
+
+    def test_soak_idle_reports_and_never_fails_the_batch(self):
+        for verdict, shown in (("PASS", "ok"), ("REPORT", "REPORT"), ("FAIL", "FAIL"), ("INVALID", "INVALID")):
+            err, out, fake = self._soak("net/a.gd\n", "noise\nSOAK RESULT %s: x\n" % verdict, soak_idle=True)
+            self.assertIsNone(err, verdict)
+            args = dict(fake.calls)["soak"]
+            self.assertIn("--idle", args)
+            self.assertTrue([l for l in out if l.startswith("soak      %s SOAK RESULT %s" % (shown, verdict))], verdict)
+
+    def test_soak_missing_result_line_is_reported_not_raised(self):
+        err, out, _ = self._soak("net/a.gd\n", "crashed", soak_idle=True)
+        self.assertIsNone(err)
+        self.assertTrue([l for l in out if l.startswith("soak      FAIL no SOAK RESULT")])
+
     def test_enet_skipped_when_not_touched(self):
         err, out, rs = self._enet("core/a.gd\nui/net_panel.gd\n", self.PASS2)
         self.assertIsNone(err)
