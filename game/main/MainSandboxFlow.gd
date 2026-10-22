@@ -87,7 +87,7 @@ func attach_extras(extras: ModeExtras, local_player: Node) -> void:
 		var tutorial: Tutorial = main_node._load_scene(Main.TUTORIAL_SCENE_PATH).instantiate() as Tutorial
 		main_node._tutorial = tutorial
 		main_node.add_child(tutorial)
-		tutorial.attach(player, main_node._camera_rig)
+		tutorial.attach(player)
 		tutorial.finished.connect(on_tutorial_finished)
 		# See PauseMenu's `suppressed` doc: Tutorial owns ui_cancel/Escape for its own quit gesture.
 		main_node._pause_menu.suppressed = true
