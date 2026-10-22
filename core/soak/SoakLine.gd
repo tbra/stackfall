@@ -7,7 +7,7 @@ extends RefCounted
 ## space in free text becomes `_`). `role` is the first key, except SOAK_VIOLATION, which leads
 ## with `inv`. A value may itself contain `=` (`detail=owner=3`), so a parser splits each token
 ## on its first `=`. Values: ints plain, floats `%.4f`, bools 0 or 1, a Vector3 `x,y,z`, a
-## Quaternion `x,y,z,w`, an array `a;b;c`, a Dictionary `k:v;k:v` in key order. The keys after
+## Quaternion `x,y,z,w` with `%.8f` components, an array `a;b;c`, a Dictionary `k:v;k:v` in key order. The keys after
 ## `role epoch wall_ms` in SOAK_SAMPLE, and after `role` in SOAK_END, are sorted. SOAK_CONFIG
 ## lists every SoakConfig field in declaration order under its own name.
 
@@ -20,6 +20,9 @@ const _TAG_CURVE: String = "SOAK_CURVE"
 const _TAG_CONFIG: String = "SOAK_CONFIG"
 const _TAG_END: String = "SOAK_END"
 const _FLOAT: String = "%.4f"
+# DECISION: a quaternion near identity has w = cos(angle / 2), so four digits of w leave about
+# 1 degree of angle error; eight digits keep it far below the 1 degree convergence tolerance.
+const _QUAT_FLOAT: String = "%.8f"
 const _LIST_SEP: String = ";"
 const _PAIR_SEP: String = ":"
 const _COMPONENT_SEP: String = ","
@@ -117,7 +120,7 @@ static func _value(v: Variant) -> String:
 			return _COMPONENT_SEP.join([_FLOAT % p.x, _FLOAT % p.y, _FLOAT % p.z])
 		TYPE_QUATERNION:
 			var q: Quaternion = v
-			return _COMPONENT_SEP.join([_FLOAT % q.x, _FLOAT % q.y, _FLOAT % q.z, _FLOAT % q.w])
+			return _COMPONENT_SEP.join([_QUAT_FLOAT % q.x, _QUAT_FLOAT % q.y, _QUAT_FLOAT % q.z, _QUAT_FLOAT % q.w])
 		TYPE_DICTIONARY:
 			var d: Dictionary = v
 			var keys: Array = d.keys()

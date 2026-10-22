@@ -178,8 +178,8 @@ func test_client_role_reports_no_host_only_checks() -> void:
 	MatchNet.counters.count_accepted(0)
 	var monitor: SoakMonitor = _monitor(&"client", 0.0)
 	var found: Array[SoakCheck.Violation] = _sample(monitor)
-	assert_true(&"physics.below_kill_plane" in _ids_of(found),
-		"the client still runs the local physics checks")
+	assert_false(&"physics.below_kill_plane" in _ids_of(found),
+		"a client body first seen below the plane is a fall in flight, graced")
 	for v: SoakCheck.Violation in found:
 		assert_false(String(v.invariant).begins_with("authority."),
 			"a client never reports host-only authority checks (got %s)" % v.invariant)
