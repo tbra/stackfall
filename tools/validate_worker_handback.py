@@ -2,6 +2,12 @@
 
 Registered in project subagent frontmatter, not globally: built-in agents and the
 main orchestrator must not be forced into this worker-only report contract.
+
+A handback is refused while one of the worker's own background tasks (a Monitor or a
+run_in_background shell) is still live: the task's next notification would wake the worker
+after its report and the harness would demand the report again (duplicate handbacks).
+The worker's transcript is read to find launched tasks without a final notification or a
+TaskStop; an unreadable transcript fails open.
 """
 
 import datetime
@@ -120,15 +126,85 @@ def problem(message):
 
 
 def used_handback(path):
+    """True when the transcript holds a SubagentHandback call anywhere. The whole file is read:
+    background notifications after a handback push it out of any tail window, and a stop after
+    such a wake-up must not demand the report again."""
     if not path:
         return False
     try:
         with open(path, "rb") as transcript:
-            transcript.seek(0, 2)
-            transcript.seek(max(0, transcript.tell() - 24000))
             return b'"SubagentHandback"' in transcript.read()
     except OSError:
         return False
+
+
+def transcript_path(event):
+    """The worker's own transcript: the hook field when given, else derived from the session
+    transcript and the agent id (<session dir>/<session id>/subagents/agent-<id>.jsonl)."""
+    path = event.get("agent_transcript_path")
+    if path:
+        return path
+    agent_id, session_path = event.get("agent_id"), event.get("transcript_path")
+    if not agent_id or not session_path:
+        return None
+    base = session_path[:-len(".jsonl")] if session_path.endswith(".jsonl") else session_path
+    return os.path.join(base, "subagents", "agent-%s.jsonl" % agent_id)
+
+
+LAUNCH_RE = re.compile(r"(?:Command running in background with ID: |Monitor started \(task )([A-Za-z0-9]+)")
+DONE_RE = re.compile(r"<task-id>([A-Za-z0-9]+)</task-id>(?:(?!<task-id>).)*?(?:<status>[a-z_]+</status>|Monitor expired)", re.S)
+
+
+def _texts(node):
+    """Every string inside a transcript record (tool results, notifications, tool inputs)."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for value in node.values():
+            yield from _texts(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _texts(value)
+
+
+def live_background_tasks(path):
+    """Ids of background tasks the worker launched that have no final notification or TaskStop yet.
+    Returns [] when the transcript cannot be read (fail open)."""
+    if not path or not os.path.isfile(path):
+        return []
+    launched, finished = [], set()
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    record = json.loads(line)
+                except ValueError:
+                    continue
+                if record.get("type") not in ("user", "assistant", "attachment"):
+                    continue
+                for text in _texts(record.get("message", record.get("attachment", {}))):
+                    for task_id in LAUNCH_RE.findall(text):
+                        if task_id not in launched:
+                            launched.append(task_id)
+                    finished.update(DONE_RE.findall(text))
+                message = record.get("message", {})
+                for block in message.get("content", []) if isinstance(message.get("content"), list) else []:
+                    if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "TaskStop":
+                        task_id = (block.get("input") or {}).get("task_id") or (block.get("input") or {}).get("id")
+                        if task_id:
+                            finished.add(str(task_id))
+    except OSError:
+        return []
+    return [task_id for task_id in launched if task_id not in finished]
+
+
+def live_tasks_issue(event):
+    live = live_background_tasks(transcript_path(event))
+    if not live:
+        return None
+    return ("Background task(s) still running: %s. A live task wakes you after your handback and you would have "
+            "to report again. Stop each one first (TaskStop <id> if you have it, else kill the process it runs and "
+            "wait for its final notification), then hand back once." % ", ".join(live))
 
 
 HANDBACK_LOG = ("_orchestrator", "handbacks.jsonl")
@@ -168,8 +244,12 @@ def main():
     if kind == "PreToolUse" and event.get("tool_name") == "SubagentHandback":
         message = event.get("tool_input", {}).get("message", "")
         issue = problem(message)
-        log_handback(event, message, issue)
-        if issue:
+        live = None if issue else live_tasks_issue(event)
+        log_handback(event, message, issue or live)
+        if live:
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": live}}))
+        elif issue:
             print(json.dumps({"hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
@@ -178,7 +258,7 @@ def main():
     elif kind == "SubagentStop":
         # Fallback for workers that return final text instead of SubagentHandback.
         # Claude sets stop_hook_active after one block; fail open on that retry.
-        if event.get("stop_hook_active") or used_handback(event.get("agent_transcript_path")):
+        if event.get("stop_hook_active") or used_handback(transcript_path(event)):
             return 0
         message = event.get("last_assistant_message", "")
         issue = problem(message) if message and message.strip() else "Missing worker handback."

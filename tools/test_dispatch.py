@@ -92,6 +92,39 @@ class DispatchPrepTest(unittest.TestCase):
         self.assertNotIn("--if-status=open", claim)
         self.assertIn("--force", claim)
 
+    def test_composed_brief_fills_the_bead_checkout_and_notes(self):
+        package = os.path.join(self.scratch, "P1.md")
+        with open(package, "w", encoding="utf-8") as handle:
+            handle.write("Bead: new - P1 (program X). Role: stackfall-tester.\nOwned: tests/a.gd.\n")
+
+        def git(cmd, stdin_text=None):
+            joined = " ".join(cmd)
+            if "--abbrev-ref" in joined:
+                return 0, "wt/p1\n", ""
+            if "--short" in joined:
+                return 0, "abc1234\n", ""
+            if "--grep" in joined:
+                return 0, "def5678 Earlier work (Bontago-123)\n", ""
+            return 1, "", ""
+        brief = dispatch_prep.compose_brief(self.args(package=package, checkout="work\\wt\\p1",
+                                                      note=["Pair: P1t in work/wt/p1t."]), git)
+        self.assertTrue(brief.startswith("Bead: Bontago-123 - P1 (program X)"))
+        self.assertIn("Owned: tests/a.gd.", brief)
+        self.assertIn("Checkout: work/wt/p1, branch wt/p1, base abc1234.", brief)
+        self.assertIn("Prior commits for this bead on main: def5678 Earlier work (Bontago-123).", brief)
+        self.assertIn("python tools/scratch.py path Bontago-123", brief)
+        self.assertTrue(brief.endswith("- Pair: P1t in work/wt/p1t.\n"))
+
+    def test_package_without_a_placeholder_keeps_its_first_line(self):
+        package = os.path.join(self.scratch, "P2.md")
+        with open(package, "w", encoding="utf-8") as handle:
+            handle.write("# Package P2\nObjective: x\n")
+        brief = dispatch_prep.compose_brief(self.args(package=package, checkout="work/wt/p2", note=[]),
+                                            lambda cmd, stdin_text=None: (1, "", ""))
+        self.assertTrue(brief.startswith("# Package P2\n"))
+        self.assertIn("branch ?, base ?.", brief)
+        self.assertIn("Prior commits for this bead on main: none.", brief)
+
 
 if __name__ == "__main__":
     unittest.main()

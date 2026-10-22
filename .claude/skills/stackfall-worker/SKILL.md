@@ -57,7 +57,7 @@ Next exact action / blocked authority or prerequisite:
 
 ## Handback
 
-Your last action is one SubagentHandback call whose whole text is one JSON object: no prose before or after it. `tools/validate_worker_handback.py` checks it. Post your checkpoint first, stop every background shell, wait and Monitor you started (a live one wakes you after handback and you would send it again), then hand back:
+Your last action is one SubagentHandback call whose whole text is one JSON object: no prose before or after it. `tools/validate_worker_handback.py` checks it. Post your checkpoint first, stop every background shell, wait and Monitor you started (a live one wakes you after handback and you would send it again; the hook refuses the handback and names it), then hand back. Wait for a Godot slot in the foreground (`tools/run_gut.ps1` and `tools/godot_slots.py run` already block until one frees), never with a Monitor or a polling loop:
 
 `{"bead":"Bontago-<id>","verdict":"done","candidate":"<checkout>@<rev or uncommitted>","files":"a.gd;b.gd","checks":"test_x: 12/12 PASS; lint_all: GREEN","finding":"decisive result, risk or blocker","next":"exact next action","record":"bd:Bontago-<id>"}`
 

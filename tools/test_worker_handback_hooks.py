@@ -59,6 +59,64 @@ class HandbackTests(unittest.TestCase):
             "tool_input": {"message": message},
         }))
 
+    def _transcript(self, records):
+        path = os.path.join(tempfile.mkdtemp(prefix="hb_tx_"), "agent-x.jsonl")
+        with open(path, "w", encoding="utf-8") as fh:
+            for record in records:
+                fh.write(json.dumps(record) + "\n")
+        return path
+
+    def _handback_event(self, path):
+        message = json.dumps({"bead": "Bontago-123", "verdict": "done", "candidate": "/work/wt/a@abc123",
+                              "files": "core/rules.gd", "checks": "test_rules: 12/12 pass",
+                              "finding": "Fixed overlap scoring", "next": "integrate candidate",
+                              "record": "bd:Bontago-123"})
+        return {"hook_event_name": "PreToolUse", "tool_name": "SubagentHandback",
+                "tool_input": {"message": message}, "agent_transcript_path": path}
+
+    @staticmethod
+    def _result(text):
+        return {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": text}]}}
+
+    @staticmethod
+    def _notice(task_id, tail):
+        prompt = "<task-notification>\n<task-id>%s</task-id>\n%s\n</task-notification>" % (task_id, tail)
+        return {"type": "attachment", "attachment": {"type": "queued_command", "prompt": prompt}}
+
+    MONITOR = "Monitor started (task bmon1, expires in 5m unless the source ends first)."
+    SHELL = "Command running in background with ID: bsh2. Output is being written to: x"
+
+    def test_handback_with_a_live_background_task_is_denied(self):
+        path = self._transcript([self._result(self.MONITOR), self._result(self.SHELL),
+                                 self._notice("bmon1", "<summary>Monitor event</summary>\n<event>slot 0: free</event>")])
+        out = run_hook("validate_worker_handback.py", self._handback_event(path))["hookSpecificOutput"]
+        self.assertEqual(out["permissionDecision"], "deny")
+        self.assertIn("bmon1", out["permissionDecisionReason"], "a Monitor event is not its end")
+        self.assertIn("bsh2", out["permissionDecisionReason"])
+
+    def test_handback_after_every_task_ended_or_was_stopped_passes(self):
+        stop = {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "TaskStop", "input": {"task_id": "bmon1"}}]}}
+        path = self._transcript([self._result(self.MONITOR), self._result(self.SHELL),
+                                 self._notice("bsh2", "<status>completed</status>"), stop])
+        self.assertIsNone(run_hook("validate_worker_handback.py", self._handback_event(path)))
+
+    def test_monitor_expiry_ends_the_task(self):
+        path = self._transcript([self._result(self.MONITOR),
+                                 self._notice("bmon1", "<event>[Monitor expired after 5m]</event>")])
+        self.assertIsNone(run_hook("validate_worker_handback.py", self._handback_event(path)))
+
+    def test_unreadable_transcript_fails_open(self):
+        self.assertIsNone(run_hook("validate_worker_handback.py", self._handback_event("/no/such/agent.jsonl")))
+
+    def test_stop_after_a_wake_up_does_not_demand_the_report_again(self):
+        handback = {"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "name": "SubagentHandback", "input": {"message": "{}"}}]}}
+        filler = {"type": "user", "message": {"role": "user", "content": "x" * 30000}}
+        event = {"hook_event_name": "SubagentStop", "last_assistant_message": "Nothing further to do.",
+                 "agent_transcript_path": self._transcript([handback, filler])}
+        self.assertIsNone(run_hook("validate_worker_handback.py", event))
+
     def test_list_fields_aliases_and_fence_pass(self):
         # the shapes most first handbacks used (lists, synonym keys, a fence).
         report = {"bead": "Bontago-123", "verdict": "review", "candidate": "/work/wt/a@abc123",
