@@ -16,7 +16,6 @@ func _config(qol: QolExperiments) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 5150
 	config.qol = qol
