@@ -332,7 +332,7 @@ func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
+	net.bind_ports(SessionPort.new(FakeNet.client(1)), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	watch_signals(Events)
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [7, Vector2(1.0, 2.0)])
@@ -349,8 +349,6 @@ func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [8])
 	assert_false(Match._gifts._crates.has(8))
 
-	net.set_providers(null, null)
-
 
 ## EVENT_SPECIAL_CONSUMED on a client: the host's spend empties the client's
 ## mirror of the held gift and re-emits Events.special_consumed.
@@ -359,7 +357,7 @@ func test_a_replicated_special_consumed_clears_the_clients_held_gift_and_reemits
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
+	net.bind_ports(SessionPort.new(FakeNet.client(1)), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
 	Match._gifts.activate_next_special(1)
 	assert_eq(Match.pending_special_count(1), 1, "setup: the client's mirror holds the claimed special")
@@ -370,8 +368,6 @@ func test_a_replicated_special_consumed_clears_the_clients_held_gift_and_reemits
 	assert_eq(Match.pending_special_count(1), 0, "the mirror must shrink in step with the host's own pop")
 	assert_signal_emitted_with_parameters(Events, "special_consumed", [1, MatchGifts.PENDING_SPECIAL_ID])
 
-	net.set_providers(null, null)
-
 
 ## An out-of-range slot_id, a malformed special_id shape and a short args
 ## array are all dropped without touching the mirror or re-emitting.
@@ -380,7 +376,7 @@ func test_a_malformed_special_consumed_is_dropped_not_applied() -> void:
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
+	net.bind_ports(SessionPort.new(FakeNet.client(1)), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	Match._gifts.apply_replicated_claim(1, 1, MatchGifts.PENDING_SPECIAL_ID)
 	Match._gifts.activate_next_special(1)
 	watch_signals(Events)
@@ -392,8 +388,6 @@ func test_a_malformed_special_consumed_is_dropped_not_applied() -> void:
 	assert_signal_not_emitted(Events, "special_consumed", "no malformed payload may re-emit")
 	assert_eq(Match.pending_special_count(1), 1, "and the mirror must be untouched")
 
-	net.set_providers(null, null)
-
 
 ## Review fix #3b: EVENT_GIFT_SPAWNED's wire-safety gate (_gift_wire_ok)
 ## rejects a negative id, a non-finite position and an out-of-disk position;
@@ -403,7 +397,7 @@ func test_gift_wire_rejects_malformed_payloads() -> void:
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
+	net.bind_ports(SessionPort.new(FakeNet.client(1)), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	watch_signals(Events)
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [-1, Vector2(1.0, 1.0)])
@@ -424,8 +418,6 @@ func test_gift_wire_rejects_malformed_payloads() -> void:
 	net.net_match_event(MatchNetScript.EVENT_GIFT_EXPIRED, [-1])
 	assert_signal_not_emitted(Events, "gift_expired")
 
-	net.set_providers(null, null)
-
 
 ## Review fix #1 regression: a garbage slot_id over the wire must not grow
 ## _pending_queues, and must not apply any special at all.
@@ -434,14 +426,12 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(FakeNet.client(1), Match)
+	net.bind_ports(SessionPort.new(FakeNet.client(1)), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	var before_size: int = Match._gifts._pending_queues.size()
 
 	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [7, 999999999, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
 
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
-
-	net.set_providers(null, null)
 
 
 # --- debug_queue_special (game/sandbox/Sandbox.gd's F9 hotkey) -------

@@ -9,7 +9,7 @@ extends GutTest
 ## player's first block gets (GhostTuning.home_spawn_pivot_height(), built on the
 ## same home_spawn_clear_hover() PlayerController uses).
 ##
-## These drive the **real** Match and MatchNet (faked Net, no peer), like
+## These drive the **real** Match and MatchNet (a real listen server with no peer), like
 ## test_match_net.gd: every assertion is about the block the host actually spawned.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
@@ -20,15 +20,12 @@ const DISC_FACTORS: Array[float] = [0.75, 1.0, 1.75]
 const CUBE_PATH: String = "res://config/blocks/cube.tres"
 ## Float slack for comparing a spawned height against beacon top plus margin.
 const HEIGHT_EPSILON: float = 0.0001
-const HOST_PEER: int = 1
-const REMOTE_PEER: int = 2
 const REMOTE_SLOT: int = 1
 
 var _field: Field
 var _blocks_root: Node3D
 var _registry: BlockRegistry
 var _net: MatchNetScript
-var _fake_net: FakeNet
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
 
@@ -45,13 +42,7 @@ func after_each() -> void:
 
 
 func _teardown_world() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-		# Free it now: a MatchNet left in the tree keeps handling Match signals in
-		# the next script, where _can_send() finds no multiplayer (gate flake).
-		_net.free()
-	_net = null
-	Match._net_provider = null
+	Net.leave()
 	Match.set_replicator(null)
 	Match.abort_match()
 	for node: Node in [_field, _blocks_root, _registry]:
@@ -74,14 +65,11 @@ func _start_host_match(map: MapDef) -> void:
 	add_child(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
-	var peer_slots: Dictionary = {HOST_PEER: 0, REMOTE_PEER: REMOTE_SLOT}
-	_fake_net = FakeNet.host(peer_slots, [0])
-	_fake_net.slots_by_peer = peer_slots
-	Match._net_provider = _fake_net
-	_net = MatchNetScript.new()
-	_net.set_process(false)
-	add_child(_net)
-	_net.set_providers(_fake_net, Match)
+	# The real listen server with no peer: slot 1 is a seat this instance does not drive, so the
+	# host auto-drops for it, and the real MatchNet autoload is the replicator.
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie", false), OK)
+	Match.set_replicator(MatchNet)
+	_net = MatchNet
 
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))

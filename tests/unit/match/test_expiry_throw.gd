@@ -3,19 +3,13 @@ extends "res://tests/unit/match/match_world_test.gd"
 ## along the player's last known aim at timer expiry, exactly like a manual release; bots pick
 ## release points for the map's throw range. Fixture family of test_gift_throw.gd.
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
 const REMOTE_PEER: int = 2
 const REMOTE_SLOT: int = 1
 const AIM: Vector3 = Vector3(1.0, 0.2, 0.0)
 
-var _net: MatchNetScript
-
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
-	Match._net_provider = null
+	Net.leave()
 	Match.set_replicator(null)
 	Match.abort_match()
 	for child: Node in _blocks_root.get_children():
@@ -113,46 +107,60 @@ func test_a_stale_feed_seq_expiry_is_refused_before_any_throw() -> void:
 
 # --- wire: remote client's held gift at expiry --------------------------------------
 
-func _make_host_net() -> MatchNetScript:
+## The real listen server and the real MatchNet autoload (slot 1 is a seat this instance does not
+## drive, so the host auto-drops for it). The cursor intent enters through the intent gateway the
+## game builds, over a scripted roster that seats the remote peer.
+func _make_host() -> MatchIntentGateway:
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie", false), OK)
+	Match.set_replicator(MatchNet)
 	var peer_slots: Dictionary = {1: 0, REMOTE_PEER: REMOTE_SLOT}
-	var fake: FakeNet = FakeNet.host(peer_slots, [0])
-	fake.slots_by_peer = peer_slots
-	Match._net_provider = fake
-	var node: MatchNetScript = MatchNetScript.new()
-	node.set_process(false)
-	add_child_autofree(node)
-	node.set_providers(fake, Match)
-	_net = node
-	return node
+	var roster: FakeNet = FakeNet.host(peer_slots, [0])
+	roster.slots_by_peer = peer_slots
+	var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
+	seams.can_send = func() -> bool: return false
+	seams.send_to_host = func(_method: StringName, _args: Array) -> void: pass
+	seams.send_to_peer = func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true
+	seams.broadcast = func(_method: StringName, _args: Array) -> void: pass
+	seams.now_s = func() -> float: return 0.0
+	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
+	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
+	return MatchIntentGateway.new(roster, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+
+
+## The feed timers run out on Match's own clock; the host's MatchNet answers the expiry.
+func _run_feed_timers_out() -> void:
+	for _i: int in range(int(ceil(_config().block_timer * Engine.physics_ticks_per_second)) + 2):
+		Match._process(1.0 / Engine.physics_ticks_per_second)
 
 
 func test_a_remote_clients_held_gift_is_thrown_at_expiry_from_its_cursor_aim() -> void:
-	var net: MatchNetScript = _make_host_net()
+	var gateway: MatchIntentGateway = _make_host()
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, REMOTE_SLOT)
 	var where: Vector3 = _home_world_position(REMOTE_SLOT)
-	net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY, AIM)
+	gateway.handle_cursor(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY, AIM)
 	var seq: int = Match.feed_seq(REMOTE_SLOT)
-	net._on_feed_timer_expired(REMOTE_SLOT)
+	_run_feed_timers_out()
 	assert_eq(Match.feed_seq(REMOTE_SLOT), seq + 1)
 	var block: Block = _blocks_root.get_child(0) as Block
 	assert_true(block.linear_velocity.is_equal_approx(_scaled_throw(AIM)), "thrown, not dropped")
 
 
 func test_a_hostile_cursor_aim_is_not_trusted_and_the_expiry_still_drops() -> void:
-	var net: MatchNetScript = _make_host_net()
+	var gateway: MatchIntentGateway = _make_host()
 	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, REMOTE_SLOT)
 	var where: Vector3 = _home_world_position(REMOTE_SLOT)
-	net._handle_cursor_update(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY, Vector3(INF, 0.0, 9999.0))
-	net._on_feed_timer_expired(REMOTE_SLOT)
+	gateway.handle_cursor(REMOTE_PEER, REMOTE_SLOT, where, 0, Quaternion.IDENTITY, Vector3(INF, 0.0, 9999.0))
+	_run_feed_timers_out()
 	assert_eq(_blocks_root.get_child_count(), 1)
 	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO)
 
 
 func test_another_peers_cursor_cannot_set_this_slots_aim() -> void:
-	var net: MatchNetScript = _make_host_net()
-	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, REMOTE_SLOT)
-	net._handle_cursor_update(REMOTE_PEER, 0, _home_world_position(0), 0, Quaternion.IDENTITY, AIM)
-	assert_false(Match._placement._aim_by_slot.has(0), "slot/peer mismatch is dropped before the aim is read")
+	var gateway: MatchIntentGateway = _make_host()
+	_start_with(&"gift_bomb", GiftThrow.Mode.THROW, 0)
+	gateway.handle_cursor(REMOTE_PEER, 0, _home_world_position(0), 0, Quaternion.IDENTITY, AIM)
+	assert_eq(_expire(0), PlacementRules.REASON_OK)
+	assert_eq((_blocks_root.get_child(0) as Block).linear_velocity, Vector3.ZERO, "slot/peer mismatch is dropped before the aim is read: dropped, not thrown")
 
 
 # --- clamp and bot range -----------------------------------------------------

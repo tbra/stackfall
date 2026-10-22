@@ -121,7 +121,7 @@ func test_client_mirrors_staged_then_next_then_held() -> void:
 	var net: MatchNetScript = MatchNetScript.new()
 	net.set_process(false)
 	add_child_autofree(net)
-	net.set_providers(fake, Match)
+	net.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	var shape_id: StringName = Match.held_shape(0).id
 	var carrier_id: StringName = Match._feed._bags[0].peek(2)[1].id
 	var seq: int = Match.feed_seq(0)
@@ -144,7 +144,7 @@ func test_slot_replay_carries_the_staged_gift() -> void:
 	net.set_process(false)
 	add_child_autofree(net)
 	var fake: FakeNet = FakeNet.client(0)
-	net.set_providers(fake, Match)
+	net.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	var args: Array = net._slot_replay_args(0)
 	assert_eq(args.size(), 10)
 	assert_eq(args[8], &"anvil")
