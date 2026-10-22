@@ -294,3 +294,64 @@ func test_reset_returns_to_level_and_clears_the_rest_latch() -> void:
 	assert_true(disc.is_at_rest(), "fixture: latched after settling")
 	disc.reset()
 	assert_false(disc.is_at_rest(), "reset clears the latch")
+
+
+# --- degenerate impulses and strict deadband thresholds ------------------------
+
+func _latched_level_disc(tuning: TiltTuning) -> DiscTilt:
+	var disc: DiscTilt = DiscTilt.new(tuning)
+	_run(disc, 2.0)
+	return disc
+
+
+func test_an_impulse_with_no_direction_or_no_magnitude_does_not_wake_a_resting_disc() -> void:
+	var disc: DiscTilt = _latched_level_disc(_tuning)
+	assert_true(disc.is_at_rest(), "fixture: latched")
+	disc.impulse(Vector2.ZERO, 5.0)
+	assert_true(disc.is_at_rest(), "no direction: ignored")
+	disc.impulse(Vector2.RIGHT, 0.0)
+	assert_true(disc.is_at_rest(), "no magnitude: ignored")
+
+
+func test_a_spring_with_no_stiffness_still_rests_when_level() -> void:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	tuning.return_time_constant_s = INF
+	var disc: DiscTilt = _latched_level_disc(tuning)
+	assert_true(disc.is_at_rest(), "zero stiffness must not poison the rest target with NaN")
+
+
+func test_the_rest_thresholds_are_strict() -> void:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	tuning.rest_position_rad = 0.0
+	var disc: DiscTilt = _latched_level_disc(tuning)
+	assert_false(disc.is_at_rest(), "a zero position error is not below a zero threshold")
+	tuning = _tuning.duplicate() as TiltTuning
+	tuning.rest_velocity_rad_s = 0.0
+	disc = _latched_level_disc(tuning)
+	assert_false(disc.is_at_rest(), "a zero velocity is not below a zero threshold")
+
+
+func test_the_wake_threshold_is_strict() -> void:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	var disc: DiscTilt = _latched_level_disc(tuning)
+	assert_true(disc.is_at_rest(), "fixture: latched")
+	tuning.rest_wake_position_rad = 0.0
+	disc.step(TICK, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_false(disc.is_at_rest(), "a zero error is not below a zero wake threshold")
+
+
+func test_balance_sampled_with_no_samples_keeps_the_latched_torque() -> void:
+	var disc: DiscTilt = _make()
+	_run(disc, SETTLE_S, DiscTilt.Balance.SAMPLED, _load_samples())
+	var settled: Vector2 = disc.tilt()
+	assert_lt(settled.y, -0.01, "fixture: tilted under load")
+	_run(disc, SETTLE_S, DiscTilt.Balance.SAMPLED, PackedVector3Array())
+	assert_almost_eq(disc.tilt().y, settled.y, 0.002, "an empty sample set holds the latch like HOLD")
+
+
+func test_the_hold_time_is_inclusive() -> void:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	tuning.rest_hold_s = TICK
+	var disc: DiscTilt = DiscTilt.new(tuning)
+	disc.step(TICK, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_true(disc.is_at_rest(), "exactly rest_hold_s of quiet latches")
