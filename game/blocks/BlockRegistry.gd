@@ -82,7 +82,7 @@ var _geometry_cache_enabled: bool = true
 ## and would read as settled the instant it spawned. The two kinds of asleep are kept apart.
 var _host_authority: bool = true
 
-## Host-side hole contact and dissolve (game/field/HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
+## Host-side hole contact and dissolve (game/blocks/HoleDissolver.gd). Built by _ensure_dissolver(); fed this registry's moving
 ## blocks every physics tick.
 var _dissolver: HoleDissolver = null
 

@@ -11,20 +11,12 @@ extends Node
 ## validates the values the shape cannot (ranges, ids, ownership, match state) and then makes
 ## its writes through the typed MatchReplicaPort. Every handler answers whether it applied.
 
-const _SESSION_METHODS: PackedStringArray = ["is_host", "local_slot", "is_local_slot"]
-const _HOST_METHODS: PackedStringArray = [
-	"config", "slot_count", "registry", "stats", "gift_state", "gift_slot_enabled", "circle_wire_xz_bound",
-]
-
 ## The owning MatchNet autoload (or a test instance); set before first use.
 var _net: Node = null
 
 var _session: SessionPort = null
 var _host: MatchHostPort = null
 var _replica: MatchReplicaPort = null
-## The providers the ports above were built over; a provider swap (tests) rebuilds them.
-var _bound_session: Object = null
-var _bound_authority: Object = null
 ## String(SpecialDef.id) -> true, built once from the roster.
 var _known_special_ids: Dictionary = {}
 var _known_special_ids_built: bool = false
@@ -51,15 +43,10 @@ func apply_event(event: StringName, args: Array) -> bool:
 	return bool((_handlers[event] as Callable).call(args))
 
 
+## The session and host ports are MatchNet's; they are re-read so a bind_ports() swap reaches here.
 func _bind_ports() -> void:
-	var session_node: Object = _net._session() as Object
-	var authority_node: Object = _net._authority() as Object
-	if _session != null and session_node == _bound_session and authority_node == _bound_authority:
-		return
-	_bound_session = session_node
-	_bound_authority = authority_node
-	_session = SessionPort.new(session_node, _SESSION_METHODS)
-	_host = MatchHostPort.new(authority_node, _HOST_METHODS)
+	_session = _net._session_port()
+	_host = _net._host_port()
 
 
 func _build_handlers() -> void:

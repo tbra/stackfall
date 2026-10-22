@@ -48,7 +48,7 @@ func _start_match() -> void:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = true
+	config.hot_seat = false
 	config.hole_mode = MatchConfig.HoleMode.OFF
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):

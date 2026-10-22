@@ -27,8 +27,6 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -199,7 +197,7 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
+	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	var wire: Dictionary = {
 		"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [7.5, 2.0],

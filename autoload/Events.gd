@@ -22,7 +22,7 @@ const REASON_GIFT_DESPAWN: StringName = &"gift_despawn"
 
 ## `block` touched an applied hole cell at disc level and
 ## will be removed (block_removed, REASON_KILL_PLANE) after `duration_s`.
-## Emitted by game/field/HoleDissolver.gd on the host and by net/MatchNet.gd on
+## Emitted by game/blocks/HoleDissolver.gd on the host and by net/MatchNet.gd on
 ## clients; presentation only (the fade), never a rule input.
 signal block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float)
 

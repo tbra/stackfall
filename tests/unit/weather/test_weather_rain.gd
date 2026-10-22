@@ -183,7 +183,7 @@ func _clear_reference(sky_id: String) -> Dictionary:
 	var parts: Array = _overcast_skybox()
 	var skybox: Skybox = parts[0]
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(sky_id))
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var environment: Environment = parts[1]
 	var light: DirectionalLight3D = parts[2]
 	return {
@@ -204,16 +204,16 @@ func test_overcast_dims_and_restores_and_survives_sky_switch() -> void:
 	var base_bg: float = environment.background_energy_multiplier
 	var sunset_exposure: float = float(sunset[&"exposure"])
 	_overcast(skybox, 1.0)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	var sky: ShaderMaterial = environment.sky.sky_material as ShaderMaterial
 	assert_almost_eq(float(sky.get_shader_parameter(&"exposure")), sunset_exposure * _rain.overcast_sky_exposure_scale, 0.0001, "sky shader exposure dims")
 	assert_almost_eq(light.light_energy, float(sunset[&"light"]) * _rain.overcast_light_scale, 0.0001)
 	assert_almost_eq(environment.background_energy_multiplier, base_bg * _rain.overcast_sky_exposure_scale, 0.0001)
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for("night"))
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	assert_almost_eq(light.light_energy, float(night[&"light"]) * _rain.overcast_light_scale, 0.0001, "theme switch re-bases")
 	_overcast(skybox, 0.0)
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	sky = environment.sky.sky_material as ShaderMaterial
 	assert_almost_eq(float(sky.get_shader_parameter(&"exposure")), float(night[&"exposure"]), 0.0001, "sky exposure restored")
 	assert_almost_eq(light.light_energy, float(night[&"light"]), 0.0001)

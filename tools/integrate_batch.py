@@ -27,6 +27,10 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               line or timeout reruns that harness once alone; pass-on-rerun is reported as enet_flaky
               (file a flaky-test bead), failing again fails step `enet` like a red gate. Skipped when nothing there changed or
               with --no-game-code; `--skip-enet "<reason>"` skips it and logs the reason.
+  5c soak     after step 5b, when the merged diff touches SOAK_PATHS (soak_selection): with --soak-idle
+              (the user says the PC is idle) tools/run_soak.py --idle runs on the temp worktree and the
+              step says `soak      ok|REPORT|FAIL|INVALID <SOAK RESULT line>`; without it, `soak      NOT RUN`.
+              Report-only: it never fails the batch. Silent when no SOAK_PATHS file changed.
   6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
@@ -71,6 +75,7 @@ import repo_paths  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_REPO = repo_paths.repo_dir()
 STEP_TIMEOUT_S = 600
+SOAK_TIMEOUT_S = 2400  # run_soak.py `all` takes about 18 minutes
 GATE_TIMEOUT_S = 1500
 GIT_TIMEOUT_S = 120
 BD_ACTOR = "stackfall-orchestrator"
@@ -408,6 +413,34 @@ def enet_selection(paths):
     return touched, (None if whole else (names or None))
 
 
+SOAK_PATHS = ("net/", "autoload/match/", "core/physics/", "core/territory/", "game/blocks/", "game/field/",
+              "game/debug/", "tools/run_soak.py", "tools/soak_report.py")
+SOAK_VERDICT_RE = re.compile(r"SOAK RESULT (PASS|REPORT|FAIL|INVALID)\b.*")
+
+
+def soak_selection(paths):
+    """True when a changed path is under SOAK_PATHS."""
+    return any(p.startswith(SOAK_PATHS) for p in _norm_paths(paths))
+
+
+def soak_step(ctx, wt, changed, soak_idle, say):
+    """Step 5c: report-only soak. Never raises: PASS, REPORT, FAIL and INVALID are only printed."""
+    if not soak_selection(changed):
+        return
+    if not soak_idle:
+        say("soak      NOT RUN: batch touches soak paths; run python tools/run_soak.py --idle on an idle machine")
+        return
+    code, text, log = run_cmd(ctx, "soak", [sys.executable, os.path.join(wt, "tools", "run_soak.py"), "--idle", "--path", wt,
+                                            "--out", os.path.join(ctx.log_dir, "soak")], wt, SOAK_TIMEOUT_S)
+    m = None
+    for m2 in SOAK_VERDICT_RE.finditer(text):
+        m = m2
+    if m is None:
+        say("soak      FAIL no SOAK RESULT line (exit %d); log %s" % (code, log))
+        return
+    say("soak      %s %s" % ("ok" if m.group(1) == "PASS" else m.group(1), m.group(0)))
+
+
 def enet_step(ctx, wt, changed, skip_reason, say):
     """Step 5b: run the ENet harness set when the merged diff touches net/, tests/enet/ or a harness
     runner: the whole set for any net/ (or unnamed shared) change, only the changed harnesses when the
@@ -693,6 +726,7 @@ def integrate(args, ctx, say, res):
         else:
             say("gate2     skip merged diff does not touch the gate runner")
         enet_step(ctx, wt, changed, getattr(args, "skip_enet", ""), say)
+        soak_step(ctx, wt, changed, getattr(args, "soak_idle", False), say)
     else:
         say("gate      skip not game code")
     res["verdict"] = verdict
@@ -805,6 +839,8 @@ def main(argv):
                     help="parallel Godot shards for the full gate (default 2; 0 = full_gate.py auto)")
     ap.add_argument("--skip-enet", default="", metavar="REASON",
                     help="skip the ENet harness set (step enet) for a net-touching batch; the reason is logged")
+    ap.add_argument("--soak-idle", action="store_true",
+                    help="the PC is idle: run tools/run_soak.py --idle for a batch touching soak paths (report-only)")
     ap.add_argument("--allow-probes", action="store_true",
                     help="skip the added-probe-file lint (tools/probe_lint.py) before merging")
     # DECISION: opt-in rather than automatic, so a bead held by a live

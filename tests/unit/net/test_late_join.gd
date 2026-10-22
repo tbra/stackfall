@@ -20,7 +20,6 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _map: MapDef
-var _nets: Array[MatchNetScript] = []
 var _sessions: Array[Variant] = []
 var _now_s: float = 0.0
 var _sent: Array[Array] = []
@@ -31,17 +30,12 @@ var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
-	_nets.clear()
 	_sessions.clear()
 	_sent.clear()
 	_stored_cursors.clear()
 
 
 func after_each() -> void:
-	for net: MatchNetScript in _nets:
-		if net != null and is_instance_valid(net):
-			net.set_providers(null, null)
-	_nets.clear()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -79,8 +73,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(session, Match)
-	_nets.append(node)
+	node.bind_ports(SessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	return node
 
 

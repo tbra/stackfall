@@ -10,25 +10,21 @@ extends Node3D
 ##   godot --headless --path . res://tests/enet/m2_acceptance.tscn
 ## It prints one M2_ACCEPT line per criterion and exits non-zero if any fails.
 ##
-## **Harness note, not a rule claim.** Criteria (a)-(f) run with
-## `MatchConfig.hot_seat = true`. That is a single-process scripting
-## convenience -- it serializes two "concurrent" players' turns so one script
-## can drive both deterministically -- not evidence about turn-taking (spec
-## Part 4 M2: "the original hot-seat build was a test harness... A separate
-## hot-seat/turn-based test mode must not become normal play"). Criterion (g)
-## specifically needs the fixed-interval release-lock cadence, which
-## `autoload/Match.gd`'s `_consume_and_refeed()` deliberately exempts hot-seat
-## from (hot-seat's strict alternation already means no slot can act twice in
-## a row, so there is nothing for the lock to prevent) -- so (g) runs with
-## `hot_seat = false` instead, driving `Match.request_place()` directly for
-## both slots the way `net/MatchNet.gd` and a real `PlayerController` would,
-## with no scene-tree consumer of its own.
+## **Real-time driving.** Every criterion runs the real concurrent cadence
+## (spec 1.4): `hot_seat = false`, each slot driven independently through
+## `Match.request_place()` the way `net/MatchNet.gd` and a real
+## `PlayerController` call it, with no scene-tree consumer of its own. A slot
+## that releases early is locked until its interval boundary (`_await_unlocked()`
+## steps the Match clock to it), so a chain costs one `block_timer` per cube per
+## slot; `TIME_SCALE` runs the fixed-step clock faster than wall time to keep
+## that affordable. A slot a scenario leaves alone simply idles: its expired
+## timer needs no answer.
 ##
 ## The eight criteria, lettered as in the acceptance brief:
 ##   (a) both players' territory shares grow as they build.
 ##   (b) where two territories overlap, the contested cells become holes after
 ##       hole_delay, and a block dropped on a hole cell dissolves and is removed
-##       (the disc stays solid; game/field/HoleDissolver.gd).
+##       (the disc stays solid; game/blocks/HoleDissolver.gd).
 ##   (c) a tower whose base is cut off loses its influence: removing a link in
 ##       the chain drops the owner's territory share.
 ##   (d) a player whose connected territory holds the goal flag's base for
@@ -48,9 +44,9 @@ extends Node3D
 ##   (h) continuous update (scenario 2): toppling a tower with no placement at
 ##       all drops its owner's share within a couple of solve ticks.
 ##
-## It lives in tests/bench/ rather than tests/unit/ because it is a real-time
+## It lives in tests/enet/ rather than tests/unit/ because it is a real-time
 ## scenario: the GUT suite would grow by the wall clock the physics actually
-## takes. Nothing here is a benchmark -- the name is the folder's.
+## takes.
 ##
 ## **Why it routes the march around the goal.** SPEC.md 1.5's goal no-build
 ## zone (`TerritoryTuning.goal_zone_radius`) now stamps under every hole_mode,
@@ -80,6 +76,10 @@ const PLAYER_COUNT: int = 2
 ## and (g) do not care where it is.
 const GOAL_COUNT: int = 1
 const RNG_SEED: int = 20260917
+## Longest wait, in game seconds, for the territory solve to show a change. The
+## solve runs on a worker thread and applies a few frames after it starts, so
+## its latency in physics frames varies with how fast the frames run.
+const SOLVE_WAIT_S: float = 10.0
 
 ## Physics frames to hold a freshly placed block still before it counts as
 ## settled. PhysicsTuning.sleep_settle_time is 0.5 s; the spare frames cover
@@ -106,9 +106,6 @@ const SETTLE_FRAMES: int = 42
 const PLACE_HEIGHT: float = 0.06
 ## Give up rather than loop forever if a march stops making progress.
 const MAX_MARCH_STEPS: int = 60
-## How far off the disk a passed turn releases its block, as a multiple of the
-## field radius. Far enough that the footprint is empty on any map.
-const OFF_DISK_FACTOR: float = 3.0
 ## An on-disk but un-owned release point for criterion (e), as a fraction of
 ## the field radius along +z -- away from both homes, which sit on the x axis,
 ## and far outside the lone central goal's zone.
@@ -167,12 +164,10 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	# territory, offset in -z from its home -- the opposite side from the
 	# meeting point below, which is offset in +z -- so it can never be
 	# confused with, or undermined by, anything the rest of this scenario
-	# does. Slot 0 passes first so slot 1 can act (hot-seat's strict
-	# alternation), then hands the turn back to slot 0 for the march below.
-	await _pass_turn(0)
+	# does.
 	var topple_chain: Array[Block] = []
 	var topple_base: Vector2 = await _build_isolated_tower(
-		1, 0, home_1, TOPPLE_TOWER_LAYERS, topple_chain
+		1, home_1, TOPPLE_TOWER_LAYERS, topple_chain
 	)
 
 	var share_0_before: float = Match.territory_share(Match.team_of(0))
@@ -220,8 +215,11 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	peak_contested[0] = maxi(peak_contested[0], _contested_cell_count())
 
 	# TerritoryRaster only opens a hole once contested_time passes hole_delay,
-	# so let the solve run over that threshold before looking.
-	await _step(_frames_for_seconds(_tuning.hole_delay) + _frames_for_seconds(2.0 / _tuning.solve_hz))
+	# so keep solving until one opens.
+	await _step_until(_frames_for_seconds(SOLVE_WAIT_S + _tuning.hole_delay), func() -> bool:
+		peak_contested[0] = maxi(peak_contested[0], _contested_cell_count())
+		return _hole_cells().size() > 0
+	)
 	var holes: PackedInt32Array = _hole_cells()
 	_check("b1", peak_contested[0] > 0 and holes.size() > 0,
 		"peak_contested_cells=%d hole_cells=%d after hole_delay=%.2fs" % [
@@ -255,7 +253,9 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	var removed: int = cut["removed"]
 	var tail: Vector2 = points_0[cut["tail_index"]]
 	var owned_before_cut: bool = _owns_point(team_0, tail)
-	await _step(_frames_for_seconds(3.0 / _tuning.solve_hz))
+	await _step_until(_frames_for_seconds(SOLVE_WAIT_S), func() -> bool:
+		return Match.territory_share(team_0) < share_before_cut and not _owns_point(team_0, tail)
+	)
 	var share_after_cut: float = Match.territory_share(team_0)
 	_check("c", (
 		removed > 0
@@ -284,7 +284,9 @@ func _scenario_growth_holes_cutoff_and_topple() -> void:
 	var topple_point: Vector2 = topple_base + Vector2(0.0, -1.0) * (topple_reach - _corner_margin())
 	var owned_before_topple: bool = _owns_point(team_1, topple_point)
 	var toppled: int = _topple_tail(topple_chain, topple_chain.size())
-	await _step(_frames_for_seconds(2.0 / _tuning.solve_hz) + 1)
+	await _step_until(_frames_for_seconds(SOLVE_WAIT_S), func() -> bool:
+		return Match.territory_share(team_1) < share_before_topple and not _owns_point(team_1, topple_point)
+	)
 	var share_after_topple: float = Match.territory_share(team_1)
 	_check("h", (
 		toppled > 0
@@ -311,7 +313,7 @@ func _scenario_home_flag_hole() -> void:
 	# angle into home_1 -- identical to the run this was validated against.
 	var clearance: float = _goal_avoidance_clearance()
 	var meeting: Vector2 = _meeting_point(home_0.x, clearance)
-	# Player 1 passes every turn, so its territory stays exactly its home
+	# Player 1 never builds, so its territory stays exactly its home
 	# circle and player 0 can march all the way up to the edge of it. The
 	# route detours through `meeting` first so the approach never nears the
 	# lone central goal (see the file header); it rejoins the direct line to
@@ -462,10 +464,9 @@ func _scenario_burned_block() -> void:
 ## through Match.request_place(auto_drop = true) exactly as
 ## game/player/PlayerController.gd's own _on_feed_timer_expired() does -- nothing here
 ## has a scene-tree consumer of that signal, so the test plays that part
-## itself. Needs hot_seat = false: see the file header for why hot-seat is
-## exempt from this lock entirely.
+## itself.
 func _scenario_cadence_lock() -> void:
-	await _start_match_configured(_build_realtime_config(GOAL_COUNT))
+	await _start_match(GOAL_COUNT)
 
 	var expired_slots: Array[int] = []
 	var on_expired: Callable = func(slot_id: int) -> void:
@@ -581,34 +582,19 @@ func _build_config(goal_count: int) -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true)
 	config.disc_size_step = DISC_STEP
 	config.player_count = PLAYER_COUNT
-	config.hot_seat = true
-	config.goal_flag_count = goal_count
-	config.rng_seed = RNG_SEED
-	# The scenario drives every placement itself, so the feed timer must not
-	# auto-drop a block behind its back. block_timer is clamped to
-	# BLOCK_TIMER_MAX by sanitize(), which is far longer than a scenario runs.
-	config.block_timer = MatchConfig.BLOCK_TIMER_MAX
-	return config
-
-
-## (g) needs the real fixed-interval cadence, which only runs outside
-## hot-seat (see the file header) -- and needs to actually finish waiting out
-## an interval, so block_timer is the lobby's *shortest* legal window rather
-## than its longest.
-func _build_realtime_config(goal_count: int) -> MatchConfig:
-	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true)
-	config.disc_size_step = DISC_STEP
-	config.player_count = PLAYER_COUNT
 	config.hot_seat = false
 	config.goal_flag_count = goal_count
 	config.rng_seed = RNG_SEED
+	# The lobby's shortest legal window: every release waits out the rest of
+	# its interval, so a short one keeps the chains affordable. Nothing
+	# auto-drops: no scene-tree consumer answers feed_timer_expired here.
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	return config
 
 
 # --- Laying chains of blocks -------------------------------------------------
 
-## Both slots march from their own home toward `meeting`, alternating turns,
+## Both slots march from their own home toward `meeting`, each on its own cadence,
 ## until neither can place any further. Collects the blocks each one laid.
 func _march_pair(
 	home_0: Vector2, home_1: Vector2, meeting: Vector2, chain_0: Array[Block], chain_1: Array[Block]
@@ -641,7 +627,6 @@ func _march_pair(
 			if Match.state() != Match.State.PLAYING:
 				return
 			if stalled[slot_id]:
-				await _pass_turn(slot_id)
 				continue
 			var placed: Block = await _march_one(
 				slot_id, front[slot_id], reach[slot_id], target[slot_id]
@@ -658,9 +643,7 @@ func _march_pair(
 
 
 ## Marches `slot_id` from its own home through each point of `route` in turn,
-## alternating with every other living slot passing its own turn (hot-seat
-## alternates strict turns, so "passing" is how an uninvolved slot spends its
-## own window without building). Stops the moment a step is refused (stalled),
+## while every other slot idles. Stops the moment a step is refused (stalled),
 ## a waypoint budget runs out, or the match ends -- whichever comes first,
 ## leaving `chain` with whatever it managed to place.
 func _march_solo_route(slot_id: int, route: Array[Vector2], chain: Array[Block]) -> void:
@@ -678,9 +661,6 @@ func _march_solo_route(slot_id: int, route: Array[Vector2], chain: Array[Block])
 			chain.append(placed)
 			front = _disk_local(placed.global_position)
 			reach = _cube_reach()
-			for other: int in range(PLAYER_COUNT):
-				if other != slot_id and Match.slot(other).home_flag_alive:
-					await _pass_turn(other)
 
 
 ## Marches `slot_id` from `home` straight at `goal`, one cube at a time, never
@@ -706,9 +686,6 @@ func _march_to_distance(
 		chain.append(placed)
 		front = _disk_local(placed.global_position)
 		reach = _cube_reach()
-		for other: int in range(PLAYER_COUNT):
-			if other != slot_id:
-				await _pass_turn(other)
 
 
 ## Places one cube as far toward `target` as the front circle of radius
@@ -720,6 +697,7 @@ func _march_one(slot_id: int, front: Vector2, reach: float, target: Vector2) -> 
 		return null
 	var direction: Vector2 = to_target.normalized()
 	var step: float = minf(_safe_step(reach), to_target.length())
+	await _await_unlocked(slot_id)
 	_hold_cube(slot_id)
 	while step > _physics.cube_size * 0.5:
 		var spot: Vector2 = front + direction * step
@@ -830,6 +808,7 @@ func _stack_until_home_flag_falls(slot_id: int, chain: Array[Block], victim_slot
 			return not Match.slot(victim_slot).home_flag_alive
 		height += _physics.cube_size
 		var spot: Vector3 = _world_point(head, height + PLACE_HEIGHT)
+		await _await_unlocked(slot_id)
 		_hold_cube(slot_id)
 		if Match.preview_placement(slot_id, spot, 0, Quaternion.IDENTITY) != PlacementRules.Result.VALID:
 			return not Match.slot(victim_slot).home_flag_alive
@@ -838,9 +817,6 @@ func _stack_until_home_flag_falls(slot_id: int, chain: Array[Block], victim_slot
 		await _step(SETTLE_FRAMES)
 		if not Match.slot(victim_slot).home_flag_alive:
 			return true
-		for other: int in range(PLAYER_COUNT):
-			if other != slot_id and Match.slot(other).home_flag_alive:
-				await _pass_turn(other)
 		# Give the contested cells time to cross hole_delay before the next
 		# block goes on, so the stack does not overshoot the elimination.
 		await _step(_frames_for_seconds(_tuning.hole_delay))
@@ -866,6 +842,7 @@ func _stack_until_goal_covered(
 			return _owns_point(team, goal)
 		height += _physics.cube_size
 		var spot: Vector3 = _world_point(head, height + PLACE_HEIGHT)
+		await _await_unlocked(slot_id)
 		_hold_cube(slot_id)
 		if Match.preview_placement(slot_id, spot, 0, Quaternion.IDENTITY) != PlacementRules.Result.VALID:
 			return _owns_point(team, goal)
@@ -874,22 +851,16 @@ func _stack_until_goal_covered(
 		await _step(SETTLE_FRAMES)
 		if _owns_point(team, goal):
 			return true
-		for other: int in range(PLAYER_COUNT):
-			if other != slot_id and Match.slot(other).home_flag_alive:
-				await _pass_turn(other)
 	return _owns_point(team, goal)
 
 
-## Both players stack on the head of their chain, alternating turns, so the
-## two front circles grow into each other. A hole one cell wide is barely
+## Both players stack on the head of their chain, each on its own cadence, so
+## the two front circles grow into each other. A hole one cell wide is barely
 ## wider than the block itself; a real contested overlap is a patch, and that
 ## is what criterion (b) needs to drop a block into. _march_pair() stops the
 ## march with enough of a gap left that the first layer or two here still
 ## validates before the bases' own growing reach makes each other's cell
-## CONTESTED; once that happens every further layer is skipped -- explicitly
-## passing the turn in that case too, since a skipped placement never calls
-## Match.request_place() and so never advances hot-seat's turn on its own
-## (unlike a placement that spawns and burns, which does).
+## CONTESTED; once that happens every further layer is skipped.
 ##
 ## `peak_contested[0]` comes back holding the largest contested-cell count
 ## seen at any point while raising -- not just whatever is left once this
@@ -909,14 +880,13 @@ func _raise_fronts(chain_0: Array[Block], chain_1: Array[Block], peak_contested:
 				return
 			var chain: Array[Block] = chains[slot_id]
 			if chain.is_empty():
-				await _pass_turn(slot_id)
 				continue
 			heights[slot_id] += _physics.cube_size
 			var head: Vector2 = _disk_local(chain[chain.size() - 1].global_position)
 			var spot: Vector3 = _world_point(head, heights[slot_id] + PLACE_HEIGHT)
+			await _await_unlocked(slot_id)
 			_hold_cube(slot_id)
 			if Match.preview_placement(slot_id, spot, 0, Quaternion.IDENTITY) != PlacementRules.Result.VALID:
-				await _pass_turn(slot_id)
 				peak_contested[0] = maxi(peak_contested[0], _contested_cell_count())
 				continue
 			if _release(slot_id, spot) != PlacementRules.REASON_OK:
@@ -929,20 +899,17 @@ func _raise_fronts(chain_0: Array[Block], chain_1: Array[Block], peak_contested:
 ## `slot_id`'s own home circle, offset in -z from `home` -- the opposite side
 ## from every other march in this file, which goes +z -- so this tower can
 ## never be contested by, or confused with, anything else the scenario does.
-## Alternates with `other_slot` passing so hot-seat's strict turn order still
-## lets `slot_id` place every layer; hot-seat auto-advances the turn to
-## `other_slot` after `slot_id`'s own last placement, and this does not pass
-## `other_slot` again after the final layer, so the active slot is
-## `other_slot` when this returns. Returns the tower's base point
+## Returns the tower's base point
 ## (disk-local), for the caller to derive a reach-only ownership check from.
 func _build_isolated_tower(
-	slot_id: int, other_slot: int, home: Vector2, layers: int, chain: Array[Block]
+	slot_id: int, home: Vector2, layers: int, chain: Array[Block]
 ) -> Vector2:
 	var direction: Vector2 = Vector2(0.0, -1.0)
 	var base: Vector2 = home + direction * _safe_step(_tuning.home_radius)
 	var height: float = _physics.cube_size
 	for i: int in range(layers):
 		var spot: Vector3 = _world_point(base, height + PLACE_HEIGHT)
+		await _await_unlocked(slot_id)
 		_hold_cube(slot_id)
 		if Match.preview_placement(slot_id, spot, 0, Quaternion.IDENTITY) == PlacementRules.Result.VALID:
 			var before: int = _blocks.get_child_count()
@@ -950,42 +917,16 @@ func _build_isolated_tower(
 				await _step(SETTLE_FRAMES)
 				chain.append(_blocks.get_child(_blocks.get_child_count() - 1) as Block)
 		height += _physics.cube_size
-		if i < layers - 1:
-			await _pass_turn(other_slot)
 	return base
 
 
-## Spends a slot's turn without building, and hands the turn on.
-##
-## DECISION (tests/enet/m2_acceptance.gd): must call
-## request_place() with auto_drop = true, not _release()'s manual
-## (auto_drop = false) path. (SPEC.md
-## 1.4 "Invalid actions and expiry") changed a
-## *manual* release on an invalid spot from "spawns, burns, and hands the
-## turn on" to "refused outright: nothing spawns, nothing is consumed, feed_seq
-## does not move" -- autoload/match/MatchPlacement.gd's request_place()
-## returns before ever reaching _consume_and_refeed()/advance_turn() on that
-## path now. An off-disk _release() (auto_drop = false) therefore no longer
-## advances hot-seat's turn at all, which silently wedged every march that
-## alternates real placements with a passed turn (_march_pair(),
-## _march_solo_route(), _march_to_distance(), _build_isolated_tower(): a
-## stuck active_slot() turns every next real release into
-## REASON_NOT_YOUR_TURN, which _march_one() treats as "no further step
-## possible" --'s (d)/(f)/(h) failures, each stalled at exactly
-## the chain length reached right before this function's first call).
-## auto_drop = true still burns an off-disk release (spec 1.4's forced-
-## release case keeps "nowhere valid to land -> spawn and throw it off the
-## map"), and unlike the manual path it always reaches
-## _consume_and_refeed()/advance_turn(), which is what a harness-only "pass"
-## actually needs -- a real player's timer expiry is the only other caller
-## that ever sets auto_drop = true, so this exercises exactly that code path,
-## not a bench-only shortcut.
-func _pass_turn(slot_id: int) -> void:
-	if Match.state() != Match.State.PLAYING or not Match.slot(slot_id).home_flag_alive:
-		return
-	_hold_cube(slot_id)
-	Match.request_place(slot_id, _off_disk_point(), 0, Quaternion.IDENTITY, true)
-	await _step(1)
+## Steps the Match clock until `slot_id`'s release lock lifts at its interval
+## boundary (spec 1.4: one release per interval; nothing is forced when the
+## piece was already spent). Returns false if it never lifts.
+func _await_unlocked(slot_id: int) -> bool:
+	return await _step_until(_frames_for_seconds(Match.config.block_timer) + 2, func() -> bool:
+		return not Match.is_release_locked(slot_id)
+	)
 
 
 ## Forces the held shape to a cube so the scenario's geometry is the same on
@@ -998,8 +939,7 @@ func _hold_cube(slot_id: int) -> void:
 
 ## The deliberate (auto_drop = false) placement intent Match would get from a
 ## player's own click -- an invalid spot here is refused outright, not
-## burned (see _pass_turn()'s DECISION above for the auto_drop = true path
-## this is not).
+## burned.
 func _release(slot_id: int, world_origin: Vector3) -> StringName:
 	_hold_cube(slot_id)
 	return Match.request_place(slot_id, world_origin, 0, Quaternion.IDENTITY, false)
@@ -1069,6 +1009,9 @@ func _drop_through_hole(holes: PackedInt32Array, occupied: Array[Vector2]) -> bo
 		var block: Block = BlockFactory.build(_cube, _physics, -1)
 		_blocks.add_child(block)
 		block.global_position = _world_point(center, PLACE_HEIGHT)
+		# A bare body is untracked (never a dissolve candidate) until the
+		# registry hears the block was placed, as Match announces a real one.
+		Events.block_placed.emit(block, _cube.id)
 		var block_id: int = block.get_instance_id()
 		var fell: bool = await _step_until(_frames_for_seconds(4.0), func() -> bool:
 			return not _alive(block_id)
@@ -1192,11 +1135,6 @@ func _world_point(disk_local: Vector2, height: float) -> Vector3:
 
 func _disk_local(world: Vector3) -> Vector2:
 	return _field.disk_local_from_world(world)
-
-
-func _off_disk_point() -> Vector3:
-	var radius: float = _field.map_definition().field_radius * OFF_DISK_FACTOR
-	return _world_point(Vector2(radius, 0.0), PLACE_HEIGHT)
 
 
 ## On the disk, but nobody's territory: the homes sit on the x axis, so a

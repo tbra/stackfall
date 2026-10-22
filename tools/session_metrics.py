@@ -11,8 +11,9 @@ read from Git, the scratch logs and Beads; nothing is written. Sections:
   guards     entries added to tools/*baseline*.json, tools/flag_dead_allow.json and
              tools/probe_allowlist.txt (new list entries, raised counts, new allow entries).
              With shrink-only baselines this should be 0; every entry is listed. Layer closure
-             entries for files that did not exist at <rev> are planned --allow-new additions and
-             are counted on their own line instead.
+             entries for files that did not exist at <rev> are planned --allow-new additions, and
+             entries that only follow a file Git detects as renamed since <rev> are moves; both
+             are counted on their own lines instead.
   tests      test count at <rev> and HEAD (`func test_` in tests/), the last gate's summed
              script seconds, and SHORTCUT markers added.
   gates      FULL GATE GREEN/RED lines in scratch logs written since the session started,
@@ -120,12 +121,28 @@ def _new_file_closure(repo, rev, path, key):
                           capture_output=True).returncode != 0
 
 
+def _renames(repo, rev):
+    """(old path, new path) pairs Git detects as renamed between `rev` and the working tree."""
+    out = git(repo, "diff", "-M", "--name-status", "--diff-filter=R", rev, "--")
+    return [tuple(parts[1:3]) for parts in (ln.split("	") for ln in out.splitlines()) if len(parts) == 3]
+
+
+def _moved_from(key, before, renames):
+    """The `before` key this entry had under a renamed file's old path, or None."""
+    for old, new in renames:
+        if new in key and key.replace(new, old) in before:
+            return key.replace(new, old)
+    return None
+
+
 def guards(repo, rev):
-    """(added guard entries, layer closure entries for files new since `rev`)."""
+    """(added guard entries, layer closure entries for files new since `rev`, entries moved with a renamed file)."""
     files = sorted(set(glob.glob(os.path.join(repo, "tools", "*baseline*.json"))))
     paths = [os.path.relpath(f, repo).replace("\\", "/") for f in files] + list(GUARD_FILES)
+    renames = _renames(repo, rev)
     added = []
     new_closures = []
+    moved = []
     for path in paths:
         before = _entries(git(repo, "show", "%s:%s" % (rev, path)), path)
         full = os.path.join(repo, path)
@@ -134,12 +151,15 @@ def guards(repo, rev):
         with open(full, encoding="utf-8", errors="replace") as fh:
             after = _entries(fh.read(), path)
         for key, value in sorted(after.items()):
-            if key not in before:
+            old_key = key if key in before else _moved_from(key, before, renames)
+            if old_key is None:
                 bucket = new_closures if _new_file_closure(repo, rev, path, key) else added
                 bucket.append("%s: +%s" % (path, key))
-            elif value > before[key]:
-                added.append("%s: %s %s -> %s" % (path, key, before[key], value))
-    return added, new_closures
+            elif value > before[old_key]:
+                added.append("%s: %s %s -> %s" % (path, key, before[old_key], value))
+            elif old_key != key:
+                moved.append("%s: %s (was %s)" % (path, key, old_key))
+    return added, new_closures, moved
 
 
 def test_count(repo, rev=None):
@@ -279,12 +299,13 @@ def mutate(repo, scripts):
 
 def collect(repo, rev, since, scratch, run_mutation):
     core = changed_core(repo, rev)
-    added_guards, new_closures = guards(repo, rev)
+    added_guards, new_closures, moved = guards(repo, rev)
     return {
         "since": rev, "since_time": since.isoformat(timespec="seconds"), "head": git(repo, "rev-parse", "--short", "HEAD").strip(),
         "delivery": delivery(repo, rev),
         "guards_added": added_guards,
         "new_file_closures": new_closures,
+        "moved_entries": moved,
         "tests": {"before": test_count(repo, rev), "after": test_count(repo), "suite_seconds": suite_seconds(repo),
                   "shortcuts_added": shortcuts_added(repo, rev)},
         "gates": gates(scratch, since),
@@ -306,6 +327,7 @@ def render(m):
     lines.append("guards: %d entries added%s" % (len(g), "" if g else " (expected 0)"))
     lines += ["  " + e for e in g[:LIST_CAP]]
     lines.append("layer closures for new files (planned --allow-new, not guards): %d" % len(m.get("new_file_closures", [])))
+    lines.append("entries moved with renamed files (not guards): %d" % len(m.get("moved_entries", [])))
     t = m["tests"]
     lines.append("tests: %d -> %d (%+d); last gate summed script seconds %s; SHORTCUT added %d" % (
         t["before"], t["after"], t["after"] - t["before"], t["suite_seconds"], len(t["shortcuts_added"])))

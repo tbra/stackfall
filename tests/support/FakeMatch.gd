@@ -57,12 +57,24 @@ var preview_placement_calls: Array[Dictionary] = []
 var request_throw_calls: Array[Dictionary] = []
 
 
+## What registry() / blocks_parent() answer, for the ports a MatchNet or ClientBlockMirror binds.
+var block_registry: Node = null
+var blocks_root: Node3D = null
+
 ## the eliminator every slot reports (-1 = unknown).
 var eliminated_by_slot: int = -1
 
 
 func eliminated_by(_slot_id: int) -> int:
 	return eliminated_by_slot
+
+
+func registry() -> Node:
+	return block_registry
+
+
+func blocks_parent() -> Node3D:
+	return blocks_root
 
 
 func slot(slot_id: int) -> PlayerSlot:

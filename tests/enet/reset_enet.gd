@@ -40,18 +40,9 @@ const CYCLE_PLAYING_WAIT_S: float = 2.0
 ## (1e-4 to 7e-4) are expected on camera keys. Host comparison uses exact tolerance (1e-4).
 const CLIENT_CAMERA_TOLERANCE: Dictionary = {
 	"camera.": 0.001,
-	"sky.light_energy": SKY_LIGHT_TOLERANCE,
 }
 
-## DECISION: sky.light_energy is the Light3D's float32 energy divided by the live cloud-dim
-## scale (MatchFingerprint._capture_sky), and the sunset-lock energy sits on a 0.0001 rounding
-## boundary (about 1.01895): float noise alone flips the rounded value between 1.0189 and
-## 1.019, in a single fresh run too (countdown 1.019, playing 1.0189), so it is not
-## reset state. The tolerance is a few rounding steps, far below any real lighting change.
-const SKY_LIGHT_TOLERANCE: float = 0.0005
-const HOST_TOLERANCE: Dictionary = {
-	"sky.light_energy": SKY_LIGHT_TOLERANCE,
-}
+const HOST_TOLERANCE: Dictionary = {}
 
 var _main: Node
 var _mode: String = "fresh"
