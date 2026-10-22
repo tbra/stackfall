@@ -1,7 +1,7 @@
 class_name SkyVariation
 extends RefCounted
 ## C1b variation, "lets add some variation and just
-## set a range so it can vary": the cycle sky's exposure and cloud coverage wander
+## set a range so it can vary": the cycle sky's exposure and sea coverage wander
 ## inside the SkyCycleDef variation ranges. Pure rules, no scene tree, no RNG state
 ## and no clock: every value is a function of (match seed, cycle phase), so the host
 ## and every client compute the identical sky from the replicated match config and the
@@ -18,7 +18,7 @@ extends RefCounted
 
 ## Independent noise streams, so exposure and the two coverages do not move in lockstep.
 const CHANNEL_EXPOSURE: int = 0
-const CHANNEL_CLOUD_COVERAGE: int = 1
+# Channel 1 is retired (it was the cloud coverage); the numbers of the others stay fixed.
 const CHANNEL_SEA_COVERAGE: int = 2
 ## the per-night aurora roll's own stream.
 const CHANNEL_AURORA: int = 3
