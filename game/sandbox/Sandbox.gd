@@ -98,8 +98,12 @@ func _exit_tree() -> void:
 	_set_block_physics_frozen(false)
 	Match._territory_cache_enabled = true
 	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
-	Engine.time_scale = 1.0
-	get_tree().paused = false
+	# Only undo what this instance set: after an F5 rebuild the old node leaves at
+	# frame end, after the new one may already have toggled its own tools.
+	if _slow_motion_active:
+		Engine.time_scale = 1.0
+	if _physics_paused:
+		get_tree().paused = false
 
 
 func _load_special_roster_ids() -> Array[StringName]:
