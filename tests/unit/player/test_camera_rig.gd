@@ -6,7 +6,7 @@ extends GutTest
 ## camera's yaw must look from the player's home flag toward the disk
 ## centre"): CameraRig.set_home_view() is what PlayerController.
 ## set_home_position() calls once a controller binds to a real slot
-## (game/main/HotSeat.gd's bind_local_slot(), game/sandbox/Sandbox.gd's own turn-changed
+## (game/main/LocalPlayer.gd's bind_local_slot(), game/sandbox/Sandbox.gd's own turn-changed
 ## handler) — see those files' own DECISION comments for who calls this and
 ## why.
 
@@ -37,7 +37,7 @@ func _make_ghost_with_shape() -> GhostPreview:
 
 
 func test_camera_target_matches_the_ghost_position_the_same_frame_it_moves() -> void:
-	# Same order as game/main/Main.tscn/game/HotSeat.tscn: the rig exists first,
+	# Same order as game/main/Main.tscn/game/LocalPlayer.tscn: the rig exists first,
 	# the controller (and its ghost) are added afterward.
 	var rig: CameraRig = _make_rig()
 	var ghost: GhostPreview = _make_ghost_with_shape()

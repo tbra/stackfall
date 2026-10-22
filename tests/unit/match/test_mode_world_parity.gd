@@ -18,7 +18,7 @@ const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 const GAP_CLOCK: String = "capture clock offset: modes skip or shorten the lobby countdown, so timers differ at the same capture; not a rule difference (V1 aligns the clocks)"
 const GAP_OFFLINE: String = "mode worlds run offline without a host session (no cursors, no SnapshotSync); closes at F2a/F2b (single pipeline, SnapshotSync.begin_match)"
 const GAP_STABLE: String = "StableBlockManager is built only by the lobby match path; closes at F2 (resting blocks freeze everywhere)"
-const GAP_LOCAL: String = "local-player and bot extras differ per mode (delta table section 3); HotSeat becomes LocalPlayer at R1"
+const GAP_LOCAL: String = "local-player and bot extras differ per mode (delta table section 3); LocalPlayer becomes LocalPlayer at R1"
 const GAP_WIRING: String = "event listener counts follow the per-mode wiring (closes with the single pipeline at F2a/F2b)"
 const GAP_SANDBOX: String = "sandbox extras: Sandbox node, relaxed rules, no loading screen or countdown (delta table; owner decision di0.15.2=b)"
 const GAP_TUTORIAL: String = "tutorial extras: Tutorial node, single seat and flag, debug overlay, suppressed pause menu (delta table)"
@@ -32,11 +32,11 @@ const KNOWN_GAPS: Dictionary = {
 	"|rules.stats": GAP_CLOCK,
 	"|ui.bot_controllers": GAP_LOCAL,
 	"|ui.hud_texts": GAP_LOCAL,
-	"|ui.main_hot_seat": GAP_LOCAL,
+	"|ui.main_local_player": GAP_LOCAL,
 	"|wiring.main_children": GAP_LOCAL,
 	"|wiring.events.": GAP_WIRING,
 	"|wiring.node.BotController": GAP_LOCAL,
-	"|wiring.node.HotSeat": GAP_LOCAL,
+	"|wiring.node.LocalPlayer": GAP_LOCAL,
 	"sandbox|camera.suppress_pad_home_focus": GAP_PAD_FOCUS,
 	"sandbox|globals.stable_manager": GAP_STABLE,
 	"sandbox|net.": GAP_OFFLINE,
