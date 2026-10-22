@@ -281,7 +281,7 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 		out["sky.present"] = false
 		return
 	out["sky.present"] = true
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	# Resolved sky identity: the sky definition in use, the launch sky id, and (below) the cycle flag and
 	# locked phase that id resolves to; a sky that did not reset differs in at least one of them.
 	out["sky.def_path"] = skybox.sky_def.resource_path if skybox.sky_def != null else ""
@@ -289,15 +289,14 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	out["sky.variation_seed"] = skybox.variation_seed()
 	out["sky.cycle_active"] = skybox.is_cycle_active()
 	out["sky.locked_phase"] = _r(skybox.locked_phase())
-	var weather: SkyWeatherState = skybox.weather_state()
-	out["sky.storm"] = _r(weather.storm_amount)
-	out["sky.overcast"] = _r(weather.overcast_amount)
-	out["sky.cloud_overcast"] = _r(skybox.cloud_overcast_amount())
-	out["sky.weather_fog"] = _r(weather.wfog_amount)
+	var weather_lighting: CloudLighting = (skybox.get_node("CloudSea") as CloudSea).lighting
+	out["sky.storm"] = _r(weather_lighting.storm)
+	out["sky.overcast"] = _r(weather_lighting.overcast)
 	var environment: Environment = skybox.environment
 	if environment != null:
 		if environment.sky != null:
 			out["sky.process_mode"] = int(environment.sky.process_mode)
+		out["sky.fog_mode"] = int(environment.fog_mode)
 		out["sky.fog_enabled"] = environment.fog_enabled
 		out["sky.fog_color"] = _col(environment.fog_light_color)
 		out["sky.fog_density"] = _r(environment.fog_density)
@@ -312,10 +311,6 @@ static func _capture_sky(main: Node, out: Dictionary) -> void:
 	if light != null:
 		out["sky.light_basis"] = _basis(light.global_basis)
 		out["sky.light_color"] = _col(light.light_color)
-		# the sun's cloud dimming (CloudShadows, from the live puff occlusion) follows
-		# frame count and the drifting clouds, so it is transient by design; the fingerprint reads
-		# the undimmed energy.
-		out["sky.light_energy"] = _r(light.light_energy / maxf(weather.sun_cloud_scale, 0.001))
 	var sea: CloudSea = skybox.get_node_or_null("CloudSea") as CloudSea
 	var lighting: CloudLighting = sea.lighting if sea != null else null
 	if lighting != null:

@@ -105,7 +105,7 @@ func test_theme_switch_during_fog_rebases_and_restores_on_the_new_theme() -> voi
 	var night_skybox: Skybox = night[0]
 	var night_env: Environment = night[1]
 	night_skybox.set_locked_phase(night_skybox.sky_def.locked_phase_for("night"))
-	night_skybox.flush_weather()
+	SkyTestKit.settle(night_skybox)
 	# Read before any weather runs: the presentation fogs every Skybox in the tree.
 	var night_density: float = night_env.fog_density
 	var night_color: Color = night_env.fog_light_color

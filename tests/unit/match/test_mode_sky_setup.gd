@@ -41,9 +41,9 @@ func _assert_sky_configured(mode: String) -> void:
 	assert_ne(sky.sky_def, null, "%s: a sky cycle is applied" % mode)
 	# the panorama is absent: the live
 	# sky is the cycle's own procedural material.
-	assert_ne(sky.sky_material(), null, "%s: the dome material is bound" % mode)
-	assert_eq(sky.environment.sky.sky_material, sky.sky_material(), "%s: the cycle's material is the live sky" % mode)
-	assert_eq(float(sky.sky_material().get_shader_parameter(&"procedural_sea_mix")), SkyDomeWriter.PROCEDURAL_SEA_MIX, "%s: procedural sky look" % mode)
+	assert_ne(sky.environment.sky.sky_material, null, "%s: the dome material is bound" % mode)
+	assert_eq(sky.environment.sky.sky_material, SkyTestKit.sky_material(sky), "%s: the cycle's material is the live sky" % mode)
+	assert_eq(float(SkyTestKit.sky_material(sky).get_shader_parameter(&"procedural_sea_mix")), SkyDomeWriter.PROCEDURAL_SEA_MIX, "%s: procedural sky look" % mode)
 
 
 func test_hot_seat_configures_sky() -> void:
