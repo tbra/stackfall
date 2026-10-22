@@ -32,7 +32,7 @@ func after_each() -> void:
 
 
 func test_sandbox_flow_loads_on_first_use_through_the_queue() -> void:
-	assert_null(_main._sandbox_flow, "no flow before the first sandbox/tutorial/hot-seat use")
+	assert_null(_main._sandbox_flow, "no flow before the first sandbox/tutorial use")
 	_main.start_sandbox_from_menu()
 	assert_true(_main._sandbox_flow is MainSandboxFlowPort)
 	assert_eq((_main._sandbox_flow as RefCounted).get_script().resource_path, "res://game/main/MainSandboxFlow.gd")
