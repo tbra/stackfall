@@ -27,8 +27,6 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -43,7 +41,7 @@ func _make_net(client_mode: bool) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(fake, Match)
+	node.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	return node
 
@@ -109,7 +107,6 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [231, true]]],
 		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [232, true]]],
 	]
-	host.set_providers(null, null)
 	host.free()
 	# Client view of the same blocks: bare coat state, then the replayed events.
 	HoneyCoat.set_coated(a, false)
