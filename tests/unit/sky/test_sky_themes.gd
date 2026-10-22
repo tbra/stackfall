@@ -196,6 +196,17 @@ func test_each_sky_mode_locks_the_right_phase() -> void:
 			assert_gt(_sun_elevation(skybox), 0.0, "%s: sun above the horizon" % label)
 
 
+func test_locking_a_running_cycle_stops_radiance_updates_and_unlocking_resumes_them() -> void:
+	var parts: Array = _configured_skybox(MatchConfig.new(), 300.0)
+	var skybox: Skybox = parts[0]
+	var environment: Environment = parts[1]
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "a running cycle updates radiance")
+	skybox.set_locked_phase(0.75)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_QUALITY, "a locked sky is built once")
+	skybox.set_locked_phase(-1.0)
+	assert_eq(environment.sky.process_mode, Sky.PROCESS_MODE_REALTIME, "unlocking resumes updates")
+
+
 func test_host_and_client_configs_give_the_same_phase_at_the_same_clock() -> void:
 	var modes: Array[MatchConfig.SkyThemeMode] = [
 		MatchConfig.SkyThemeMode.CYCLE, MatchConfig.SkyThemeMode.DAY, MatchConfig.SkyThemeMode.NIGHT,
