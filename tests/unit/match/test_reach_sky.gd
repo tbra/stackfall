@@ -1,20 +1,14 @@
 extends GutTest
 ## Reach the Sky: monotonic settled-height records, team aggregation, ties, timer and early win.
 
-const MatchNetScript := preload("res://net/MatchNet.gd")
-
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _tiny_map: MapDef
 var _field: Field
 var _registry: BlockRegistry
 var _blocks_root: Node3D
-var _net: MatchNetScript
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()

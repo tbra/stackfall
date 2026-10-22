@@ -27,13 +27,9 @@ class StubTimedObjective:
 
 
 var _fake_net: FakeNet
-var _net: MatchNetScript
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
-	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -121,8 +117,7 @@ func _client_net() -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
-	_net = node
+	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 

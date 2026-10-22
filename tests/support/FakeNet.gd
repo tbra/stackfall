@@ -5,7 +5,7 @@ extends RefCounted
 ## GUT cannot double a plain autoload — addons/gut/test.gd's double_singleton
 ## only recognises Godot's own engine singletons — so autoload/Match.gd and
 ## net/MatchNet.gd (P3) read their session state through a seam
-## (set_net_provider / set_providers), and ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and
+## (set_net_provider, and SessionPort.new(fake) for MatchNet.bind_ports), and ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and
 ## ui/debug/NetDebugOverlay.gd (P4) read a `Variant net_provider` field, both
 ## defaulting to the real Net. This one double scripts every answer either
 ## side needs: whether this instance is the host, which slot a peer holds,
