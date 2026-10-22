@@ -71,7 +71,6 @@
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/player/RemoteCursors.gd:set_providers",
-   "game/sandbox/Sandbox.gd:apply_preset",
    "game/sky/CloudSea.gd:occlusion",
    "game/sky/CloudSea.gd:puff_material",
    "game/sky/Skybox.gd:cloud_overcast_amount",

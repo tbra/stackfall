@@ -71,39 +71,6 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
 	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 
-	# DECISION (game/main/Main.gd): a sandbox reset (sandbox_reset_field, F5;
-	# game/sandbox/Sandbox.gd's _reset_field()) re-runs Match.start_match(), which
-	# goes back through abort_match() first, so this handler fires twice in a row,
-	# synchronously: (X -> LOBBY) then (LOBBY -> LOADING). Sandbox already owns the
-	# world for every slot (its own PlayerController/GhostPreview subtree, never
-	# Main's _hot_seat) and replays Field.place_flags()/set_overlay_source() itself
-	# right after start_match() returns. Routing the pair through the ordinary
-	# _end_match_world()/_build_match_world() would build a second HotSeat bound to
-	# the slot Sandbox's controller already drives, both reading input for it.
-	#
-	# Checked against the live _sandbox instance rather than Match.config.sandbox:
-	# Tutorial also sets that flag, and its _on_tutorial_finished() teardown still
-	# needs the ordinary _end_match_world() reaction to (-> LOBBY).
-	#
-	# _field.clear_match_state() still runs directly on the (X -> LOBBY) half, so a
-	# reset clears holes/tilt/physical-balance state; everything else the ordinary
-	# path would touch (SnapshotSync, _remote_cursors, bot controllers, the debug
-	# overlay) is left alone.
-	if main_node._sandbox != null and is_instance_valid(main_node._sandbox):
-		if to_state == Match.State.LOBBY:
-			_field.clear_match_state()
-			# a sandbox reset is a new match too -- dry arena;
-			# the camera stays where the player put it, and so does the sandbox's
-			# own CameraRig.suppress_pad_home_focus (only a camera reset clears it).
-			_reset_match_scope(false)
-		elif Match.is_start_transition(from_state, to_state) and Match.config != null:
-			# The scope reset on the (X -> LOBBY) half returns the Skybox to its launch
-			# sky, so the restart sets the sandbox's sky up again like at entry.
-			main_node._apply_match_sky(Match.config)
-			# a new match restarts the shared clock (day/night cycle) too.
-			SnapshotSync.begin_match(Match.registry(), Match.config.map_def())
-		return
-
 	if to_state == Match.State.LOBBY:
 		main_node._loading_generation += 1
 		end_match_world()
@@ -213,9 +180,6 @@ func build_match_world() -> void:
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = _loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active()
 	main_node._clear_menu_and_lobby()
-	# Every real (host/client/headless-bot) match reaches this one guarded builder;
-	# start_sandbox_from_menu() is the only match-start path that bypasses it, so it
-	# needs its own copy of this line.
 	_pause_menu.suppressed = false
 
 	var config: MatchConfig = Match.config
@@ -345,29 +309,32 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 ## the camera's yaw/target; puddles dry over RainTuning.puddle_dry_time_s). Main
 ## resets the children it owns directly, then emits Events.match_scope_reset for
 ## every persistent holder it cannot name. Run when a match world is built, when
-## one is torn down (also a cancelled staged build and a menu sandbox/tutorial) and
-## on a sandbox reset; synchronous and idempotent. `reset_camera` is false only for
-## a sandbox reset (F5), where the player keeps their view.
-func _reset_match_scope(reset_camera: bool = true) -> void:
+## one is torn down (also a cancelled staged build); synchronous and idempotent.
+func _reset_match_scope() -> void:
 	RainPuddles.clear_on(_field)
-	if reset_camera and _camera_rig != null:
+	if _camera_rig != null:
 		_camera_rig.reset_view()
 	Events.match_scope_reset.emit()
+
+
+## A restart passes through (X -> LOBBY) inside start_match(); the build that follows
+## resets the scope itself, so the pair resets once.
+func _reset_match_scope_unless_restarting() -> void:
+	if not Match._lifecycle.is_starting_match():
+		_reset_match_scope()
 
 
 func end_match_world() -> void:
 	# DECISION: the scope reset runs before the _world_built
 	# early return, so every (-> LOBBY) -- including a staged build that was
-	# cancelled before it finished (_world_built still false), and a CLI
-	# --sandbox, which never sets it -- leaves a launch-state camera, dry arena
-	# and reset persistent owners. Such a half-built world still touched the
+	# cancelled before it finished (_world_built still false) -- leaves a
+	# launch-state camera, dry arena and reset persistent owners. Such a half-built world still touched the
 	# Field (flags, rebuild, overlay), so it is cleared here too. Idempotent: a
 	# net leave reaches this twice (mode change, then the abort's -> LOBBY).
 	if not main_node._world_built:
-		# a CLI --sandbox never sets _world_built but does run the shared clock.
 		SnapshotSync.end_match()
 		_field.clear_match_state()
-		_reset_match_scope()
+		_reset_match_scope_unless_restarting()
 		_end_mode_extras()
 		return
 	main_node._world_built = false
@@ -378,7 +345,7 @@ func end_match_world() -> void:
 	# and open holes would otherwise still belong to the match that just ended.
 	_field.clear_match_state()
 	# and the menu/lobby behind it looks like a fresh launch too.
-	_reset_match_scope()
+	_reset_match_scope_unless_restarting()
 	if main_node._remote_cursors != null and is_instance_valid(main_node._remote_cursors):
 		main_node._remote_cursors.queue_free()
 	main_node._remote_cursors = null
@@ -415,6 +382,8 @@ func _free_inert(node: Node) -> void:
 func _end_mode_extras() -> void:
 	if main_node._mode_extras == null:
 		return
+	if main_node._sandbox != null and main_node._scoreboard_node != null:
+		main_node._scoreboard_node.suppressed = false
 	_free_inert(main_node._sandbox)
 	main_node._sandbox = null
 	_free_inert(main_node._tutorial)

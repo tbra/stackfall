@@ -117,10 +117,7 @@ var _hot_seat: Node = null
 var _watch_bots_active: bool = false
 var _spectator: Node = null
 var _sandbox: Node = null
-## set only by start_gift_demo_from_menu().
-var _sandbox_preset: SandboxConfig = null
-## Built and freed only by start_tutorial_from_menu() and _on_tutorial_finished() below --
-## never touched by _build_match_world() or _end_match_world().
+## Built by the sandbox flow's attach_extras() and freed with the match world.
 var _tutorial: Node = null
 ## What a non-lobby mode adds to the one match world; null for a lobby match, which
 ## keeps every hook below inert. Cleared by the match flow when the session returns to the lobby.
@@ -131,9 +128,7 @@ var _debug_overlay: Node = null
 ## created on first need (ensure), not in _ready(). `_pause_menu` & co. are lazy
 ## accessors (the flows and tests read them and always get an instance); the
 ## `*_node` fields are the raw slots, null until created, for the paths that must
-## NOT create one (main-menu entry, territory callbacks). None is built for
-## --hot-seat or the CLI-only --sandbox entry point: both return out of _ready()
-## before Events.match_state_changed is connected.
+## NOT create one (main-menu entry, territory callbacks).
 var _pause_menu_node: PauseMenu = null
 var _pause_menu: PauseMenu:
 	get:
@@ -149,7 +144,6 @@ var _scoreboard_node: ScoreboardOverlay = null
 var _scoreboard: ScoreboardOverlay:
 	get:
 		return _ensure_scoreboard()
-## Built alongside _pause_menu; same --hot-seat/--sandbox exclusion.
 var _loading_screen_node: LoadingScreen = null
 var _loading_screen: LoadingScreen:
 	get:
@@ -336,9 +330,9 @@ func _register_menu_dormant_world() -> void:
 
 
 ## True while a match, sandbox or tutorial world is built or building: a menu backdrop still in
-## the tree (CLI --sandbox) must not freeze it.
+## the tree must not freeze it.
 func _menu_world_is_live() -> bool:
-	return _world_built or _world_building or (_sandbox != null and is_instance_valid(_sandbox))
+	return _world_built or _world_building
 
 
 ## Menu hand-off (after the splash, or at once without one): the Lobby chunk is collected first
@@ -398,8 +392,7 @@ func _ready() -> void:
 	if not _wants_background_prewarm():
 		_ensure_late_active()
 
-	# Connected before the hot-seat/sandbox early returns so those entry points get
-	# the graphics preset applied too. current_graphics_preset() never returns null.
+	# current_graphics_preset() never returns null.
 	Settings.graphics_preset_changed.connect(_apply_graphics_preset)
 	Settings.window_mode_changed.connect(_on_window_mode_changed)
 	_apply_graphics_preset(Settings.current_graphics_preset())
@@ -413,10 +406,6 @@ func _ready() -> void:
 
 	_build_debug_tools()
 	_register_menu_dormant_world()
-
-	if _has_cmdline_flag("sandbox"):
-		_start_sandbox_match()
-		return
 
 	Events.match_state_changed.connect(_on_match_state_changed)
 	Events.net_mode_changed.connect(_on_net_mode_changed)
@@ -461,6 +450,9 @@ func _ready() -> void:
 	# --headless-host command lines are unaffected.
 	if _has_cmdline_flag("headless-host"):
 		_start_headless_bot_match_with_args(OS.get_cmdline_user_args())
+	# `-- --sandbox [--players=N]` runs the menu sandbox's path once the ordinary wiring above exists.
+	if _has_cmdline_flag("sandbox"):
+		_start_sandbox_match.call_deferred()
 	# `-- --watch-bots=<n> [--mode=<id>] [--difficulty=<level>]` starts the same debug
 	# all-bot watch match the Debug page's picker does (debug mode only).
 	# Loaded by path so the watch-bots rules stay out of Main's compile closure (tools/lint_layers.py L4).
@@ -715,7 +707,7 @@ func _ensure_scoreboard() -> ScoreboardOverlay:
 	if _scoreboard_node == null:
 		_scoreboard_node = _load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
 		add_child(_scoreboard_node)
-		# Created while a sandbox is live (MainSandboxFlow only suppresses an existing one).
+		# Created while a sandbox is live (the sandbox flow only suppresses an existing one).
 		_scoreboard_node.suppressed = _sandbox != null and is_instance_valid(_sandbox)
 	return _scoreboard_node
 
@@ -945,36 +937,12 @@ func _on_lobby_back_requested() -> void:
 ## (_on_net_mode_changed() above). Online (host or client), Net.leave() tears the
 ## match world down and shows the main menu through that handler. Offline (sandbox)
 ## there is no Net transition, so this aborts the match directly (idempotent from
-## LOBBY) and shows the menu itself. _sandbox is freed here because it is outside
-## _end_match_world()'s ownership. A tutorial session never reaches this handler:
-## PauseMenu is suppressed for its whole duration.
-##
-## DECISION (game/main/Main.gd): _sandbox is freed and nulled *before*
-## Match.abort_match(), not after. While _sandbox is live, _on_match_state_changed()
-## diverts every (-> LOBBY) reaction away from _end_match_world(); freeing it first
-## lets abort_match()'s emit take the ordinary _end_match_world() path, the only
-## place that clears _world_built. The reverse order left _world_built stuck true,
-## so the next ordinary match's _build_match_world() hit its `if _world_built:
-## return` guard and built nothing. The online path needs no such fix: sandbox
-## matches are always offline, so _sandbox is never live while Net is online.
-## tests/unit/main/test_sandbox.gd covers it.
+## LOBBY) and shows the menu itself; the abort's (X -> LOBBY) frees the mode's nodes with the
+## world. A tutorial session never reaches this handler: PauseMenu is suppressed for its whole duration.
 func _on_pause_leave_requested() -> void:
 	if Net.mode() != Net.Mode.OFFLINE:
 		Net.leave()
 		return
-	if _sandbox != null and is_instance_valid(_sandbox):
-		# ROOT CAUSE: queue_free() only frees at the end of the
-		# frame, so the sandbox's PlayerController still ran _process once more after
-		# the abort below had reset the camera (-> _end_match_world() ->
-		# _reset_match_scope() -> CameraRig.reset_view()) and wrote its follow position
-		# (0, 0.3, 0) back over the launch view; the menu then showed a stale camera.
-		# Disabling the subtree stops every _process/_input at once, so the reset
-		# below is the last word.
-		_sandbox.process_mode = Node.PROCESS_MODE_DISABLED
-		_sandbox.queue_free()
-		_sandbox = null
-		if _scoreboard_node != null:
-			_scoreboard_node.suppressed = false
 	if Match.state() != Match.State.LOBBY:
 		Match.abort_match()
 	_show_main_menu()
@@ -1072,10 +1040,6 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 
 func _release_countdown_hold(generation: int) -> void:
 	_match_flow_port().call(&"_release_countdown_hold", generation)
-
-
-func _reset_match_scope(reset_camera: bool = true) -> void:
-	_match_flow_port().call(&"_reset_match_scope", reset_camera)
 
 
 func _end_match_world() -> void:
