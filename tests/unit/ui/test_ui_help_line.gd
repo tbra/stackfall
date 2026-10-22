@@ -148,12 +148,11 @@ func test_lobby_gift_chip_explains_its_gift() -> void:
 # --- Options -------------------------------------------------------------------
 
 func _make_menu() -> OptionsMenu:
-	_cfg_path = OS.get_user_data_dir().path_join("test_ui_help_line_tmp.cfg")
+	_cfg_path = Settings.effective_path()
 	if FileAccess.file_exists(_cfg_path):
 		DirAccess.remove_absolute(_cfg_path)
 	var settings: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(settings)
-	settings.set_config_path_for_test(_cfg_path)
 	var menu: OptionsMenu = autofree(OPTIONS_MENU_SCENE.instantiate()) as OptionsMenu
 	add_child_autofree(menu)
 	menu.settings_provider = settings
