@@ -131,7 +131,6 @@ Pass these after `--`, for example `godot --path . -- --host`.
 | `--port=<n>` | Override the port for `--host`, `--headless-host` and `--join`. |
 | `--headless-host` | Host with no window, for a dedicated or scripted host. Add `--advertise` to show it in LAN browsers, and `--bots=<n>` to start a bot match. |
 | `--sandbox [--players=N]` | Offline sandbox: every slot locally controllable, no feed timer. |
-| `--hot-seat` | Skip the menu and start a two-player match on one PC. |
 | `--sim-lag=<ms>`, `--sim-loss=<0..1>` | Simulate one-way lag and packet loss from launch. |
 | `--steam-online`, `--host-online` | Initialize Steam (see below); `--host-online` also hosts a Steam lobby. |
 

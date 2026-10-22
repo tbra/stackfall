@@ -38,8 +38,8 @@ Players act concurrently, in real time. Everything is physical: blocks topple, s
 Timed modes use `round_timer_minutes` (2 to 30, default 5; Elimination alone may be 0 = off) and never run sudden death. Home elimination (§1.5) ends a match early in every mode.
 
 **Other ways to play** (from the main menu, §1.10):
-- **Sandbox:** no timer by default and no territory limits; a block picker, a menu to spawn specials, slow motion, pause-physics and tower tools (`game/sandbox/`, `config/match/sandbox.tres`).
-- **Tutorial:** five short interactive steps — placing, rotating, territory, specials, camera (`config/match/tutorial_config.tres`).
+- **Sandbox:** runs the real match path with relaxed rules: no timer by default and no territory limits; it skips the loading screen and the countdown, and resting blocks freeze as in a match. A block picker, a menu to spawn specials, slow motion, pause-physics and tower tools (`game/sandbox/`, `config/match/sandbox.tres`).
+- **Tutorial:** five short interactive steps — placing, rotating, territory, specials, camera (`config/match/tutorial_config.tres`). It is a one-player match under the real rules, with no weather and only the gifts a lesson teaches; it ends once, when its steps finish or the match ends.
 - **Vs Bots:** an offline match with bots.
 - **Turn-based** (`MatchConfig.turn_based`, lobby checkbox, off by default): one player acts at a time; physics settles (all bodies asleep, or `TerritoryTuning.turn_based_max_settle_s` = 6 s) before the next turn.
 - **Debug entries** (visible only in debug mode): Gift Demo, Tower Topple, Watch Bots (a spectator view of an all-bot match).
@@ -365,11 +365,11 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Scenes.**
 - `game/main/Boot.tscn` is the main scene; it loads `Main.tscn` on a worker thread to keep the window responsive. `Main` owns the flow: menu, lobby, loading screen, pause, results, scoreboard, and the match world.
-- The match world is `game/main/HotSeat.tscn` (name retained): one `PlayerController` with `GhostPreview`, the HUD and the tuning panel, plus `Field.tscn` (the disc), `CameraRig.tscn` and `RemoteCursors.tscn`. `game/sandbox/Sandbox.tscn` and `ui/menus/Tutorial.tscn` are the other play scenes.
+- The match world is `game/main/HotSeat.tscn` (name retained): one `PlayerController` with `GhostPreview`, the HUD and the tuning panel, plus `Field.tscn` (the disc), `CameraRig.tscn` and `RemoteCursors.tscn`. Every mode plays in it: a mode is a `MatchConfig` (built by `MatchLaunch`) plus optional extras (`ModeExtras`). `game/sandbox/Sandbox.tscn` (the sandbox tools) and `ui/menus/Tutorial.tscn` (the lesson prompts) own no controller; `Main` attaches them to the match world after it is built.
 - Blocks are `game/blocks/Block.tscn`, created by `BlockFactory`, tracked by `BlockRegistry` (net ids, settled state, per-block influence feed).
 - `game/world/MatchContext.gd` is the port world code (fields, specials, presenters, weather effects) uses to reach the running match without naming the `Match` or `Net` autoloads; `autoload/match/MatchContextLive.gd` forwards it to the real autoloads, and tests install a fake.
 
-**Boot paths.** The default run opens the menu. Command-line flags after `--`: `--host`, `--join=<addr>`, `--port=`, `--headless-host` with `--bots=N` (a headless bot match; add `--loop-matches`), `--steam-online` or `--host-online` (initialize Steam), `--sandbox`, `--hot-seat` (single-PC test harness), `--mode=`, `--round-timer=`, `--bot-difficulty=`, `--debug` or `--no-debug`, `--soak` and `--soak-fuzz` (debug mode only: the invariant soak monitor and the client intent fuzzer), `--agent-probe` (tool and test runs).
+**Boot paths.** The default run opens the menu. Command-line flags after `--`: `--host`, `--join=<addr>`, `--port=`, `--headless-host` with `--bots=N` (a headless bot match; add `--loop-matches`), `--steam-online` or `--host-online` (initialize Steam), `--sandbox` (the menu's sandbox path), `--mode=`, `--round-timer=`, `--bot-difficulty=`, `--debug` or `--no-debug`, `--soak` and `--soak-fuzz` (debug mode only: the invariant soak monitor and the client intent fuzzer), `--agent-probe` (tool and test runs).
 
 ### 2.4 Match state machine
 
