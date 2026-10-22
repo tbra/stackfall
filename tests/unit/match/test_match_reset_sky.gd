@@ -60,7 +60,7 @@ func _weather_fog(skybox: Skybox, amount: float) -> void:
 
 ## The shared cloud lighting the Skybox publishes, read from the CloudSea layer that draws with it.
 func _lighting(skybox: Skybox) -> CloudLighting:
-	skybox.flush_weather()
+	SkyTestKit.settle(skybox)
 	return (skybox.get_node("CloudSea") as CloudSea).lighting
 
 
@@ -79,8 +79,8 @@ func _snapshot(rig: Dictionary) -> Dictionary:
 		"locked_phase": skybox.locked_phase(),
 		"cycle_phase": skybox.current_cycle_phase(),
 		"process_mode": environment.sky.process_mode,
-		"cloud_overcast": skybox.cloud_overcast_amount(),
-		"sky_is_live_material": sky_material == skybox.sky_material(),
+		"cloud_overcast": lighting.overcast,
+		"sky_is_live_material": sky_material == environment.sky.sky_material,
 		"sky_exposure": sky_material.get_shader_parameter(&"exposure"),
 		"sky_sea_mix": sky_material.get_shader_parameter(&"procedural_sea_mix"),
 		"fog_enabled": environment.fog_enabled,
@@ -139,7 +139,7 @@ func _dirty_with_locked_night_storm(rig: Dictionary) -> void:
 	_weather_fog(skybox, 1.0)
 
 
-# --- Skybox.reset_to_launch() -------------------------------------------------------
+# --- Events.match_scope_reset on the Skybox -------------------------------------------------------
 
 
 func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night_storms() -> void:
@@ -153,10 +153,10 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	assert_almost_eq(skybox.locked_phase(), skybox.sky_def.cycle_locked_phase_night, 0.0001, "fixture: locked at night")
 	var environment: Environment = used["environment"] as Environment
 	assert_gt(_lighting(skybox).storm, 0.0, "fixture: storm on")
-	assert_gt(skybox.cloud_overcast_amount(), 0.0, "fixture: overcast on")
+	assert_gt(_lighting(skybox).overcast, 0.0, "fixture: overcast on")
 	assert_eq(environment.fog_mode, Environment.FOG_MODE_DEPTH, "fixture: weather fog on")
 	assert_ne(stormy["fog_color"], expected["fog_color"], "fixture: the dirty sky differs from launch")
-	skybox.reset_to_launch()
+	Events.match_scope_reset.emit()
 	_assert_same_snapshot(_snapshot(used), expected, "after reset")
 
 	# Merged variant: a night lock (locked sky id) with storm + overcast.
@@ -170,7 +170,7 @@ func test_a_dirty_sky_resets_to_a_fresh_skybox_for_cycle_locked_and_static_night
 	static_skybox.set_storm_sky(STORM_AMOUNT, load("res://config/sky/storm_overlay.tres") as SkyOverlayDef)
 	_overcast(static_skybox, 1.0)
 	assert_eq(static_skybox.config.theme_name, "night", "fixture: the shared config names the night lock")
-	static_skybox.reset_to_launch()
+	Events.match_scope_reset.emit()
 	_assert_same_snapshot(_snapshot(static_used), expected, "static night: after reset")
 	assert_eq(static_skybox.config.theme_name, "", "config.theme_name is the launch value again")
 	assert_almost_eq(static_skybox.locked_phase(), static_skybox.sky_def.cycle_locked_phase_sunset, 0.0001, "back on the launch lock")
