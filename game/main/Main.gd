@@ -7,26 +7,21 @@ extends Node3D
 ## once, in the right order, and reacts to the handful of signals that mark a
 ## state change.
 ##
-## **Two paths.**
-##   - `--hot-seat`: register_world() -> start_match() -> place_flags() ->
-##     set_overlay_source(), with one HotSeat.tscn whose PlayerController follows
-##     Events.turn_changed. No menu, no lobby, no networking autoload is touched;
-##     test_hot_seat.gd and the match-flow tests pin this path.
-##   - Everything else shows ui/menus/MainMenu.tscn, then ui/lobby/Lobby.tscn once Net
-##     enters HOST or CLIENT (Events.net_mode_changed — apply_command_line()'s
-##     --host/--join/--headless-host fire it exactly the same as the menu's
-##     own buttons do), then builds the match world when Match's state machine
-##     crosses LOBBY -> LOADING: on the host that follows a direct
-##     Match.start_match() call from the Lobby's start_requested signal; on a
-##     client it follows net/MatchNet.gd's net_match_start RPC calling that
-##     same Match.start_match() locally. Reacting to the state change instead
-##     of branching on host/client here is what lets one code path build the
-##     world identically on every instance. The world comes down again
-##     whenever Match returns to LOBBY -- Match.abort_match(), which
-##     start_match() itself runs first when a match is restarted from any
-##     later state -- and when Net drops to OFFLINE, which also aborts the
-##     stale Match so it stops ticking and the next host/join starts from a
-##     clean LOBBY.
+## Main shows ui/menus/MainMenu.tscn, then ui/lobby/Lobby.tscn once Net
+## enters HOST or CLIENT (Events.net_mode_changed — apply_command_line()'s
+## --host/--join/--headless-host fire it exactly the same as the menu's
+## own buttons do), then builds the match world when Match's state machine
+## crosses LOBBY -> LOADING: on the host that follows a direct
+## Match.start_match() call from the Lobby's start_requested signal; on a
+## client it follows net/MatchNet.gd's net_match_start RPC calling that
+## same Match.start_match() locally. Reacting to the state change instead
+## of branching on host/client here is what lets one code path build the
+## world identically on every instance. The world comes down again
+## whenever Match returns to LOBBY -- Match.abort_match(), which
+## start_match() itself runs first when a match is restarted from any
+## later state -- and when Net drops to OFFLINE, which also aborts the
+## stale Match so it stops ticking and the next host/join starts from a
+## clean LOBBY.
 ##
 ## **Wiring order matters**: Match.register_world() must
 ## happen before start_match() (it configures BlockRegistry's host authority
@@ -419,10 +414,6 @@ func _ready() -> void:
 	_build_debug_tools()
 	_register_menu_dormant_world()
 
-	if _has_cmdline_flag("hot-seat"):
-		_start_hot_seat_match()
-		return
-
 	if _has_cmdline_flag("sandbox"):
 		_start_sandbox_match()
 		return
@@ -593,11 +584,6 @@ func _apply_graphics_preset(preset: GraphicsPreset) -> void:
 # --- Hot-seat / sandbox / tutorial: forwarders -------
 #
 # The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue.
-
-func _start_hot_seat_match() -> void:
-	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_hot_seat_match()
-
 
 func _start_sandbox_match() -> void:
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()

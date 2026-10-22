@@ -4,10 +4,6 @@ extends MainFlowPort
 ## The bodies are empty; game/main/MainSandboxFlow.gd (MF1) overrides them.
 
 
-func start_hot_seat_match() -> void:
-	pass
-
-
 func start_sandbox_match() -> void:
 	pass
 

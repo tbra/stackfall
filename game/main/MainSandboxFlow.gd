@@ -12,36 +12,6 @@ var main_node: Main:
 		return main as Main
 
 
-# --- Hot-seat ------------------------------------------
-
-func start_hot_seat_match() -> void:
-	Sfx.set_music_context(&"gameplay")
-	var hot_seat: HotSeat = main_node._load_scene(Main.HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
-	main_node._hot_seat = hot_seat
-	main_node.add_child(hot_seat)
-	hot_seat.set_camera_rig(main_node._camera_rig)
-	hot_seat.set_field(main_node._field)
-	Match.register_world(main_node._field, main_node._registry, main_node._blocks_container)
-	Match.start_match(_build_hot_seat_config())
-
-	var config: MatchConfig = Match.config
-	main_node._field.rebuild_for_map(config.map_def())
-	main_node._camera_rig.set_map_def(config.map_def())
-	main_node._field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
-	main_node._field.set_overlay_source(Match.raster(), config.territory_colors())
-	main_node._apply_match_sky(config)
-
-
-## The lobby settings a real lobby screen collects, for the one path that
-## skips it. Hot-seat and the player count are the only overrides; everything
-## else is whatever config/match/match_defaults.tres says.
-func _build_hot_seat_config() -> MatchConfig:
-	var config: MatchConfig = main_node.match_config.duplicate(true) as MatchConfig
-	config.player_count = main_node.player_count
-	config.hot_seat = true
-	return config
-
-
 # --- Sandbox: unlisted debug entry point ---------------------
 #
 # `godot --path . -- --sandbox [--players=N]` starts an *offline* match, same
