@@ -162,6 +162,16 @@
    "reason": "designer gallery scene (stackfall-designer tool)"
   },
   {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_authority.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "config/soak/soak_match_load.tres",
+   "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
    "id": "test-only-func",
    "entry": "autoload/Match.gd:after_next_special",
    "reason": "live: net/MatchNet.gd:2317 (untyped or dynamic call)"
