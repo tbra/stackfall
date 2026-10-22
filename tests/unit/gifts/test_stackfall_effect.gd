@@ -24,7 +24,6 @@ func before_each() -> void:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.gifts_enabled = false
 	config.rng_seed = 13579
 	Match.start_match(config)
