@@ -103,7 +103,6 @@ func _run_host() -> void:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true) as MatchConfig
 	config.disc_size_step = 1
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = MatchConfig.BLOCK_TIMER_MAX
 	var world: Array = _build_world()
 	var field: Field = world[0] as Field
