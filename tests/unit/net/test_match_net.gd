@@ -49,8 +49,6 @@ func before_each() -> void:
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -69,7 +67,7 @@ func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = fa
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(_fake_net, Match)
+	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	return node
 
@@ -706,13 +704,18 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	assert_eq(net.cursors_refused(1), 0)
 
 
-func test_the_intent_gateway_binds_the_current_providers() -> void:
+func test_rebinding_the_session_port_changes_who_the_facade_acts_as() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
-	var first: MatchIntentGateway = net._intents()
-	assert_true(first.is_valid(), "the real Match and the faked session satisfy the gateway's ports")
-	assert_same(net._intents(), first, "built once per binding")
-	net.set_providers(_fake_net, Match)
-	assert_not_same(net._intents(), first, "rebinding the providers rebuilds the gateway")
+	_start_playing()
+	var as_host: StringName = net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	assert_eq(as_host, PlacementRules.REASON_OK, "bound to a host session the facade places for its own seat")
+	assert_eq(_block_count(), 1)
+
+	var client_session: FakeNet = FakeNet.client(0)
+	Match._net_provider = client_session
+	assert_true(net.bind_ports(SessionPort.new(client_session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
+	assert_eq(_block_count(), 1, "rebound to a client session it sends the intent instead of placing")
 
 
 # --- Events the facade wires in _ready ----------------------------------------

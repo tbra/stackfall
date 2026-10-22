@@ -39,8 +39,6 @@ func before_each() -> void:
 func after_each() -> void:
 	if Events.block_removed.is_connected(_record_removed):
 		Events.block_removed.disconnect(_record_removed)
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -327,7 +325,7 @@ func _make_net(client_mode: bool) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(fake, Match)
+	node.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	return node
 

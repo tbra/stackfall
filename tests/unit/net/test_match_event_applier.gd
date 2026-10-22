@@ -42,13 +42,11 @@ func before_each() -> void:
 	_net.set_process(false)
 	add_child_autofree(_net)
 	Match._net_provider = FakeNet.client(LOCAL_SLOT)
-	_net.set_providers(Match._net_provider, Match)
+	_net.bind_ports(SessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	watch_signals(Events)
 
 
 func after_each() -> void:
-	if _net != null and is_instance_valid(_net):
-		_net.set_providers(null, null)
 	_net = null
 	Match._net_provider = null
 	Match.abort_match()
@@ -212,7 +210,7 @@ func test_a_cat_longer_than_the_limit_is_refused_and_a_valid_one_is_not() -> voi
 
 
 func test_a_host_refuses_every_client_bound_event() -> void:
-	_net.set_providers(FakeNet.host({}, [0]), Match)
+	_net.bind_ports(SessionPort.new(FakeNet.host({}, [0])), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	for event: StringName in [MatchWireEvents.QOL_FEED, MatchWireEvents.PLACEMENT_REJECTED, MatchWireEvents.PLACEMENT_RELOCATED]:
 		var case: Dictionary = _valid_cases()[event]
 		_net.net_match_event(event, case["args"])
@@ -341,7 +339,7 @@ func test_values_the_client_cannot_trust_are_refused_through_the_port() -> void:
 
 func test_a_host_applies_nothing_it_receives() -> void:
 	Match._net_provider = FakeNet.host({}, [0])
-	_net.set_providers(Match._net_provider, Match)
+	_net.bind_ports(SessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	var spy: SpyReplica = SpyReplica.new()
 	var applier: Node = _spied_applier(spy)
 	assert_false(applier.apply_event(MatchWireEvents.QOL_FEED, [0, 1, false]))
