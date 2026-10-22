@@ -117,6 +117,9 @@ func _load_special_roster_ids() -> Array[StringName]:
 ## Wires the sandbox onto a world the one builder made: the local player's
 ## controller, ghost and HUD, the camera rig and the field.
 func attach(player: HotSeat, camera_rig: CameraRig, field: Field, extras: ModeExtras) -> void:
+	# The player subtree must keep responding while F11 pauses the tree, as it did
+	# under this ALWAYS node; it is freed with the world, so this lasts as long as the sandbox.
+	player.process_mode = Node.PROCESS_MODE_ALWAYS
 	_controller = player.controller()
 	_ghost = player.ghost()
 	_hud = player.hud()
