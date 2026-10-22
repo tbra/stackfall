@@ -136,9 +136,12 @@ func test_black_hole_capture_takes_the_whole_group() -> void:
 	var members: Array[Block] = carrier.members.duplicate()
 	var field: BlackHoleField = BlackHoleField.new()
 	autofree(field)
-	var before: int = _registry.hole_dissolver().dissolves_started
+	var started: Array[int] = [0]
+	var count_started: Callable = func(_b: RigidBody3D, _n: int, _d: float) -> void: started[0] += 1
+	Events.block_dissolve_started.connect(count_started)
 	assert_true(field._capture(carrier))
-	assert_eq(_registry.hole_dissolver().dissolves_started - before, members.size(), "every member dissolves")
+	Events.block_dissolve_started.disconnect(count_started)
+	assert_eq(started[0], members.size(), "every member dissolves")
 	# Let the dissolves finish so teardown does not free blocks with a pending dissolve.
 	var wait_frames: int = int(ceil(_registry.hole_dissolver().tuning.dissolve_delay_s / DELTA)) + SETTLE_FRAMES
 	await wait_physics_frames(wait_frames)

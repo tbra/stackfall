@@ -29,16 +29,22 @@ var _net: MatchNetScript
 ## instance id -> removal reason, for every Events.block_removed this test saw
 ## (ids, because a removed block is freed right after).
 var _removed: Dictionary = {}
+## Events.block_dissolve_started emissions this test saw.
+var _dissolve_events: int = 0
 
 
 func before_each() -> void:
 	_removed = {}
+	_dissolve_events = 0
 	Events.block_removed.connect(_record_removed)
+	Events.block_dissolve_started.connect(_count_dissolve_started)
 
 
 func after_each() -> void:
 	if Events.block_removed.is_connected(_record_removed):
 		Events.block_removed.disconnect(_record_removed)
+	if Events.block_dissolve_started.is_connected(_count_dissolve_started):
+		Events.block_dissolve_started.disconnect(_count_dissolve_started)
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -49,6 +55,20 @@ func after_each() -> void:
 
 func _record_removed(block: RigidBody3D, reason: String) -> void:
 	_removed[block.get_instance_id()] = reason
+
+
+func _count_dissolve_started(_block: RigidBody3D, _net_id: int, _duration_s: float) -> void:
+	_dissolve_events += 1
+
+
+## The faces of the disc's collision mesh, read through the public CollisionObject3D shape API.
+func _disc_faces() -> PackedVector3Array:
+	for owner_id: int in _field.get_shape_owners():
+		for index: int in range(_field.shape_owner_get_shape_count(owner_id)):
+			var mesh: ConcavePolygonShape3D = _field.shape_owner_get_shape(owner_id, index) as ConcavePolygonShape3D
+			if mesh != null and not _field.is_shape_owner_disabled(owner_id):
+				return mesh.get_faces()
+	return PackedVector3Array()
 
 
 func _was_removed(id: int) -> bool:
@@ -117,7 +137,8 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	await wait_physics_frames(SETTLE_FRAMES)
 	block.sleeping = true
 	var resting_y: float = block.global_position.y
-	var builds: int = _field._rebuild_count
+	var faces: PackedVector3Array = _disc_faces()
+	assert_false(faces.is_empty(), "fixture: the disc has a collision mesh")
 	watch_signals(Events)
 
 	_open(PackedInt32Array([cell]))
@@ -134,7 +155,7 @@ func test_a_block_resting_on_a_newly_opened_hole_dissolves_then_is_removed_as_an
 	assert_true(_was_removed(id), "The dissolved block is removed.")
 	assert_eq(_removed.get(id, ""), String(Events.REASON_KILL_PLANE), "Same reason as an edge fall.")
 	assert_eq(_registry.tracked_block_count(), 0, "The registry forgets it.")
-	assert_eq(_field._rebuild_count, builds, "No disc rebuild on the hole change.")
+	assert_eq(_disc_faces(), faces, "The disc's collision mesh is unchanged by the hole.")
 
 
 func test_footprint_cache_rebuilds_when_collision_swaps_with_same_child_count() -> void:
@@ -192,7 +213,7 @@ func test_a_block_bridging_a_hole_above_the_disc_is_unaffected() -> void:
 	_open(PackedInt32Array([_middle_cell()]))
 	await wait_physics_frames(DISSOLVE_FRAMES)
 
-	assert_eq(_dissolver().dissolves_started, 0, "Nothing touches the hole at disc level.")
+	assert_eq(_dissolve_events, 0, "Nothing touches the hole at disc level.")
 	assert_true(is_instance_valid(bar) and not bar.is_queued_for_deletion(), "The bar over the hole stays.")
 	assert_true(is_instance_valid(left) and is_instance_valid(right), "Its supports on solid cells stay.")
 	assert_almost_eq(bar.global_position.y, bar_y, 0.05)
@@ -209,10 +230,9 @@ func test_a_hole_never_dissolves_a_gift_block_but_still_dissolves_a_plain_one() 
 	await wait_physics_frames(SETTLE_FRAMES)
 
 	_open(PackedInt32Array([_middle_cell(-3), _middle_cell(3)]))
-	assert_false(_dissolver().touches_hole(gift), "a gift block is never a hole-dissolve candidate")
 	await wait_physics_frames(DISSOLVE_FRAMES)
 
-	assert_true(_dissolver().dissolves_started >= 1 and _was_removed(plain_id), "control: plain block dissolves")
+	assert_true(_dissolve_events >= 1 and _was_removed(plain_id), "control: plain block dissolves")
 	assert_true(is_instance_valid(gift) and not _dissolver().is_dissolving(gift))
 	assert_false(_was_removed(gift.get_instance_id()), "the gift block was not removed by hole logic")
 
@@ -223,7 +243,7 @@ func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
 	await wait_physics_frames(SETTLE_FRAMES)
 	far.sleeping = true
 	await wait_physics_frames(1)
-	var builds: int = _field._rebuild_count
+	var faces: PackedVector3Array = _disc_faces()
 
 	var cells: PackedInt32Array = PackedInt32Array([_middle_cell(2), _middle_cell(2, 1), _middle_cell(3)])
 	_open(cells)
@@ -232,9 +252,9 @@ func test_a_hole_change_never_rebuilds_the_disc_or_wakes_a_far_block() -> void:
 	_field.set_hole_cells(PackedInt32Array(), cells)
 	await wait_physics_frames(2)
 
-	assert_eq(_field._rebuild_count, builds, "Neither opening nor closing rebuilds (no set_faces).")
+	assert_eq(_disc_faces(), faces, "Neither opening nor closing changes the disc's collision mesh.")
 	assert_true(far.sleeping)
-	assert_eq(_dissolver().dissolves_started, 0)
+	assert_eq(_dissolve_events, 0)
 
 
 func test_a_client_registry_never_dissolves() -> void:
@@ -247,7 +267,7 @@ func test_a_client_registry_never_dissolves() -> void:
 	_open(PackedInt32Array([cell]))
 	await wait_physics_frames(DISSOLVE_FRAMES)
 
-	assert_eq(_dissolver().dissolves_started, 0, "Only the host decides a block dissolves.")
+	assert_eq(_dissolve_events, 0, "Only the host decides a block dissolves.")
 	assert_false(_was_removed(block.get_instance_id()))
 
 
@@ -257,11 +277,17 @@ func test_a_block_leaving_the_disc_does_not_touch_the_hole_under_it() -> void:
 	var block: Block = _spawn(_cube, cell, 0.02)
 	await wait_physics_frames(SETTLE_FRAMES)
 	block.sleeping = true
-	_field._set_hole_applied(cell, true)
+	var up: Vector3 = _field.global_transform.basis.y
+	var tick_s: float = 1.0 / Engine.physics_ticks_per_second
+	block.linear_velocity = up * (_dissolve_tuning.contact_leave_speed + 2.0)
+	_open(PackedInt32Array([cell]))
+	_field._physics_process(0.0)
+	_dissolver().physics_tick(tick_s, [block] as Array[Block])
+	assert_false(_dissolver().is_dissolving(block), "Kicked off the disc (a Jumping Bean hop) is not contact.")
 
-	assert_true(_dissolver().touches_hole(block), "fixture: resting on the hole touches it")
-	block.linear_velocity = _field.global_transform.basis.y * (_dissolve_tuning.contact_leave_speed + 2.0)
-	assert_false(_dissolver().touches_hole(block), "Kicked off the disc (a Jumping Bean hop) is not contact.")
+	block.linear_velocity = Vector3.ZERO
+	_dissolver().physics_tick(tick_s, [block] as Array[Block])
+	assert_true(_dissolver().is_dissolving(block), "control: resting on the hole is contact")
 
 
 # --- Real Match --------------------------------------------------------------
@@ -363,7 +389,7 @@ func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() 
 	assert_signal_emitted_with_parameters(
 		Events, "block_dissolve_started", [block, 91, _dissolve_tuning.dissolve_delay_s]
 	)
-	assert_eq(_registry.hole_dissolver().dissolves_started, 0, "A client only mirrors; it never dissolves.")
+	assert_false(_registry.hole_dissolver().is_dissolving(block), "A client only mirrors; it never dissolves.")
 
 	net.net_block_despawned(91, String(Events.REASON_KILL_PLANE))
 	assert_true(_was_removed(block.get_instance_id()), "The replicated despawn removes the client's copy.")
