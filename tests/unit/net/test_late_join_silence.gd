@@ -21,7 +21,6 @@ const SHORT_TIMEOUT_S: float = 0.3
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
-var _nets: Array[MatchNetScript] = []
 var _sfx: Node
 var _audio: AudioConfig
 var _sound_dir: String
@@ -31,15 +30,10 @@ var _settings_cfg_path: String
 func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
-	_nets.clear()
 	_sfx = null
 
 
 func after_each() -> void:
-	for net: MatchNetScript in _nets:
-		if net != null and is_instance_valid(net):
-			net.set_providers(null, null)
-	_nets.clear()
 	Match._net_provider = null
 	Match.set_replicator(null)
 	Match.abort_match()
@@ -76,8 +70,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.set_providers(session, Match)
-	_nets.append(node)
+	node.bind_ports(SessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	return node
 
 
