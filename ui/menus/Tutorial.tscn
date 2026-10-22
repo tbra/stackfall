@@ -1,27 +1,12 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/menus/Tutorial.gd" id="1_tutorial"]
-[ext_resource type="PackedScene" path="res://game/player/GhostPreview.tscn" id="2_ghost"]
-[ext_resource type="Script" path="res://game/player/PlayerController.gd" id="3_controller"]
-[ext_resource type="PackedScene" path="res://ui/hud/HUD.tscn" id="4_hud"]
-[ext_resource type="PackedScene" path="res://game/player/ThrowArcPreview.tscn" id="5_arc"]
 [ext_resource type="Resource" path="res://config/match/tutorial_config.tres" id="6_config"]
 [ext_resource type="Script" path="res://ui/hud/InputPromptFlow.gd" id="7_hints"]
 
 [node name="Tutorial" type="Node"]
 script = ExtResource("1_tutorial")
 tutorial_config = ExtResource("6_config")
-
-[node name="GhostPreview" parent="." instance=ExtResource("2_ghost")]
-
-[node name="ThrowArcPreview" parent="." instance=ExtResource("5_arc")]
-
-[node name="PlayerController" type="Node" parent="."]
-script = ExtResource("3_controller")
-ghost_path = NodePath("../GhostPreview")
-arc_preview_path = NodePath("../ThrowArcPreview")
-
-[node name="HUDLayer" parent="." instance=ExtResource("4_hud")]
 
 [node name="PromptLayer" type="CanvasLayer" parent="."]
 
