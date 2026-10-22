@@ -1,12 +1,12 @@
 class_name WeatherNet
-extends Node
+extends PortBoundNode
 ## The weather replication surface, a child of the MatchNet
 ## autoload so its RPC path (/root/MatchNet/WeatherNet) is identical on every
 ## instance.
 ##
 ## DECISION (net/WeatherNet.gd): a child node with its own one RPC rather than
 ## another net_match_event case, so MatchNet.gd, which other packages edit
-## heavily, gains only a few lines (build this node, forward set_providers).
+## heavily, gains only a few lines (build this node).
 ## Uses only MultiplayerAPI; nothing here assumes a transport.
 ##
 ## Host -> clients only. The host sends the full MatchWeather.state_dict()
@@ -30,9 +30,6 @@ var awaiting_world: Callable = Callable()
 ## exactly this subset, so a narrow test double stays valid.
 const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
 const AUTHORITY_METHODS: PackedStringArray = ["weather", "state"]
-
-var _session_port: SessionPort = null
-var _authority_port: MatchHostPort = null
 
 
 func _ready() -> void:
@@ -65,43 +62,12 @@ func _is_awaiting_world() -> bool:
 	return awaiting_world.is_valid() and bool(awaiting_world.call())
 
 
-## Typed seam: the session and the Match this node reads. Returns false (and
-## binds nothing) when a port is invalid. Pass ports built with SESSION_METHODS /
-## AUTHORITY_METHODS (see default_session() / default_authority()).
-func bind(session: SessionPort, authority: MatchHostPort) -> bool:
-	if session == null or authority == null or not session.is_valid() or not authority.is_valid():
-		return false
-	_session_port = session
-	_authority_port = authority
-	return true
+func _session_methods() -> PackedStringArray:
+	return SESSION_METHODS
 
 
-## The port over the real Net autoload.
-static func default_session(session_node: Object = null) -> SessionPort:
-	return SessionPort.new(session_node if session_node != null else Net, SESSION_METHODS)
-
-
-## The port over the real Match autoload.
-static func default_authority(match_node: Object = null) -> MatchHostPort:
-	return MatchHostPort.new(match_node if match_node != null else Match, AUTHORITY_METHODS)
-
-
-## TRANSITIONAL shim for MatchNet.set_providers() until its caller binds ports;
-## null keeps the real autoload.
-func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	bind(default_session(net_provider as Object), default_authority(match_provider as Object))
-
-
-func _session() -> SessionPort:
-	if _session_port == null:
-		_session_port = default_session()
-	return _session_port
-
-
-func _authority() -> MatchHostPort:
-	if _authority_port == null:
-		_authority_port = default_authority()
-	return _authority_port
+func _authority_methods() -> PackedStringArray:
+	return AUTHORITY_METHODS
 
 
 # --- Host -> clients ----------------------------------------------------------------

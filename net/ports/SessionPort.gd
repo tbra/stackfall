@@ -130,11 +130,6 @@ func report_stats(source: StringName, values: Dictionary) -> void:
 	_call(&"report_stats", [source, values], null)
 
 
-## The host's peer id (Net.HOST_PEER_ID), so consumers stop naming Net.*.
-func host_peer_id() -> int:
-	return NetRoster.HOST_PEER_ID
-
-
 ## Net.LeaveReason.TIMEOUT, the reason MatchNet quotes when it drops a joiner
 ## whose world replay never acked.
 func timeout_leave_reason() -> int:

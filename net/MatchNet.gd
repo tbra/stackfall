@@ -209,9 +209,7 @@ var _special_ids_cached: bool = false
 ## story), so the two collaborators this node cannot work without are reached
 ## through the three ports (bind_ports). Unbound, the ports are built over the autoloads on first
 ## use, which is what every shipped build uses; tests bind ports over doubles.
-## The weather child still takes nodes, so the nodes given to set_providers() are kept for it.
-var _net_provider: Variant = null
-var _match_provider: Variant = null
+
 ## True while the session port is the real Net autoload (the snapshot stream only exists there).
 var _session_is_autoload: bool = true
 
@@ -333,7 +331,7 @@ func late_activate() -> void:
 	_weather_net = LateScripts.script(LateScripts.WEATHER_NET).new() as Node
 	_weather_net.name = "WeatherNet"
 	add_child(_weather_net)
-	_weather_net.set_providers(_net_provider, _match_provider)
+	_bind_weather_ports()
 	# weather/snow/breeze broadcasts before net_match_start
 	# are dropped on the same gate as match events.
 	_weather_net.awaiting_world = _client_awaiting_world
@@ -381,7 +379,7 @@ func _ensure_ports() -> void:
 ## Binds the three ports every path of this node and its collaborators share, drops the collaborators
 ## built on the old ones (the gateway, the world replay, the territory replicator) so they rebuild on
 ## these, and rebinds the ones that hold ports. Installing this node as the host's replicator stays
-## with the caller (_ready, set_providers).
+## with the caller (_ready).
 ## Returns false (and binds nothing) when any port is missing or invalid.
 func bind_ports(session: SessionPort, host: MatchHostPort, replica: MatchReplicaPort) -> bool:
 	if session == null or host == null or replica == null or not (session.is_valid() and host.is_valid() and replica.is_valid()):
@@ -401,7 +399,16 @@ func bind_ports(session: SessionPort, host: MatchHostPort, replica: MatchReplica
 		_mirror.bind_ports(session, host)
 	if _applier != null:
 		_applier.call(&"bind_replica", replica)
+	_bind_weather_ports()
 	return true
+
+
+## Hands the bound ports to the weather child (its snow and breeze children read the autoloads).
+## Nothing to do while the ports are the autoloads: the child builds those itself.
+func _bind_weather_ports() -> void:
+	var weather: PortBoundNode = _weather_net as PortBoundNode
+	if weather != null and not _session_is_autoload:
+		weather.bind(_session_port(), _host_port())
 
 
 ## The host Events subscribers, sending through the same seams shape the intent gateway uses. The
@@ -424,25 +431,6 @@ func _set_block_coated(block: BlockBody, coated: bool) -> void:
 func _exit_tree() -> void:
 	_end_world_replay()
 	_host_port().release_replicator(self)
-
-
-## Test seam: builds the three ports over `net_provider` / `match_provider` (null = the autoload) and
-## binds them; the weather child still takes the nodes themselves.
-func set_providers(net_provider: Variant, match_provider: Variant) -> void:
-	_net_provider = net_provider
-	_match_provider = match_provider
-	var session_node: Object = net_provider if net_provider != null else Net
-	var match_node: Object = match_provider if match_provider != null else Match
-	var bound: bool = bind_ports(
-		SessionPort.new(session_node, _SESSION_PORT_METHODS),
-		MatchHostPort.new(match_node, _HOST_PORT_METHODS),
-		MatchReplicaPort.new(match_node, _REPLICA_PORT_METHODS))
-	_session_is_autoload = bound and net_provider == null
-	if bound and match_provider != null:
-		var host: MatchHostPort = _host_port()
-		host.set_replicator(self)
-	if _weather_net != null:
-		_weather_net.set_providers(net_provider, match_provider)
 
 
 ## The intent gateway, bound to the current session and Match providers. The seams are the only
