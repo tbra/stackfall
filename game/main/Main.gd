@@ -37,11 +37,9 @@ extends Node3D
 ## itself. client_tick() writes global_transform and must run from
 ## _physics_process, never _process (frozen bodies are driven from the physics step).
 
-## Default lobby settings for the hot-seat build. start_match() duplicates and
+## Default lobby settings. start_match() duplicates and
 ## sanitizes it, so the resource on disk is never mutated.
 @export var match_config: MatchConfig = preload("res://config/match/match_defaults.tres")
-## Players in the `--hot-seat` match: two take turns on one PC.
-@export var player_count: int = 2
 ## Tunables for the unlisted `--sandbox` debug entry point (config/match/SandboxConfig.gd).
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
@@ -620,7 +618,7 @@ func _sandbox_flow_port() -> MainSandboxFlowPort:
 	return _sandbox_flow
 
 
-## every mode that builds a world (match, hot-seat, sandbox, tutorial)
+## every mode that builds a world (match, sandbox, tutorial)
 ## gets the same sky: the config's theme / cycle.
 func _apply_match_sky(config: MatchConfig) -> void:
 	_skybox.configure_match_sky(config)
@@ -961,7 +959,7 @@ func _attach_mode_extras(local_player: Node) -> void:
 ## HOST: enabled -- every hosted session has a lobby to go back to, a local
 ## "Vs bots" game included (Net.host_game() without advertising). CLIENT: shown
 ## disabled (DECISION: only the host can end a match for everyone; a client's
-## own exit stays Leave match). OFFLINE (sandbox, --hot-seat): hidden --
+## own exit stays Leave match). OFFLINE (sandbox): hidden --
 ## DECISION: no lobby exists there, and Leave match already goes to the main
 ## menu, so a second button doing the same would only confuse. "In progress"
 ## is a match the host is about to throw away (loading, countdown, play, sudden
@@ -1114,10 +1112,10 @@ func _build_debug_tools() -> void:
 
 # --- Helpers -----------------------------------------------------------------
 
-## Same "-" stripping Net._apply_command_line_args() uses, so "--hot-seat" and
-## "-hot-seat" are both recognised the same way the rest of the command line
-## is. Net itself never sees this flag (autoload/Net.gd's docstring lists
-## exactly the flags it parses, and hot-seat is not networking's concern).
+## Same "-" stripping Net._apply_command_line_args() uses, so "--sandbox" and
+## "-sandbox" are both recognised the same way the rest of the command line
+## is. Net itself never sees these flags (autoload/Net.gd's docstring lists
+## exactly the flags it parses).
 func _has_cmdline_flag(flag: String) -> bool:
 	for raw: String in OS.get_cmdline_user_args():
 		var text: String = raw

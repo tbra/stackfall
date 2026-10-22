@@ -6,11 +6,6 @@ extends GutTest
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
-## The mode entries only route through the one world path once the launch step
-## exists; until then the cases that need it stay pending. Flip when it lands.
-const MODE_LAUNCH_PATH_LANDED: bool = true
-const PENDING_REASON: String = "needs the mode launch path"
-
 ## Main has no class_name (a scene root), so it is held as a Variant.
 var _main: Variant = null
 var _tiny_map: MapDef
@@ -94,12 +89,6 @@ func _rig_pose() -> Transform3D:
 	return (_main.get_node("CameraRig") as CameraRig).global_transform
 
 
-func _skip_until_launch_path() -> bool:
-	if not MODE_LAUNCH_PATH_LANDED:
-		pending(PENDING_REASON)
-	return not MODE_LAUNCH_PATH_LANDED
-
-
 # --- Cases that run on today's lobby path ------------------------------------
 
 func test_lobby_match_builds_one_local_player_and_no_extras() -> void:
@@ -161,8 +150,6 @@ func test_restart_resets_the_camera_rig_pose_like_any_rebuild() -> void:
 # --- Cases that need the mode launch path -------------------------------------
 
 func test_sandbox_attaches_its_extras_once_for_the_built_world() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_sandbox_from_menu()
 	await _settle()
 
@@ -173,8 +160,6 @@ func test_sandbox_attaches_its_extras_once_for_the_built_world() -> void:
 
 
 func test_tutorial_attaches_its_extras_once_for_the_built_world() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_tutorial_from_menu()
 	await _settle()
 
@@ -185,8 +170,6 @@ func test_tutorial_attaches_its_extras_once_for_the_built_world() -> void:
 
 
 func test_restart_attaches_extras_again_and_frees_the_old_ones() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_sandbox_from_menu()
 	await _settle()
 	var first_extras: Node = _main._sandbox
@@ -203,8 +186,6 @@ func test_restart_attaches_extras_again_and_frees_the_old_ones() -> void:
 
 
 func test_restart_keeps_the_mode_so_the_extras_return() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_tutorial_from_menu()
 	await _settle()
 
@@ -215,8 +196,6 @@ func test_restart_keeps_the_mode_so_the_extras_return() -> void:
 
 
 func test_returning_to_lobby_frees_extras_and_local_player_and_forgets_the_mode() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_sandbox_from_menu()
 	await _settle()
 
@@ -234,24 +213,18 @@ func test_returning_to_lobby_frees_extras_and_local_player_and_forgets_the_mode(
 
 
 func test_sandbox_skips_the_loading_screen() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_sandbox_from_menu()
 
 	assert_false((_main._loading_screen as LoadingScreen).visible, "sandbox starts at once, no loading screen")
 
 
 func test_tutorial_shows_the_loading_screen() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_tutorial_from_menu()
 
 	assert_true((_main._loading_screen as LoadingScreen).visible, "only the sandbox skips loading")
 
 
 func test_sandbox_restart_resets_the_camera_rig_pose_like_any_rebuild() -> void:
-	if _skip_until_launch_path():
-		return
 	_main.start_sandbox_from_menu()
 	await _settle()
 	var built_pose: Transform3D = _rig_pose()

@@ -240,9 +240,9 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 @export var rng_seed: int = -1
 
 ## True only for the unlisted `godot --path . -- --sandbox` debug entry point
-## (game/main/Main.gd's _build_sandbox_config()). Never set by the
-## lobby, a wire message or Steam lobby data — Main sets it only on the
-## sandbox config it builds itself, offline.
+## (game/main/MatchLaunch.gd's sandbox_config()). Never set by the
+## lobby, a wire message or Steam lobby data — MatchLaunch sets it only on the
+## sandbox config it builds, offline.
 ##
 ## DECISION: a MatchConfig field rather than a global PLAYER_COUNT_MIN-like floor, because
 ## sanitize() needs *this config's* intent: it lets a 1-player match through so a sandbox
