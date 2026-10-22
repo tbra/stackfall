@@ -12,12 +12,19 @@ const NOT_LOCAL: int = -2
 var _sfx: Node
 var _config: AudioConfig
 var _dir: String
-var _settings_path: String
+var _saved_volumes: Array[float] = []
+var _saved_mutes: Array[bool] = []
 
 
 func before_each() -> void:
-	_settings_path = OS.get_user_data_dir().path_join("test_sfx_claim_settings_tmp.cfg")
-	Settings.set_config_path_for_test(_settings_path)
+	_saved_volumes = [Settings.master_volume_percent(), Settings.music_volume_percent(), Settings.sfx_volume_percent()]
+	_saved_mutes = [Settings.master_muted(), Settings.music_muted(), Settings.sfx_muted()]
+	Settings.set_master_volume_percent(1.0)
+	Settings.set_music_volume_percent(1.0)
+	Settings.set_sfx_volume_percent(1.0)
+	Settings.set_master_muted(false)
+	Settings.set_music_muted(false)
+	Settings.set_sfx_muted(false)
 	_config = (load("res://config/audio/audio_config.tres") as AudioConfig).duplicate() as AudioConfig
 	_config.claim_interrupt_min_interval_s = 0.0
 	_dir = OS.get_user_data_dir().path_join("test_sfx_claim_tmp")
@@ -30,9 +37,13 @@ func before_each() -> void:
 func after_each() -> void:
 	for filename: String in DirAccess.get_files_at(_dir):
 		DirAccess.remove_absolute(_dir.path_join(filename))
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	if FileAccess.file_exists(_settings_path):
-		DirAccess.remove_absolute(_settings_path)
+	Settings.set_master_volume_percent(_saved_volumes[0])
+	Settings.set_music_volume_percent(_saved_volumes[1])
+	Settings.set_sfx_volume_percent(_saved_volumes[2])
+	Settings.set_master_muted(_saved_mutes[0])
+	Settings.set_music_muted(_saved_mutes[1])
+	Settings.set_sfx_muted(_saved_mutes[2])
+	DirAccess.remove_absolute(Settings.effective_path())
 
 
 func _build_sfx() -> void:

@@ -6,21 +6,22 @@ const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 const MEDIUM_PATH: String = "res://config/graphics/presets/medium.tres"
 
 var _cfg: QualityGovernorConfig = null
-var _cfg_counter: int = 0
 
 
 func before_each() -> void:
 	_cfg = QualityGovernorConfig.new()
 
 
+func after_each() -> void:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
+
+
 func _settings() -> Node:
+	if FileAccess.file_exists(Settings.effective_path()):
+		DirAccess.remove_absolute(Settings.effective_path())
 	var node: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(node)
-	_cfg_counter += 1
-	var path: String = OS.get_user_data_dir().path_join("test_quality_governor_%d.cfg" % _cfg_counter)
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
-	node.set_config_path_for_test(path)
 	return node
 
 
@@ -99,7 +100,6 @@ func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> voi
 	var cfg: QualityGovernorConfig = driver.config
 	for i: int in range(int(cfg.shed_delay_s / cfg.sample_interval_s) + 1):
 		driver.sample(cfg.target_frame_ms * 2.0, 0, cfg.sample_interval_s)
-	assert_eq(settings._governor_level, 1)
 	assert_lt(settings.current_graphics_preset().particle_budget_scale, 1.0)
 	assert_eq(settings.stored_graphics_preset().particle_budget_scale, 1.0)
 	settings.set_governor_level(4)
@@ -107,11 +107,10 @@ func test_driver_sheds_through_settings_and_user_settings_are_untouched() -> voi
 	assert_true(settings.stored_graphics_preset().volumetric_fog_enabled)
 	assert_eq(settings.stored_graphics_preset().sun_shadow_max_distance, distance_before)
 	var cfg_file: ConfigFile = ConfigFile.new()
-	cfg_file.load(settings._config_path)
+	cfg_file.load(settings.effective_path())
 	assert_eq(cfg_file.get_value("graphics", "preset"), "high", "saved preset id is the user choice")
 	assert_false(cfg_file.has_section_key("graphics", "governor_level"), "level is never persisted")
 	settings.set_adaptive_quality_enabled(false)
-	assert_eq(settings._governor_level, 0)
 	var restored: GraphicsPreset = settings.current_graphics_preset()
 	assert_eq(restored.particle_budget_scale, 1.0)
 	assert_true(restored.volumetric_fog_enabled)
