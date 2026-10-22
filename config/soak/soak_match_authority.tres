@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="MatchConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/match/MatchConfig.gd" id="1_match"]
+
+[resource]
+script = ExtResource("1_match")
+disc_size_step = 2
+player_count = 8
+ai_count = 6
+ai_difficulty = 1
+team_mode = 0
+slot_team_ids = PackedInt32Array()
+team_numbers = PackedInt32Array()
+slot_ai_difficulties = PackedInt32Array()
+bot_names = PackedStringArray()
+block_timer = 3.0
+gravity_multiplier = 1.0
+goal_flag_count = 1
+gifts_enabled = false
+experiments_enabled = false
+special_frequency = 30
+enabled_specials = Array[StringName]([])
+tilt_mode = 0
+hole_mode = 2
+match_timer_minutes = 0
+sudden_death = false
+turn_based = false
+game_mode = 4
+round_timer_minutes = 30
+sky_team_sum = false
+weather_mode = 0
+sky_theme_mode = 0
+allow_mid_match_join = true
+countdown_seconds = 0.0
+per_player_timer = true
+hot_seat = false
+rng_seed = 20261020
+sandbox = false
