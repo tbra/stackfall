@@ -1093,8 +1093,8 @@ func _check_last_team_standing() -> void:
 	_match._territory.flush_pending()
 	var objective: ModeObjective = _match._territory.objective()
 	if objective == null:
-		# DECISION: no objective (before a match is built) still gets last team standing.
-		objective = ModeObjective.new()
+		push_error("MatchLifecycle: a live match has no objective to judge eliminations")
+		return
 	var alive_set: Dictionary = {}
 	for slot_item: PlayerSlot in _slots:
 		if slot_item.home_flag_alive:
