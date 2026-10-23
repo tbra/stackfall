@@ -73,6 +73,18 @@ var _shapes_by_id: Dictionary = {}
 var _feed_timer_enabled: bool = true
 
 
+## Back to the empty state for the next match: per-slot bags, held shapes and
+## timers, and the feed timer switched back on. Called by MatchLifecycle's reset.
+func reset() -> void:
+	_bags.clear()
+	_held_shapes.clear()
+	_feed_time_left.clear()
+	_feed_expired.clear()
+	_feed_seq.clear()
+	_release_locked.clear()
+	_feed_timer_enabled = true
+
+
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
 
