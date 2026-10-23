@@ -49,7 +49,6 @@ func _tiny_map_config() -> MatchConfig:
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = block_timer
 	config.rng_seed = 13579
 	return config

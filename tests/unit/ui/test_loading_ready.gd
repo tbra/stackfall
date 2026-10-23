@@ -60,23 +60,22 @@ func after_each() -> void:
 	MatchTestReset.clear_world()
 
 
-func _config(players: int, ai: int, hot_seat: bool = false) -> MatchConfig:
+func _config(players: int, ai: int) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_map)
 	config.player_count = players
 	config.ai_count = ai
-	config.hot_seat = hot_seat
 	config.gifts_enabled = false
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	return config
 
 
-func _start_gated(net: Variant, players: int, ai: int, hot_seat: bool = false) -> void:
+func _start_gated(net: Variant, players: int, ai: int) -> void:
 	Match._net_provider = net
 	Match._lifecycle.set_loading_gate_forced(true)
-	Match.start_match(_config(players, ai, hot_seat))
+	Match.start_match(_config(players, ai))
 
 
 func _step(seconds: float) -> void:
@@ -228,10 +227,10 @@ func _match_slots() -> Array[PlayerSlot]:
 
 
 ## A gated match plus a shown overlay (loading not finished until fade_out()).
-func _open_screen(net: Variant, players: int, ai: int, hot_seat: bool = false) -> LoadingScreen:
-	_start_gated(net, players, ai, hot_seat)
+func _open_screen(net: Variant, players: int, ai: int) -> LoadingScreen:
+	_start_gated(net, players, ai)
 	var screen: LoadingScreen = _screen()
-	screen.show_for_match(_config(players, ai, hot_seat), _match_slots())
+	screen.show_for_match(_config(players, ai), _match_slots())
 	return screen
 
 

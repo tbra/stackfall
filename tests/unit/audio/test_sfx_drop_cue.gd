@@ -26,7 +26,6 @@ func before_each() -> void:
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 4
 	config.ai_count = 2
-	config.hot_seat = false
 	Match.start_match(config)
 
 

@@ -190,7 +190,7 @@ func test_special_triggered_is_silent_during_a_world_replay() -> void:
 func test_gift_claimed_for_the_local_slot_plays_the_claim_sound() -> void:
 	_sfx.set_root_dir_for_test(_tmp_dir)
 	# Net defaults to OFFLINE, where is_local_slot() is true for every slot
-	# (hot-seat/offline: one human drives all of them) -- no setup needed.
+	# (offline: one human drives all of them) -- no setup needed.
 	assert_true(Net.is_offline(), "fixture: Net starts OFFLINE")
 
 	_sfx._on_gift_claimed(1, 0, &"anvil")
