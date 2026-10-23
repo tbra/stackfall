@@ -81,7 +81,7 @@ func test_sudden_death_tiebreak_picks_the_team_with_strictly_more_territory_shar
 	Match._lifecycle._begin_sudden_death()
 	watch_signals(Events)
 
-	Match._raster._team_counts = {0: 1, 1: 5}
+	Match.raster()._team_counts = {0: 1, 1: 5}
 
 	Match._lifecycle._resolve_sudden_death_tiebreak()
 
@@ -124,7 +124,7 @@ func test_goal_capture_during_sudden_death_finishes_the_match_immediately() -> v
 
 	# Force WinChecker's latched winner directly (same direct-private-field
 	# convention this file's own header doc describes, and
-	# test_match_territory_punch.gd's Match._raster._team_counts already
+	# test_match_territory_punch.gd's Match.raster()._team_counts already
 	# uses) rather than staging real blocks to hold every goal for
 	# capture_hold seconds -- _run_territory_step() below is what reads it.
 	Match._territory._win_checker._winner = 1

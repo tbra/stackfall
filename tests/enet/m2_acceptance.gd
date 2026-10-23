@@ -933,7 +933,7 @@ func _await_unlocked(slot_id: int) -> bool:
 ## too: the preview validates the *held* shape's footprint, so previewing a
 ## bar and then releasing a cube would ask about two different shapes.
 func _hold_cube(slot_id: int) -> void:
-	Match._held_shapes[slot_id] = _cube
+	Match._feed._held_shapes[slot_id] = _cube
 
 
 ## The deliberate (auto_drop = false) placement intent Match would get from a
