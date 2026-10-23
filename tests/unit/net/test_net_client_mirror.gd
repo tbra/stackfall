@@ -15,6 +15,20 @@ var _mirror: ClientBlockMirror
 var _removed: Array[String] = []
 
 
+## FakeHostPort answering the three reads the mirror makes from the FakeMatch's world.
+class MirrorHost extends FakeHostPort:
+	var world: FakeMatch = null
+
+	func slot(slot_id: int) -> PlayerSlot:
+		return world.slot(slot_id)
+
+	func registry() -> Node:
+		return world.registry()
+
+	func blocks_parent() -> Node3D:
+		return world.blocks_parent()
+
+
 func before_each() -> void:
 	_registry = autofree(BlockRegistry.new())
 	_registry.set_host_authority(false)
@@ -29,8 +43,9 @@ func before_each() -> void:
 		slot.slot_id = slot_id
 		slot.color = Color.RED if slot_id == 0 else Color.BLUE
 		_fake.slots_by_id[slot_id] = slot
-	var session: SessionPort = SessionPort.new(FakeNet.client(LOCAL_SLOT), PackedStringArray(["is_local_slot"]))
-	var host: MatchHostPort = MatchHostPort.new(_fake, PackedStringArray(["slot", "registry", "blocks_parent"]))
+	var session: SessionPort = FakeSessionPort.new(FakeNet.client(LOCAL_SLOT))
+	var host: MirrorHost = MirrorHost.new()
+	host.world = _fake
 	var gift_ok: Callable = func(_gift_id: String) -> bool: return false
 	_mirror = ClientBlockMirror.new(session, host, gift_ok, preload("res://config/physics/physics_tuning.tres"))
 	_removed.clear()

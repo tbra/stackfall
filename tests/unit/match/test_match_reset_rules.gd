@@ -80,23 +80,31 @@ class ClientSide extends RefCounted:
 	var radius_max: float = 0.0
 	var received: Dictionary = {}
 
+
+class ClientHost extends FakeHostPort:
+	var side: ClientSide = null
+
 	func raster() -> TerritoryRaster:
-		return mirror
+		return side.mirror
 
 	func circle_wire_xz_bound() -> float:
-		return xz_bound
+		return side.xz_bound
 
 	func circle_wire_radius_max() -> float:
-		return radius_max
+		return side.radius_max
+
+
+class ClientReplica extends FakeReplicaPort:
+	var side: ClientSide = null
 
 	func apply_replicated_territory(
 		_cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, _full: bool,
-		xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array,
-		teams: PackedInt32Array, goal_positions: PackedVector2Array, _goal_radii: PackedFloat32Array,
-		argmax_mode: bool
+		xs: PackedFloat32Array = PackedFloat32Array(), zs: PackedFloat32Array = PackedFloat32Array(), radii: PackedFloat32Array = PackedFloat32Array(),
+		teams: PackedInt32Array = PackedInt32Array(), goal_positions: PackedVector2Array = PackedVector2Array(), _goal_radii: PackedFloat32Array = PackedFloat32Array(),
+		argmax_mode: bool = false
 	) -> void:
-		mirror.apply_replicated_state(owners, states)
-		received = {
+		side.mirror.apply_replicated_state(owners, states)
+		side.received = {
 			"xs": xs, "zs": zs, "radii": radii, "teams": teams,
 			"goal_positions": goal_positions, "argmax_mode": argmax_mode,
 		}
@@ -114,11 +122,11 @@ func _decoded_circle_payload() -> Dictionary:
 	side.mirror = TerritoryRaster.new(raster.grid(), raster.tuning())
 	side.xz_bound = Match.circle_wire_xz_bound()
 	side.radius_max = Match.circle_wire_radius_max()
-	var client: TerritoryReplicator = TerritoryReplicator.new(
-		MatchHostPort.new(side, PackedStringArray(["raster", "circle_wire_xz_bound", "circle_wire_radius_max"])),
-		MatchReplicaPort.new(side, PackedStringArray(["apply_replicated_territory"])),
-		net_config
-	)
+	var client_host: ClientHost = ClientHost.new()
+	client_host.side = side
+	var client_replica: ClientReplica = ClientReplica.new()
+	client_replica.side = side
+	var client: TerritoryReplicator = TerritoryReplicator.new(client_host, client_replica, net_config)
 	if not client.apply(host.encode_full()):
 		return {}
 	return side.received

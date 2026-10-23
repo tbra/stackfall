@@ -9,8 +9,8 @@ const XZ_BOUND: float = 67.5
 const RADIUS_MAX: float = 27.0
 const TEAMS: int = 3
 
-## One end of the wire: the match-side double behind MatchHostPort (raster, circles, shares,
-## config) and MatchReplicaPort (apply_replicated_territory writes the mirror raster).
+## One end of the wire: the match-side state behind the host spy (raster, circles, shares,
+## config) and the replica spy (apply_replicated_territory writes the mirror raster).
 class WireSide extends RefCounted:
 	var config: MatchConfig = null
 	var raster_value: TerritoryRaster = null
@@ -19,42 +19,47 @@ class WireSide extends RefCounted:
 	var xz_bound: float = 0.0
 	var radius_max: float = 0.0
 
+
+class WireHost extends FakeHostPort:
+	var side: WireSide = null
+
 	func raster() -> TerritoryRaster:
-		return raster_value
+		return side.raster_value
 
 	func circle_render_arrays() -> Dictionary:
-		return circles
+		return side.circles
 
 	func circle_wire_xz_bound() -> float:
-		return xz_bound
+		return side.xz_bound
 
 	func circle_wire_radius_max() -> float:
-		return radius_max
+		return side.radius_max
 
 	func territory_share(_team_id: int) -> float:
 		return 0.25
 
+	func config() -> MatchConfig:
+		return side.config
+
+
+class WireReplica extends FakeReplicaPort:
+	var side: WireSide = null
+
 	func apply_replicated_territory(
 		cells: PackedInt32Array, owners: PackedByteArray, states: PackedByteArray, full: bool,
-		xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array,
-		teams: PackedInt32Array, goal_positions: PackedVector2Array, goal_radii: PackedFloat32Array,
-		argmax_mode: bool
+		xs: PackedFloat32Array = PackedFloat32Array(), zs: PackedFloat32Array = PackedFloat32Array(), radii: PackedFloat32Array = PackedFloat32Array(),
+		teams: PackedInt32Array = PackedInt32Array(), goal_positions: PackedVector2Array = PackedVector2Array(), goal_radii: PackedFloat32Array = PackedFloat32Array(),
+		argmax_mode: bool = false
 	) -> void:
 		if full:
-			raster_value.apply_replicated_state(owners, states)
+			side.raster_value.apply_replicated_state(owners, states)
 		else:
-			raster_value.apply_replicated_diff(cells, owners, states)
-		received_circles = {
+			side.raster_value.apply_replicated_diff(cells, owners, states)
+		side.received_circles = {
 			"xs": xs, "zs": zs, "radii": radii, "teams": teams,
 			"goal_positions": goal_positions, "goal_radii": goal_radii, "argmax_mode": argmax_mode,
 		}
 
-
-const HOST_METHODS: PackedStringArray = [
-	"raster", "circle_render_arrays", "circle_wire_xz_bound", "circle_wire_radius_max",
-	"territory_share", "config",
-]
-const REPLICA_METHODS: PackedStringArray = ["apply_replicated_territory"]
 
 var _tuning: TerritoryTuning = TerritoryTuning.new()
 var _config: NetConfig = NetConfig.new()
@@ -93,9 +98,11 @@ func _wire_side_over(raster: TerritoryRaster) -> WireSide:
 ## One replicator over `raster`; `_side` is its match-side double (the last one built).
 func _replicator(raster: TerritoryRaster) -> TerritoryReplicator:
 	_side = _wire_side_over(raster)
-	return TerritoryReplicator.new(
-		MatchHostPort.new(_side, HOST_METHODS), MatchReplicaPort.new(_side, REPLICA_METHODS), _config
-	)
+	var host: WireHost = WireHost.new()
+	host.side = _side
+	var replica: WireReplica = WireReplica.new()
+	replica.side = _side
+	return TerritoryReplicator.new(host, replica, _config)
 
 
 func _seed(raster: TerritoryRaster, cells: Dictionary) -> void:
