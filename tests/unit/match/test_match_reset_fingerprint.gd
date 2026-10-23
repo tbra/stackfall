@@ -132,7 +132,6 @@ func _config(map: MapDef, weather_mode: int, sky_mode: int, ai_count: int) -> Ma
 	(config as TinyMapMatchConfig).set_tiny_map(map)
 	config.player_count = 2
 	config.ai_count = ai_count
-	config.hot_seat = false
 	config.rng_seed = SEED
 	config.weather_mode = weather_mode as MatchConfig.WeatherMode
 	config.sky_theme_mode = sky_mode as MatchConfig.SkyThemeMode

@@ -100,7 +100,6 @@ func _start_world(config: MatchConfig) -> void:
 	start.team_numbers = config.team_numbers
 	start.slot_ai_difficulties = config.slot_ai_difficulties
 	start.ai_difficulty = config.ai_difficulty
-	start.hot_seat = false
 	start.sandbox = false
 	start.countdown_seconds = 0.0
 	Match.register_world(_main._field, _main._registry, _main._blocks_container)
