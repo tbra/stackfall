@@ -186,7 +186,6 @@ func _flow_config(main: Node) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map((main.get_node("Field") as Field).map_def)
 	config.player_count = 2
-	config.hot_seat = false
 	config.rng_seed = 777
 	return config
 

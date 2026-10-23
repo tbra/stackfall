@@ -42,7 +42,7 @@ func test_sandbox_flow_loads_on_first_use_through_the_queue() -> void:
 func test_main_boots_to_menu_without_lobby_or_match_nodes() -> void:
 	assert_not_null(_main._main_menu)
 	assert_null(_main._lobby)
-	assert_null(_main._hot_seat)
+	assert_null(_main._local_player)
 	assert_null(_main._sandbox)
 	assert_null(_main._tutorial)
 	assert_null(_main._remote_cursors)

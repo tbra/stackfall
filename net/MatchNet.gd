@@ -165,31 +165,14 @@ var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tun
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
 var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
-## Every instrumentation counter (intent identities, replay tallies, the test-only
-## "what would have gone on the wire" records); net/NetCounters.gd. The old public/private
-## names below are TRANSITIONAL read forwarders for tests outside this file.
+## Every instrumentation counter (the per-slot intent identities and the match-start
+## records); net/NetCounters.gd.
 var counters: NetCounters = NetCounters.new()
-## TRANSITIONAL: net_ids _on_block_dissolve_started() decided to replicate (NetCounters).
-var replicated_dissolve_starts: Array[int]:
-	get:
-		return counters.replicated_dissolve_starts
 ## Host: net ids of blocks currently fused into a FusedBody.
 var _fused_ids: Dictionary = {}
 ## net ids of charged glue drops coated at spawn (cleared when their
 ## last bond ends, as that is when the coat is removed).
 var _glue_charged_ids: Dictionary = {}
-## TRANSITIONAL read forwarders (NetCounters): how many times each event name reached
-## replicate_match_event() on the host, and the refusal / relocation replies addressed to a peer.
-var replicated_event_counts: Dictionary:
-	get:
-		return counters.replicated_event_counts
-var reject_replies_by_peer: Dictionary:
-	get:
-		return counters.reject_replies_by_peer
-var last_reject_reply: Array:
-	get:
-		return counters.last_reject_reply
-
 ## Replicated block impacts (net/match/ImpactReplicator.gd), built on first use and dropped on a
 ## reset or a provider change.
 var _impacts: ImpactReplicator = null
@@ -219,17 +202,6 @@ var _session_is_autoload: bool = true
 ## game/player/RemoteCursors.gd draws.
 var _cursors: Dictionary = {}
 
-## TRANSITIONAL read forwarders (NetCounters): the per-slot identities the ENet harnesses and
-## MatchFingerprint read by private name. The public intents_*() accessors below stay.
-var _intents_sent: Dictionary:
-	get:
-		return counters.sent
-var _intents_accepted: Dictionary:
-	get:
-		return counters.accepted
-var _intents_refused: Dictionary:
-	get:
-		return counters.refused
 ## The intent door (net/match/MatchIntentGateway.gd): local submit_*, host handle_* with the
 ## per-peer flood gate. Built on first use so bind_ports() can rebind it.
 var _intent_gateway: MatchIntentGateway = null
@@ -581,7 +553,7 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 ## sender check** (exactly submit_place()'s host branch calling
 ## apply_place() directly, never through handle_place()'s
 ## sender-owns-slot gate) -- a call arriving offline (hot-seat, sandbox) would
-## otherwise be refused, since Net's `_peers` map (slot_of_peer()'s backing
+## otherwise be refused, since the roster's peer map (slot_of_peer()'s backing
 ## store) is only ever populated by host_game()/join_game(), never in pure
 ## offline play. A **remote** request goes through the reliable RPC below,
 ## which _is_ validated (spec 2.6 "the host checks every intent before acting
@@ -610,15 +582,9 @@ func request_return_to_lobby() -> void:
 	_gateway.request_return_to_lobby()
 
 
-## TRANSITIONAL: host side of net_request_replay (MatchIntentGateway), kept under
-## its old private name for tests outside this file.
-func _handle_replay_request(sender_peer_id: int) -> void:
-	_gateway.handle_replay_request(sender_peer_id)
-
-
 @rpc("any_peer", "call_remote", "reliable")
 func net_request_replay() -> void:
-	_handle_replay_request(multiplayer.get_remote_sender_id())
+	_gateway.handle_replay_request(multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -707,7 +673,6 @@ func replicate_territory() -> void:
 func replicate_match_event(event: StringName, args: Array) -> void:
 	if not _session_port().is_host():
 		return
-	counters.count_event(event)
 	if not NetFanout.can_send(multiplayer, _session_port()):
 		return
 	_broadcast(&"net_match_event", [event, args])
@@ -788,63 +753,12 @@ func reset_counters() -> void:
 
 # --- Host-side intent handling ----------------------------------------------
 
-## TRANSITIONAL: the one place an intent becomes a placement (MatchIntentGateway.apply_place);
-## the host's feed-timer auto-drop still enters here.
-func _apply_intent(
-	slot_id: int,
-	origin: Vector3,
-	orientation_index: int,
-	free_quat: Quaternion,
-	auto_drop: bool,
-	feed_seq: int
-) -> StringName:
-	return _gateway.apply_place(slot_id, origin, orientation_index, free_quat, auto_drop, feed_seq)
-
-
 ## the use_gift_slot intent, host or client. The client only
 ## sends the request; the host validates it (sender owns the slot, slot holds a
 ## gift, state, no gift already in hand) and the result arrives as the normal
 ## feed event. Returns whether the request was applied (host) or sent (client).
 func submit_use_gift_slot(slot_id: int) -> bool:
 	return _gateway.submit_use_gift_slot(slot_id)
-
-
-## TRANSITIONAL (MatchIntentGateway): host side of net_request_place, under its
-## old private name for tests outside this file.
-func _handle_place_intent(
-	sender_peer_id: int,
-	slot_id: int,
-	origin: Vector3,
-	orientation_index: int,
-	free_quat: Quaternion,
-	feed_seq: int
-) -> void:
-	_gateway.handle_place(sender_peer_id, slot_id, origin, orientation_index, free_quat, feed_seq)
-
-
-## TRANSITIONAL (MatchIntentGateway): host side of net_request_throw.
-func _handle_throw_intent(
-	sender_peer_id: int,
-	slot_id: int,
-	origin: Vector3,
-	orientation_index: int,
-	free_quat: Quaternion,
-	velocity: Vector3,
-	feed_seq: int
-) -> void:
-	_gateway.handle_throw(sender_peer_id, slot_id, origin, orientation_index, free_quat, velocity, feed_seq)
-
-
-## TRANSITIONAL (MatchIntentGateway): host side of net_update_cursor.
-func _handle_cursor_update(
-	sender_peer_id: int,
-	slot_id: int,
-	origin: Vector3,
-	orientation_index: int,
-	free_quat: Quaternion,
-	aim: Vector3 = Vector3.ZERO
-) -> void:
-	_gateway.handle_cursor(sender_peer_id, slot_id, origin, orientation_index, free_quat, aim)
 
 
 ## Wire safety for EVENT_GIFT_SPAWNED, following MatchIntentGateway.pose_is_acceptable()'s
@@ -993,7 +907,7 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	var origin: Vector3 = cursor["origin"] if cursor.has("origin") else _afk_fallback_origin(slot_id)
 	var orientation_index: int = int(cursor.get("orientation_index", 0))
 	var free_quat: Quaternion = cursor.get("free_quat", Quaternion.IDENTITY)
-	_apply_intent(slot_id, origin, orientation_index, free_quat, true, _host_port().feed_seq(slot_id))
+	_gateway.apply_place(slot_id, origin, orientation_index, free_quat, true, _host_port().feed_seq(slot_id))
 
 
 ## The origin the host auto-drops from for a slot it has never heard a cursor
@@ -1101,7 +1015,6 @@ func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 func _on_block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: float) -> void:
 	if not _session_port().is_host() or not Quantize.is_wire_id(net_id):
 		return
-	counters.replicated_dissolve_starts.append(net_id)
 	_event_mirror().on_block_dissolve_started(block, net_id, duration_s)
 
 
@@ -1370,7 +1283,7 @@ func _apply_slot_replay(args: Array) -> void:
 
 # auto_drop is part of the wire contract but deliberately never read: spec
 # 2.5's relocation privilege belongs to the host's own timer, not to whoever
-# is on the other end of a socket. See _handle_place_intent.
+# is on the other end of a socket. See MatchIntentGateway.handle_place().
 @warning_ignore("unused_parameter")
 @rpc("any_peer", "call_remote", "reliable")
 func net_request_place(
@@ -1381,9 +1294,7 @@ func net_request_place(
 	auto_drop: bool,
 	feed_seq: int
 ) -> void:
-	_handle_place_intent(
-		multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, feed_seq
-	)
+	_gateway.handle_place(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, feed_seq)
 
 
 ## Spec 2.6: "request_throw(slot_id, pos, orient, velocity): the host clamps
@@ -1397,14 +1308,8 @@ func net_request_throw(
 	velocity: Vector3,
 	feed_seq: int
 ) -> void:
-	_handle_throw_intent(
-		multiplayer.get_remote_sender_id(),
-		slot_id,
-		origin,
-		orientation_index,
-		free_quat,
-		velocity,
-		feed_seq
+	_gateway.handle_throw(
+		multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, velocity, feed_seq
 	)
 
 
@@ -1417,7 +1322,7 @@ func net_request_use_gift_slot(slot_id: int) -> void:
 func net_update_cursor(
 	slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion, aim: Vector3 = Vector3.ZERO
 ) -> void:
-	_handle_cursor_update(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, aim)
+	_gateway.handle_cursor(multiplayer.get_remote_sender_id(), slot_id, origin, orientation_index, free_quat, aim)
 
 
 @rpc("any_peer", "call_remote", "unreliable", CURSOR_CHANNEL)

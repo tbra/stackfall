@@ -64,7 +64,7 @@ func test_camera_starts_in_the_final_follow_view_for_each_disc_size() -> void:
 		assert_almost_eq(rig.get_distance(), clampf(tuning.start_distance_m, tuning.zoom_min, tuning.zoom_max), 0.0001, "%s: follow distance" % path)
 		# the pivot is the held piece's spawn anchor, the point the
 		# follow tracks once play starts, not the bare beacon.
-		var anchor: Vector3 = _main._hot_seat.controller()._camera_follow_anchor()
+		var anchor: Vector3 = _main._local_player.controller()._camera_follow_anchor()
 		assert_lt(rig.get_target().distance_to(anchor), POSITION_TOLERANCE_M, "%s: pivots on the held piece" % path)
 		assert_gt(rig.get_target().distance_to(_home(HELD_SLOT)), POSITION_TOLERANCE_M, "%s: not on the bare beacon" % path)
 		var first: Transform3D = rig.get_camera().global_transform
@@ -87,8 +87,8 @@ func test_camera_starts_in_the_final_follow_view_for_each_disc_size() -> void:
 func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
 	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
-	var hud: HUD = (_main._hot_seat.get_node("HUDLayer") as HUD)
-	var ghost: GhostPreview = (_main._hot_seat.get_node("GhostPreview") as GhostPreview)
+	var hud: HUD = (_main._local_player.get_node("HUDLayer") as HUD)
+	var ghost: GhostPreview = (_main._local_player.get_node("GhostPreview") as GhostPreview)
 	# Gate-open moment (COUNTDOWN): already populated.
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 	assert_not_null(Match.held_shape(HELD_SLOT), "first block issued when the countdown exists")
@@ -108,7 +108,7 @@ func test_first_gameplay_frame_has_ghost_hud_cards_and_rows() -> void:
 func test_client_mirror_populates_held_and_next_cards_during_the_countdown() -> void:
 	var map: MapDef = MapDef.base().scaled(DISC_FACTORS[0]).duplicate(true)
 	await _start_match(map)
-	var hud: HUD = (_main._hot_seat.get_node("HUDLayer") as HUD)
+	var hud: HUD = (_main._local_player.get_node("HUDLayer") as HUD)
 	hud.set_held_shape(null)
 	hud.set_next_shape(null)
 	var held: BlockShape = Match.held_shape(HELD_SLOT)

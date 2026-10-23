@@ -939,7 +939,7 @@ func test_an_oversize_handshake_name_over_enet_is_dropped_without_a_reply() -> v
 	watch_signals(Events)
 	assert_eq(_client.join_game("127.0.0.1", port, "Clienty"), OK)
 	# A tampered client skips its own cleaning and sends a name past the raw cap.
-	_client._pending_join_name = "Z".repeat(_host.config.handshake_name_max_length + 1)
+	_client.net_roster.pending_join_name = "Z".repeat(_host.config.handshake_name_max_length + 1)
 	var connected: bool = await _wait_until(func() -> bool:
 		return _host.multiplayer.get_peers().size() == 1
 	)

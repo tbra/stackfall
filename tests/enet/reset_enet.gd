@@ -323,7 +323,7 @@ func _finish() -> void:
 	for line: String in found:
 		var follows_seat: bool = (
 			line.contains(" camera.") or line.contains(" net.peer_slots:") or line.contains(" net.local_slot:")
-			or line.contains(" wiring.node.RemoteCursors/GhostPreview") or line.contains(" wiring.node.HotSeat/GhostPreview")
+			or line.contains(" wiring.node.RemoteCursors/GhostPreview") or line.contains(" wiring.node.LocalPlayer/GhostPreview")
 		)
 		if seat_changed and follows_seat:
 			known += 1

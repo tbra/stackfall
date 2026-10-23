@@ -76,7 +76,7 @@ func _start_hosted_match() -> void:
 
 
 func _controller() -> PlayerController:
-	return _main._hot_seat.controller()
+	return _main._local_player.controller()
 
 
 ## the match's first piece now starts raised clear of the home
