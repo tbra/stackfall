@@ -77,7 +77,6 @@ static func _make_rig(host: Node, preset_id: StringName, clock_s: float = 0.0) -
 	# Process-wide weather-fog statics (what the puff and bird materials read) carry over from
 	# earlier tests; a state starts from the launch values like the first capture did.
 	WeatherFogShader.reset_to_launch(host.get_tree())
-	WeatherFogShader.weather_amount = 0.0  # reset_to_launch leaves the weather blend at 1.0
 	rig.previous_preset = Settings.current_graphics_preset().id
 	if rig.previous_preset != preset_id:
 		Settings.set_graphics_preset(preset_id)
@@ -139,21 +138,6 @@ static func _apply_snow(rig: Rig, amount: float) -> void:
 
 static func _apply_sun_scale(rig: Rig, scale: float) -> void:
 	rig.skybox.set_sun_cloud_scale(scale)
-
-
-## The real Events.match_scope_reset emit, delivered to `target` only: the process-wide handlers
-## (WeatherPresenter.clear_now resets the shared weather-fog statics after which the dome's
-## deduplicated haze is not pushed again) would otherwise change what this golden pins.
-static func _emit_match_scope_reset_to(target: Node) -> void:
-	var others: Array[Dictionary] = []
-	for connection: Dictionary in Events.match_scope_reset.get_connections():
-		var callable: Callable = connection["callable"] as Callable
-		if callable.get_object() != target:
-			others.append(connection)
-			Events.match_scope_reset.disconnect(callable)
-	Events.match_scope_reset.emit()
-	for connection: Dictionary in others:
-		Events.match_scope_reset.connect(connection["callable"] as Callable, int(connection["flags"]))
 
 
 static func _flush(rig: Rig) -> void:
@@ -371,7 +355,7 @@ static func capture_all(host: Node) -> Dictionary:
 	_apply_storm(match_rig, 0.5)
 	_flush(match_rig)
 	_snap(states, "W_match_night_storm", match_rig)
-	_emit_match_scope_reset_to(match_rig.skybox)
+	Events.match_scope_reset.emit()
 	_snap(states, "W_after_reset", match_rig)
 	match_rig.skybox.configure_match_sky(_match_config(MatchConfig.SkyThemeMode.DAY, SkyVariation.DEFAULT_SEED))
 	_snap(states, "W_after_reset_sunset_match", match_rig)

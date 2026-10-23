@@ -196,6 +196,8 @@ func _storm_to_full(presenter: WeatherPresenter) -> CloudCeiling:
 func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> void:
 	var fresh: Dictionary = _rig()
 	var expected: Dictionary = _snapshot(fresh)
+	var fresh_fog_strength: float = WeatherFogShader.strength
+	var fresh_fog_begin: float = WeatherFogShader.begin_m
 	var rig: Dictionary = _rig()
 	var skybox: Skybox = rig["skybox"] as Skybox
 	var presenter: WeatherPresenter = _presenter()
@@ -220,8 +222,8 @@ func test_match_scope_reset_clears_the_whole_weather_and_sky_presentation() -> v
 	ceiling.step(0.1)
 	assert_eq(_lighting(skybox).storm, 0.0, "no residual storm fade after the reset")
 	assert_eq(_lighting(skybox).overcast, 0.0, "no residual overcast fade after the reset")
-	assert_eq(WeatherFogShader.strength, 0.0, "scenery fog")
-	assert_eq(WeatherFogShader.begin_m, WeatherFogShader.DEFAULT_BEGIN_M)
+	assert_eq(WeatherFogShader.strength, fresh_fog_strength, "scenery fog is the fresh sky haze, not cleared")
+	assert_eq(WeatherFogShader.begin_m, fresh_fog_begin)
 	_assert_same_snapshot(_snapshot(rig), expected, "skybox after match_scope_reset")
 
 
