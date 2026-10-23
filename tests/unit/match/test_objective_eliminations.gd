@@ -6,6 +6,21 @@ extends GutTest
 const NO_TEAM: int = ModeObjective.NO_TEAM
 
 
+## A base objective whose capture has already latched `team` this step.
+class _Latched:
+	extends ModeObjective
+
+	func latch(team: int) -> void:
+		_declare_winner(team)
+
+
+func _latched(team: int, team_count: int = 3) -> _Latched:
+	var objective: _Latched = _Latched.new()
+	objective.reset(team_count)
+	objective.latch(team)
+	return objective
+
+
 func _base(team_count: int = 3) -> ModeObjective:
 	var objective: ModeObjective = ModeObjective.new()
 	objective.reset(team_count)
@@ -193,3 +208,29 @@ func test_elimination_hook_judges_only_teams_lost_in_the_batch() -> void:
 	objective.slot_eliminated(2)
 	var winner: int = objective.resolve_eliminations(_ints([1, 2]), _ints([]), _floats([0.9, 0.1, 0.2]))
 	assert_eq(winner, 2, "team 0's earlier loss and big share do not count")
+
+
+# --- A capture and eliminations in the same step: the capture latched first -----------
+
+func test_latched_capture_wins_when_the_wipe_out_leaves_nobody_alive() -> void:
+	var objective: _Latched = _latched(1)
+	var winner: int = objective.resolve_eliminations(_ints([0, 2]), _ints([]), _floats([0.9, 0.0, 0.1]))
+	assert_eq(winner, 1, "the capturing team wins although it is not in the batch and has the smallest share")
+
+
+func test_latched_capture_wins_over_the_share_of_a_batch_team() -> void:
+	var objective: _Latched = _latched(2)
+	var winner: int = objective.resolve_eliminations(_ints([0, 1]), _ints([]), _floats([0.6, 0.3, 0.0]))
+	assert_eq(winner, 2)
+
+
+func test_one_team_left_standing_beats_the_latched_capture() -> void:
+	var objective: _Latched = _latched(0)
+	var winner: int = objective.resolve_eliminations(_ints([1, 2]), _ints([2]), _floats([0.1, 0.1, 0.1]))
+	assert_eq(winner, 2, "if the eliminations leave one team standing it wins")
+
+
+func test_latched_capture_wins_when_several_teams_are_alive() -> void:
+	var objective: _Latched = _latched(1)
+	var winner: int = objective.resolve_eliminations(_ints([2]), _ints([0, 1]), _floats([0.1, 0.1, 0.1]))
+	assert_eq(winner, 1, "otherwise the capturing team wins")
