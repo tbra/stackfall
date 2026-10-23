@@ -1,0 +1,5 @@
+{
+  "skip_territory_flush.patch": ["territory.fresh_solve"],
+  "drop_intent_check.patch": ["authority.fuzz_accepted", "authority.spawn_identity"],
+  "disable_client_rest_culling.patch": {"status": "deferred", "invariants": ["budget.client_tick_p99"], "reason": "unmodified main already fails it until the client rest-culling fix lands"}
+}
