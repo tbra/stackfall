@@ -28,6 +28,8 @@ var _pushed_storm: float = -1.0
 
 func _ready() -> void:
 	Events.match_scope_reset.connect(snap_clear)
+	# A ceiling built after the last scope reset (the first world of a process) starts as a reset one.
+	snap_clear()
 
 
 func _exit_tree() -> void:
