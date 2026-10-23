@@ -73,7 +73,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 
