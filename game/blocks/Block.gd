@@ -29,6 +29,10 @@ static var _awake: Dictionary = {}
 static var _slept_blocks: Dictionary = {}
 static var _slept_frames: Dictionary = {}
 const SLEPT_TAIL_FRAMES: int = 2
+## Slack on the release-tilt gap gate, so a gap exactly at the minimum still tilts.
+const RELEASE_GAP_EPSILON: float = 0.0001
+## Horizontal diagonal the release tilt rotates about.
+const RELEASE_TILT_AXIS: Vector3 = Vector3(0.7071067811865476, 0.0, 0.7071067811865476)
 
 ## No contact_monitor (it cost ~5-7 ms/step at 300 blocks, well over budget).
 ## Impacts are detected from the body's own motion instead: _batch_tick()'s
@@ -430,10 +434,10 @@ func _apply_release_tilt(state: PhysicsDirectBodyState3D) -> void:
 	# First callback follows one solver advance; recover that tick's fall
 	# distance when checking the release gap, rather than lowering the gate.
 	var release_gap: float = bottom_y - (hit["position"] as Vector3).y + maxf(0.0, -state.linear_velocity.y * state.step)
-	if release_gap < tuning.release_tilt_min_gap_cubes * edge - 0.0001:
+	if release_gap < tuning.release_tilt_min_gap_cubes * edge - RELEASE_GAP_EPSILON:
 		return
 	var transform: Transform3D = state.transform
-	transform.basis = Basis(Vector3(1.0, 0.0, 1.0).normalized(), deg_to_rad(tuning.release_tilt_degrees)) * transform.basis
+	transform.basis = Basis(RELEASE_TILT_AXIS, deg_to_rad(tuning.release_tilt_degrees)) * transform.basis
 	state.transform = transform
 
 

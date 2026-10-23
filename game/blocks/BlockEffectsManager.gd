@@ -142,7 +142,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	cubelets.lifetime = config.cubelet_lifetime_s
 	cubelets.draw_pass_1 = _cubelet_mesh_for(cubelet_color)
 	var cubelet_material: ParticleProcessMaterial = cubelets.process_material as ParticleProcessMaterial
-	cubelet_material.initial_velocity_min = config.cubelet_initial_speed * 0.5 * intensity
+	cubelet_material.initial_velocity_min = config.cubelet_initial_speed * config.velocity_min_ratio * intensity
 	cubelet_material.initial_velocity_max = config.cubelet_initial_speed * intensity
 	_restart_particles(cubelets, cubelet_amount)
 
@@ -455,7 +455,7 @@ func _build_cubelet_process_material(intensity: float) -> ParticleProcessMateria
 	var material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	material.direction = Vector3.UP
 	material.spread = config.cubelet_spread_deg
-	material.initial_velocity_min = config.cubelet_initial_speed * 0.5 * intensity
+	material.initial_velocity_min = config.cubelet_initial_speed * config.velocity_min_ratio * intensity
 	material.initial_velocity_max = config.cubelet_initial_speed * intensity
 	material.gravity = config.cubelet_gravity
 	material.scale_min = config.cubelet_size_variance_min
@@ -482,12 +482,12 @@ func _build_dust_process_material() -> ParticleProcessMaterial:
 	var material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_RING
 	material.emission_ring_axis = Vector3.UP
-	material.emission_ring_height = 0.05
+	material.emission_ring_height = config.dust_emission_ring_height_m
 	material.emission_ring_radius = config.dust_ring_radius_m
 	material.emission_ring_inner_radius = config.dust_ring_inner_radius_m
 	material.direction = Vector3.UP
 	material.spread = config.dust_spread_deg
-	material.initial_velocity_min = config.dust_initial_speed * 0.5
+	material.initial_velocity_min = config.dust_initial_speed * config.velocity_min_ratio
 	material.initial_velocity_max = config.dust_initial_speed
 	material.gravity = config.dust_gravity
 	material.scale_min = config.dust_size_variance_min
@@ -610,7 +610,7 @@ func _ensure_trail(id: int, block: Block, fall_speed: float, velocity: Vector3) 
 		_trails[id] = wrapper
 
 	var anchor: Vector3 = _trail_anchor(block)
-	var tail: Vector3 = -velocity.normalized() if velocity.length() > 0.001 else Vector3.UP
+	var tail: Vector3 = -velocity.normalized() if velocity.length() > config.trail_min_speed else Vector3.UP
 	wrapper.global_transform = Transform3D(_trail_basis(tail, anchor), anchor)
 
 	var length: float = clampf(
@@ -788,7 +788,7 @@ func _build_process_material(spread_deg: float, initial_speed: float, gravity: V
 	var material: ParticleProcessMaterial = ParticleProcessMaterial.new()
 	material.direction = Vector3.UP
 	material.spread = spread_deg
-	material.initial_velocity_min = initial_speed * 0.5
+	material.initial_velocity_min = initial_speed * config.velocity_min_ratio
 	material.initial_velocity_max = initial_speed
 	material.gravity = gravity
 	material.scale_min = 1.0

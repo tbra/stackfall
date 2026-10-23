@@ -15,7 +15,7 @@ var hard: bool = true
 var quad_size_m: float = 1.0
 var alpha: float = 1.0
 var _elapsed_s: float = 0.0
-var _fps: float = 30.0
+var _fps: float = 0.0
 var _frame_count: int = 16
 var _material: ShaderMaterial = null
 
@@ -54,7 +54,7 @@ func play(world_position: Vector3, use_hard: bool, size_m: float, tint: Color, a
 	set_process(true)
 
 
-## Advances the flipbook; returns true while still playing. Test seam too.
+## Advances the flipbook; returns true while still playing.
 func advance(delta: float) -> bool:
 	if not active:
 		return false
