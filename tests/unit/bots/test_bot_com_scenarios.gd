@@ -68,7 +68,6 @@ func _start_match_holding(held: BlockShape) -> void:
 	config.game_mode = MatchConfig.GameMode.REACH_THE_SKY
 	config.ai_count = 1
 	config.player_count = 2
-	config.hot_seat = false
 	config.sandbox = false
 	config.rng_seed = 4242
 	Match.start_match(config)

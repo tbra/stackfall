@@ -154,7 +154,6 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.rng_seed = 24680
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):

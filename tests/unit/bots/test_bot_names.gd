@@ -40,7 +40,6 @@ func _bot_config(player_count: int, ai_count: int) -> MatchConfig:
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
 	config.ai_count = ai_count
-	config.hot_seat = false
 	return config
 
 
