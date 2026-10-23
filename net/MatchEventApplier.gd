@@ -423,7 +423,7 @@ func _on_block_glued(args: Array) -> bool:
 	var block: BlockBody = _block_for(args[0])
 	if block == null:
 		return false
-	_net._set_block_coated(block, args[1])
+	MatchEventMirror.set_block_coated(block, args[1])
 	return true
 
 

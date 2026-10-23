@@ -180,7 +180,7 @@ func on_blocks_fused(_carrier: Node, members: Array) -> void:
 		var was_coated: bool = _fused_ids.has(block.net_id) or _glue_charged_ids.has(block.net_id)
 		_fused_ids[block.net_id] = true
 		if not was_coated:
-			_set_block_coated(block, true)
+			set_block_coated(block, true)
 			on_block_glued(block.net_id, true)
 
 
@@ -193,7 +193,7 @@ func on_fused_member_released(member: Node) -> void:
 	var was_fused: bool = _fused_ids.erase(block.net_id)
 	var was_charged: bool = _glue_charged_ids.erase(block.net_id)
 	if was_fused or was_charged:
-		_set_block_coated(block, false)
+		set_block_coated(block, false)
 		on_block_glued(block.net_id, false)
 
 
@@ -205,7 +205,7 @@ func on_glue_drop_charged(body: Node) -> void:
 	if not _session.is_host() or block == null or not Quantize.is_wire_id(block.net_id):
 		return
 	_glue_charged_ids[block.net_id] = true
-	_set_block_coated(block, true)
+	set_block_coated(block, true)
 	on_block_glued(block.net_id, true)
 
 
@@ -256,7 +256,8 @@ func on_live_scores(scores: Dictionary) -> void:
 	_send(MatchWireEvents.LIVE_SCORES, [scores])
 
 
-func _set_block_coated(block: BlockBody, coated: bool) -> void:
+## The one coat write: the mirror calls it on the host path, the event applier on a client.
+static func set_block_coated(block: BlockBody, coated: bool) -> void:
 	LateScripts.script(LateScripts.HONEY_COAT).call(&"set_coated", block, coated)
 
 
