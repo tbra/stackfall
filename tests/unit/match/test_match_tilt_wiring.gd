@@ -28,26 +28,43 @@ func test_starting_a_specials_only_match_enables_tilt_on_the_registered_field() 
 	)
 
 	_field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.5)
-	_field._update_tilt(TICK)
+	_field._physics_process(TICK)
 	assert_ne(
 		_field.tilt_vector(), Vector2.ZERO,
 		"with tilt enabled, an Anvil/Propeller/Earthquake-style impulse must actually move the disk"
 	)
 
 
-# --- M6 B5: PHYSICAL_BALANCE wires the registry, SPECIALS_ONLY does not ------
+# --- M6 B5: PHYSICAL_BALANCE reads settled blocks, SPECIALS_ONLY does not ----
 
-func test_starting_a_physical_balance_match_wires_the_registry_onto_the_field() -> void:
+func _settle_offcenter_block(tuning: PhysicsTuning) -> void:
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var block: Block = BlockFactory.build(shape, tuning, 0)
+	_blocks_root.add_child(block)
+	autofree(block)
+	block.freeze = true
+	block.global_position = Vector3(3.0, 0.5, 0.0)
+	Events.block_placed.emit(block, shape.id)
+	var settle_ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
+	for _i: int in range(settle_ticks + 30):
+		await get_tree().physics_frame
+
+
+func test_a_specials_only_match_ignores_the_weight_of_a_settled_offcenter_block() -> void:
+	Match.start_match(_config(MatchConfig.TiltMode.SPECIALS_ONLY))
+	await _settle_offcenter_block(load("res://config/physics/physics_tuning.tres"))
+	assert_eq(_field.tilt_vector(), Vector2.ZERO, "without PHYSICAL_BALANCE block weight does not tilt the disc")
+
+
+func test_clearing_the_field_drops_the_balance_link_to_settled_blocks() -> void:
 	Match.start_match(_config(MatchConfig.TiltMode.PHYSICAL_BALANCE))
-
-	assert_true(
-		_field._physical_balance_enabled,
-		"PHYSICAL_BALANCE must flip Field's physical-balance flag on"
-	)
-	assert_eq(
-		_field._registry, _registry,
-		"PHYSICAL_BALANCE must hand Field the same BlockRegistry register_world() gave Match"
-	)
+	await _settle_offcenter_block(load("res://config/physics/physics_tuning.tres"))
+	assert_ne(_field.tilt_vector(), Vector2.ZERO, "fixture: the settled block tilts a balance match")
+	_field.clear_match_state()
+	_field.set_tilt_enabled(true)
+	for _i: int in range(30):
+		_field._physics_process(TICK)
+	assert_eq(_field.tilt_vector(), Vector2.ZERO, "after a reset the block's torque no longer reaches the disc")
 
 
 func test_physical_balance_match_actually_tilts_toward_a_settled_offcenter_block() -> void:
@@ -77,7 +94,7 @@ func test_physical_balance_match_actually_tilts_toward_a_settled_offcenter_block
 func test_abort_disables_tilt_and_levels_the_disc() -> void:
 	Match.start_match(_config())
 	_field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.5)
-	_field._update_tilt(TICK)
+	_field._physics_process(TICK)
 	assert_ne(_field.tilt_vector(), Vector2.ZERO, "fixture: the disk is actually tilted before abort")
 
 	Match.abort_match()

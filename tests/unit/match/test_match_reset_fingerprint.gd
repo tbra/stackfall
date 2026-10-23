@@ -248,7 +248,7 @@ func _play_dirty_a(main: Node) -> void:
 	Match.punch_special_hole(Vector2.ZERO, HOLE_RADIUS_M, HOLE_OPEN_S)
 	field.apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
 	for _i: int in range(TILT_STEPS):
-		field._update_tilt(TILT_STEP_S)
+		field._physics_process(TILT_STEP_S)
 	# Camera moves, a held-over music stem, a bumped gravity multiplier.
 	_dirty_camera(rig)
 	Sfx._tense_stem_is_active = true
@@ -362,6 +362,56 @@ func test_a_menu_sandbox_or_tutorial_after_a_dirty_match_matches_a_fresh_one() -
 			# The second variant starts from the same clean slate as its own test did.
 			await after_each()
 			before_each()
+
+
+## What a Field does after a match reset, seen only through its public tilt and hole API
+## (these replace the fingerprint's former reads of the Field's private flags).
+func _reset_field() -> Field:
+	var main: Node = _new_main(_map)
+	var field: Field = main.get_node("Field") as Field
+	field.clear_match_state()
+	return field
+
+
+func test_after_a_reset_a_tilt_impulse_moves_the_disc_only_when_tilt_is_enabled() -> void:
+	var field: Field = _reset_field()
+	field.set_tilt_enabled(false)
+	field.apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	field._physics_process(TILT_STEP_S)
+	assert_eq(field.tilt_vector(), Vector2.ZERO, "tilt disabled: the impulse is ignored")
+	field.set_tilt_enabled(true)
+	field.apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	field._physics_process(TILT_STEP_S)
+	assert_ne(field.tilt_vector(), Vector2.ZERO, "tilt enabled: the impulse moves the disc")
+
+
+func test_a_reset_drops_mirror_mode_so_the_local_tilt_spring_runs_again() -> void:
+	var field: Field = _reset_field()
+	field.set_tilt_enabled(true)
+	field.apply_replicated_pose(Vector3.ZERO, Quaternion.IDENTITY)
+	field.apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	field._physics_process(TILT_STEP_S)
+	assert_eq(field.tilt_vector(), Vector2.ZERO, "fixture: a mirroring Field ignores local impulses")
+	field.clear_match_state()
+	field.apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	field._physics_process(TILT_STEP_S)
+	assert_ne(field.tilt_vector(), Vector2.ZERO, "after the reset the local spring moves the disc again")
+
+
+func test_a_hole_toggle_queued_before_a_reset_never_applies_afterwards() -> void:
+	var field: Field = _reset_field()
+	var grid: CellGrid = field.grid()
+	var applied_cell: int = grid.cell_index(grid.world_to_cell(Vector2.ZERO).x, grid.world_to_cell(Vector2.ZERO).y)
+	var queued_cell: int = grid.cell_index(grid.world_to_cell(Vector2.ONE * 4.0).x, grid.world_to_cell(Vector2.ONE * 4.0).y)
+	field.set_hole_cells(PackedInt32Array([applied_cell]), PackedInt32Array())
+	field._physics_process(TILT_STEP_S)
+	assert_eq(field.applied_hole_count(), 1, "fixture: a queued hole applies on the next physics step")
+	field.set_hole_cells(PackedInt32Array([queued_cell]), PackedInt32Array())
+	field.clear_match_state()
+	field._physics_process(TILT_STEP_S)
+	assert_eq(field.applied_hole_count(), 0, "the reset left no applied hole")
+	assert_false(field.is_hole_cell(queued_cell), "the toggle queued before the reset is gone")
+	assert_false(field.is_hole_cell(applied_cell), "the applied hole was closed")
 
 
 ## The wetness the puddle shader is fed (0 when no layer or no patches exist).
