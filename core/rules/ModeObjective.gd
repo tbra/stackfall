@@ -125,7 +125,8 @@ func slot_eliminated(_slot: int) -> void:
 ## Host, once after a batch of home losses (also called with an empty batch).
 ## `batch_teams`: the teams that lost a home flag in this batch.
 ## `alive_teams`: teams with a living home flag. `shares`: territory share per team id.
-## Returns the winning team or NO_TEAM: one alive -> it; none alive -> the largest share
+## Returns the winning team or NO_TEAM: one alive -> it; else a latched winner() (the capture
+## that latched first in this step); else, none alive -> the largest share
 ## among `batch_teams` only (a team lost in an earlier step cannot win), lowest team id on a tie.
 ## DECISION: this default lives in the base class, not ClassicObjective, because every
 ## non-Elimination mode (Classic, CTF, Reach the Sky, Domination) ends on home elimination
@@ -136,6 +137,9 @@ func resolve_eliminations(
 ) -> int:
 	if alive_teams.size() == 1:
 		return alive_teams[0]
+	if winner() != NO_TEAM:
+		# A capture latched in the same step wins over a wipe-out that leaves 0 or 2+ teams (spec 1.5).
+		return winner()
 	if not alive_teams.is_empty():
 		return NO_TEAM
 	var best_team: int = NO_TEAM

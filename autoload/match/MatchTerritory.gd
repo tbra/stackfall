@@ -854,6 +854,8 @@ func _tick_home_claims(delta: float) -> void:
 		elif _raster.is_hole(coords.x, coords.y):
 			pressure[slot_item.slot_id] = ModeObjective.NO_TEAM
 	var done: PackedInt32Array = elimination.step_claims(pressure, delta)
+	# DECISION: the map is built before the batch is eliminated, so a same-batch teammate of the
+	# attacking team still counts as a living attacker (the old per-slot loop did not).
 	var attackers: Dictionary = {}
 	for slot_id: int in done:
 		attackers[slot_id] = _attacker_slot_for(slot_id, elimination.eliminator_team(slot_id))

@@ -1077,7 +1077,9 @@ func _eliminate_slot_record(slot_id: int, by_slot: int) -> void:
 	_eliminated_by[slot_id] = by_slot
 	# An eliminated player holds nothing and cannot drop.
 	_match._feed.clear_slot_blocks(slot_id)
-	_match._territory.objective().slot_eliminated(slot_id)
+	var objective: ModeObjective = _match._territory.objective()
+	if objective != null:
+		objective.slot_eliminated(slot_id)
 	_batch_teams.append(target.team_id)
 	Events.player_eliminated.emit(target.slot_id, target.team_id)
 
@@ -1090,6 +1092,9 @@ func _check_last_team_standing() -> void:
 		return
 	_match._territory.flush_pending()
 	var objective: ModeObjective = _match._territory.objective()
+	if objective == null:
+		# DECISION: no objective (before a match is built) still gets last team standing.
+		objective = ModeObjective.new()
 	var alive_set: Dictionary = {}
 	for slot_item: PlayerSlot in _slots:
 		if slot_item.home_flag_alive:
