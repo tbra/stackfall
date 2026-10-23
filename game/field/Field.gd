@@ -489,4 +489,3 @@ func _build_kill_plane() -> void:
 	# Host-only removal is BlockRegistry.remove_block's decision: the area fires on clients too.
 	area.body_entered.connect(body_fell.emit)
 	_kill_plane_area = area
-
