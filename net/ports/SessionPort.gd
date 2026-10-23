@@ -4,9 +4,10 @@ extends RefCounted
 ## one surface the net/ nodes use to ask "who is the host, which slot does this
 ## peer hold, may I send to it".
 ##
-## DECISION: autoload scripts have no class_name, so this adapter makes the one
-## dynamic call per method; consumers get typed returns and never write
-## has_method. The conformance check is a runtime one (is_valid() plus a single
+## DECISION: a real session (Net, or another instance of it) is reached through its
+## class_name NetSession base with typed calls; only test doubles that are not a NetSession
+## still take the dynamic path (TRANSITIONAL, removed by NP-F-S). Consumers get typed returns
+## and never write has_method. The conformance check is a runtime one (is_valid() plus a single
 ## push_error), not an assert, so it survives release builds. A consumer calls
 ## is_valid() when it binds a port and refuses to bind an invalid one.
 ##
@@ -41,6 +42,9 @@ const REQUIRED_METHODS: Array[StringName] = [
 const OPTIONAL_DISCONNECTING_METHOD: StringName = &"is_peer_disconnecting"
 
 var _session: Object = null
+## Set when the adapted object is a NetSession (the Net autoload or an isolated
+## Net instance): every forwarder then takes the typed path.
+var _typed: NetSession = null
 var _valid: bool = false
 var _can_ask_disconnecting: bool = false
 var _bound: Dictionary = {}
@@ -50,13 +54,20 @@ var _reported: Dictionary = {}
 ## `required` is the subset of REQUIRED_METHODS the consumer actually calls
 ## (empty = all of them). A narrow test double then binds as long as it answers
 ## that subset; a name that is not a REQUIRED_METHODS entry makes the port invalid.
-func _init(session_node: Object, required: PackedStringArray = PackedStringArray()) -> void:
+## `follow_net` false skips the null push_error and the mode_changed hookup (spies).
+func _init(session_node: Object = null, required: PackedStringArray = PackedStringArray(), follow_net: bool = true) -> void:
 	_session = session_node
 	if session_node == null:
-		push_error("SessionPort: the adapted session object is null")
+		if follow_net:
+			push_error("SessionPort: the adapted session object is null")
 		return
-	if session_node.has_signal(&"mode_changed"):
+	if follow_net and session_node.has_signal(&"mode_changed"):
 		session_node.connect(&"mode_changed", mode_changed.emit)
+	_typed = session_node as NetSession
+	if _typed != null:
+		_valid = true
+		return
+	# TRANSITIONAL (removed by NP-F-S): non-NetSession doubles keep the dynamic path.
 	var wanted: Array[StringName] = _wanted(required)
 	var unknown: Array[StringName] = []
 	var missing: Array[StringName] = []
@@ -84,43 +95,63 @@ func is_valid() -> bool:
 
 ## Net.is_host(): true on the host and offline.
 func is_host() -> bool:
+	if _typed != null:
+		return _typed.is_host()
 	return bool(_call(&"is_host", [], false))
 
 
 func is_client() -> bool:
+	if _typed != null:
+		return _typed.is_client()
 	return bool(_call(&"is_client", [], false))
 
 
 func is_offline() -> bool:
+	if _typed != null:
+		return _typed.is_offline()
 	return bool(_call(&"is_offline", [], false))
 
 
 func local_slot() -> int:
+	if _typed != null:
+		return _typed.local_slot()
 	return int(_call(&"local_slot", [], -1))
 
 
 func slot_of_peer(peer_id: int) -> int:
+	if _typed != null:
+		return _typed.slot_of_peer(peer_id)
 	return int(_call(&"slot_of_peer", [peer_id], -1))
 
 
 func peer_of_slot(slot_id: int) -> int:
+	if _typed != null:
+		return _typed.peer_of_slot(slot_id)
 	return int(_call(&"peer_of_slot", [slot_id], -1))
 
 
 func is_local_slot(slot_id: int) -> bool:
+	if _typed != null:
+		return _typed.is_local_slot(slot_id)
 	return bool(_call(&"is_local_slot", [slot_id], false))
 
 
 func peer_ids() -> PackedInt32Array:
+	if _typed != null:
+		return _typed.peer_ids()
 	return _call(&"peer_ids", [], PackedInt32Array()) as PackedInt32Array
 
 
 func peer_info(peer_id: int) -> Dictionary:
+	if _typed != null:
+		return _typed.peer_info(peer_id)
 	return _call(&"peer_info", [peer_id], {}) as Dictionary
 
 
 ## False for a session that cannot answer (see REQUIRED_METHODS).
 func is_peer_disconnecting(peer_id: int) -> bool:
+	if _typed != null:
+		return _typed.is_peer_disconnecting(peer_id)
 	if not _can_ask_disconnecting:
 		return false
 	return bool(_session.call(OPTIONAL_DISCONNECTING_METHOD, peer_id))
@@ -128,11 +159,17 @@ func is_peer_disconnecting(peer_id: int) -> bool:
 
 ## `reason` is a Net.LeaveReason value (see timeout_leave_reason()).
 func kick_peer(peer_id: int, reason: int) -> void:
+	if _typed != null:
+		_typed.kick_peer(peer_id, reason as NetIds.LeaveReason)
+		return
 	_call(&"kick_peer", [peer_id, reason], null)
 
 
 ## Folds a subsystem's counters into the session's stats() under `source`.
 func report_stats(source: StringName, values: Dictionary) -> void:
+	if _typed != null:
+		_typed.report_stats(source, values)
+		return
 	_call(&"report_stats", [source, values], null)
 
 
