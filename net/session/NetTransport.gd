@@ -197,12 +197,6 @@ func is_marked_disconnecting(peer_id: int) -> bool:
 	return _disconnecting.has(peer_id)
 
 
-## The live mark table itself (peer_id -> true). Net exposes it as the
-## TRANSITIONAL `_disconnecting_peers` forwarder for tests that poke it.
-func disconnecting_marks() -> Dictionary:
-	return _disconnecting
-
-
 ## True while a send to `peer_id` would hit a closing link: marked, or already
 ## shown by ENet as not connected. This is the answer Net.is_peer_disconnecting()
 ## gives NetFanout.
