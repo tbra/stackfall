@@ -238,23 +238,6 @@ class PeerStubSync:
 		sent.append(packet)
 
 
-## A narrow host session: a networked host that is not offline.
-class HostSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return true
-
-	func is_client() -> bool:
-		return false
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
 const HOST_PEER: int = 2
 const OTHER_PEER: int = 3
 const FIRST_NET_ID: int = 600
@@ -269,7 +252,7 @@ var _host_disk: Node3D = null
 func _host_stub() -> PeerStubSync:
 	var stub: PeerStubSync = PeerStubSync.new()
 	add_child_autofree(stub)
-	stub.bind_session(SessionPort.new(HostSession.new(), SnapshotSync.SESSION_METHODS))
+	stub.bind_session(FakeSessionPort.new(FakeNet.host()))
 	stub.begin_match(_client_registry, _map)
 	_host_disk = Node3D.new()
 	add_child_autofree(_host_disk)

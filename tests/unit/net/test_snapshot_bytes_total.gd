@@ -19,33 +19,6 @@ var _map: MapDef = null
 var _registry: FakeRegistry = null
 
 
-## A host session: exactly the methods SnapshotSync asks its session for.
-class HostSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return true
-
-	func is_client() -> bool:
-		return false
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
-class ClientSession:
-	extends HostSession
-
-	func is_host() -> bool:
-		return false
-
-	func is_client() -> bool:
-		return true
-
-
 ## The one method SnapshotSync asks its registry for.
 class FakeRegistry:
 	extends Node
@@ -77,7 +50,7 @@ func before_each() -> void:
 func _host() -> RecordingSync:
 	var sync: RecordingSync = RecordingSync.new()
 	add_child_autofree(sync)
-	sync.bind_session(SessionPort.new(HostSession.new(), SnapshotSync.SESSION_METHODS))
+	sync.bind_session(FakeSessionPort.new(FakeNet.host()))
 	sync.begin_match(_registry, _map)
 	return sync
 
@@ -85,7 +58,7 @@ func _host() -> RecordingSync:
 func _client() -> Node:
 	var sync: Node = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
 	add_child_autofree(sync)
-	sync.call("bind_session", SessionPort.new(ClientSession.new(), SnapshotSync.SESSION_METHODS))
+	sync.call("bind_session", FakeSessionPort.new(FakeNet.client(0)))
 	sync.call("begin_match", _registry, _map)
 	return sync
 

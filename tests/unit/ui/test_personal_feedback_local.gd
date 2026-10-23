@@ -138,7 +138,7 @@ func _make_host_net() -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	# Sfx/Rumble read the real Net: a host drives slot 0 only.
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)
 	assert_eq(Net.local_slot(), HOST_SLOT)
@@ -157,7 +157,7 @@ func _make_client_net(local_slot_id: int) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 
@@ -283,7 +283,7 @@ func test_a_remote_clients_relocation_goes_to_that_peer_alone() -> void:
 	host_net.slots_by_peer = peer_slots
 	var mirror: MatchEventMirror = MatchEventMirror.new(seams)
 	mirror.bind_ports(
-		SessionPort.new(host_net, PackedStringArray(["is_host", "is_local_slot", "peer_of_slot"])),
+		FakeSessionPort.new(host_net),
 		MatchHostPort.new(Match)
 	)
 

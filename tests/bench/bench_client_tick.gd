@@ -36,39 +36,6 @@ var _config: NetConfig = preload("res://config/net/net_config.tres")
 var _map: MapDef = preload("res://config/match/maps/round.tres")
 
 
-## A client session: exactly the four methods SnapshotSync calls.
-class ClientSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return false
-
-	func is_client() -> bool:
-		return true
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
-class HostSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return true
-
-	func is_client() -> bool:
-		return false
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
 ## The one method SnapshotSync asks its registry for.
 class FakeRegistry:
 	extends Node
@@ -146,7 +113,7 @@ func _client_ms_per_tick() -> float:
 
 	var sync: Node = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
 	add_child(sync)
-	sync.call("bind_session", SessionPort.new(ClientSession.new(), SnapshotSync.SESSION_METHODS))
+	sync.call("bind_session", FakeSessionPort.new(FakeNet.client(0)))
 	sync.call("begin_match", registry, _map)
 
 	var records: Array = []
@@ -184,7 +151,7 @@ func _host_ms_per_snapshot() -> float:
 	add_child(registry)
 	var sync: HostSync = HostSync.new()
 	add_child(sync)
-	sync.bind_session(SessionPort.new(HostSession.new(), SnapshotSync.SESSION_METHODS))
+	sync.bind_session(FakeSessionPort.new(FakeNet.host()))
 	sync.begin_match(registry, _map)
 	var disk: Node3D = Node3D.new()
 	add_child(disk)

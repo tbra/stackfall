@@ -166,7 +166,7 @@ func _make_wire_net(session: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	_wire_nets.append(node)
 	return node
 
@@ -190,7 +190,7 @@ func test_client_ignores_malformed_or_host_side_gate_snapshots() -> void:
 	assert_eq(count[0], 0, "malformed, negative and oversized snapshots are dropped")
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1, 2]), false])
 	assert_eq(count[0], 1, "a well-formed one is applied")
-	assert_true(client_net.bind_ports(SessionPort.new(FakeNet.host({1: 0}, [0] as Array[int])), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(client_net.bind_ports(FakeSessionPort.new(FakeNet.host({1: 0}, [0] as Array[int])), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	client_net.net_match_event(event, [PackedInt32Array([1]), PackedInt32Array([1]), true])
 	assert_eq(count[0], 1, "a host never applies a snapshot")
 	assert_eq(_opened_count, 0)

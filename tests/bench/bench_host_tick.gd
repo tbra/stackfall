@@ -151,22 +151,6 @@ class PhaseStats:
 ## Host SnapshotSync with the transport replaced (as bench_client_tick.gd's HostSync;
 ## duplicated because a bench cannot import another bench's private helpers) and the
 ## host_tick wrapped in a PerfProbe key.
-class HostSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return true
-
-	func is_client() -> bool:
-		return false
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
 class HostSync:
 	extends "res://net/SnapshotSync.gd"
 	const FAKE_PEER_ID: int = 2
@@ -274,7 +258,7 @@ func _build_world() -> void:
 	add_child(_effects)
 	_sync = HostSync.new()
 	add_child(_sync)
-	_sync.bind_session(SessionPort.new(HostSession.new(), SnapshotSync.SESSION_METHODS))
+	_sync.bind_session(FakeSessionPort.new(FakeNet.host()))
 	_sync.begin_match(_registry, map)
 	_sync.set_disk(_field)
 

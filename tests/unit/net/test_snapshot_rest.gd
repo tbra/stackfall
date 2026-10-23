@@ -191,23 +191,6 @@ class FakeRegistry:
 		return blocks.get(net_id) as Block
 
 
-## A narrow client session: exactly the four methods SnapshotSync calls.
-class ClientSession:
-	extends RefCounted
-
-	func is_host() -> bool:
-		return false
-
-	func is_client() -> bool:
-		return true
-
-	func is_offline() -> bool:
-		return false
-
-	func report_stats(_source: StringName, _values: Dictionary) -> void:
-		pass
-
-
 var _sync: Node = null
 var _registry: FakeRegistry = null
 var _map: MapDef = null
@@ -234,7 +217,7 @@ func _start_client() -> void:
 	_registry.blocks[NET_ID] = _block
 	_sync = (load("res://net/SnapshotSync.gd") as GDScript).new() as Node
 	add_child_autofree(_sync)
-	_sync.call("bind_session", SessionPort.new(ClientSession.new(), SnapshotSync.SESSION_METHODS))
+	_sync.call("bind_session", FakeSessionPort.new(FakeNet.client(0)))
 	_sync.call("begin_match", _registry, _map)
 	_sequence = 0
 
