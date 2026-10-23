@@ -20,7 +20,7 @@ extends Node
 ## code should prefer.
 
 ## What this instance is. OFFLINE covers the main menu and every single-PC
-## mode including hot-seat, and is_host() is true in it, so rule code
+## mode including local play, and is_host() is true in it, so rule code
 ## written as `if not Net.is_host(): return` behaves identically offline.
 enum Mode { OFFLINE, HOST, CLIENT }
 
@@ -365,7 +365,7 @@ func is_solo_session() -> bool:
 	return solo_session_rule(is_offline(), is_client(), peer_ids(), local_peer_id())
 
 
-## Pure rule behind is_solo_session(). Offline (sandbox/hot-seat/tutorial) is solo; a client
+## Pure rule behind is_solo_session(). Offline (sandbox/local play/tutorial) is solo; a client
 ## never is (host authority); a host is solo only when its roster holds nobody but itself, which
 ## is how Vs bots starts. `peer_ids` includes the host's own id.
 static func solo_session_rule(offline: bool, client: bool, peers: PackedInt32Array, local_id: int) -> bool:
@@ -447,7 +447,7 @@ func local_slot() -> int:
 
 ## True when `slot_id` is driven by this instance's own input. The one check
 ## PlayerController and the HUD use to decide "is this me?"; it is also true
-## for **every** slot in offline hot-seat, which keeps the strict turn
+## for **every** slot in offline local play, which keeps the strict turn
 ## alternation working.
 func is_local_slot(slot_id: int) -> bool:
 	if _mode == Mode.OFFLINE:
