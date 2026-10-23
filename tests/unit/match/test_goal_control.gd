@@ -89,6 +89,6 @@ func test_field_pushes_raster_control_onto_goal_beacons() -> void:
 	field.place_flags(2, colors, 1)
 	var flag: GoalFlag = field.goal_flags()[0]
 	_step([_home(0.0, 0.0, 1)] as Array[InfluenceCircle])
-	field.refresh_goal_control(_raster)
+	Events.territory_replicated.emit(_raster)
 	assert_eq(flag.control(), 1)
 	assert_eq(flag._color, Color.BLUE)

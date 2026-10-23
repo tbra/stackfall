@@ -127,7 +127,7 @@ func _overlay_raster() -> TerritoryRaster:
 
 
 func _home_flag_count() -> int:
-	return _main._field._home_flags.size()
+	return _main._field.home_flags().size()
 
 
 ## How many listeners hang on the bus. Compared across a full
@@ -248,7 +248,7 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 
 # --- (e) Lobby-only joining ---------------------------------
 #
-# autoload/Net.gd's _accepting_joins gate is inert until the match flow flips
+# The roster's join gate (net_roster) is inert until the match flow flips
 # it; game/main/Main.gd's _on_match_state_changed() is where that happens (Net must
 # not name Match). These pin the gate to Match's state machine through the real
 # Main: closed from the first step out of LOBBY until the match is aborted or

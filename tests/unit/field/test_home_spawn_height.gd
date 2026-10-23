@@ -19,6 +19,8 @@ const CUBE_PATH: String = "res://config/blocks/cube.tres"
 ## Float slack for comparing a computed hover against the beacon top plus
 ## margin (the raise is computed to land exactly on it).
 const HEIGHT_EPSILON: float = 0.0001
+## Start of the downward beacon ray, well above any beacon.
+const RAY_HEIGHT: float = 50.0
 
 var _tiny_map: MapDef
 var _blocks_root: Node3D
@@ -66,17 +68,18 @@ func _make_controller() -> PlayerController:
 	return controller
 
 
-## Highest point of the home flag's real collider in field-local space (socket
-## and crystal shape owners on the beacon body), measured independently of
+## World Y of the highest beacon collider point above the home flag, found by a
+## downward ray against Field.BEACON_COLLISION_LAYER, measured independently of
 ## BeaconVisualTuning.beacon_top_height() so the two are cross-checked.
-func _collider_top_local(field: Field, slot_id: int) -> float:
-	var body: AnimatableBody3D = field.get_node("BeaconBody") as AnimatableBody3D
-	var top: float = -INF
-	for owner_id: int in field._flag_owner_ids.get(slot_id, PackedInt32Array()) as PackedInt32Array:
-		var shape: Shape3D = body.shape_owner_get_shape(owner_id, 0)
-		var xform: Transform3D = body.shape_owner_get_transform(owner_id)
-		top = maxf(top, xform.origin.y + shape.get_debug_mesh().get_aabb().end.y)
-	return top
+func _collider_top_world(field: Field, slot_id: int) -> float:
+	await wait_physics_frames(1)
+	var flag_pos: Vector3 = field.home_flags()[slot_id].global_position
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		flag_pos + Vector3.UP * RAY_HEIGHT, flag_pos - Vector3.UP * RAY_HEIGHT, Field.BEACON_COLLISION_LAYER
+	)
+	var hit: Dictionary = field.direct_space().intersect_ray(query)
+	assert_false(hit.is_empty(), "fixture: the home beacon collider answers a ray from above")
+	return (hit["position"] as Vector3).y
 
 
 ## World Y of the held shape's lowest point right now, built from the ghost's
@@ -94,7 +97,7 @@ func test_first_held_block_clears_the_home_beacon_on_every_map() -> void:
 		var controller: PlayerController = _make_controller()
 		var margin: float = controller.ghost_tuning.home_spawn_beacon_margin
 		var home: Vector3 = field.home_flags()[0].global_position
-		var beacon_top: float = field.global_position.y + _collider_top_local(field, 0)
+		var beacon_top: float = await _collider_top_world(field, 0)
 
 		controller.set_home_position(home)
 		await wait_physics_frames(1)

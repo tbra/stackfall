@@ -87,7 +87,7 @@ func test_capture_ring_appears_and_tracks_progress() -> void:
 	var field: Field = _make_field()
 	field.place_flags(2, _slot_colors(), 2)
 
-	field.set_capture_progress(1, 0.5)
+	Events.goal_capture_progress.emit(1, 0.5)
 	for flag: GoalFlag in field.goal_flags():
 		assert_true(flag._ring.visible, "Every goal flag shows the capture ring.")
 		assert_eq(flag._capture_team, 1)
@@ -98,8 +98,8 @@ func test_capture_ring_hides_when_the_capture_breaks() -> void:
 	var field: Field = _make_field()
 	field.place_flags(2, _slot_colors(), 1)
 
-	field.set_capture_progress(1, 0.8)
-	field.set_capture_progress(-1, 0.0)
+	Events.goal_capture_progress.emit(1, 0.8)
+	Events.goal_capture_progress.emit(-1, 0.0)
 	var flag: GoalFlag = field.goal_flags()[0]
 	assert_false(flag._ring.visible, "team_id -1 with progress 0 clears the ring.")
 	assert_eq(flag._capture_team, -1)
