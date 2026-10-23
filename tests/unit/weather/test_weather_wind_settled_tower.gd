@@ -65,7 +65,7 @@ func _settle_and_freeze() -> void:
 		block.linear_velocity = Vector3.ZERO
 		block.angular_velocity = Vector3.ZERO
 		block.sleeping = true
-	_manager._tick(FREEZE_ADVANCE_S)
+	_manager._physics_process(FREEZE_ADVANCE_S)
 
 
 func _horizontal(a: Vector3, b: Vector3) -> float:
@@ -212,7 +212,7 @@ func test_wind_woken_block_refreezes_after_wind_stops() -> void:
 		block.linear_velocity = Vector3.ZERO
 		block.angular_velocity = Vector3.ZERO
 		block.sleeping = true
-	_manager._tick(_physics.stable_freeze_delay_s + _physics.stable_freeze_scan_interval_s)
+	_manager._physics_process(_physics.stable_freeze_delay_s + _physics.stable_freeze_scan_interval_s)
 	for block: Block in unfrozen:
 		assert_true(block.is_freeze_static(), "a woken block that settled re-froze within the normal delay")
 	assert_eq(by_cell.size(), REFREEZE_LAYERS)
