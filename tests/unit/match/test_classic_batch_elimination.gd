@@ -305,6 +305,62 @@ func test_teams_mode_a_team_goes_out_only_when_its_last_slot_does() -> void:
 	assert_eq(_won, [1 - team_of_zero] as Array[int])
 
 
+# --- A capture latched in the same step as a wipe-out -------------------------------
+
+## A Classic-style objective that has already latched `team` as the capturer.
+class _Captured:
+	extends ModeObjective
+
+	func capture(team: int) -> void:
+		_declare_winner(team)
+
+
+func _latch_capture(team: int) -> void:
+	var objective: _Captured = _Captured.new()
+	objective.reset(Match.config.team_count())
+	objective.capture(team)
+	Match._territory._objective = objective
+
+
+func test_a_capture_beats_the_share_rule_in_a_same_step_wipe_out() -> void:
+	_start(2)
+	_paint({0: 6.0})
+	assert_gt(_share(0), _share(1))
+	_latch_capture(1)
+
+	Match._lifecycle.eliminate_slots(_slots([0, 1]))
+
+	assert_eq(_won, [1] as Array[int], "the capturing team wins, not the larger share")
+
+
+func test_a_capture_wins_a_same_step_wipe_out_through_the_home_trigger() -> void:
+	_start(2)
+	_paint({0: 6.0})
+	_latch_capture(1)
+	_open_homes([0, 1])
+	assert_eq(_won, [1] as Array[int])
+
+
+func test_the_team_left_standing_beats_a_capture_in_the_same_step() -> void:
+	_start(3)
+	_paint()
+	_latch_capture(0)
+
+	Match._lifecycle.eliminate_slots(_slots([0, 1]))
+
+	assert_eq(_won, [2] as Array[int])
+
+
+func test_a_capture_with_teams_still_alive_wins_after_an_empty_batch() -> void:
+	_start(3)
+	_paint()
+	_latch_capture(1)
+
+	Match._lifecycle.eliminate_slots(_slots([2]))
+
+	assert_eq(_won, [1] as Array[int], "no team stands alone, so the capturing team wins")
+
+
 # --- Eliminated-by survives batching ---------------------------------------------
 
 func test_each_slot_of_a_batch_keeps_its_own_attacker() -> void:
