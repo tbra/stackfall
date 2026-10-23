@@ -687,23 +687,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/rules/EliminationObjective.gd:_end_with",
-   "reason": "EliminationObjective.gd:195/197 in resolve (MatchLifecycle.gd:1142)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/EliminationObjective.gd:reset",
    "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/EliminationObjective.gd:resolve",
-   "reason": "MatchLifecycle.gd:1142 objective.resolve(shares)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ModeObjective.gd:_declare_winner",
-   "reason": "EliminationObjective.gd:258 in _end_with; ReachSkyObjective.gd:99"
   },
   {
    "id": "test-only-func",

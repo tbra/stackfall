@@ -198,6 +198,14 @@ func resolve(shares: PackedFloat32Array) -> int:
 	return _winner
 
 
+## The batch and alive arrays are ignored: this objective keeps its own batch
+## (_pending_teams) and its shared win within TIE_EPSILON.
+func resolve_eliminations(
+	_batch_teams: PackedInt32Array, _alive_teams: PackedInt32Array, shares: PackedFloat32Array
+) -> int:
+	return resolve(shares)
+
+
 ## Teams that still have a living player.
 func surviving_teams() -> PackedInt32Array:
 	var out: PackedInt32Array = PackedInt32Array()

@@ -785,6 +785,7 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 	if _objective is EliminationObjective:
 		# the claim timers run from _tick_home_claims().
 		return
+	var lost: PackedInt32Array = PackedInt32Array()
 	var opened_set: Dictionary = {}
 	for cell: int in opened:
 		opened_set[cell] = true
@@ -796,9 +797,8 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 		if not _cell_grid.in_bounds(coords.x, coords.y):
 			continue
 		if opened_set.has(_cell_grid.cell_index(coords.x, coords.y)):
-			_match._lifecycle._eliminate_slot(slot_item.slot_id)
-
-	_match._lifecycle._check_last_team_standing()
+			lost.append(slot_item.slot_id)
+	_match._lifecycle.eliminate_slots(lost)
 
 
 ## The v2 counterpart of _check_home_flags(opened) above, run every v2 territory step rather than
@@ -807,13 +807,14 @@ func _check_home_flags(opened: PackedInt32Array) -> void:
 ## center (kernel value home_radius, distance 0) -- unless an enemy circle is both close enough and
 ## tall enough to outscore it there. If raster.team_at() at a living slot's home cell answers anyone
 ## else, that enemy area has swallowed the flag: eliminate it exactly as the overlap-mode trigger
-## does, through the one shared _eliminate_slot().
+## does, through the one shared eliminate_slots().
 func _check_home_flags_v2(delta: float = 0.0) -> void:
 	if not _match._is_host():
 		return
 	if _objective is EliminationObjective:
 		_tick_home_claims(delta)
 		return
+	var lost: PackedInt32Array = PackedInt32Array()
 	for slot_item: PlayerSlot in _match._lifecycle._slots:
 		if not slot_item.home_flag_alive:
 			continue
@@ -822,9 +823,8 @@ func _check_home_flags_v2(delta: float = 0.0) -> void:
 			continue
 		var owner_team: int = _raster.team_at(coords.x, coords.y)
 		if owner_team != slot_item.team_id:
-			_match._lifecycle._eliminate_slot(slot_item.slot_id)
-
-	_match._lifecycle._check_last_team_standing()
+			lost.append(slot_item.slot_id)
+	_match._lifecycle.eliminate_slots(lost)
 
 
 ## Elimination: a home flag is
@@ -854,9 +854,10 @@ func _tick_home_claims(delta: float) -> void:
 		elif _raster.is_hole(coords.x, coords.y):
 			pressure[slot_item.slot_id] = ModeObjective.NO_TEAM
 	var done: PackedInt32Array = elimination.step_claims(pressure, delta)
+	var attackers: Dictionary = {}
 	for slot_id: int in done:
-		_match._lifecycle._eliminate_slot(slot_id, _attacker_slot_for(slot_id, elimination.eliminator_team(slot_id)))
-	_match._lifecycle._check_last_team_standing()
+		attackers[slot_id] = _attacker_slot_for(slot_id, elimination.eliminator_team(slot_id))
+	_match._lifecycle.eliminate_slots(done, attackers)
 
 
 ## The living slot of `team` nearest `victim`'s home flag (the player credited

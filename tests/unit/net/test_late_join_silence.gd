@@ -152,7 +152,7 @@ func _build_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[Arr
 		Match._process(1.0 / 60.0)
 	Match._territory.flush_pending()
 	assert_eq(Match.registry().all_blocks().size(), 2, "fixture placed two bodies")
-	Match._lifecycle._eliminate_slot(2)
+	Match._lifecycle.eliminate_slots(PackedInt32Array([2]))
 	Match._lifecycle._check_last_team_standing()
 	assert_eq(Match.state(), Match.State.PLAYING, "three teams remain, the match runs on")
 	Match._gifts._spawn_crate_at(Vector2(2.0, 1.0))
