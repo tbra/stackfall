@@ -32,7 +32,7 @@ var is_offline_value: bool = true
 ## `_fake_net.slots_by_peer.erase(2)`).
 var slots_by_peer: Dictionary = {}
 ## Slots this instance's own input drives. Offline that is every slot, which
-## is what keeps M2's hot-seat working unchanged (see is_local_slot).
+## is what keeps single-PC play working unchanged (see is_local_slot).
 var local_slots: Array[int] = []
 var names_by_peer: Dictionary = {}
 ## peer_id -> ready flag, the fake's copy of Net's per-peer "ready". A peer

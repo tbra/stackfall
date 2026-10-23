@@ -479,7 +479,7 @@ static func _capture_ui(main: Node, out: Dictionary) -> void:
 	# and read only inside that path's _finish_loading_when_ready().
 	for flag: StringName in [&"_world_built", &"_world_building", &"_start_pending"]:
 		out["ui.main%s" % flag] = _bp(main, flag)
-	for holder: StringName in [&"_main_menu", &"_lobby", &"_hot_seat", &"_sandbox", &"_tutorial",
+	for holder: StringName in [&"_main_menu", &"_lobby", &"_local_player", &"_sandbox", &"_tutorial",
 			&"_remote_cursors", &"_debug_overlay", &"_stable_block_manager"]:
 		var node: Variant = _p(main, holder)
 		out["ui.main%s" % holder] = node != null and is_instance_valid(node)
@@ -497,9 +497,9 @@ static func _capture_ui(main: Node, out: Dictionary) -> void:
 		out["ui.pause_suppressed"] = pause.suppressed
 	# What the player reads on the match HUD: every visible, non-empty label text, sorted.
 	var texts: Array = []
-	var hot_seat: Node = _p(main, &"_hot_seat") as Node
-	if hot_seat != null and is_instance_valid(hot_seat):
-		for label: Node in hot_seat.find_children("*", "Label", true, false):
+	var local_player: Node = _p(main, &"_local_player") as Node
+	if local_player != null and is_instance_valid(local_player):
+		for label: Node in local_player.find_children("*", "Label", true, false):
 			var control: Label = label as Label
 			if control.is_visible_in_tree() and control.text != "":
 				texts.append(control.text)

@@ -70,7 +70,7 @@ func test_offline_every_slot_is_local_so_no_remote_ghost_is_drawn() -> void:
 
 	Events.remote_cursor_updated.emit(REMOTE_SLOT, Vector3.ZERO, 0, Quaternion.IDENTITY)
 
-	assert_null(cursors.ghost_for_slot(REMOTE_SLOT), "Hot-seat drives every slot from this instance.")
+	assert_null(cursors.ghost_for_slot(REMOTE_SLOT), "Offline, this instance drives every slot.")
 	assert_eq(cursors.get_child_count(), 0)
 
 
@@ -104,13 +104,13 @@ func _fake_match_with_slots() -> FakeMatch:
 
 
 func _make_controller(session: FakeNet, fake_match: FakeMatch) -> PlayerController:
-	var scene: PackedScene = load("res://game/main/HotSeat.tscn")
-	var hot_seat: HotSeat = autofree(scene.instantiate())
-	add_child_autofree(hot_seat)
-	var controller: PlayerController = hot_seat.controller()
+	var scene: PackedScene = load("res://game/main/LocalPlayer.tscn")
+	var local_player: LocalPlayer = autofree(scene.instantiate())
+	add_child_autofree(local_player)
+	var controller: PlayerController = local_player.controller()
 	controller._match = fake_match
 	controller.set_session_provider(session)
-	(hot_seat.get_node("GhostPreview") as GhostPreview).set_shape(load("res://config/blocks/cube.tres"))
+	(local_player.get_node("GhostPreview") as GhostPreview).set_shape(load("res://config/blocks/cube.tres"))
 	return controller
 
 
@@ -119,7 +119,7 @@ func test_online_the_controller_acts_for_its_own_slot_not_the_turn() -> void:
 	fake_match.held_shapes[1] = load("res://config/blocks/cube.tres")
 	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
 
-	# Events.turn_changed is hot-seat's mechanism and must not move a
+	# Events.turn_changed (the turn-based hand-off) must not move a
 	# networked controller off its own slot.
 	Events.turn_changed.emit(0)
 	controller._place_ghost_block()
