@@ -356,6 +356,9 @@ func _finish_objective_step() -> void:
 	_match._lifecycle.publish_mode_state_if_changed()
 	# a sandbox never ends on the goal hold.
 	if _match.config.sandbox and _objective is ClassicObjective:
+		# The latch is spent: a stale capturer must not decide a later wipe-out, and the hold may restart.
+		if _objective.winner() != ModeObjective.NO_TEAM:
+			_objective.reset(_match.config.team_count())
 		return
 	if MatchAutoload.is_live(_match.state()) and _objective.winner() != ModeObjective.NO_TEAM:
 		_match._lifecycle._finish_match(_objective.winner())
