@@ -8,7 +8,7 @@ extends Node
 ## only the host runs physics. Clients send intents. The host checks every
 ## intent before acting on it." Everything that decides an outcome lives here
 ## or in core/: the feed timers, the territory solve, the win check, and
-## request_place(). Even in hot-seat, where every player is local, the
+## request_place(). Even in local play, where every player is local, the
 ## controllers do not spawn blocks themselves; they call request_place() and
 ## wait.
 ##
@@ -21,7 +21,7 @@ extends Node
 ## MatchPlacement (request_place, pose validation, spawn/burn), MatchTerritory
 ## (territory build/solve, circles, elimination checks, the replicated
 ## territory mirror) and MatchLifecycle (the state machine itself, slots/
-## teams, disconnect grace, hot-seat turns) -- each wired to this node via
+## teams, disconnect grace, turn-based turns) -- each wired to this node via
 ## setup(self) in _ready() so none of them ever walks the scene tree to find
 ## it. This file keeps every public method (and the private/debug seams tests
 ## reach) as a one-line forward to whichever controller owns the logic.
@@ -85,7 +85,7 @@ var _net_config: NetConfig = preload("res://config/net/net_config.tres")
 ## host gate below reads through this seam instead of naming `Net` directly.
 ## null means "the real Net", which is what every shipped build uses; a test
 ## assigns a double to this variable. Net.is_host() is true offline
-## too, so `if not _is_host(): return` changes nothing in hot-seat.
+## too, so `if not _is_host(): return` changes nothing in local play.
 var _net_provider: Variant = null
 
 ## Set by net/MatchNet.gd in its own _ready(). Match never calls rpc() and
@@ -542,7 +542,7 @@ func team_of(slot_id: int) -> int:
 	return _lifecycle.team_of(slot_id)
 
 
-## Hot-seat: the slot whose turn it is. Outside hot-seat this is the local
+## Turn-based: the slot whose turn it is. Outside turn-based play this is the local
 ## player's slot, and every slot acts at once.
 func active_slot() -> int:
 	if not _late_active:
@@ -550,7 +550,7 @@ func active_slot() -> int:
 	return _lifecycle.active_slot()
 
 
-## Hot-seat: hands the turn to the next slot. Called after a placement
+## Turn-based: hands the turn to the next slot. Called after a placement
 ## resolves, not by input.
 func advance_turn() -> void:
 	if not _late_active:

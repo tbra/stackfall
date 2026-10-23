@@ -552,7 +552,7 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 ## own single-door shape: **the host's own local call acts inline, with no
 ## sender check** (exactly submit_place()'s host branch calling
 ## apply_place() directly, never through handle_place()'s
-## sender-owns-slot gate) -- a call arriving offline (hot-seat, sandbox) would
+## sender-owns-slot gate) -- a call arriving offline (local play, sandbox) would
 ## otherwise be refused, since the roster's peer map (slot_of_peer()'s backing
 ## store) is only ever populated by host_game()/join_game(), never in pure
 ## offline play. A **remote** request goes through the reliable RPC below,
@@ -894,7 +894,7 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 ## last update_cursor it received for that slot — at NetConfig.cursor_hz that
 ## is at worst 67 ms stale, and closest_valid_point() relocates from there
 ## anyway. A slot this instance controls locally (every slot offline, which is
-## all of hot-seat) is left to its own PlayerController, whose ghost is
+## all of local play) is left to its own PlayerController, whose ghost is
 ## exact and costs nothing.
 func _on_feed_timer_expired(slot_id: int) -> void:
 	if not _session_port().is_host():

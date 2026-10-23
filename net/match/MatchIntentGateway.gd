@@ -247,7 +247,7 @@ func apply_throw(
 
 
 ## Whether an outcome spent the slot's held block. Two reasons always mean the intent never reached
-## the field (nothing to place, or not its turn in hot-seat). An auto-drop always lands somewhere
+## the field (nothing to place, or not its turn in turn-based play). An auto-drop always lands somewhere
 ## (relocated or burned), so it consumes for any other reason; a manual refusal spends nothing.
 static func consumed_a_block(reason: StringName, auto_drop: bool) -> bool:
 	if reason == PlacementRules.REASON_NO_BLOCK or reason == PlacementRules.REASON_NOT_YOUR_TURN:

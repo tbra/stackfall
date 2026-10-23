@@ -34,7 +34,7 @@ static func targets(api: MultiplayerAPI, session: SessionPort) -> Array[int]:
 
 ## True only when there is a live peer to talk to: `session` is not offline and
 ## `api` holds a connected peer that is not the engine's OfflineMultiplayerPeer.
-## Offline (hot-seat, the sandbox, a unit test) every rpc() would error, so each
+## Offline (local play, the sandbox, a unit test) every rpc() would error, so each
 ## replication layer becomes a no-op and Match runs exactly as it did offline.
 ##
 ## Godot installs an OfflineMultiplayerPeer by default, so has_multiplayer_peer()
