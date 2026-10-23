@@ -147,3 +147,12 @@ func test_a_cleared_cell_can_be_wanted_open_again() -> void:
 
 	assert_eq(backlog.drain(10), _cells([11]), "A hole closed by clear() opens again on a new wish.")
 	assert_true(backlog.is_applied(11))
+
+
+func test_the_cell_just_past_the_last_in_disk_cell_is_ignored() -> void:
+	var backlog: HoleBacklog = HoleBacklog.new()
+	backlog.want(_cells([18]), _cells([18]), IN_DISK)
+
+	assert_true(backlog.drain(10).is_empty(), "Cell 18 is past the disk, so it is never queued.")
+	assert_false(backlog.is_applied(18))
+	assert_eq(backlog.applied_count(), 0)
