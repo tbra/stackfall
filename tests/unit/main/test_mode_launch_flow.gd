@@ -70,7 +70,7 @@ func _count(type_check: Callable) -> int:
 
 
 func _local_players() -> int:
-	return _count(func(node: Node) -> bool: return node is HotSeat)
+	return _count(func(node: Node) -> bool: return node is LocalPlayer)
 
 
 func _sandbox_nodes() -> int:
@@ -122,14 +122,14 @@ func test_leaving_frees_the_local_player() -> void:
 func test_restart_rebuilds_exactly_one_local_player() -> void:
 	_start_lobby_match()
 	await _settle()
-	var first: Node = _main._hot_seat
+	var first: Node = _main._local_player
 
 	Match.start_match(Match.config)
 	await _settle()
 
 	assert_true(_main._world_built, "the restart built a world again")
 	assert_eq(_local_players(), 1, "one local player after the restart, not two")
-	assert_ne(_main._hot_seat, first, "a fresh local player, not the old one")
+	assert_ne(_main._local_player, first, "a fresh local player, not the old one")
 	assert_eq(_extras_nodes(), 0)
 
 
@@ -173,7 +173,7 @@ func test_restart_attaches_extras_again_and_frees_the_old_ones() -> void:
 	_main.start_sandbox_from_menu()
 	await _settle()
 	var first_extras: Node = _main._sandbox
-	var first_player: Node = _main._hot_seat
+	var first_player: Node = _main._local_player
 
 	Match.start_match(Match.config)
 	await _settle()
