@@ -1,8 +1,7 @@
 class_name NetCounters
 extends RefCounted
 ## Every instrumentation counter MatchNet keeps, in one object: the per-slot intent identities
-## the acceptance harness asserts on and the debug overlay shows, plus the test-only tallies that
-## prove what the host did and did not put on the wire. Game code never reads the test-only ones.
+## the acceptance harness asserts on and the debug overlay shows, and the match-start records.
 ## MatchNet owns one instance and keeps the public accessors (intents_sent(slot), ...) as
 ## forwarders, so NetDebugOverlay and MatchFingerprint read the same names as before.
 
@@ -24,24 +23,6 @@ var cursors_refused: Dictionary = {}
 var replicated_state_changes: Array[int] = []
 ## How many times replicate_match_start() actually queued net_match_start.
 var match_starts_replicated: int = 0
-## net_ids the host decided to replicate a dissolve start for, in order.
-var replicated_dissolve_starts: Array[int] = []
-
-# --- Whole-session test tallies (not cleared per match) ------------------------
-
-## Event name -> times it reached replicate_match_event() on the host.
-var replicated_event_counts: Dictionary = {}
-## peer_id -> placement_rejected replies addressed to it, and the latest one as
-## [peer_id, slot_id, reason].
-var reject_replies_by_peer: Dictionary = {}
-var last_reject_reply: Array = []
-## Host: replay-pending refusals.
-var intents_refused_before_replay_ack: int = 0
-## Impact replication: batches a client dropped as malformed, events it re-emitted, and
-## events a well-formed batch carried that were not played.
-var impact_batches_rejected: int = 0
-var impacts_emitted: int = 0
-var impact_events_dropped: int = 0
 
 
 func count_sent(slot_id: int) -> void:
@@ -80,19 +61,7 @@ func cursors_refused_count(slot_id: int) -> int:
 	return int(cursors_refused.get(slot_id, 0))
 
 
-## Counts one event name reaching replicate_match_event().
-func count_event(event: StringName) -> void:
-	replicated_event_counts[event] = int(replicated_event_counts.get(event, 0)) + 1
-
-
-## Notes a placement_rejected reply addressed to `peer_id`.
-func note_reject_reply(peer_id: int, slot_id: int, reason: StringName) -> void:
-	reject_replies_by_peer[peer_id] = int(reject_replies_by_peer.get(peer_id, 0)) + 1
-	last_reject_reply = [peer_id, slot_id, reason]
-
-
-## Clears the per-match counters (called when a match starts or ends). The whole-session
-## tallies keep their values, as they did before the move.
+## Clears the per-match counters (called when a match starts or ends).
 func reset() -> void:
 	sent.clear()
 	accepted.clear()
@@ -101,7 +70,6 @@ func reset() -> void:
 	cursors_refused.clear()
 	replicated_state_changes.clear()
 	match_starts_replicated = 0
-	replicated_dissolve_starts.clear()
 
 
 func _bump(counter: Dictionary, slot_id: int) -> void:

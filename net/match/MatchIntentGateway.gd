@@ -381,7 +381,6 @@ func refuse_intent(sender: int, sender_slot: int, reason: StringName) -> void:
 
 ## The placement_rejected reply to one peer (net_match_event). Never sent for a flooded call.
 func reject_to_peer(peer_id: int, slot_id: int, reason: StringName) -> void:
-	_counters.note_reject_reply(peer_id, slot_id, reason)
 	_seams.send_to_peer.call(peer_id, &"net_match_event", [MatchWireEvents.PLACEMENT_REJECTED, [slot_id, reason]])
 
 
@@ -458,7 +457,6 @@ func _seat_owns_slot(sender: int, slot_id: int) -> bool:
 func _refuse_if_unreplayed(sender: int, sender_slot: int) -> bool:
 	if not _is_replay_pending(sender):
 		return false
-	_counters.intents_refused_before_replay_ack += 1
 	refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
 	return true
 
