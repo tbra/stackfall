@@ -217,6 +217,38 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	assert_eq(HUD.mode_score_text(shown[0]), "1: alive  2: out  3: alive")
 
 
+func test_a_slot_on_a_team_that_does_not_exist_is_ignored() -> void:
+	var objective: EliminationObjective = _objective([0, 2], 2)
+	assert_eq(objective.scores(), PackedFloat32Array([1.0, 0.0]), "team 2 is not one of the two teams")
+	objective.slot_eliminated(1)
+	assert_eq(objective.scores(), PackedFloat32Array([1.0, 0.0]), "an unknown team has no score to lower")
+	assert_eq(objective.resolve(_shares([0.5, 0.0])), ModeObjective.NO_TEAM, "no known team went out")
+
+
+func test_eliminating_a_slot_that_does_not_exist_changes_nothing() -> void:
+	var objective: EliminationObjective = _objective([0, 1], 2)
+	objective.slot_eliminated(-1)
+	objective.slot_eliminated(2)
+	assert_false(objective.is_slot_out(-1))
+	assert_false(objective.is_slot_out(2))
+	assert_eq(objective.results_fields()["order"], "", "nobody went out")
+	assert_eq(objective.scores(), PackedFloat32Array([1.0, 1.0]))
+	assert_eq(objective.consume_state_dirty(), true, "reset marked it dirty")
+	objective.slot_eliminated(-1)
+	objective.slot_eliminated(2)
+	assert_false(objective.consume_state_dirty(), "an unknown slot is not news")
+
+
+func test_eliminating_a_slot_twice_counts_once() -> void:
+	var objective: EliminationObjective = _objective([0, 0, 1], 2)
+	objective.slot_eliminated(0)
+	objective.slot_eliminated(0)
+	assert_eq(objective.scores(), PackedFloat32Array([1.0, 1.0]), "the teammate still lives")
+	assert_eq(objective.results_fields()["order"], "0", "listed once")
+	assert_eq(objective.resolve(_shares([0.5, 0.5])), ModeObjective.NO_TEAM)
+	assert_eq(objective.surviving_teams(), PackedInt32Array([0, 1]))
+
+
 # --- Claim time --------------------------------------------------------
 
 func test_claim_progress_resets_on_loss_and_completes_at_claim_time() -> void:
@@ -248,3 +280,46 @@ func test_eliminated_player_holds_nothing_and_cannot_drop() -> void:
 	assert_eq(Match.eliminated_by(1), -1, "no single attacker for a hole: fallback text")
 	assert_ne(Match._placement._intent_gate(1, -1, MatchPlacement.IntentKind.PLACE), &"", "cannot drop")
 
+
+func test_claim_ring_shows_the_claim_on_slot_zero() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1]), 10.0)
+	objective.reset(2)
+	objective.step_claims({0: 1}, 5.0)
+	assert_eq(objective.capturing_team(), 1, "the attacker of slot 0 is shown")
+	assert_almost_eq(objective.capture_progress(), 0.5, 0.001)
+
+
+func test_a_claim_with_no_progress_yet_is_not_the_leading_claim() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1]), 10.0)
+	objective.reset(2)
+	objective.step_claims({1: 0}, 0.0)
+	assert_eq(objective.leading_claim_slot(), -1, "no seconds held yet")
+	assert_eq(objective.capturing_team(), ModeObjective.NO_TEAM)
+	assert_eq(objective.capture_progress(), 0.0)
+
+
+func test_equal_claims_show_the_lowest_slot() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1, 2]), 10.0)
+	objective.reset(3)
+	objective.step_claims({1: 0, 2: 2}, 3.0)
+	assert_eq(objective.leading_claim_slot(), 1)
+	assert_eq(objective.capturing_team(), 0, "slot 1's attacker, not slot 2's")
+
+
+func test_equal_claims_show_the_lowest_slot_whatever_started_first() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1, 2]), 10.0, 1.0)
+	objective.reset(3)
+	objective.step_claims({2: 0}, 1.0)
+	objective.step_claims({1: 0}, 0.5)
+	assert_almost_eq(objective.capture_progress(), 0.05, 0.001, "slot 2 faded to 0.5, slot 1 holds 0.5")
+	assert_eq(objective.leading_claim_slot(), 1, "equal progress: the lower slot leads")
+
+
+func test_the_furthest_claim_leads() -> void:
+	var objective: EliminationObjective = EliminationObjective.new(PackedInt32Array([0, 1, 2]), 10.0)
+	objective.reset(3)
+	objective.step_claims({1: 0}, 2.0)
+	objective.step_claims({1: 0, 2: 1}, 3.0)
+	assert_eq(objective.leading_claim_slot(), 1)
+	objective.step_claims({1: 0, 2: 1}, 0.0)
+	assert_eq(objective.leading_claim_slot(), 1, "5 s beats 3 s")

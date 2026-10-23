@@ -234,3 +234,24 @@ func test_latched_capture_wins_when_several_teams_are_alive() -> void:
 	var objective: _Latched = _latched(1)
 	var winner: int = objective.resolve_eliminations(_ints([2]), _ints([0, 1]), _floats([0.1, 0.1, 0.1]))
 	assert_eq(winner, 1, "otherwise the capturing team wins")
+
+
+func test_nobody_alive_picks_the_larger_share_even_when_it_comes_first_in_a_descending_batch() -> void:
+	var winner: int = _base().resolve_eliminations(_ints([2, 0]), _ints([]), _floats([0.1, 0.0, 0.5]))
+	assert_eq(winner, 2, "a lower id does not beat a larger share")
+
+
+func test_nobody_alive_with_a_smaller_lower_id_in_the_batch_keeps_the_larger_share() -> void:
+	var winner: int = _base().resolve_eliminations(_ints([1, 0]), _ints([]), _floats([0.1, 0.5]))
+	assert_eq(winner, 1)
+
+
+func test_round_timer_end_without_scores_goes_to_the_lowest_team_id() -> void:
+	assert_eq(_base(3).on_round_timer_end(), 0, "equal scores: the lowest id wins")
+
+
+func test_nobody_alive_counts_a_batch_team_without_a_share_as_zero() -> void:
+	var winner: int = _base().resolve_eliminations(_ints([0, 3]), _ints([]), _floats([0.2, 0.3, 0.1]))
+	assert_eq(winner, 0, "team 3 has no share entry: it counts 0 and loses")
+	var only_unknown: int = _base().resolve_eliminations(_ints([3]), _ints([]), _floats([0.2, 0.3, 0.1]))
+	assert_eq(only_unknown, 3, "a lone batch team wins even with no share entry")
