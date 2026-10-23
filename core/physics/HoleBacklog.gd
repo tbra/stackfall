@@ -5,6 +5,9 @@ extends RefCounted
 ## The rules' wishes net out per cell (the last wish wins); drain() applies the
 ## FIFO of changes up to a budget and says which cells opened.
 
+## Returned by an idle drain(), so the per-tick call allocates nothing.
+var _no_cells: PackedInt32Array = PackedInt32Array()
+
 ## 1 where the cell carries collision (is in the disk); set from want()'s in_disk.
 var _in_disk_flags: PackedByteArray = PackedByteArray()
 var _in_disk_count: int = -1
@@ -33,9 +36,9 @@ func want(opened: PackedInt32Array, closed: PackedInt32Array, in_disk: PackedInt
 ## Applies up to `budget` (at least one) queued changes in order. Returns the
 ## cells that opened during this drain.
 func drain(budget: int) -> PackedInt32Array:
-	var opened: PackedInt32Array = PackedInt32Array()
 	if _head >= _queue_cells.size():
-		return opened
+		return _no_cells
+	var opened: PackedInt32Array = PackedInt32Array()
 	var limit: int = maxi(budget, 1)
 	var applied: int = 0
 	while _head < _queue_cells.size() and applied < limit:

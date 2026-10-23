@@ -119,6 +119,11 @@ func basis() -> Basis:
 	return Basis(Vector3.RIGHT, _tilt.x) * Basis(Vector3.BACK, _tilt.y)
 
 
+## True once set_pose() has driven the tilt from outside; step() is then a no-op.
+func is_mirrored() -> bool:
+	return _mirrored
+
+
 ## Field drops sync_to_physics when this is true.
 func is_at_rest() -> bool:
 	return _at_rest

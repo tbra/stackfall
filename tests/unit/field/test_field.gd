@@ -59,9 +59,6 @@ func test_a_body_entering_the_kill_plane_makes_the_field_emit_body_fell_once() -
 	add_child_autofree(body)
 	await wait_physics_frames(60)
 
-	if get_signal_emit_count(field, "body_fell") == 0:
-		pending("known gap: the Field emits body_fell once P4-Ifield lands")
-		return
 	assert_signal_emit_count(field, "body_fell", 1, "One fall, one signal.")
 	assert_signal_emitted_with_parameters(field, "body_fell", [body])
 

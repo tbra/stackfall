@@ -81,7 +81,7 @@ func _physics_process(delta: float) -> void:
 	var opened: PackedInt32Array = _holes.drain(territory_tuning.max_cell_toggles_per_frame)
 	if not opened.is_empty():
 		hole_cells_applied.emit(opened)
-	if _tilt_enabled:
+	if _tilt_enabled and not _tilt.is_mirrored():
 		_step_tilt(delta)
 
 
@@ -121,6 +121,8 @@ func tilt_vector() -> Vector2:
 func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
 	if not _tilt_enabled:
 		return
+	if _tilt.is_mirrored():
+		return
 	_tilt.impulse(direction, magnitude)
 	_wake_sync()
 
@@ -138,7 +140,7 @@ func apply_replicated_pose(offset: Vector3, tilt: Quaternion) -> void:
 ## WHOLE stack is settled, else the disk chases a moving target and the stack never sleeps.
 func _step_tilt(delta: float) -> void:
 	var balance: DiscTilt.Balance = DiscTilt.Balance.OFF
-	var samples: PackedVector3Array = PackedVector3Array()
+	var samples: PackedVector3Array
 	if _physical_balance_enabled:
 		if _registry == null or not is_instance_valid(_registry) or _registry.tracked_block_count() == 0:
 			balance = DiscTilt.Balance.EMPTY
