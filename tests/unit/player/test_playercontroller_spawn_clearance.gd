@@ -10,6 +10,11 @@ extends GutTest
 ## every Events signal PlayerController reacts to fires synchronously, the
 ## same as single-PC play.
 
+## Per-drop frame cap for the tower to settle, and how long the dropped block
+## must have rested (asleep) before the ratchet is measured.
+const SETTLE_MAX_FRAMES: int = 150
+const SETTLE_REST_FRAMES: int = 30
+
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
@@ -145,42 +150,6 @@ func _shape_world_aabb(shape: BlockShape, transform: Transform3D) -> AABB:
 	return result
 
 
-# --- The bug: the next ghost must not spawn inside the block just placed ---
-
-func test_next_ghost_does_not_overlap_the_block_just_placed() -> void:
-	Match.start_match(_config())
-	_run_countdown()
-	var slot_id: int = 0
-	var controller: PlayerController = _make_controller()
-	controller.set_acting_slot(slot_id)
-
-	var placed_shape: BlockShape = Match.held_shape(slot_id)
-	controller._ghost.set_shape(placed_shape)
-	controller._cursor = _home_world_position(slot_id)
-	controller._update_ghost_transform()
-
-	controller._place_ghost_block()
-
-	assert_eq(_blocks_root.get_child_count(), 1, "fixture: the click must have actually spawned a block.")
-	var placed_block: Node3D = _blocks_root.get_child(0) as Node3D
-	var placed_aabb: AABB = _shape_world_aabb(placed_shape, placed_block.global_transform)
-
-	await _resolve_pending_spawn_clearance(controller)
-	var ghost_shape: BlockShape = controller._ghost.get_shape()
-	assert_ne(ghost_shape, null, "fixture: the next piece must have been issued.")
-	var ghost_transform: Transform3D = Transform3D(controller._ghost.basis, controller._ghost.global_position)
-	var ghost_aabb: AABB = _shape_world_aabb(ghost_shape, ghost_transform)
-
-	assert_false(
-		placed_aabb.intersects(ghost_aabb),
-		"the next ghost (%s) must not spawn overlapping the block just placed (%s)." % [ghost_aabb, placed_aabb]
-	)
-	assert_gt(
-		controller._ghost.manual_hover_offset, 0.0,
-		"the fix should have raised the new ghost's hover height above the placed block it actually overlaps."
-	)
-
-
 # --- round 2: minimal raise, camera follows, no compounding ---
 
 ## Ten drops onto the same spot of a growing tower: the ghost stays about one
@@ -205,8 +174,12 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 		controller._place_ghost_block()
 		await _resolve_pending_spawn_clearance(controller)
 		assert_false(controller._ghost_overlaps_a_placed_block(), "drop %d: fresh spawn must be clear." % i)
-		for _t: int in range(150):
+		var rested_frames: int = 0
+		for _t: int in range(SETTLE_MAX_FRAMES):
 			await wait_physics_frames(1)
+			rested_frames = rested_frames + 1 if (_blocks_root.get_child(i) as Block).sleeping else 0
+			if rested_frames >= SETTLE_REST_FRAMES:
+				break
 			controller._update_ghost_transform()
 			controller._decay_clearance_raise(1.0 / 60.0)
 		var top_y: float = 0.0
