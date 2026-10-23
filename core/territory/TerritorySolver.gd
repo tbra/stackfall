@@ -22,7 +22,7 @@ extends RefCounted
 ## circles sharing a hash cell, deduplicated by (lower index, higher index).
 ##
 ## Pure logic: no scene tree (CLAUDE.md). Stateless between calls apart from
-## reused scratch buffers, so one solver instance is reused at 10 Hz without
+## reused scratch buffers, so one solver instance is reused at solve_hz without
 ## allocating.
 
 var _tuning: TerritoryTuning = null

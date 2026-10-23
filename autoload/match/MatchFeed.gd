@@ -232,14 +232,9 @@ func _tick_feed(delta: float) -> void:
 			# An active slot eliminated before it ever places (e.g. a hole from
 			# another player's territory capture) leaves _turn_settle_wait_left
 			# at -1.0, so no settle-wait would advance the turn and the match
-			# would deadlock.
-			#
-			# DECISION: known gap -- if a settle-wait IS already running (the
-			# active slot placed, then lost its home flag before its blocks
-			# settled), advance_turn() does not touch
-			# MatchLifecycle._turn_settle_wait_left, so the stale wait still
-			# fires its own advance_turn() and double-advances the turn. Narrow
-			# (e.g. a special detonating mid-fall); left to MatchLifecycle.
+			# would deadlock. If a settle-wait is already running (the slot placed,
+			# then lost its home flag before its blocks settled), advance_turn()
+			# clears it, so it cannot fire a second advance.
 			_match.advance_turn()
 			return
 		if timer_paused(active_slot):

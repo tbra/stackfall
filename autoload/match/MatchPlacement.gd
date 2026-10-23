@@ -185,7 +185,7 @@ func request_place(
 	# PlacementRules.validate_point() (spec 2.5 "Placement legality": one ray from the ghost's
 	# middle, no whole-footprint territory test). validate_point() also rejects a contested/holed
 	# point under the raster fill, so it reports every case the footprint chain used to;
-	# footprint_cells()/validate() stay only for the bots' footprint scoring.
+	# footprint_cells() stays only for the bots' footprint scoring.
 	var result: PlacementRules.Result
 	var relocated: Vector2 = PlacementRules.NO_ORIGIN
 	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
