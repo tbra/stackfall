@@ -107,8 +107,8 @@ func test_two_held_blocks_touching_in_air_claim_once_in_slot_order() -> void:
 	var gift_id: int = _spawn(Vector2(0.0, 15.0))
 	var provider: CursorProvider = CursorProvider.new()
 	var cube: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
-	Match._held_shapes[0] = cube
-	Match._held_shapes[1] = cube
+	Match._feed._held_shapes[0] = cube
+	Match._feed._held_shapes[1] = cube
 	var pose: Vector3 = Match.gift_state(gift_id)["origin"] - Vector3.UP * 0.5
 	var cursor: Dictionary = {"origin": pose, "orientation_index": 0,
 		"free_quat": Quaternion.IDENTITY, "age": 0.0}
@@ -129,7 +129,7 @@ func test_stale_cursor_cannot_claim_airborne_gift() -> void:
 	_start()
 	var gift_id: int = _spawn(Vector2(0.0, 15.0))
 	var provider: CursorProvider = CursorProvider.new()
-	Match._held_shapes[1] = load("res://config/blocks/cube.tres") as BlockShape
+	Match._feed._held_shapes[1] = load("res://config/blocks/cube.tres") as BlockShape
 	provider.poses[1] = {"origin": Match.gift_state(gift_id)["origin"],
 		"orientation_index": 0, "free_quat": Quaternion.IDENTITY, "age": 10.0}
 	Match.set_replicator(provider)
@@ -146,7 +146,7 @@ func test_landed_gift_claims_when_territory_arrives_later() -> void:
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.LANDED)
 	assert_eq(Match.held_special(1), &"")
 	var circles: Array[InfluenceCircle] = [InfluenceCircle.new(point, 3.0, 1, 1, true, -1)]
-	Match.raster().fill_ownership(circles, Match._solver.solve(circles), true)
+	Match.raster().fill_ownership(circles, TerritorySolver.new(Match._territory_tuning).solve(circles), true)
 	Match.raster().adopt_fill(Match.raster(), 0.1, true, false)
 	Match._gifts.tick_host(0.1)
 	assert_false(Match._gifts._crates.has(gift_id))
@@ -157,7 +157,7 @@ func test_landed_gift_claims_when_territory_arrives_later() -> void:
 func test_air_touch_rejects_near_miss_outside_visible_box_margin() -> void:
 	_start()
 	var provider: CursorProvider = CursorProvider.new()
-	Match._held_shapes[1] = load("res://config/blocks/cube.tres") as BlockShape
+	Match._feed._held_shapes[1] = load("res://config/blocks/cube.tres") as BlockShape
 	var crate: Vector3 = Match._gifts._world_at(Vector2(0.0, 15.0), 12.0)
 	provider.poses[1] = {"origin": crate + Vector3(1.08, -0.5, 0.0),
 		"orientation_index": 0, "free_quat": Quaternion.IDENTITY, "age": 0.0}
