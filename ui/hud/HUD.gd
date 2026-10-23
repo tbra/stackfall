@@ -65,7 +65,6 @@ var match_provider: Variant = null
 ## answering name_for_slot(slot_id) -> String. Null means the real Net autoload.
 var name_provider: Variant = null
 
-@onready var _turn_label: Label = %TurnLabel
 @onready var _timer_ring: Control = %TimerRing
 ## The match clock in the top-right corner (UiRoundTimer).
 var _round_timer: UiRoundTimer = null
@@ -244,17 +243,13 @@ func _ready() -> void:
 	_lock_fade_nodes = [_held_shape_card, _next_shape_card]
 	_build_gift_slot_column()
 	# The status pill keeps only the locked/special/toast rows.
-	_turn_label.visible = false
 	_height_label.visible = false
-	for label: Label in [
-		_turn_label, _height_label, _special_indicator,
-	]:
+	for label: Label in [_height_label, _special_indicator]:
 		label.add_theme_color_override("font_color", hud_visual_tuning.ink_color)
 	_height_label.add_theme_color_override("font_color", hud_visual_tuning.muted_ink_color)
 	for caption: Label in [_held_label, _next_label]:
 		_style_card_caption(caption)
-	for plated: Label in [_turn_label, _height_label]:
-		_style_status_plate(plated, hud_visual_tuning.ink_color)
+	_style_status_plate(_height_label, hud_visual_tuning.ink_color)
 	# DECISION: the queued-special chip is a small plate under the scoreboard with its
 	# label in rim gold (components.md TipBanner "Special queued"); the claim toast is the rim Callout.
 	_style_status_plate(_special_indicator, _arcade.rim_color)
@@ -461,11 +456,6 @@ func set_local_slot(slot_id: int) -> void:
 	_active_color = _color_for_slot(slot_id)
 	_minimap.set_local_slot(slot_id)
 	_refresh_you_markers()
-	var eliminated: bool = _is_slot_eliminated(slot_id)
-	var display_name: String = _name_for_slot(slot_id)
-	_turn_label.text = "%s — eliminated" % display_name if eliminated else display_name
-	_turn_label.modulate = ELIMINATED_COLOR if eliminated else _active_color
-	_turn_label.visible = false
 	_pull_current_shapes(slot_id)
 	_refresh_special_indicator()
 	_timer_ring.queue_redraw()
