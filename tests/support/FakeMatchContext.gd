@@ -5,7 +5,6 @@ extends MatchContext
 ## MatchContext.install(fake) and restore the previous one (MatchContext.installed()) in after_each.
 
 var has_authority_value: bool = true
-var net_is_host_value: bool = true
 var net_is_client_value: bool = false
 var net_is_offline_value: bool = true
 var net_local_slot_value: int = -1
@@ -47,9 +46,6 @@ var add_match_child_calls: Array[Dictionary] = []
 
 func has_authority() -> bool:
 	return has_authority_value
-
-func net_is_host() -> bool:
-	return net_is_host_value
 
 func net_is_client() -> bool:
 	return net_is_client_value

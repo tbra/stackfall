@@ -35,8 +35,8 @@ func _make_field() -> Field:
 
 func test_two_home_flags_sit_opposite_each_other() -> void:
 	var field: Field = _make_field()
-	var first: Vector2 = field.home_flag_position(0, 2)
-	var second: Vector2 = field.home_flag_position(1, 2)
+	var first: Vector2 = field.map_def.home_flag_position(0, 2)
+	var second: Vector2 = field.map_def.home_flag_position(1, 2)
 	var ring: float = field.map_def.home_flag_ring_radius()
 
 	assert_almost_eq(first.length(), ring, 0.0001, "Home flags sit at field_radius - home_flag_edge_inset.")
@@ -71,7 +71,7 @@ func test_place_flags_builds_a_flag_per_slot_and_goal() -> void:
 	assert_eq(field.goal_flags().size(), 3)
 	for slot_id: int in range(4):
 		var flag: HomeFlag = field.home_flags()[slot_id]
-		var expected: Vector2 = field.home_flag_position(slot_id, 4)
+		var expected: Vector2 = field.map_def.home_flag_position(slot_id, 4)
 		assert_eq(flag.slot_id(), slot_id)
 		assert_almost_eq(flag.position.x, expected.x, 0.0001)
 		assert_almost_eq(flag.position.z, expected.y, 0.0001)
