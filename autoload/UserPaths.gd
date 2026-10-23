@@ -51,11 +51,6 @@ static func resolve(real_path: String) -> String:
 	return gut_path(real_path) if is_gut_run() else real_path
 
 
-## True when path is the real file (user:// or globalized form).
-static func is_real_path(real_path: String, path: String) -> bool:
-	return path == real_path or path == ProjectSettings.globalize_path(real_path)
-
-
 ## Deletes per-PID GUT files left by crashed runs (older than an hour).
 static func sweep_stale() -> void:
 	var dir: DirAccess = DirAccess.open(USER_ROOT)
