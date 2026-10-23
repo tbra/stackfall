@@ -2,8 +2,8 @@ extends GutTest
 ## Modes program parity recipe. Every mode builds its world
 ## through one pipeline; this compares each mode's world against the reference lobby match with
 ## MatchFingerprint. The floor test proves the recipe itself is deterministic (two fresh launches
-## of the reference are equal); the baseline tests list today's differences per mode in KNOWN_GAPS
-## and fail on any other line. Each batch that closes a gap deletes its entries.
+## of the reference are equal); the mode tests allow only the delta-table differences listed in KNOWN_GAPS
+## and fail on any other line.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const SEED: int = 777
@@ -13,56 +13,40 @@ const CHECK_PLAYING_S: float = 1.0
 const WATCH_BOTS: int = 2
 const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
-## "<label substring>|<key prefix>" -> delta-table reason or the package that closes it.
-## Same pending mechanism as test_match_reset_fingerprint.gd.
-const GAP_CLOCK: String = "capture clock offset: modes skip or shorten the lobby countdown, so timers differ at the same capture; not a rule difference (V1 aligns the clocks)"
-const GAP_OFFLINE: String = "mode worlds run offline without a host session (no cursors, no SnapshotSync); closes at F2a/F2b (single pipeline, SnapshotSync.begin_match)"
-const GAP_STABLE: String = "StableBlockManager is built only by the lobby match path; closes at F2 (resting blocks freeze everywhere)"
-const GAP_LOCAL: String = "local-player and bot extras differ per mode (delta table section 3); LocalPlayer becomes LocalPlayer at R1"
-const GAP_WIRING: String = "event listener counts follow the per-mode wiring (closes with the single pipeline at F2a/F2b)"
-const GAP_SANDBOX: String = "sandbox extras: Sandbox node, relaxed rules, no loading screen or countdown (delta table; owner decision di0.15.2=b)"
-const GAP_TUTORIAL: String = "tutorial extras: Tutorial node, single seat and flag, debug overlay, suppressed pause menu (delta table)"
+## "<label substring>|<key prefix>" -> the delta-table row (plan section 3) that makes
+## the difference intentional. Mode worlds differ from the reference only by these.
+const GAP_SEATS: String = "seat roster: the mode seats humans only, no bot (delta table: ai_count = 0 / player_count per mode), so bot nodes, listeners, HUD names and the local-player extras differ"
+const GAP_OFFLINE: String = "mode worlds run offline without a host session (no cursors, no host net mode): the spec main menu puts Sandbox and Tutorial under Play Offline"
+const GAP_SANDBOX: String = "sandbox extras: Sandbox node, relaxed rules, no loading screen (delta table: sandbox skips the loading screen)"
+const GAP_TUTORIAL: String = "tutorial extras: Tutorial node, single seat and flag, timer pinned at its maximum, pause menu suppressed (delta table: the tutorial pins the block timer at its maximum)"
 const GAP_PRESET: String = "preset world: gift demo seeds blocks and four seats (delta table: sandbox_preset extra)"
 const GAP_SPECTATOR: String = "no local seat: the spectator camera and SpectatorController replace the player's (delta table, watch bots)"
-const GAP_HEADLESS: String = "headless bots: no local seat or camera follow, Timer for --seconds (delta table)"
+const GAP_HEADLESS: String = "headless bots: no local seat, HUD or camera follow, Timer for --seconds (delta table)"
 const GAP_PAD_FOCUS: String = "sandbox suppresses the gamepad home focus (delta table: sandbox extra)"
 const KNOWN_GAPS: Dictionary = {
 	"|net.cursors": GAP_OFFLINE,
-	"|rules.slot_timers": GAP_CLOCK,
-	"|rules.stats": GAP_CLOCK,
-	"|ui.bot_controllers": GAP_LOCAL,
-	"|ui.hud_texts": GAP_LOCAL,
-	"|ui.main_local_player": GAP_LOCAL,
-	"|wiring.main_children": GAP_LOCAL,
-	"|wiring.events.": GAP_WIRING,
-	"|wiring.node.BotController": GAP_LOCAL,
-	"|wiring.node.LocalPlayer": GAP_LOCAL,
+	"|wiring.events.": GAP_SEATS,
+	"|wiring.main_children": GAP_SEATS,
+	"|wiring.node.BotController": GAP_SEATS,
+	"|ui.bot_controllers": GAP_SEATS,
+	"|ui.hud_texts": GAP_SEATS,
 	"sandbox|camera.suppress_pad_home_focus": GAP_PAD_FOCUS,
-	"sandbox|globals.stable_manager": GAP_STABLE,
 	"sandbox|net.": GAP_OFFLINE,
 	"sandbox|rules.feed_timer_enabled": GAP_SANDBOX,
+	"sandbox|rules.slot_timers": GAP_SANDBOX,
+	"sandbox|rules.stats": GAP_SANDBOX,
 	"sandbox|ui.loading_visible": GAP_SANDBOX,
-	"sandbox|ui.main_remote_cursors": GAP_OFFLINE,
 	"sandbox|ui.main_sandbox": GAP_SANDBOX,
-	"sandbox|ui.main_stable_block_manager": GAP_STABLE,
 	"sandbox|wiring.node.LoadingScreen": GAP_SANDBOX,
-	"sandbox|wiring.node.RemoteCursors": GAP_OFFLINE,
 	"sandbox|wiring.node.Sandbox": GAP_SANDBOX,
-	"sandbox|wiring.node.StableBlockManager": GAP_STABLE,
 	"tutorial|field.": GAP_TUTORIAL,
-	"tutorial|globals.stable_manager": GAP_STABLE,
 	"tutorial|net.": GAP_OFFLINE,
 	"tutorial|rules.": GAP_TUTORIAL,
-	"tutorial|ui.main_debug_overlay": GAP_TUTORIAL,
-	"tutorial|ui.main_remote_cursors": GAP_OFFLINE,
-	"tutorial|ui.main_stable_block_manager": GAP_STABLE,
 	"tutorial|ui.main_tutorial": GAP_TUTORIAL,
 	"tutorial|ui.pause_suppressed": GAP_TUTORIAL,
 	"tutorial|wiring.node.Field": GAP_TUTORIAL,
-	"tutorial|wiring.node.LoadingScreen": GAP_SANDBOX,
-	"tutorial|wiring.node.NetDebugOverlay": GAP_TUTORIAL,
-	"tutorial|wiring.node.RemoteCursors": GAP_OFFLINE,
-	"tutorial|wiring.node.StableBlockManager": GAP_STABLE,
+	"tutorial|wiring.node.LoadingScreen": GAP_TUTORIAL,
+	"tutorial|wiring.node.LocalPlayer": GAP_TUTORIAL,
 	"tutorial|wiring.node.Tutorial": GAP_TUTORIAL,
 	"gift demo|camera.suppress_pad_home_focus": GAP_PAD_FOCUS,
 	"gift demo|field.": GAP_PRESET,
@@ -70,18 +54,19 @@ const KNOWN_GAPS: Dictionary = {
 	"gift demo|net.": GAP_OFFLINE,
 	"gift demo|rules.": GAP_PRESET,
 	"gift demo|ui.loading_visible": GAP_SANDBOX,
-	"gift demo|ui.main_remote_cursors": GAP_OFFLINE,
 	"gift demo|ui.main_sandbox": GAP_SANDBOX,
-	"gift demo|ui.main_stable_block_manager": GAP_STABLE,
 	"gift demo|wiring.node.Field": GAP_PRESET,
 	"gift demo|wiring.node.LoadingScreen": GAP_SANDBOX,
+	"gift demo|wiring.node.LocalPlayer": GAP_PRESET,
 	"gift demo|wiring.node.Node3D": GAP_PRESET,
-	"gift demo|wiring.node.RemoteCursors": GAP_OFFLINE,
 	"gift demo|wiring.node.Sandbox": GAP_SANDBOX,
-	"gift demo|wiring.node.StableBlockManager": GAP_STABLE,
 	"watch bots|camera.": GAP_SPECTATOR,
+	"watch bots|ui.main_local_player": GAP_SPECTATOR,
+	"watch bots|wiring.node.LocalPlayer": GAP_SPECTATOR,
 	"watch bots|wiring.node.SpectatorController": GAP_SPECTATOR,
 	"headless bots|camera.": GAP_HEADLESS,
+	"headless bots|ui.main_local_player": GAP_HEADLESS,
+	"headless bots|wiring.node.LocalPlayer": GAP_HEADLESS,
 	"headless bots|wiring.node.Timer": GAP_HEADLESS,
 }
 
@@ -93,6 +78,9 @@ func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	SnapshotSync.end_match()
+	# A vibration leaked by an earlier script in the shard must not reach the capture.
+	Rumble.stop_all()
+	Input.stop_joy_vibration(MatchFingerprint.RUMBLE_PROBE_DEVICE)
 	Match._lifecycle._host_bot_names = PackedStringArray()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
 	Engine.time_scale = 1.0
@@ -194,13 +182,19 @@ func _reference_lobby_match() -> Dictionary:
 	return out
 
 
-## A mode world, captured where the mode is playing (modes that skip the countdown are already
-## there; the others run it out first) and one second later.
+## A mode world, captured after the same play time as the reference's capture: the ticks run
+## until the mode is PLAYING (a mode that skips the countdown is there at once), then the
+## reference's countdown-plus-playing seconds, so round clocks and slot timers line up.
 func _capture_mode_playing(main: Node) -> Dictionary:
 	await _settle()
-	if Match.state() == Match.State.COUNTDOWN:
-		_run_seconds(Match.COUNTDOWN_SECONDS)
-	_run_seconds(CHECK_PLAYING_S)
+	var step: float = 1.0 / Engine.physics_ticks_per_second
+	var guard: int = int(ceil((Match.COUNTDOWN_SECONDS + CHECK_PLAYING_S) * Engine.physics_ticks_per_second))
+	while Match.state() != Match.State.PLAYING and guard > 0:
+		_run_seconds(step)
+		guard -= 1
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the mode reaches PLAYING")
+	# The reference spends one tick of its capture entering PLAYING, so the mode runs one fewer.
+	_run_seconds((CHECK_COUNTDOWN_S + CHECK_PLAYING_S) - step / 2.0 - step)
 	await _settle()
 	return MatchFingerprint.capture(main)
 
@@ -208,20 +202,18 @@ func _capture_mode_playing(main: Node) -> Dictionary:
 func _assert_same(reference: Dictionary, other: Dictionary, label: String) -> void:
 	var found: PackedStringArray = MatchFingerprint.diff(reference, other)
 	var real: PackedStringArray = PackedStringArray()
-	var known: PackedStringArray = PackedStringArray()
 	for line: String in found:
-		var gap: String = ""
+		var intentional: bool = false
 		for entry: Variant in KNOWN_GAPS.keys():
 			var parts: PackedStringArray = String(entry).split("|")
 			if (parts[0] == "" or label.contains(parts[0])) and line.begins_with(parts[1]):
-				gap = String(KNOWN_GAPS[entry])
-		if gap == "":
+				intentional = true
+				break
+		if not intentional:
 			real.append(line)
-		else:
-			known.append("%s [known gap: %s]" % [line.get_slice(":", 0), gap])
-	assert_eq(real.size(), 0, "%s: differs from the reference in %d key(s):\n  %s" % [label, real.size(), "\n  ".join(real)])
-	if not known.is_empty():
-		pending("%s: known gap(s): %s" % [label, "; ".join(known)])
+	assert_eq(real.size(), 0, "%s: differs from the reference in %d key(s) the delta table does not allow:
+  %s" % [label, real.size(), "
+  ".join(real)])
 
 
 ## The first match of a process initialises weather statics (the cloud ceiling's pushed
