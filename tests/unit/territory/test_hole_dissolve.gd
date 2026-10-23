@@ -292,7 +292,7 @@ func test_a_block_leaving_the_disc_does_not_touch_the_hole_under_it() -> void:
 
 # --- Real Match --------------------------------------------------------------
 
-func _start_match(hole_mode: MatchConfig.HoleMode, hot_seat: bool = true) -> void:
+func _start_match(hole_mode: MatchConfig.HoleMode) -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	var tiny_map: MapDef = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
@@ -309,7 +309,6 @@ func _start_match(hole_mode: MatchConfig.HoleMode, hot_seat: bool = true) -> voi
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(tiny_map)
 	config.player_count = 2
-	config.hot_seat = hot_seat
 	config.block_timer = 6.0
 	config.rng_seed = 12345
 	config.hole_mode = hole_mode
@@ -358,7 +357,7 @@ func _make_net(client_mode: bool) -> MatchNetScript:
 
 func test_host_dissolve_removes_the_block_after_its_delay() -> void:
 	var net: MatchNetScript = _make_net(false)
-	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
+	_start_match(MatchConfig.HoleMode.TEMPORARY)
 	var block: Block = _spawn_at_local(Match.slot(1).home_position * 0.5)
 	net.replicate_spawn(block, block.net_id)
 
@@ -372,7 +371,7 @@ func test_host_dissolve_removes_the_block_after_its_delay() -> void:
 
 func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() -> void:
 	Match._net_provider = FakeNet.host({}, [0, 1])
-	_start_match(MatchConfig.HoleMode.TEMPORARY, false)
+	_start_match(MatchConfig.HoleMode.TEMPORARY)
 	var net: MatchNetScript = _make_net(true)
 	_registry.set_host_authority(false)
 	var block: Block = BlockFactory.build(_cube, _tuning, 1)

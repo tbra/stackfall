@@ -154,7 +154,6 @@ func _sky_config(teams_two: bool, sum: bool) -> MatchConfig:
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 4 if teams_two else 2
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2 if teams_two else MatchConfig.TeamMode.OFF
-	config.hot_seat = true
 	config.block_timer = 6.0
 	config.rng_seed = 99
 	config.sudden_death = false

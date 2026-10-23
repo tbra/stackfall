@@ -43,7 +43,6 @@ func _config(timer_minutes: int = 0) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = true
 	config.block_timer = 6.0
 	config.rng_seed = 99
 	config.match_timer_minutes = timer_minutes
