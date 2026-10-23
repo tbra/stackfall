@@ -4,14 +4,12 @@ extends GutTest
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const SETTINGS_SCRIPT: GDScript = preload("res://autoload/Settings.gd")
 
-var _cfg_path: String
 var _nodes: Array[Node] = []
 var _tiny_map: MapDef
 
 
 func before_each() -> void:
-	_cfg_path = OS.get_user_data_dir().path_join("test_player_names_tmp.cfg")
-	_delete_if_exists(_cfg_path)
+	_delete_if_exists(Settings.effective_path())
 	# The menu talks to the real Settings autoload: start every test unnamed.
 	Settings.set_player_name("")
 	# The HUD/loading-screen tests read the real Match singleton by default.
@@ -26,7 +24,6 @@ func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
-	_delete_if_exists(_cfg_path)
 	for node: Node in _nodes:
 		if node != null and is_instance_valid(node):
 			node.leave()
@@ -67,7 +64,6 @@ func test_sanitize_falls_back_to_player_n_and_spectator() -> void:
 func _fresh_settings() -> Node:
 	var settings: Node = autofree(SETTINGS_SCRIPT.new())
 	add_child_autofree(settings)
-	settings.set_config_path_for_test(_cfg_path)
 	return settings
 
 

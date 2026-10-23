@@ -12,19 +12,13 @@ var _sfx: Node
 var _config: AudioConfig
 var _tmp_dir: String
 var _empty_dir: String
-var _settings_cfg_path: String
+var _master_percent_before: float
 
 
 func before_each() -> void:
-	# Sfx.gd talks to the real "Settings" autoload singleton directly
-	# (Settings.master_volume_db()), so isolating this
-	# file's Settings state means redirecting that singleton itself to a
-	# temp cfg (set_config_path_for_test), not creating a second instance --
-	# restored to user://settings.cfg in after_each so nothing leaks into the
-	# owner's real settings file or another test file.
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_sfx_settings_tmp.cfg")
-	_delete_if_exists(_settings_cfg_path)
-	Settings.set_config_path_for_test(_settings_cfg_path)
+	# Sfx reads the real Settings autoload (master_volume_db()); the test changes the
+	# master volume through the public setter and restores it in after_each.
+	_master_percent_before = Settings.master_volume_percent()
 
 	_config = load("res://config/audio/audio_config.tres").duplicate() as AudioConfig
 	_config.contextual_music_enabled = false # Legacy disk/stem fixtures only.
@@ -54,16 +48,7 @@ func after_each() -> void:
 	# The gift-claimed tests below host a real private loopback session; Net is a
 	# singleton that outlives this one test file, so it must always come back OFFLINE.
 	Net.leave()
-	# Restore the real Settings singleton to its own persisted file so later
-	# tests (and the user's real user://settings.cfg) never see this test
-	# file's temp master_volume_db values.
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	_delete_if_exists(_settings_cfg_path)
-
-
-func _delete_if_exists(path: String) -> void:
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	Settings.set_master_volume_percent(_master_percent_before)
 
 
 func _write_tiny_wav(path: String) -> void:
