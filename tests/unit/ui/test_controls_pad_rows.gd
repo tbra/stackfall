@@ -16,7 +16,9 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Settings._input(InputEventKey.new())
-	InputMap.load_from_project_settings()
+	# The rebind went through the real Settings autoload: clear its stored overrides too, or a
+	# later save of it writes the override back and a fresh Settings reapplies it to the InputMap.
+	Settings.reset_key_overrides()
 	_delete_settings_file()
 
 
