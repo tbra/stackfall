@@ -171,7 +171,7 @@ func _deliver_reply_to_remote_client() -> void:
 	var client: MatchNetScript = MatchNetScript.new()
 	client.set_process(false)
 	add_child_autofree(client)
-	assert_true(client.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(client.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	client.net_match_event(reply[2][0], reply[2][1])
 
 
@@ -190,7 +190,7 @@ func _make_client_net(local_slot_id: int) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 
