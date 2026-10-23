@@ -355,3 +355,53 @@ func test_the_hold_time_is_inclusive() -> void:
 	var disc: DiscTilt = DiscTilt.new(tuning)
 	disc.step(TICK, DiscTilt.Balance.OFF, PackedVector3Array())
 	assert_true(disc.is_at_rest(), "exactly rest_hold_s of quiet latches")
+
+
+# --- the clamp's edges ---------------------------------------------------------
+
+## deg_to_rad(this) is exactly 0.25, a tilt a float32 vector holds exactly.
+const QUARTER_RAD_DEG: float = 14.32394487827058
+const QUARTER: float = 0.25
+
+
+## A spring-free disc (infinite time constant) so each step is plain arithmetic.
+func _free_tuning() -> TiltTuning:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	tuning.return_time_constant_s = INF
+	return tuning
+
+
+func test_a_tilt_exactly_at_the_limit_keeps_its_outward_velocity() -> void:
+	var tuning: TiltTuning = _free_tuning()
+	tuning.max_tilt_deg = QUARTER_RAD_DEG
+	assert_eq(tuning.max_tilt_rad(), QUARTER, "fixture: the limit is exactly a quarter radian")
+	var disc: DiscTilt = DiscTilt.new(tuning)
+	disc.impulse(Vector2(0.0, 1.0), 0.5)
+	disc.step(0.5, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_eq(disc.tilt().x, QUARTER, "fixture: coasted exactly to the limit")
+	# An inward push of 0.25 rad/s: the velocity still carried outward must absorb it.
+	var inward: PackedVector3Array = PackedVector3Array([Vector3(0.0, 25000.0, -1.0)])
+	disc.step(0.5, DiscTilt.Balance.SAMPLED, inward)
+	assert_almost_eq(disc.tilt().x, QUARTER, 0.00001, "still pinned at the limit, not pulled inward")
+
+
+func test_a_level_disc_stays_level_when_the_limit_is_below_zero() -> void:
+	var tuning: TiltTuning = _tuning.duplicate() as TiltTuning
+	tuning.max_tilt_deg = -1.0
+	var disc: DiscTilt = DiscTilt.new(tuning)
+	disc.step(TICK, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_eq(disc.tilt(), Vector2.ZERO, "a zero tilt has no direction to clamp along")
+
+
+func test_lowering_the_limit_keeps_a_tilt_that_is_already_moving_inward() -> void:
+	var tuning: TiltTuning = _free_tuning()
+	var disc: DiscTilt = DiscTilt.new(tuning)
+	disc.impulse(Vector2(0.0, 1.0), 0.1)
+	disc.step(1.0, DiscTilt.Balance.OFF, PackedVector3Array())
+	disc.impulse(Vector2(0.0, 1.0), -0.2)
+	assert_almost_eq(disc.tilt().x, 0.1, 0.00001, "fixture: tilted outward, now moving inward")
+	tuning.max_tilt_deg = rad_to_deg(0.05)
+	disc.step(0.1, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_almost_eq(disc.tilt().x, 0.05, 0.00001, "clamped to the lowered limit")
+	disc.step(0.1, DiscTilt.Balance.OFF, PackedVector3Array())
+	assert_almost_eq(disc.tilt().x, 0.04, 0.0005, "the inward velocity survived the clamp")
