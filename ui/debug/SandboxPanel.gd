@@ -21,13 +21,19 @@ extends CanvasLayer
 ## and ui/debug/NetDebugOverlay.gd's net_provider; GUT cannot double the plain Match autoload.
 var match_provider: Variant = null
 
-## DECISION (ui/debug/SandboxPanel.gd): `Variant`, not a typed `Sandbox`. game/sandbox/Sandbox.gd
-## holds a `SandboxPanel`, and a typed back-reference here, combined with this script defining
-## _process(), leaked TextServer shaped-text RIDs at editor quit (removing either side of the cycle
-## or _process() made the leak vanish). It is duck-typed: the panel calls
-## active_slot(), the forced-special / slow-motion / physics-paused getters and the
-## force_next_shape() / force_special_*() setters on it.
-var _sandbox: Variant = null
+## Emitted by the block-picker / special-spawn dropdowns; game/sandbox/Sandbox.gd connects them. An
+## empty special id is the "off" entry.
+signal block_picked(shape_id: StringName)
+signal special_picked(special_id: StringName)
+
+## Sandbox state, pushed in by game/sandbox/Sandbox.gd through set_sandbox_state() (the panel holds no
+## Sandbox reference).
+var _slot_id: int = -1
+var _forced_special_id: StringName = &""
+var _forced_special_queue_full: bool = false
+var _slow_motion_active: bool = false
+var _physics_paused: bool = false
+var _has_state: bool = false
 var _ghost: GhostPreview = null
 
 @onready var _active_slot_label: Label = %ActiveSlotLabel
@@ -64,13 +70,25 @@ func _ready() -> void:
 	_special_picker.item_selected.connect(_on_special_picker_selected)
 
 
-## Called once by game/sandbox/Sandbox.gd after both children exist. `sandbox` gives
-## active_slot(); `ghost` gives the world position/orientation the validity
-## reason and the held-block labels read.
-func configure(sandbox: Variant, ghost: GhostPreview) -> void:
-	_sandbox = sandbox
+## Called once by game/sandbox/Sandbox.gd after both children exist. `ghost` gives the world
+## position/orientation the validity reason and the held-block labels read.
+func configure(ghost: GhostPreview) -> void:
 	_ghost = ghost
 	_refresh()
+
+
+## Sandbox pushes its state here on attach and after every change.
+func set_sandbox_state(
+	slot_id: int, forced_special_id: StringName, queue_full: bool, slow_motion: bool, physics_paused: bool
+) -> void:
+	_slot_id = slot_id
+	_forced_special_id = forced_special_id
+	_forced_special_queue_full = queue_full
+	_slow_motion_active = slow_motion
+	_physics_paused = physics_paused
+	_has_state = true
+	if is_node_ready():
+		_refresh()
 
 
 func _process(delta: float) -> void:
@@ -85,9 +103,7 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if match_provider == null:
 		return
-	# DECISION: _sandbox stays Variant here; typing it `Sandbox` closes a Sandbox <-> SandboxPanel
-	# script cycle that leaks the script graph at editor exit.
-	var slot_id: int = int(_sandbox.active_slot()) if _sandbox != null else -1
+	var slot_id: int = _slot_id if _has_state else -1
 	_refresh_active_slot(slot_id)
 	_refresh_held_block(slot_id)
 	_refresh_timer(slot_id)
@@ -178,30 +194,27 @@ func _refresh_rules_mode() -> void:
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
 
 
-## The F9 sandbox_force_special hotkey (and `--force-special=`), read through the untyped _sandbox
-## via forced_special() / forced_special_queue_full().
+## The F9 sandbox_force_special hotkey (and `--force-special=`), from the pushed sandbox state.
 func _refresh_forced_special() -> void:
-	if _sandbox == null:
+	if not _has_state:
 		_forced_special_label.text = "Forced special: -"
 		return
-	var forced_id: StringName = _sandbox.forced_special()
+	var forced_id: StringName = _forced_special_id
 	if forced_id == &"":
 		_forced_special_label.text = "Forced special: off"
 		return
-	var suffix: String = "  (queue full)" if bool(_sandbox.forced_special_queue_full()) else ""
+	var suffix: String = "  (queue full)" if _forced_special_queue_full else ""
 	_forced_special_label.text = "Forced special: %s%s" % [String(forced_id), suffix]
 
 
 # --- Slow-motion / pause-physics / height record ---------------------
 
 func _refresh_slow_motion() -> void:
-	var active: bool = bool(_sandbox.is_slow_motion_active()) if _sandbox != null else false
-	_slow_motion_label.text = "Slow-mo: %s (%.2fx)" % ["on" if active else "off", Engine.time_scale]
+	_slow_motion_label.text = "Slow-mo: %s (%.2fx)" % ["on" if _slow_motion_active else "off", Engine.time_scale]
 
 
 func _refresh_physics_paused() -> void:
-	var paused: bool = bool(_sandbox.is_physics_paused()) if _sandbox != null else false
-	_physics_paused_label.text = "Physics: %s" % ("paused" if paused else "running")
+	_physics_paused_label.text = "Physics: %s" % ("paused" if _physics_paused else "running")
 
 
 func _refresh_height_record(slot_id: int) -> void:
@@ -224,10 +237,8 @@ func _populate_block_picker() -> void:
 
 
 func _on_block_picker_selected(index: int) -> void:
-	if _sandbox == null:
-		return
 	var shape_id: StringName = _block_picker.get_item_metadata(index)
-	_sandbox.force_next_shape(shape_id)
+	block_picked.emit(shape_id)
 
 
 ## "off" first (mirrors the sandbox_force_special off/each-id/off cycle), then
@@ -242,10 +253,5 @@ func _populate_special_picker() -> void:
 
 
 func _on_special_picker_selected(index: int) -> void:
-	if _sandbox == null:
-		return
 	var special_id: StringName = _special_picker.get_item_metadata(index)
-	if special_id == &"":
-		_sandbox.force_special_off()
-	else:
-		_sandbox.force_special_by_id(special_id)
+	special_picked.emit(special_id)
