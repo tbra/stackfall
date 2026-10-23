@@ -103,7 +103,7 @@ func test_the_disk_is_one_owner_and_stays_solid_under_holes() -> void:
 	var expected: int = _expected_in_disk_cells(grid)
 	assert_gt(expected, 0, "A 6 m disk should hold cells.")
 	assert_eq(field.get_shape_owners().size(), 1, "The disk is one shape owner.")
-	assert_eq(field.cell_count(), expected)
+	assert_eq(field.grid().in_disk_cell_count(), expected)
 	assert_eq(_hole_cell_count(field), 0, "No cell starts out as a hole.")
 
 	var middle: int = floori(float(grid.res) * 0.5)
@@ -114,7 +114,7 @@ func test_the_disk_is_one_owner_and_stays_solid_under_holes() -> void:
 		grid.in_disk_cells()[0],
 	])
 	field.set_hole_cells(opened, PackedInt32Array())
-	field._drain_toggles()
+	field._physics_process(0.0)
 	await wait_physics_frames(1)
 
 	for cell: int in grid.in_disk_cells():

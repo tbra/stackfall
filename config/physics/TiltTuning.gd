@@ -20,7 +20,7 @@ extends Resource
 ## PHYSICAL_BALANCE tilt (spec 1.7/1.2), a DECISION: a kinematic-torque approximation
 ## that scales BlockRegistry.settled_torque_samples()'s summed mass * disk-local
 ## lever-arm (kg*m) into the acceleration term the spring already integrates in
-## Field._update_tilt(), so the steady tilt under a constant lopsided load settles
+## DiscTilt.step(), so the steady tilt under a constant lopsided load settles
 ## at (gain * sum) / spring_stiffness() before max_tilt_deg's clamp engages. Zero
 ## disables the term (the match then tilts only from apply_tilt_impulse() specials,
 ## as SPECIALS_ONLY does).
@@ -41,10 +41,10 @@ extends Resource
 
 ## DECISION: Field extends AnimatableBody3D, and sync_to_physics writes `transform`
 ## every physics tick (Field._apply_tilt_transform(), called unconditionally from
-## _update_tilt()). A critically damped spring only approaches its target
+## DiscTilt.step()). A critically damped spring only approaches its target
 ## asymptotically, so _tilt_velocity stays nonzero forever, Jolt keeps treating the
 ## kinematic body as moving, and every block resting on it stays awake. So
-## _update_tilt() snaps _tilt_velocity to Vector2.ZERO once it is below a floor;
+## DiscTilt.step() snaps _tilt_velocity to Vector2.ZERO once it is below a floor;
 ## then _tilt stops changing bit-for-bit, the transform write is identical each
 ## tick, and blocks can sleep.
 ##
@@ -57,7 +57,7 @@ extends Resource
 ## max(|target_tilt|, tilt_settle_floor_rad). Scale uses the target, not the live
 ## |_tilt|: after a clamp release |_tilt| is large while the target is near zero,
 ## and scaling by it snapped the disk to zero velocity at the clamp ceiling forever
-## (see Field._update_tilt()'s DECISION). The position gate keeps the early
+## (see DiscTilt.step()'s DECISION). The position gate keeps the early
 ## build-up of a step response (velocity starts near zero) from being snapped away.
 ##
 ## tilt_settle_relative_epsilon = 0.01 crosses at about 27 s for the default 4 s

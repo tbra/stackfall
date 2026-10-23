@@ -24,10 +24,6 @@ func has_authority() -> bool:
 	return _match._is_host()
 
 
-func net_is_host() -> bool:
-	return Net.is_host()
-
-
 func net_is_client() -> bool:
 	return Net.is_client()
 

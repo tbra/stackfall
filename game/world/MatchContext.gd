@@ -40,10 +40,6 @@ func has_authority() -> bool:
 	return true
 
 
-func net_is_host() -> bool:
-	return true
-
-
 func net_is_client() -> bool:
 	return false
 

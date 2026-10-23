@@ -27,7 +27,7 @@ extends HomeFlag
 ##
 ## Visual only: who is capturing and how far along they are is WinChecker's
 ## answer, arriving through Events.goal_capture_progress and
-## Field.set_capture_progress().
+## FieldFlags (a child of Field).
 
 ## Smallest change in progress that is worth rebuilding the arc mesh for. One
 ## ring segment is 1 / capture_ring_segments of a turn, so anything finer than

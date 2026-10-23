@@ -14,11 +14,11 @@ static func fuse(charged: Block, target: PhysicsBody3D, tuning: GlueDropTuning) 
 		return null
 	if charged.is_queued_for_deletion() or target.is_queued_for_deletion():
 		return null
-	if target == charged or not (target is Block or target is Field):
+	if target == charged or not (target is Block or target is FieldBody):
 		return null
 	if not charged.is_inside_tree() or charged.gift_id != &"":
 		return null
-	var field: Field = target as Field
+	var field: FieldBody = target as FieldBody
 	var partner: Block = null
 	var group_b: FusedBody = null
 	if field == null:
@@ -41,7 +41,7 @@ static func fuse(charged: Block, target: PhysicsBody3D, tuning: GlueDropTuning) 
 	var newly: Array = []
 	var carrier: FusedBody = _pick_carrier(group_a, group_b)
 	if carrier == null:
-		carrier = _new_carrier(charged, partner, absorb)
+		carrier = _new_carrier(charged, partner, absorb, tuning)
 		if carrier == null:
 			return null
 	else:
@@ -77,12 +77,14 @@ static func _pick_carrier(a: FusedBody, b: FusedBody) -> FusedBody:
 
 ## New carrier at the partner's pose (the settled partner does not jump) with its velocity;
 ## `absorb` reproduces GlueDrops._absorb_impact (relative velocity and spin soaked up).
-static func _new_carrier(charged: Block, partner: Block, absorb: bool) -> FusedBody:
+static func _new_carrier(charged: Block, partner: Block, absorb: bool, tuning: GlueDropTuning) -> FusedBody:
 	var template: Block = partner if partner != null else charged
 	var parent: Node = template.get_parent()
 	if parent == null:
 		return null
 	var carrier: FusedBody = FusedBody.new()
+	if tuning != null:
+		carrier.anchor_rest_ticks = tuning.anchor_rest_ticks
 	carrier.setup_from(template)
 	parent.add_child(carrier)
 	carrier.global_transform = template.global_transform

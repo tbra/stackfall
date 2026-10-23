@@ -1,44 +1,23 @@
 class_name Field
 extends FieldBody
-## The match field: a disk (spec 1.7). An AnimatableBody3D so the SPECIALS_ONLY
-## tilt (spec 1.7, 1.2, 2.7) can carry resting blocks along with it; Jolt treats
-## it as static collision the physics step sees moved, not simulated, so the
-## shape_owner/collision API works as on a static body. PHYSICAL_BALANCE tilt
-## (spec 1.7/1.2) is a kinematic-torque approximation, not a real RigidBody3D on
-## a joint: settled blocks' aggregate mass * lever-arm torque
-## (BlockRegistry.settled_torque_samples()) feeds the same _tilt_velocity a
-## special's apply_tilt_impulse() drives, so the spring/clamp/replication
-## machinery below carries it.
+## The match field: a disk (spec 1.7). An AnimatableBody3D so the tilt can carry
+## resting blocks. The tilt spring is core/physics/DiscTilt.gd, the hole backlog
+## core/physics/HoleBacklog.gd, the flags and beacon body the FieldFlags child;
+## Field builds the collision, kill plane and overlay and wires them.
 ##
-## **Cells (spec 2.5).** The disk's collision is one ConcavePolygonShape3D on
-## one shape_owner: a trimesh with one
-## `map_def.cell_size` quad per in-disk cell of the square CellGrid, plus
-## vertical walls at the rim. One cell is one CellGrid index is one pixel of
-## the territory raster, so the rules and the picture never disagree about
-## where a hole is.
+## **Cells (spec 2.5).** The collision is one ConcavePolygonShape3D of one quad per
+## in-disk cell of the CellGrid (one cell is one raster pixel) plus rim walls. It is
+## built once per map and never on a hole change (set_faces() woke every sleeping
+## body). Holes live in the HoleBacklog, drained per physics frame; opened cells
+## are announced on hole_cells_applied for the host's HoleDissolver. Field decides
+## nothing: whether a cell is a hole is TerritoryRaster's answer.
 ##
-## **Holes do not touch collision.** The trimesh is built once per map (and never
-## rebuilt on a hole change: set_faces() cost ~13 ms per change on
-## round_medium and woke every sleeping body on the disc). Applied hole state
-## lives in _hole_applied, batched at `TerritoryTuning.max_cell_toggles_per_
-## frame` per physics frame through a FIFO backlog; each drained
-## batch of newly opened cells is announced on hole_cells_applied, and
-## game/blocks/HoleDissolver.gd (host) dissolves the blocks that rest or land on a
-## hole cell instead of letting them fall through.
-##
-## **What this node does not do.** Field decides nothing. Whether a cell is a
-## hole is TerritoryRaster's answer (core/, pure); Field only applies it, and
-## only ever through set_hole_cells(). Likewise the overlay draws the raster it
-## is handed and never reads a rule.
-##
-## Also owns the kill plane (spec 1.7): any body that falls below
-## `tuning.kill_plane_y` is freed and reported on the Events bus.
+## Also owns the kill plane (spec 1.7): a body below `tuning.kill_plane_y` is
+## reported on body_fell; BlockRegistry removes it on the host.
 
-## The kill plane only needs to catch blocks that fall off the disk, so it's
-## sized as a wide multiple of the field radius rather than a magic constant.
+## The kill plane is sized as a wide multiple of the field radius.
 const KILL_PLANE_RADIUS_FACTOR: float = 20.0
-## Thickness of the kill plane's trigger box, in meters. It only has to be
-## thicker than one physics step of free fall.
+## Thickness of the kill plane's trigger box (more than one step of free fall).
 const KILL_PLANE_THICKNESS: float = 1.0
 ## Two triangles, three vertices each, per quad of the disk trimesh.
 const VERTS_PER_QUAD: int = 6
@@ -46,16 +25,9 @@ const VERTS_PER_QUAD: int = 6
 const NEIGHBOUR_DIRS: Array[Vector2i] = [
 	Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 ]
-## --trace-disk=<rebuilds>: print the disk trimesh rebuild time every N
-## rebuilds (1 = every rebuild); 0, the default, prints nothing. Its own name so
-## tracing a tower does not also flood the log with rebuild lines. Passed after `--`:
-##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --trace-disk=1
-const TRACE_ARG_PREFIX: String = "--trace-disk="
-
-## a drained batch applied these cells as holes (opened
-## only; closing a hole needs no reaction). Emitted on host and client alike;
-## game/blocks/HoleDissolver.gd ignores it off the host.
-signal hole_cells_applied(opened: PackedInt32Array)
+## Passed after `--`: print the disk trimesh build time on every build.
+##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --trace-disk
+const TRACE_ARG: String = "--trace-disk"
 
 @export var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 @export var tilt_tuning: TiltTuning = preload("res://config/physics/tilt_tuning.tres")
@@ -69,488 +41,185 @@ signal hole_cells_applied(opened: PackedInt32Array)
 @export var goal_flag_scene: PackedScene = preload("res://game/flags/GoalFlag.tscn")
 
 var _grid: CellGrid = null
-## cell index -> the disk's shape_owner id, or -1 for a cell outside the disk.
-##
-## Every in-disk cell reports the same id, the one owner of the disk trimesh.
-var _cell_owner_ids: PackedInt32Array = PackedInt32Array()
+## 1 where the cell is in the disk (carries collision).
+var _solid: PackedByteArray = PackedByteArray()
 var _in_disk_cells: PackedInt32Array = PackedInt32Array()
-## 1 where the cell is currently an applied hole (dissolve contact, not
-## collision).
-var _hole_applied: PackedByteArray = PackedByteArray()
-## 1 where the rules want the cell to be a hole; the backlog is the difference.
-var _hole_wanted: PackedByteArray = PackedByteArray()
-## FIFO backlog of (cell, disabled) pairs, consumed from _toggle_head so that
-## draining never has to shift a PackedInt32Array.
-var _toggle_cells: PackedInt32Array = PackedInt32Array()
-var _toggle_disabled: PackedByteArray = PackedByteArray()
-var _toggle_head: int = 0
-
-## The disk's one collision shape and the one shape_owner carrying it.
+var _holes: HoleBacklog = HoleBacklog.new()
 var _disk_shape: ConcavePolygonShape3D = null
 var _disk_owner_id: int = -1
-## The kill-plane Area3D _build_kill_plane() built last, so rebuild_for_map()
-## can free it before building a fresh one sized to the new map_def.
 var _kill_plane_area: Area3D = null
-## Grid line coordinates, disk-local meters: line i is the -x (or -z) edge of
-## column (or row) i, so cell (cx, cy) spans lines cx..cx+1 and cy..cy+1.
+## Disk-local meters: cell (cx, cy) spans lines cx..cx+1 and cy..cy+1.
 var _grid_lines: PackedFloat32Array = PackedFloat32Array()
-var _applied_hole_total: int = 0
-## --trace-disk bookkeeping. _rebuild_count counts disk trimesh builds
-## (set_faces calls); a hole change never bumps it.
-var _trace_every: int = 0
-var _rebuild_count: int = 0
-var _max_rebuild_usec: int = 0
 
-## SPECIALS_ONLY tilt (spec 1.7, 1.2, 2.7). Off by default: with tilt disabled
-## _physics_process() never writes a rotation, so sync_to_physics carries none.
+## Off by default: no rotation is ever written, so sync_to_physics carries none.
 var _tilt_enabled: bool = false
-## The 2-axis tilt vector the critically damped spring integrates: x is the
-## rotation (radians) about the disk's local X axis, y about its local Z
-## axis. Chosen to read the same way disk-local (x, z) already does
-## everywhere else in this file, not because it is a literal disk-local
-## point.
-var _tilt: Vector2 = Vector2.ZERO
-var _tilt_velocity: Vector2 = Vector2.ZERO
-## rest deadband state (see TiltTuning.rest_*).
-var _tilt_at_rest: bool = false
-var _tilt_rest_timer: float = 0.0
-## Last _tilt written by _apply_tilt_transform(); see _update_tilt()'s
-## change gate.
-var _last_applied_tilt: Vector2 = Vector2.ZERO
-
-## True once apply_replicated_pose() has driven this disc since the last
-## clear_match_state(). Specials simulate host-side only, so a client's Field
-## never gets an apply_tilt_impulse(), but MatchLifecycle._apply_tilt_mode()
-## enables tilt on every peer and the local spring would overwrite the
-## replicated pose each tick. Once mirroring starts, _physics_process() stops
-## calling _update_tilt(); the host never calls apply_replicated_pose().
-var _mirrored: bool = false
-
-## PHYSICAL_BALANCE tilt (spec 1.7/1.2). Off by default; only meaningful while
-## _tilt_enabled is also true (MatchLifecycle._apply_tilt_mode() sets both
-## together for a PHYSICAL_BALANCE match).
+var _tilt: DiscTilt = null
+## PHYSICAL_BALANCE tilt (spec 1.7/1.2); only meaningful while _tilt_enabled too.
 var _physical_balance_enabled: bool = false
-## The registry PHYSICAL_BALANCE reads settled blocks from, set once by
-## _apply_tilt_mode() (Match already holds both Field and BlockRegistry from
-## register_world()). Null-safe: without one, no torque is contributed.
+## The registry PHYSICAL_BALANCE reads settled blocks from. Null-safe: no torque.
 var _registry: BlockRegistry = null
-## Latched torque input PHYSICAL_BALANCE last computed from a non-empty
-## BlockRegistry.settled_torque_samples() (see the
-## DECISION on _physical_balance_torque_accel() below). Holds through a
-## momentary sample gap instead of decaying to zero, so a wake that
-## PHYSICAL_BALANCE's own tilt causes cannot start a limit cycle that never
-## lets the spring converge.
-var _physical_balance_torque: Vector2 = Vector2.ZERO
 
 var _overlay: TerritoryOverlay = null
-var _home_flags: Array[HomeFlag] = []
-## slot id -> PackedInt32Array of shape_owners holding that beacon's collision.
-var _flag_owner_ids: Dictionary = {}
-var _goal_flags: Array[GoalFlag] = []
-## Last capture event and CTF mode state, fed to each beacon's timer.
-var _timer_capture_team: int = -1
-var _timer_capture_progress: float = 0.0
-var _timer_mode_state: Dictionary = {}
-var _slot_colors: PackedColorArray = PackedColorArray()
+var _flags: FieldFlags = null
 
 
 func _ready() -> void:
-	for arg: String in OS.get_cmdline_user_args():
-		if arg.begins_with(TRACE_ARG_PREFIX):
-			_trace_every = maxi(arg.substr(TRACE_ARG_PREFIX.length()).to_int(), 0)
-	# DECISION (game/field/Field.gd): AnimatableBody3D defaults sync_to_physics to
-	# true, which makes Godot ignore a direct transform write made outside a
-	# physics tick. Force it false here and only flip it true from
-	# set_tilt_enabled(true), so callers that place the field themselves keep
-	# working until a match turns tilt on.
+	_tilt = DiscTilt.new(tilt_tuning)
+	# DECISION: AnimatableBody3D defaults sync_to_physics to true, which makes Godot
+	# ignore a direct transform write made outside a physics tick. Force it false
+	# here and only flip it true while the tilt moves, so callers that place the
+	# field themselves keep working until a match turns tilt on.
 	sync_to_physics = false
 	_rebuild_cells()
 	_build_kill_plane()
 	_build_overlay()
-	Events.hole_cells_changed.connect(_on_hole_cells_changed)
-	Events.player_eliminated.connect(_on_player_eliminated_for_flags)
-	Events.goal_capture_progress.connect(_on_goal_capture_progress)
-	Events.territory_updated.connect(_on_territory_updated_for_goals)
-	Events.territory_replicated.connect(refresh_goal_control)
-	Events.mode_state_changed.connect(_on_mode_state_for_timers)
+	_build_flags()
+	Events.hole_cells_changed.connect(set_hole_cells)
 
 
 func _physics_process(delta: float) -> void:
-	_drain_toggles()
-	if _tilt_enabled and not _mirrored:
-		_update_tilt(delta)
+	var opened: PackedInt32Array = _holes.drain(territory_tuning.max_cell_toggles_per_frame)
+	if not opened.is_empty():
+		hole_cells_applied.emit(opened)
+	if _tilt_enabled and not _tilt.is_mirrored():
+		_step_tilt(delta)
 
 
-# --- Geometry ---------------------------------------------------------------
-
-## The disk's cell grid. Built on demand so callers that reach Field before
-## _ready() (the editor, a unit test) still get the real convention.
+## The disk's cell grid, built on demand so callers before _ready() get it too.
 func grid() -> CellGrid:
 	if _grid == null:
 		_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
 	return _grid
 
 
-# --- Tilt (SPECIALS_ONLY, spec 1.7, 1.2, 2.7) --------------------------------
-#
-# Match-side wiring decides when this runs; Field only carries the flag.
-
-## Turns tilt on for a tilt_mode match. Disabling mid-match also snaps the tilt
-## back to level rather than leaving it wherever the spring stopped.
-##
-## DECISION (game/field/Field.gd): `sync_to_physics` (spec 2.7: "the disk is an
-## AnimatableBody3D with sync_to_physics = true") is flipped on here, not
-## unconditionally in _ready(). Once true, Godot's kinematic body only accepts
-## transform writes made through the physics step, which would break callers
-## that place the field by writing global_position outside a physics tick.
-## Gating it on the tilt flag keeps those callers working until a match turns
-## tilt on, the only time anything needs the physics-synced path.
+## Turns tilt on for a tilt_mode match; disabling snaps the tilt back to level.
 func set_tilt_enabled(enabled: bool) -> void:
 	if _tilt_enabled == enabled:
 		return
 	_tilt_enabled = enabled
 	_set_sync(enabled)
 	if not enabled:
-		_tilt = Vector2.ZERO
-		_tilt_velocity = Vector2.ZERO
-		_wake_tilt()
+		_tilt.reset()
 		_apply_tilt_transform()
 		_push_level_pose_to_physics()
 
 
-## PHYSICAL_BALANCE tilt (spec 1.7/1.2). MatchLifecycle._apply_tilt_mode() is
-## the only caller; a no-op while _tilt_enabled is false, like apply_tilt_impulse().
 func set_physical_balance_enabled(enabled: bool) -> void:
 	_physical_balance_enabled = enabled
-	if not enabled:
-		_physical_balance_torque = Vector2.ZERO
 
 
-## The BlockRegistry PHYSICAL_BALANCE reads settled blocks from (spec 2.1/2.7),
-## set once by MatchLifecycle._apply_tilt_mode(). Null is safe:
-## _physical_balance_torque_accel() then contributes no torque.
 func set_registry(registry: BlockRegistry) -> void:
 	_registry = registry
 
 
-## Current tilt vector (radians, disk-local X/Z rotation angles as documented
-## on _tilt above). Read-only; tests use it to check the spring's motion and
-## its clamp without waiting out real seconds of physics frames.
 func tilt_vector() -> Vector2:
-	return _tilt
+	return _tilt.tilt()
 
 
-## The one public entry point a special (Anvil, Fan, Earthquake) uses to
-## push the disk. `direction` is a disk-local XZ unit vector; `magnitude` is
-## an impulse into the spring model (added to the tilt vector's velocity, unit
-## "mass"), not a direct angle -- the critically damped spring then eases the
-## disk back toward level over roughly tilt_tuning.return_time_constant_s.
-## A no-op while tilt is disabled, so a special fired under `PHYSICAL_BALANCE`
-## (or before any match wires tilt on at all) cannot leave Field with a
-## velocity that only shows up the moment something else enables it later.
-##
-## DECISION (game/field/Field.gd): direction (dx, dz) is turned into
-## a velocity kick on (rotation about local X, rotation about local Z) via
-## Vector2(dz, -dx) * magnitude. That is the unique small-angle decomposition
-## whose combined rotation moves the disk surface point at unit offset
-## `direction` downward by exactly `magnitude` radians (a first-order
-## expansion of rotating around the horizontal axis perpendicular to
-## `direction`, i.e. treating the two single-axis rotations Field already
-## keeps as state as independent contributions rather than composing them as
-## one single-axis tilt) -- so "hit the disk over there" reads as "that side
-## dips", the same intuition apply_tilt_impulse's own doc promises callers.
+## A special's push on the disk: `direction` is a disk-local XZ unit vector,
+## `magnitude` a velocity kick into the spring. No-op while tilt is disabled.
 func apply_tilt_impulse(direction: Vector2, magnitude: float) -> void:
-	# Specials simulate host-side only, so nothing calls this on a mirroring Field;
-	# guard anyway so an impulse cannot sit queued in _tilt_velocity (while
-	# _update_tilt() is stopped) and snap the disc when mirroring ends.
-	if not _tilt_enabled or _mirrored:
+	if not _tilt_enabled:
 		return
-	var dir: Vector2 = direction.normalized()
-	if dir == Vector2.ZERO or magnitude == 0.0:
+	if _tilt.is_mirrored():
 		return
-	_tilt_velocity += Vector2(dir.y, -dir.x) * magnitude
-	_wake_tilt()
+	_tilt.impulse(direction, magnitude)
+	_wake_sync()
 
 
-## The client-side entry point net/SnapshotSync.gd's client_tick() calls every
-## frame with the interpolated disk pose off the snapshot stream (spec 2.6
-## "Disk state: tilt quaternion and position offset, sent every snapshot").
-## Never called on the host -- SnapshotSync only calls it from client_tick(),
-## which is itself gated on Net.is_client(). `offset`/`tilt` are world-space --
-## the same convention every synced
-## body's snapshot pose already uses (net/SnapshotSync.gd's _record():
-## block.global_position) -- so this writes global_transform, matching how
-## client_tick() writes a frozen Block's pose, rather than assuming Field has
-## no parent transform the way _apply_tilt_transform()'s plain `transform`
-## write already does for every existing caller.
-##
-## The first call switches this Field into mirror mode (see _mirrored's own
-## comment): from here on _physics_process() stops running the local tilt
-## spring, so it can never fight this write. tilt_vector() is kept honest by
-## decomposing `tilt` back into the same (rotation about local X, rotation
-## about local Z) vector _tilt_basis() builds it from -- exact for any tilt
-## this system can produce (asserted a valid inverse only within the small
-## angle range tilt_tuning.max_tilt_rad() clamps to, which is well inside
-## atan2's +-90 degree domain for either axis).
+## net/SnapshotSync.gd's client_tick() feeds the interpolated world-space disk pose
+## (spec 2.6) every frame; the first call switches to mirror mode, stopping the
+## local spring.
 func apply_replicated_pose(offset: Vector3, tilt: Quaternion) -> void:
-	_mirrored = true
-	_tilt = _tilt_vector_from_quaternion(tilt)
-	_tilt_velocity = Vector2.ZERO
-	_wake_tilt()
+	_tilt.set_pose(tilt)
+	_wake_sync()
 	global_transform = Transform3D(Basis(tilt), offset)
 
 
-## One physics tick of the critically damped spring (x'' + 2*omega*x'
-## + omega^2*x = 0 pulling _tilt back toward Vector2.ZERO), then the
-## max_tilt_deg clamp, then the transform write sync_to_physics carries to
-## Jolt. Split out from _physics_process so tests can step the dynamics
-## directly without waiting on real engine frames.
-##
-## PHYSICAL_BALANCE adds _physical_balance_torque_accel() into the
-## same acceleration term a special's apply_tilt_impulse() already drives via
-## _tilt_velocity, rather than a second independent integrator -- so the
-## existing spring/clamp/replication machinery below carries and mirrors it
-## unchanged, and a direct field._update_tilt(TICK) test call (this file's own
-## established convention) exercises it exactly like SPECIALS_ONLY.
-func _update_tilt(delta: float) -> void:
-	var stiffness: float = tilt_tuning.spring_stiffness()
-	var damping: float = tilt_tuning.spring_damping()
-	var forcing_accel: Vector2 = Vector2.ZERO
+## One physics tick of the spring. The balance torque is resampled only while the
+## WHOLE stack is settled, else the disk chases a moving target and the stack never sleeps.
+func _step_tilt(delta: float) -> void:
+	var balance: DiscTilt.Balance = DiscTilt.Balance.OFF
+	var samples: PackedVector3Array
 	if _physical_balance_enabled:
-		forcing_accel = _physical_balance_torque_accel()
-	# at rest the disc stays bit-static (no write) until the spring's
-	# target moves clear of the tilt, so balance-torque noise cannot keep it moving.
-	var rest_target: Vector2 = Vector2.ZERO
-	if stiffness > 0.0:
-		rest_target = forcing_accel / stiffness
-	if _tilt_at_rest:
-		if (rest_target - _tilt).length() < tilt_tuning.rest_wake_position_rad:
-			return
-		_wake_tilt()
-	var accel: Vector2 = (-stiffness * _tilt) - (damping * _tilt_velocity) + forcing_accel
-	_tilt_velocity += accel * delta
-	# DECISION (game/field/Field.gd): snap the velocity to zero once velocity and
-	# position error are both within tilt_tuning.tilt_settle_relative_epsilon of
-	# the spring's target (see its own DECISION). A critically damped spring only
-	# asymptotes, so without a snap _apply_tilt_transform() would write a
-	# different `transform` every tick forever and sync_to_physics would keep
-	# Jolt, and every block resting on it, active.
-	#
-	# The scale is the spring's driving target (forcing_accel / stiffness; zero
-	# with no persistent forcing), not the live _tilt: scaling off a clamped
-	# _tilt snapped the small recovery velocity after a clamp release and froze
-	# the disk at the ceiling. Target scaling alone would snap the genuine early
-	# build-up from rest, so the snap also requires the position error toward
-	# the target (target_tilt - _tilt) to be small. Velocity threshold =
-	# epsilon * omega * scale (velocity ~ omega * error near convergence);
-	# position threshold = epsilon * scale.
-	var target_tilt: Vector2 = Vector2.ZERO
-	if stiffness > 0.0:
-		target_tilt = forcing_accel / stiffness
-	var settle_scale: float = maxf(target_tilt.length(), tilt_tuning.tilt_settle_floor_rad)
-	var epsilon: float = tilt_tuning.tilt_settle_relative_epsilon
-	var velocity_settled: bool = (
-		_tilt_velocity.length() < epsilon * tilt_tuning.angular_frequency() * settle_scale
-	)
-	var position_settled: bool = (target_tilt - _tilt).length() < epsilon * settle_scale
-	if velocity_settled and position_settled:
-		_tilt_velocity = Vector2.ZERO
-	_tilt += _tilt_velocity * delta
-	_clamp_tilt()
-	if (
-		_tilt_velocity.length() < tilt_tuning.rest_velocity_rad_s
-		and (rest_target - _tilt).length() < tilt_tuning.rest_position_rad
-	):
-		_tilt_rest_timer += delta
-		if _tilt_rest_timer >= tilt_tuning.rest_hold_s:
-			_tilt_velocity = Vector2.ZERO
-			_tilt_at_rest = true
-			# a sync_to_physics kinematic body keeps resting blocks
-			# awake even with no transform write; drop it while latched.
-			_set_sync(false)
-	else:
-		_tilt_rest_timer = 0.0
-	# Once the snap has zeroed the velocity, _tilt is bit-for-bit unchanged;
-	# re-submitting the same kinematic transform would tell Jolt the body moved
-	# and keep resting blocks awake. Write only on change.
-	if _tilt == _last_applied_tilt:
-		return
-	_apply_tilt_transform()
+		if _registry == null or not is_instance_valid(_registry) or _registry.tracked_block_count() == 0:
+			balance = DiscTilt.Balance.EMPTY
+		elif _registry.all_settled():
+			balance = DiscTilt.Balance.SAMPLED
+			samples = _registry.settled_torque_samples()
+		else:
+			balance = DiscTilt.Balance.HOLD
+	var changed: bool = _tilt.step(delta, balance, samples)
+	# A sync_to_physics body keeps resting blocks awake; drop it at rest.
+	var sync: bool = not _tilt.is_at_rest()
+	if sync != sync_to_physics:
+		_set_sync(sync)
+	if changed:
+		_apply_tilt_transform()
 
 
-## Leaves the rest deadband (impulse, replicated pose, reset, target moved).
-func _wake_tilt() -> void:
-	_tilt_at_rest = false
-	_tilt_rest_timer = 0.0
-	# Re-arm before the first write after waking so the moving disc carries blocks.
-	# (set_tilt_enabled(false) clears _tilt_enabled first, so this stays off there.)
+## Re-arms sync_to_physics before the first write after a wake (tilt enabled only).
+func _wake_sync() -> void:
 	if _tilt_enabled:
 		_set_sync(true)
 
 
-## Sums settled blocks' mass * disk-local lever-arm into the same 2-axis
-## acceleration term the spring above integrates (a kinematic-torque approximation,
-## explicitly not a real RigidBody3D/joint coupling).
-##
-## DECISION (game/field/Field.gd): each sample packs (disk-local x offset,
-## mass, disk-local z offset); Vector2(z, -x) * mass is the same small-angle
-## decomposition apply_tilt_impulse() above already uses for "push at this
-## offset tips the disk this way" (r=(x,0,z), F=(0,-weight,0), torque=r x F),
-## so a settled tower's own weight reads on the identical two axes a special's
-## impulse would.
-##
-## DECISION (game/field/Field.gd): _physical_balance_torque latches the last
-## non-empty sample sum instead of recomputing it every tick.
-## settled_torque_samples() only counts blocks that finished settling, and
-## tilting the disk re-wakes them, which drops the load from the samples, zeroes
-## the torque, lets the spring pull back, and the load resettles: a limit cycle
-## that never converges. Holding the last value through a momentary empty gap
-## lets the input settle. It zeroes only on a genuinely empty registry
-## (tracked_block_count() == 0) or when PHYSICAL_BALANCE is turned off/reset
-## (set_physical_balance_enabled(false), clear_match_state()), so removing the
-## load still returns the disk to level.
-func _physical_balance_torque_accel() -> Vector2:
-	if _registry == null or not is_instance_valid(_registry):
-		_physical_balance_torque = Vector2.ZERO
-		return Vector2.ZERO
-	if _registry.tracked_block_count() == 0:
-		_physical_balance_torque = Vector2.ZERO
-		return Vector2.ZERO
-	# Recompute only when the WHOLE stack is at rest: recomputing on a partially
-	# settled subset moved the target each time a block dozed off, the disk
-	# chased it, that woke the rest, and the stack never slept. Holding the last
-	# all-settled torque lets the spring converge and the blocks sleep on the
-	# still disk.
-	var samples: PackedVector3Array = PackedVector3Array()
-	if _registry.all_settled():
-		samples = _registry.settled_torque_samples()
-	if not samples.is_empty():
-		var torque: Vector2 = Vector2.ZERO
-		for sample: Vector3 in samples:
-			# sample = (disk-local x offset, mass, disk-local z offset)
-			torque += Vector2(sample.z, -sample.x) * sample.y
-		_physical_balance_torque = torque
-	return _physical_balance_torque * tilt_tuning.physical_balance_torque_gain
+## Sets sync_to_physics on the disc and the beacon body together.
+func _set_sync(enabled: bool) -> void:
+	sync_to_physics = enabled
+	if _flags != null:
+		_flags.set_sync(enabled)
 
 
-## Clamps _tilt's magnitude to tilt_tuning.max_tilt_deg regardless of how many
-## apply_tilt_impulse() calls landed this frame or how large any one of them
-## was -- the clamp runs once per integrated step, after every impulse queued
-## for that step has already been folded into _tilt_velocity. Also drops the
-## outward-pointing part of the velocity at the clamp so a saturated hit does
-## not keep re-clamping every subsequent frame while it decays.
-func _clamp_tilt() -> void:
-	var max_rad: float = tilt_tuning.max_tilt_rad()
-	var magnitude: float = _tilt.length()
-	if magnitude <= max_rad or magnitude <= 0.0:
-		return
-	var outward: Vector2 = _tilt / magnitude
-	var radial_speed: float = _tilt_velocity.dot(outward)
-	if radial_speed > 0.0:
-		_tilt_velocity -= outward * radial_speed
-	_tilt = outward * max_rad
-
-
-## Builds the disk's rotation from the tilt vector as two independent
-## small-angle rotations (see apply_tilt_impulse's DECISION above): first
-## about the local Z axis (tilt.y), then about the local X axis (tilt.x).
-## Composing in a fixed order makes the transform this writes and the
-## impulse math above exact inverses of each other.
-func _tilt_basis(tilt: Vector2) -> Basis:
-	return Basis(Vector3.RIGHT, tilt.x) * Basis(Vector3.BACK, tilt.y)
-
-
-## The exact inverse of _tilt_basis(), for apply_replicated_pose(): given
-## B = Rx(tilt.x) * Rz(tilt.y), standard XZ-Euler extraction reads
-## tilt.x off B's Z column (rotated by Rx alone) and tilt.y off B's X row
-## (rotated by Rz alone) -- atan2 rather than asin/acos so the sign survives.
-## This recovers any (tilt.x, tilt.y) exactly short of the +-90 degree
-## gimbal-lock singularity, which tilt_tuning.max_tilt_rad() (spec 2.7's 12
-## degrees) never approaches.
-func _tilt_vector_from_quaternion(tilt: Quaternion) -> Vector2:
-	var basis: Basis = Basis(tilt)
-	return Vector2(
-		atan2(-basis.z.y, basis.z.z),
-		atan2(-basis.y.x, basis.x.x)
-	)
-
-
-## Writes the tilt into this Node3D's own local transform (never the parent's)
-## so disk_local_from_world()/world_from_disk_local() -- already plain
-## to_local()/to_global() -- pick it up through the live global_transform with
-## no code change of their own, and so the rotation pivots on Field's own
-## origin (spec 1.7 "the disk pivots around its center").
+## Writes the tilt into the local transform; the disk pivots on its own origin.
 func _apply_tilt_transform() -> void:
-	_last_applied_tilt = _tilt
-	transform = Transform3D(_tilt_basis(_tilt), transform.origin)
+	_tilt.mark_applied()
+	transform = Transform3D(_tilt.basis(), transform.origin)
 
 
-## Writes the level pose straight into the physics server body after a reset
-## levels the disc. Levelling the node with sync_to_physics off does not reach
-## the server body before the next step: a Replay (END -> LOBBY -> LOADING in one
-## frame) toggles tilt off, clears and on again before any physics step, so the
-## first step re-synced the node to the previous match's tilted pose (~0.2 rad
-## while `_tilt` read zero). Only while sync_to_physics is off: with it on, the
-## node write itself is forwarded as the body's new target, and the node still
-## reads the previous physics pose, which must not be pushed back. No-op out of
-## the tree.
+## Writes the level pose straight into the physics body after a reset: with
+## sync_to_physics off the node write does not reach it before the next step, so a
+## Replay (END -> LOBBY -> LOADING in one frame) would re-sync the old tilted pose.
+## Skipped while sync_to_physics is on (the node write is the target) or out of tree.
 func _push_level_pose_to_physics() -> void:
 	if sync_to_physics or not is_inside_tree():
 		return
 	PhysicsServer3D.body_set_state(get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, global_transform)
 
 
-## Builds (or rebuilds) the disk's cell grid and collision trimesh from the
-## current map_def. Callable more than once (rebuild_for_map()): the previous
-## shape_owner is freed first so a rebuild leaks no RID, and _grid is reset so
-## grid() builds a fresh CellGrid against the current map_def.
+## Builds the cell grid and collision trimesh from map_def; a rebuild frees the
+## previous shape_owner and starts the hole state clean.
 func _rebuild_cells() -> void:
 	if _disk_owner_id >= 0:
 		remove_shape_owner(_disk_owner_id)
 		_disk_owner_id = -1
 	_grid = null
 	var cell_grid: CellGrid = grid()
-	var cell_count: int = cell_grid.cell_count()
-	_cell_owner_ids = PackedInt32Array()
-	_cell_owner_ids.resize(cell_count)
-	_cell_owner_ids.fill(-1)
-	_hole_applied = PackedByteArray()
-	_hole_applied.resize(cell_count)
-	_hole_wanted = PackedByteArray()
-	_hole_wanted.resize(cell_count)
-	_in_disk_cells = _collect_in_disk_cells(cell_grid)
-	_applied_hole_total = 0
-
-	# DECISION (game/field/Field.gd): quad corners come from shared grid
-	# lines (i * cell_size - half_extent, CellGrid's own origin offset) rather
-	# than from index_center() +/- cell_size / 2 per cell. They are the same
-	# points (index_center() is the midpoint of two lines), but computed once
-	# per line, neighbouring quads share bit-identical vertices, so Jolt sees
-	# one welded surface with no hairline seams between cells.
+	_solid = PackedByteArray()
+	_solid.resize(cell_grid.cell_count())
+	_holes = HoleBacklog.new()
+	_in_disk_cells = cell_grid.in_disk_cells()
+	for cell: int in _in_disk_cells:
+		_solid[cell] = 1
+	# DECISION: quad corners come from shared grid lines, so neighbouring quads share
+	# bit-identical vertices and Jolt sees one welded surface with no seams.
 	_grid_lines = PackedFloat32Array()
 	_grid_lines.resize(cell_grid.res + 1)
 	for line: int in range(cell_grid.res + 1):
 		_grid_lines[line] = float(line) * cell_grid.cell_size - cell_grid.half_extent
 
 	_disk_shape = ConcavePolygonShape3D.new()
-	# DECISION (game/field/Field.gd): single-sided (backface_collision
-	# off, the default). Every face points out of the disk slab (up, or out of
-	# a rim cell's side), so a block below the surface past the rim is never
-	# pushed back up by the underside of a top quad.
+	# DECISION: single-sided: every face points out of the slab, so a block below the
+	# surface past the rim is never pushed back up.
 	_disk_shape.backface_collision = false
 	_disk_owner_id = create_shape_owner(self)
 
 	var faces: PackedVector3Array = PackedVector3Array()
 	for cell: int in _in_disk_cells:
 		var coords: Vector2i = cell_grid.cell_coords(cell)
-		_cell_owner_ids[cell] = _disk_owner_id
 		faces.append_array(_top_quad(coords.x, coords.y))
-
-	# DECISION (game/field/Field.gd): the mesh also carries vertical walls,
-	# disk_height deep, on every cell side that faces the rim, so a block sliding
-	# off the edge meets a side that pushes it off sideways rather than a bare
-	# triangle edge. Holes do not cut the mesh, so the rim is the only place
-	# walls stand.
+	# DECISION: rim walls, disk_height deep, so a block sliding off the edge meets a
+	# side rather than a bare triangle edge (holes never cut the mesh).
 	for cell: int in _in_disk_cells:
 		var coords: Vector2i = cell_grid.cell_coords(cell)
 		for dir: Vector2i in NEIGHBOUR_DIRS:
@@ -558,7 +227,6 @@ func _rebuild_cells() -> void:
 			if not _cell_in_disk(next.x, next.y):
 				faces.append_array(_edge_wall(coords.x, coords.y, dir))
 
-	# Faces first, then the shape onto the shape_owner, so Jolt never sees an empty mesh.
 	_build_disk_mesh(faces)
 	shape_owner_add_shape(_disk_owner_id, _disk_shape)
 
@@ -567,47 +235,24 @@ func _rebuild_cells() -> void:
 	physics_material_override = material
 
 
-## Rebuilds this Field for a different MapDef. game/main/Main.gd calls it before
-## place_flags() wherever a match's map_def may differ from the one Field's
-## @export loaded, so collision, kill plane and overlay match before any flag
-## or block needs them.
+## Rebuilds this Field for a different MapDef; Main calls it before place_flags().
 func rebuild_for_map(new_map_def: MapDef) -> void:
 	map_def = new_map_def
 	_rebuild_cells()
 	_build_kill_plane()
+	_flags.map_def = map_def
 	if _overlay != null:
 		_overlay.configure(map_def, visuals, territory_tuning, disc_body_visuals, arena_side_style)
 
 
-## Every in-disk cell index in row-major order. CellGrid is the one authority
-## on where the disk ends (it builds this list once and caches it), so the
-## collision cells, the raster pixels and placement validation share a rim by
-func _collect_in_disk_cells(cell_grid: CellGrid) -> PackedInt32Array:
-	return cell_grid.in_disk_cells()
-
-
-## How many cells carry collision, in or out of a hole. The denominator the
-## grid tests count against.
-func cell_count() -> int:
-	return _in_disk_cells.size()
-
-
 func _cell_in_disk(cx: int, cy: int) -> bool:
 	var cell_grid: CellGrid = grid()
-	if not cell_grid.in_bounds(cx, cy):
-		return false
-	return _cell_owner_ids[cell_grid.cell_index(cx, cy)] >= 0
+	return cell_grid.in_bounds(cx, cy) and _solid[cell_grid.cell_index(cx, cy)] == 1
 
 
-# --- Disk trimesh ---------------------------------------------
-
-## A quad as two triangles whose front faces point along `front`. Godot takes
-## clockwise-wound triangles as front faces; the winding is picked from the
-## corners' own cross product so no caller has to get it right by hand.
-## Corners go round the quad in order, either way round.
-func _quad(
-	p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, front: Vector3
-) -> PackedVector3Array:
+## A quad (corners in order, either way round) as two triangles whose front faces
+## point along `front`; the winding is picked from the corners' cross product.
+func _quad(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, front: Vector3) -> PackedVector3Array:
 	var counter_clockwise_normal: Vector3 = (p1 - p0).cross(p2 - p0)
 	if counter_clockwise_normal.dot(front) > 0.0:
 		return PackedVector3Array([p0, p3, p2, p0, p2, p1])
@@ -620,29 +265,21 @@ func _top_quad(cx: int, cy: int) -> PackedVector3Array:
 	var x1: float = _grid_lines[cx + 1]
 	var z0: float = _grid_lines[cy]
 	var z1: float = _grid_lines[cy + 1]
-	return _quad(
-		Vector3(x0, 0.0, z0), Vector3(x1, 0.0, z0),
-		Vector3(x1, 0.0, z1), Vector3(x0, 0.0, z1),
-		Vector3.UP
-	)
+	return _quad(Vector3(x0, 0.0, z0), Vector3(x1, 0.0, z0), Vector3(x1, 0.0, z1), Vector3(x0, 0.0, z1), Vector3.UP)
 
 
-## The side of solid cell (cx, cy) that faces `dir`, from the surface down to
-## the disk's underside, its front face pointing out of the cell.
+## The side of cell (cx, cy) facing `dir`, from the surface down to the underside.
 func _edge_wall(cx: int, cy: int, dir: Vector2i) -> PackedVector3Array:
 	var x0: float = _grid_lines[cx]
 	var x1: float = _grid_lines[cx + 1]
 	var z0: float = _grid_lines[cy]
 	var z1: float = _grid_lines[cy + 1]
-	# dir (0, -1), the -z side, unless one of the branches below says otherwise.
 	var a: Vector3 = Vector3(x0, 0.0, z0)
 	var b: Vector3 = Vector3(x1, 0.0, z0)
-	if dir.x > 0:
-		a = Vector3(x1, 0.0, z0)
-		b = Vector3(x1, 0.0, z1)
-	elif dir.x < 0:
-		a = Vector3(x0, 0.0, z0)
-		b = Vector3(x0, 0.0, z1)
+	if dir.x != 0:
+		var x: float = x1 if dir.x > 0 else x0
+		a = Vector3(x, 0.0, z0)
+		b = Vector3(x, 0.0, z1)
 	elif dir.y > 0:
 		a = Vector3(x0, 0.0, z1)
 		b = Vector3(x1, 0.0, z1)
@@ -650,142 +287,48 @@ func _edge_wall(cx: int, cy: int, dir: Vector2i) -> PackedVector3Array:
 	return _quad(a, b, b + down, a + down, Vector3(float(dir.x), 0.0, float(dir.y)))
 
 
-## Puts the disk's faces on its one shape. set_faces() takes the whole face
-## array and wakes every body resting on the disk, so this runs only when the
-## map is built (_rebuild_cells(): _ready() and rebuild_for_map()), never on a
-## hole change.
+## Puts the disk's faces on its one shape; only at map build (set_faces() wakes everything).
 func _build_disk_mesh(faces: PackedVector3Array) -> void:
 	var started_usec: int = Time.get_ticks_usec()
-	# DECISION (game/field/Field.gd): Jolt cannot build an empty mesh
-	# shape, so a degenerate map with no in-disk cell disables the shape_owner instead.
+	# DECISION: Jolt cannot build an empty mesh shape, so a degenerate map with no
+	# in-disk cell disables the shape_owner instead.
 	var empty: bool = faces.is_empty()
 	if not empty:
 		_disk_shape.set_faces(faces)
 	if is_shape_owner_disabled(_disk_owner_id) != empty:
 		shape_owner_set_disabled(_disk_owner_id, empty)
-
-	_rebuild_count += 1
-	var elapsed_usec: int = Time.get_ticks_usec() - started_usec
-	_max_rebuild_usec = maxi(_max_rebuild_usec, elapsed_usec)
-	if _trace_every > 0 and _rebuild_count % _trace_every == 0:
-		print(
-			"FIELD_DISK_REBUILD n=%d cells=%d triangles=%d usec=%d max_usec=%d" % [
-				_rebuild_count, _in_disk_cells.size(), faces.size() / 3,
-				elapsed_usec, _max_rebuild_usec,
-			]
-		)
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with(TRACE_ARG):
+			print("FIELD_DISK_REBUILD cells=%d triangles=%d usec=%d" % [
+				_in_disk_cells.size(), faces.size() / 3, Time.get_ticks_usec() - started_usec,
+			])
 
 
-## Flips one cell's applied hole state and the applied-hole count.
-func _set_hole_applied(cell: int, hole: bool) -> void:
-	var value: int = 1 if hole else 0
-	if _hole_applied[cell] == value:
-		return
-	_hole_applied[cell] = value
-	_applied_hole_total += 1 if hole else -1
+## Applies the raster's last hole diff. Both arrays are row-major CellGrid
+## indices; they go on the backlog and drain per physics frame.
+func set_hole_cells(opened: PackedInt32Array, closed: PackedInt32Array) -> void:
+	_holes.want(opened, closed, _in_disk_cells)
 
 
 ## Applied hole cells right now. game/blocks/HoleDissolver.gd skips its per-tick
 ## contact test entirely while this is zero.
 func applied_hole_count() -> int:
-	return _applied_hole_total
+	return _holes.applied_count()
 
 
-# --- Holes (spec 1.5, 2.5) --------------------------------------------------
-
-## Applies the raster's last hole diff. Both arrays are row-major CellGrid
-## indices. Nothing toggles here: the pairs go on the backlog and drain at
-## `TerritoryTuning.max_cell_toggles_per_frame` per physics frame.
-func set_hole_cells(opened: PackedInt32Array, closed: PackedInt32Array) -> void:
-	for cell: int in opened:
-		_enqueue_toggle(cell, true)
-	for cell: int in closed:
-		_enqueue_toggle(cell, false)
-
-
-func _enqueue_toggle(cell: int, disabled: bool) -> void:
-	if cell < 0 or cell >= _cell_owner_ids.size():
-		return
-	if _cell_owner_ids[cell] < 0:
-		return
-	var wanted: int = 1 if disabled else 0
-	if _hole_wanted[cell] == wanted:
-		return
-	_hole_wanted[cell] = wanted
-	_toggle_cells.append(cell)
-	_toggle_disabled.append(wanted)
-
-
-## True when this cell is currently an applied hole (dissolve contact; the
-## disk collision stays solid).
-##
-## DECISION (game/field/Field.gd): reports the *applied* state: a cell the
-## raster opened this frame still reads false while it waits in the backlog,
-## because that is the only question this node can answer that TerritoryRaster
-## cannot. No rule reads it; rule code asks TerritoryRaster.is_hole_index().
+## True when this cell is currently an applied hole (dissolve contact; the disk
+## collision stays solid). DECISION: reports the *applied* state: a cell the raster
+## opened this frame still reads false while it waits in the backlog.
 func is_hole_cell(index: int) -> bool:
-	if index < 0 or index >= _hole_applied.size():
-		return false
-	return _hole_applied[index] == 1
+	return _holes.is_applied(index)
 
 
-func _drain_toggles() -> void:
-	if _toggle_head >= _toggle_cells.size():
-		return
-	var budget: int = maxi(territory_tuning.max_cell_toggles_per_frame, 1)
-	var applied: int = 0
-	var opened: PackedInt32Array = PackedInt32Array()
-	while _toggle_head < _toggle_cells.size() and applied < budget:
-		var cell: int = _toggle_cells[_toggle_head]
-		var disabled: bool = _toggle_disabled[_toggle_head] == 1
-		_toggle_head += 1
-		if _cell_owner_ids[cell] < 0:
-			continue
-		if (_hole_applied[cell] == 1) == disabled:
-			continue
-		_set_hole_applied(cell, disabled)
-		applied += 1
-		if disabled:
-			opened.append(cell)
-	if _toggle_head >= _toggle_cells.size():
-		_toggle_cells = PackedInt32Array()
-		_toggle_disabled = PackedByteArray()
-		_toggle_head = 0
-	# no rebuild and no wake. The collision never changes,
-	# so nothing resting on the disk needs waking; the host's HoleDissolver
-	# finds the blocks touching the newly opened cells instead.
-	if not opened.is_empty():
-		hole_cells_applied.emit(opened)
-
-
-func _on_hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array) -> void:
-	set_hole_cells(opened, closed)
-
-
-# --- Placement validity raycast -----------------------------------------------
-
-## The ruleset's one physics query: a raycast from the middle of the ghost
-## block straight down. Casts
-## from `map_def.cell_wake_height` above the disk down to `tuning.kill_plane_y`
-## against the live physics world (the disk's own cell collision and every
-## resting block), and returns the hit point converted to disk-local (x, z),
-## or null when nothing was hit (only possible off the rim with nothing
-## beneath).
-##
-## Deliberately independent of however `world_origin` itself was aimed —
-## PlayerController's own ghost-follow ray can graze the side of a tower at an
-## angle; this always asks "what is directly beneath the ghost's current
-## position", straight down along the disk's own vertical axis.
-##
-## DECISION (game/field/Field.gd): the start/end heights are read off through
-## world_from_disk_local() (disk-local (x, z) plus a height) rather than by
-## building world-space points directly from `world_origin.y`, `cell_
-## wake_height` and `kill_plane_y` as bare world Y values. That matches how
-## Field's own _build_kill_plane() already treats
-## those two numbers -- as heights along the disk's own axis, converted through
-## the disk's transform -- so the raycast stays correct while Field tilts.
-## `world_origin.y` itself is
-## never read: only its (x, z) projection onto the disk matters here.
+## The ruleset's one physics query: a raycast straight down from the middle of
+## the ghost block, from `map_def.cell_wake_height` above the disk to
+## `tuning.kill_plane_y`, against the disk and every resting block. Returns the
+## hit as disk-local (x, z), or null on a miss. Only the (x, z) of `world_origin`
+## is read, and the heights go through world_from_disk_local(), so it stays
+## correct while the disk tilts.
 func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 	var space: PhysicsDirectSpaceState3D = direct_space()
 	if space == null:
@@ -796,9 +339,7 @@ func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 	return disk_local_from_world(hit["position"] as Vector3)
 
 
-## The live physics space this field queries, or null when the field is out
-## of the tree / has no world (bare unit tests). Shared by
-## raycast_down_disk_local() and game/bots/BotController.gd's support probe.
+## The live physics space this field queries, or null out of the tree.
 func direct_space() -> PhysicsDirectSpaceState3D:
 	if not is_inside_tree():
 		return null
@@ -808,9 +349,8 @@ func direct_space() -> PhysicsDirectSpaceState3D:
 	return world.direct_space_state
 
 
-## The straight-down column ray at disk-local `local_xz` (map_def.
-## cell_wake_height down to tuning.kill_plane_y, PLACEMENT_QUERY_MASK, bodies
-## only), returning the raw intersect_ray() dictionary (empty on a miss).
+## The straight-down column ray at disk-local `local_xz` (PLACEMENT_QUERY_MASK,
+## bodies only): the raw intersect_ray() dictionary, empty on a miss.
 func raycast_disk_column(space: PhysicsDirectSpaceState3D, local_xz: Vector2) -> Dictionary:
 	var start: Vector3 = world_from_disk_local(local_xz, map_def.cell_wake_height)
 	var end: Vector3 = world_from_disk_local(local_xz, tuning.kill_plane_y)
@@ -822,11 +362,9 @@ func raycast_disk_column(space: PhysicsDirectSpaceState3D, local_xz: Vector2) ->
 	return space.intersect_ray(params)
 
 
-## Straight down from `origin` for `ray_length`, skipping any RigidBody3D (a
-## placed block) so the first hit is the disk's own collision, never a tower
-## beneath. Bounded by `max_skips` so a very tall or adversarial stack cannot
-## spin the loop; past that many skips it reports a miss ({}). Shared by
-## PlayerController and GhostPreview.
+## Straight down from `origin` for `ray_length`, skipping any RigidBody3D so the
+## first hit is the disk's own collision. Past `max_skips` skips it reports a miss
+## ({}). Shared by PlayerController and GhostPreview.
 static func raycast_disk_surface(
 	space: PhysicsDirectSpaceState3D, origin: Vector3, ray_length: float, max_skips: int
 ) -> Dictionary:
@@ -849,55 +387,25 @@ static func raycast_disk_surface(
 	return {}
 
 
-## Called by game/main/Main.gd's _end_match_world() when a match's world comes
-## down: drops every trace of the match that just ended (its flags, the
-## overlay's reference to its raster, and every hole it opened) so the field
-## behind the main menu, or a fresh rehosted match, starts clean. Field is a
-## persistent node (unlike the local player scene, RemoteCursors and NetDebugOverlay, which
-## Main frees and rebuilds), and Match's teardown clears its blocks and slots,
-## never Field's.
-##
-## DECISION (game/field/Field.gd): every applied hole is closed synchronously
-## here and the backlog discarded, instead of draining at
-## TerritoryTuning.max_cell_toggles_per_frame (spec 2.5). That budget protects
-## play-time physics cost; at teardown the field idles behind a menu, and a hole
-## or queued toggle left until the backlog catches up is exactly the leak this
-## method closes.
+## Called by Main when a match's world comes down: drops the match's flags,
+## overlay raster, holes and tilt so the field behind the menu, or a rehosted
+## match, starts clean. DECISION: every hole closes synchronously and the backlog
+## is discarded (the per-frame budget protects play-time cost only). No mesh
+## rebuild: holes never cut the trimesh, and set_faces() wakes whatever rests on it.
 func clear_match_state() -> void:
-	_clear_flags()
+	_flags.clear()
 	set_overlay_source(null, PackedColorArray())
-	for cell: int in _in_disk_cells:
-		_set_hole_applied(cell, false)
-		_hole_wanted[cell] = 0
-	_toggle_cells = PackedInt32Array()
-	_toggle_disabled = PackedByteArray()
-	_toggle_head = 0
-	# DECISION (game/field/Field.gd): no mesh rebuild here. Holes never cut the
-	# trimesh, so the one built for this map is already the solid disk the next
-	# match needs; rebuilding would only repeat set_faces() and wake whatever
-	# rests on the disk.
-	# The Field outlives a match, so a tilt (and its velocity) left over from the
-	# previous match must not carry into the next one. Reset the spring state
-	# whether or not tilt is currently enabled; set_tilt_enabled() alone would
-	# no-op on an enabled -> enabled transition.
-	_tilt = Vector2.ZERO
-	_tilt_velocity = Vector2.ZERO
-	_wake_tilt()
-	# Also drops mirror mode, so the local spring is live again for the next match
-	# and the disc snaps level here (_apply_tilt_transform() below only writes the
-	# local `transform` from the zeroed _tilt, not global_transform).
-	_mirrored = false
-	# Also drops PHYSICAL_BALANCE and its registry link, so a leftover torque
-	# source cannot feed the next match's spring before MatchLifecycle's
-	# _apply_tilt_mode() wires that match's own tilt_mode.
+	_holes.clear()
+	# The Field outlives a match: reset the spring whether or not tilt is enabled
+	# (set_tilt_enabled() alone no-ops on an enabled -> enabled transition). Also
+	# drops mirror mode, PHYSICAL_BALANCE and its registry link.
+	_tilt.reset()
+	_wake_sync()
 	_physical_balance_enabled = false
 	_registry = null
-	_physical_balance_torque = Vector2.ZERO
 	_apply_tilt_transform()
 	_push_level_pose_to_physics()
 
-
-# --- Territory overlay (spec 1.10, 2.5) -------------------------------------
 
 func _build_overlay() -> void:
 	_overlay = TerritoryOverlay.new()
@@ -907,245 +415,65 @@ func _build_overlay() -> void:
 	add_child(_overlay)
 
 
+# SHORTCUT: overlay() and the set_overlay_* pass-throughs stay on Field, until P5 gives the overlay its own owner.
 func overlay() -> TerritoryOverlay:
 	return _overlay
 
 
-## Hands the overlay the live raster to draw and the per-slot colors to draw it
-## in. Receivers read the raster and never mutate it; the overlay rebuilds its
-## ImageTexture at TerritoryTuning.raster_upload_hz, not every frame.
+## Hands the overlay its raster and slot colors; the flags get the colors too (they
+## arrive after place_flags).
 func set_overlay_source(raster: TerritoryRaster, slot_colors: PackedColorArray) -> void:
-	_slot_colors = slot_colors
+	_flags.set_colors(slot_colors)
 	if _overlay != null:
 		_overlay.set_source(raster, slot_colors)
 
 
-## host-only "blocks are churning" flag; the overlay parks
-## its bake until settle (or the staleness cap). Clients never call it.
+## Host-only "blocks are churning" flag; the overlay parks its bake until settle.
 func set_overlay_churning(churning: bool, solve_waited_s: float = 0.0) -> void:
 	if _overlay != null:
 		_overlay.set_churning(churning, solve_waited_s)
 
 
-## Routes the post-solve analytic circle list to the overlay.
-## Field decides nothing here, same contract as set_overlay_source() above:
-## autoload/Match.gd builds the list (host) or net/MatchNet.gd decodes it
-## (client), and this is only the hand-off.
+## Routes the post-solve analytic circle list to the overlay (a hand-off only).
 func set_overlay_circles(
-	xs: PackedFloat32Array,
-	zs: PackedFloat32Array,
-	radii: PackedFloat32Array,
-	teams: PackedInt32Array,
-	goal_positions: PackedVector2Array,
-	goal_radii: PackedFloat32Array,
-	argmax_mode: bool
+	xs: PackedFloat32Array, zs: PackedFloat32Array, radii: PackedFloat32Array, teams: PackedInt32Array,
+	goal_positions: PackedVector2Array, goal_radii: PackedFloat32Array, argmax_mode: bool
 ) -> void:
 	if _overlay != null:
 		_overlay.set_circles(xs, zs, radii, teams, goal_positions, goal_radii, argmax_mode)
 
 
-# --- Flags (spec 1.5, 1.5) --------------------------------------------------
+func _build_flags() -> void:
+	_flags = FieldFlags.new()
+	_flags.name = &"FieldFlags"
+	_flags.map_def = map_def
+	_flags.visuals = visuals
+	_flags.tuning = tuning
+	_flags.home_flag_scene = home_flag_scene
+	_flags.goal_flag_scene = goal_flag_scene
+	add_child(_flags)
 
-## Disk-local position of a slot's home flag. Delegates to MapDef so that
-## Field, PlayerSlot and the solver's home circles all read one definition.
-func home_flag_position(slot_id: int, slot_count: int) -> Vector2:
-	return map_def.home_flag_position(slot_id, slot_count)
 
-
-## Builds the match's flags. Called once by Main after Match.start_match(),
-## because only the match knows how many players and goals there are.
+# SHORTCUT: place_flags, home_flags and goal_flags forward to FieldFlags, until the programs owning their callers (Main, Sandbox, PerchingBirds, CameraRig, SnowEffect) take the child directly.
 func place_flags(slot_count: int, slot_colors: PackedColorArray, goal_count: int) -> void:
-	_slot_colors = slot_colors
-	_timer_mode_state = {}
-	_clear_flags()
-	for slot_id: int in range(maxi(slot_count, 0)):
-		var flag: HomeFlag = home_flag_scene.instantiate() as HomeFlag
-		flag.visuals = visuals
-		var local: Vector2 = home_flag_position(slot_id, slot_count)
-		flag.position = Vector3(local.x, 0.0, local.y)
-		add_child(flag)
-		flag.set_slot(slot_id, _color_for_index(slot_id))
-		_home_flags.append(flag)
-		_add_flag_collision(slot_id, flag)
-	# goal_count 0 (Reach the Sky / Elimination) spawns no flag.
-	for local: Vector2 in PlayerSlot.goal_positions_for(goal_count, map_def):
-		var flag: GoalFlag = goal_flag_scene.instantiate() as GoalFlag
-		flag.visuals = visuals
-		flag.position = Vector3(local.x, 0.0, local.y)
-		add_child(flag)
-		var context: MatchContext = MatchContext.current()
-		flag.set_claim_ring(context.goal_zone_visual_radius())  # always drawn (claim radius with the experiment on, else goal_zone_radius)
-		_configure_goal_timer(flag)
-		_goal_flags.append(flag)
-
-
-func _clear_flags() -> void:
-	for slot_id: int in _flag_owner_ids.keys():
-		_remove_flag_collision(slot_id)
-	for flag: HomeFlag in _home_flags:
-		flag.queue_free()
-	for flag: GoalFlag in _goal_flags:
-		flag.queue_free()
-	_home_flags = []
-	_goal_flags = []
-
-
-## Layer constants. Everything else lives on layer 1. Beacon
-## collision sits on its own bit so blocks (mask includes it) rest on beacons
-## while placement/ghost queries (PLACEMENT_QUERY_MASK) never see them.
-const BEACON_COLLISION_LAYER: int = 1 << 1
-const PLACEMENT_QUERY_MASK: int = 1
-
-## Child body carrying every beacon's shapes; follows this field's tilt.
-var _beacon_body: AnimatableBody3D = null
-
-
-## A home beacon collides as extra shapes on a child
-## AnimatableBody3D of this field. DECISION: separate body on its own layer
-## (BEACON_COLLISION_LAYER) rather than shape-index filtering: blocks collide
-## with it via their mask, while the placement point-ray, ghost raise/shape
-## casts, drop projection and host validation query PLACEMENT_QUERY_MASK and
-## behave exactly as before beacons had collision. The body mirrors this
-## field's sync_to_physics (_set_sync) so it follows tilt like the disc.
-func _ensure_beacon_body() -> AnimatableBody3D:
-	if _beacon_body == null:
-		_beacon_body = AnimatableBody3D.new()
-		_beacon_body.name = &"BeaconBody"
-		_beacon_body.collision_layer = BEACON_COLLISION_LAYER
-		_beacon_body.collision_mask = 0
-		_beacon_body.sync_to_physics = sync_to_physics
-		var material: PhysicsMaterial = PhysicsMaterial.new()
-		material.friction = tuning.disk_friction
-		_beacon_body.physics_material_override = material
-		add_child(_beacon_body)
-	return _beacon_body
-
-
-## Sets sync_to_physics on the disc and the beacon body together.
-func _set_sync(enabled: bool) -> void:
-	sync_to_physics = enabled
-	if _beacon_body != null:
-		_beacon_body.sync_to_physics = enabled
-
-
-func _add_flag_collision(slot_id: int, flag: HomeFlag) -> void:
-	var body: AnimatableBody3D = _ensure_beacon_body()
-	# A shape_owner has one transform for all its shapes, so each part of the
-	# compound gets its own shape_owner.
-	var owners: PackedInt32Array = PackedInt32Array()
-	var shapes: Array[Shape3D] = flag.collision_shapes()
-	var transforms: Array[Transform3D] = flag.collision_transforms()
-	for i: int in range(shapes.size()):
-		var owner_id: int = body.create_shape_owner(body)
-		body.shape_owner_add_shape(owner_id, shapes[i])
-		body.shape_owner_set_transform(owner_id, Transform3D(Basis.IDENTITY, flag.position) * transforms[i])
-		owners.append(owner_id)
-	_flag_owner_ids[slot_id] = owners
-
-
-func _remove_flag_collision(slot_id: int) -> void:
-	if not _flag_owner_ids.has(slot_id):
-		return
-	for owner_id: int in (_flag_owner_ids[slot_id] as PackedInt32Array):
-		_beacon_body.remove_shape_owner(owner_id)
-	_flag_owner_ids.erase(slot_id)
-
-
-## An eliminated slot's beacon stops colliding (its home cell opens as a hole).
-func _on_player_eliminated_for_flags(slot_id: int, _team_id: int) -> void:
-	_remove_flag_collision(slot_id)
+	var context: MatchContext = MatchContext.current()
+	var config: MatchConfig = context.config()
+	_flags.set_colors(slot_colors)
+	_flags.place(
+		slot_count, goal_count, context.goal_zone_visual_radius(), context.capture_hold_seconds(),
+		config != null and config.game_mode == MatchConfig.GameMode.CAPTURE_THE_FLAG
+	)
 
 
 func home_flags() -> Array[HomeFlag]:
-	return _home_flags
+	return _flags.home_flags()
 
 
 func goal_flags() -> Array[GoalFlag]:
-	return _goal_flags
+	return _flags.goal_flags()
 
 
-## Spec 1.5: "A radial progress ring appears on each goal flag while someone is
-## capturing it." `progress` runs 0..1 over TerritoryTuning.capture_hold;
-## team_id -1 with progress 0 clears the ring.
-func set_capture_progress(team_id: int, progress: float) -> void:
-	var color: Color = _color_for_index(team_id)
-	_timer_capture_team = team_id
-	_timer_capture_progress = progress
-	for goal_flag: GoalFlag in _goal_flags:
-		goal_flag.set_capture(team_id, progress, color)
-		_feed_countdown(goal_flag)
-
-
-## Classic beacons count down the shared capture; CTF beacons
-## count up their hold. Both read the replicated state (capture progress event,
-## raster control, mode-state held counts), so host and clients show the same.
-func _configure_goal_timer(flag: GoalFlag) -> void:
-	var config: MatchConfig = MatchContext.current().config()
-	flag.set_timer_counts_up(config != null and config.game_mode == MatchConfig.GameMode.CAPTURE_THE_FLAG)
-	_feed_countdown(flag)
-	_feed_multiplier(flag)
-
-
-func _feed_countdown(flag: GoalFlag) -> void:
-	var hold: float = MatchContext.current().capture_hold_seconds()
-	if hold <= 0.0:
-		flag.set_countdown(-1, 0.0, 0.0, Color.WHITE)
-	else:
-		flag.set_countdown(_timer_capture_team, _timer_capture_progress, hold, _color_for_index(_timer_capture_team))
-
-
-func _feed_multiplier(flag: GoalFlag) -> void:
-	flag.set_multiplier(BeaconTimerText.held_count_in_state(_timer_mode_state, flag.control()))
-
-
-func _on_mode_state_for_timers(state: Dictionary) -> void:
-	_timer_mode_state = state
-	for flag: GoalFlag in _goal_flags:
-		_feed_multiplier(flag)
-
-
-func _on_goal_capture_progress(team_id: int, progress: float) -> void:
-	set_capture_progress(team_id, progress)
-
-
-func _on_territory_updated_for_goals(raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
-	refresh_goal_control(raster)
-
-
-## Pushes each goal's controller (GoalControl, derived from the
-## raster the host solved or the client mirrored) onto its beacon. Runs on
-## host and client from the same raster data, so they always agree.
-func refresh_goal_control(raster: TerritoryRaster) -> void:
-	for flag: GoalFlag in _goal_flags:
-		var point: Vector2 = Vector2(flag.position.x, flag.position.z)
-		var control: int = GoalControl.owner_at(raster, point)
-		var contest_colors: PackedColorArray = PackedColorArray()
-		if control == GoalControl.CONTESTED:
-			var teams: PackedInt32Array = GoalControl.nearby_teams(
-				raster, point, flag.beacon_visuals.contested_probe_radius,
-				flag.beacon_visuals.contested_probe_samples
-			)
-			for team: int in teams:
-				contest_colors.append(_color_for_index(team))
-		flag.set_control(control, _color_for_index(control) if control >= 0 else Color.WHITE, contest_colors)
-		_feed_multiplier(flag)
-
-
-## Slot/team colors come from MatchConfig.player_colors by way of
-## set_overlay_source()/place_flags(), never from a literal. The fallback is
-## the goal flag's neutral color, used before a match hands its colors over.
-func _color_for_index(index: int) -> Color:
-	if index < 0 or index >= _slot_colors.size():
-		return visuals.goal_flag_color
-	return _slot_colors[index]
-
-
-# --- Kill plane (spec 1.7) --------------------------------------------------
-
-## Builds (or rebuilds) the kill-plane trigger. Callable more than once
-## (rebuild_for_map() above): a previous call's Area3D is freed
-## first, so a map-shape/size change never leaves a stale kill plane, sized
-## for the old map_def, sitting alongside the new one.
+## Builds the kill-plane trigger; a rebuild frees the previous one (old map size).
 func _build_kill_plane() -> void:
 	if _kill_plane_area != null:
 		_kill_plane_area.queue_free()
@@ -1160,44 +488,6 @@ func _build_kill_plane() -> void:
 	area.add_child(collision)
 	area.position = Vector3(0.0, tuning.kill_plane_y, 0.0)
 	add_child(area)
-	area.body_entered.connect(_on_kill_plane_body_entered)
+	# Host-only removal is BlockRegistry.remove_block's decision: the area fires on clients too.
+	area.body_entered.connect(body_fell.emit)
 	_kill_plane_area = area
-
-
-func _on_kill_plane_body_entered(body: Node3D) -> void:
-	# DECISION: a client's synced blocks are frozen-kinematic
-	# mirrors whose transforms SnapshotSync
-	# writes directly, so the kill-plane Area3D still overlaps and fires this
-	# callback there too even though only the host runs physics (CLAUDE.md).
-	# Only the host may decide a block is dead; a client learns about it from
-	# MatchNet.net_block_despawned instead (net/MatchNet.gd), so it must not
-	# free the body itself here — doing so races the replicated despawn and
-	# can double-free or desync the registry.
-	remove_fallen_block(body as RigidBody3D)
-
-
-## The one edge-fall removal (spec 1.7): reports `body` on the bus with
-## REASON_KILL_PLANE (BlockRegistry forgets it, MatchStats counts a lost block,
-## MatchNet replicates the despawn, BlockEffectsManager plays the burst) and
-## frees it. Host only; a client learns of removals from the despawn RPC.
-## game/blocks/HoleDissolver.gd removes a dissolved block through
-## this same call, so a hole costs exactly what falling off the edge does.
-func remove_fallen_block(body: RigidBody3D) -> void:
-	if not MatchContext.current().net_is_host():
-		return
-	if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
-		return
-	# Glue fusion: a carrier takes every member with it, a lone follower leaves its group;
-	# FusedBody emits exactly one block_removed per member.
-	var carrier: FusedBody = body as FusedBody
-	if carrier != null:
-		carrier.remove_all_members(Events.REASON_KILL_PLANE)
-		return
-	var member: Block = body as Block
-	if member != null:
-		var member_carrier: FusedBody = member.fused_carrier() as FusedBody
-		if member_carrier != null:
-			member_carrier.remove_member(member, Events.REASON_KILL_PLANE)
-			return
-	Events.block_removed.emit(body, String(Events.REASON_KILL_PLANE))
-	body.queue_free()

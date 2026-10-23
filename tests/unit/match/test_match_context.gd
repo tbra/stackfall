@@ -21,7 +21,6 @@ func test_null_object_defaults() -> void:
 	assert_not_null(ctx)
 	assert_same(ctx, MatchContext.current(), "the null object is cached")
 	assert_true(ctx.has_authority())
-	assert_true(ctx.net_is_host())
 	assert_false(ctx.net_is_client())
 	assert_true(ctx.net_is_offline())
 	assert_eq(ctx.net_local_slot(), -1)
@@ -59,7 +58,6 @@ func test_authority_follows_provider_while_net_reads_stay_real() -> void:
 	var ctx: MatchContext = Match.context()
 	Match._net_provider = FakeNet.client(1)
 	assert_false(ctx.has_authority(), "has_authority honours the injected net provider (D3)")
-	assert_eq(ctx.net_is_host(), Net.is_host(), "net_is_host ignores it (D3)")
 	assert_eq(ctx.net_is_client(), Net.is_client())
 	assert_eq(ctx.net_local_slot(), Net.local_slot())
 	Match._net_provider = null

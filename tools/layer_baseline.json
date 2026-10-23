@@ -135,7 +135,7 @@
   "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCapBuilder.gd",
   "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCaps.gd"
  ],
- "largest_scc": 30,
+ "largest_scc": 14,
  "main_closure": [
   "assets/models/gifts/gift_outline.tres",
   "assets/textures/fx/impact_puff/impact_hard.png",
@@ -359,6 +359,8 @@
   "core/net/WireSchema.gd",
   "core/perf/FrameCapRule.gd",
   "core/perf/QualityGovernor.gd",
+  "core/physics/DiscTilt.gd",
+  "core/physics/HoleBacklog.gd",
   "core/physics/SettleTracker.gd",
   "core/rules/BeaconTimerText.gd",
   "core/rules/ChatMute.gd",
@@ -423,6 +425,7 @@
   "game/field/ArenaSideBuilder.gd",
   "game/field/Field.gd",
   "game/field/Field.tscn",
+  "game/field/FieldFlags.gd",
   "game/field/TerritoryOverlay.gd",
   "game/flags/GoalFlag.gd",
   "game/flags/GoalFlag.tscn",

@@ -7,7 +7,7 @@ extends GutTest
 ## is the disk's size, its material and the kill plane.
 
 ## DECISION: none of this file's assertions depend on the
-## map's actual scale (mesh radius tracks whatever map_def says; cell_count()
+## map's actual scale (mesh radius tracks whatever map_def says; grid().in_disk_cell_count()
 ## just has to be positive, under one trimesh shape; friction and the
 ## kill plane are size-independent) -- only a couple of tests already used
 ## a scaled round_medium.tres; the ones that instead built a plain
@@ -29,7 +29,7 @@ func test_disk_collision_covers_the_disk() -> void:
 
 	# one trimesh on one collision shape, a quad per in-disk cell;
 	# this small a disk at cell_size 1 is still a bit over a hundred cells.
-	assert_gt(field.cell_count(), 0, "The disk collides as a grid of cells.")
+	assert_gt(field.grid().in_disk_cell_count(), 0, "The disk collides as a grid of cells.")
 	assert_eq(field.get_shape_owners().size(), 1, "The disk is one shape owner.")
 	var owner_id: int = field.get_shape_owners()[0]
 	assert_eq(field.shape_owner_get_shape_count(owner_id), 1)
@@ -39,23 +39,28 @@ func test_disk_collision_covers_the_disk() -> void:
 	assert_not_null(mesh, "The disk collides as one trimesh.")
 	assert_gte(
 		mesh.get_faces().size(),
-		field.cell_count() * Field.VERTS_PER_QUAD,
+		field.grid().in_disk_cell_count() * Field.VERTS_PER_QUAD,
 		"At least two triangles per in-disk cell."
 	)
 
 
-func test_kill_plane_frees_the_body_and_emits_event() -> void:
+func test_a_body_entering_the_kill_plane_makes_the_field_emit_body_fell_once() -> void:
 	var field: Field = autofree(Field.new())
 	field.map_def = _tiny_map
 	add_child_autofree(field)
-	watch_signals(Events)
+	watch_signals(field)
 
-	var body: RigidBody3D = autofree(RigidBody3D.new())
+	var body: RigidBody3D = RigidBody3D.new()
+	var collision: CollisionShape3D = CollisionShape3D.new()
+	collision.shape = BoxShape3D.new()
+	body.add_child(collision)
+	# Start just above the plane and let gravity carry the body into it.
+	body.position = Vector3(0.0, field.tuning.kill_plane_y + 2.0, 0.0)
 	add_child_autofree(body)
-	field._on_kill_plane_body_entered(body)
+	await wait_physics_frames(60)
 
-	assert_signal_emitted(Events, "block_removed")
-	assert_true(body.is_queued_for_deletion(), "The body should be freed once it hits the kill plane.")
+	assert_signal_emit_count(field, "body_fell", 1, "One fall, one signal.")
+	assert_signal_emitted_with_parameters(field, "body_fell", [body])
 
 
 # --- clear_match_state() -----------------------------
@@ -77,7 +82,7 @@ func test_clear_match_state_frees_flags_clears_the_overlay_source_and_closes_hol
 	field.set_overlay_source(raster, PackedColorArray([Color.RED, Color.BLUE]))
 	var opened: PackedInt32Array = PackedInt32Array([field.grid().in_disk_cells()[0]])
 	field.set_hole_cells(opened, PackedInt32Array())
-	field._drain_toggles()
+	field._physics_process(0.0)
 	assert_true(field.is_hole_cell(opened[0]), "fixture: the hole is actually applied before clearing")
 	assert_not_null(field.overlay()._raster, "fixture: the overlay actually holds the raster before clearing")
 	# A toggle still waiting in the backlog when the match ends: the next physics frame must not apply it.

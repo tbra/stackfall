@@ -63,6 +63,8 @@ func _ready() -> void:
 
 	var field: Field = Field.new()
 	add_child(field)
+	# No BlockRegistry here: the bench frees a fallen block itself.
+	field.body_fell.connect(_on_body_fell)
 
 	# BlockFactory.build()'s body origin is the shape's
 	# bottom-face centre (commit 955d7d1), so block i's bottom face -- not its
@@ -118,12 +120,16 @@ func _apply_preset_arg(preset_id: String) -> void:
 	_preset_label = preset_id
 
 
+func _on_body_fell(body: Node3D) -> void:
+	body.queue_free()
+
+
 func _physics_process(_delta: float) -> void:
 	_tick += 1
 
 	var top: RigidBody3D = _blocks[TOWER_HEIGHT - 1]
 	# DECISION: a genuine collapse can carry a block past
-	# tuning.kill_plane_y, which Field._on_kill_plane_body_entered() frees;
+	# tuning.kill_plane_y, which _on_body_fell() frees;
 	# without this guard the next line's global_position read throws a
 	# script error every remaining tick and the bench never reaches its own
 	# result= line. Report it as the FAIL it is instead of erroring forever.
