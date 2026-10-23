@@ -1,0 +1,16 @@
+diff --git a/net/match/MatchIntentGateway.gd b/net/match/MatchIntentGateway.gd
+index 2c35c74..0dafa7e 100644
+--- a/net/match/MatchIntentGateway.gd
++++ b/net/match/MatchIntentGateway.gd
+@@ -433,11 +433,6 @@ func _remote_release_slot(
+ 		# Spec 2.6: the host checks "that the slot matches"; the claimed slot_id is never trusted.
+ 		refuse_intent(sender, sender_slot, PlacementRules.REASON_NOT_YOUR_TURN)
+ 		return -1
+-	if feed_seq < 0:
+-		# Match reads a negative feed_seq as "don't check"; from the wire it would switch off the
+-		# "never duplicated" defence, so a remote intent has to quote the sequence it was issued.
+-		refuse_intent(sender, sender_slot, PlacementRules.REASON_NO_BLOCK)
+-		return -1
+ 	if not pose_is_acceptable(origin, orientation_index, free_quat) or not velocity.is_finite():
+ 		# Not a rule violation (a real ghost cannot produce such a pose): the block is neither
+ 		# burned nor consumed; the sender is told so its ghost unlocks.

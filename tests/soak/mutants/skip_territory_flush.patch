@@ -1,0 +1,13 @@
+diff --git a/autoload/match/MatchTerritory.gd b/autoload/match/MatchTerritory.gd
+index 0b358c6..c6987f1 100644
+--- a/autoload/match/MatchTerritory.gd
++++ b/autoload/match/MatchTerritory.gd
+@@ -306,8 +306,6 @@ func _is_clean() -> bool:
+ 	if not _match._territory_cache_enabled or _match._registry == null:
+ 		return false
+ 	_match._registry.set_move_epsilon(_match._territory_tuning.dirty_move_epsilon)
+-	if _match._registry.territory_revision() != _seen_revision:
+-		return false
+ 	return _territory_config_signature() == _seen_config
+ 
+ 
