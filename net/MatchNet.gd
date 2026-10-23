@@ -388,10 +388,6 @@ func _event_mirror() -> MatchEventMirror:
 	return _mirror
 
 
-func _set_block_coated(block: BlockBody, coated: bool) -> void:
-	LateScripts.script(LateScripts.HONEY_COAT).call(&"set_coated", block, coated)
-
-
 func _exit_tree() -> void:
 	_end_world_replay()
 	_host_port().release_replicator(self)
