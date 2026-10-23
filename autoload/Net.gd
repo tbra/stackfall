@@ -1,4 +1,4 @@
-extends Node
+extends NetSession
 ## NetworkManager: transport selection, host/join, LAN discovery, peer registry
 ## (spec 2.6).
 ##
@@ -136,8 +136,6 @@ var _lan: LanDiscovery
 ## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
 ## to a Callable returning a fake UpnpBackend and never touch a router.
 signal upnp_state_changed(state: int)
-## This session's own mode change (the per-instance twin of Events.net_mode_changed).
-signal mode_changed(mode: int)
 var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()

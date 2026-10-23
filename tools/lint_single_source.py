@@ -52,6 +52,7 @@ LINE_ALLOW = {
         ("autoload/match/WindEffect.gd", "func _is_host", "shared Storm/Breeze test override seam, then Match._is_host(); no own predicate"),
         ("autoload/match/MatchWeather.gd", "func _is_host", "test override seam, then Match._is_host(); no own predicate"),
         ("net/ports/SessionPort.gd", "func is_host", "adapter that delegates to Net.is_host()"),
+        ("net/session/NetSession.gd", "func is_host", "base class Net extends; neutral body, Net.is_host() overrides it"),
         ("game/blocks/HoleDissolver.gd", "func _is_host", "reads BlockRegistry's cached host-authority flag, not the session"),
     ],
 }

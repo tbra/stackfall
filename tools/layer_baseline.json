@@ -127,6 +127,7 @@
   "net/session/NetLobbyIntents.gd",
   "net/session/NetPing.gd",
   "net/session/NetRoster.gd",
+  "net/session/NetSession.gd",
   "net/session/NetSteamSession.gd",
   "net/session/NetTransport.gd",
   "ui/theme/UiScale.gd"
@@ -528,6 +529,7 @@
   "net/session/NetLobbyIntents.gd",
   "net/session/NetPing.gd",
   "net/session/NetRoster.gd",
+  "net/session/NetSession.gd",
   "net/session/NetSteamSession.gd",
   "net/session/NetTransport.gd",
   "shaders/ambient/distant_birds.gdshader",
