@@ -15,8 +15,6 @@ extends Block
 const ANCHOR_PROCESS_PRIORITY: int = 10
 ## Scan sentinel: no member seen yet (distinct from -1, the real "no slot").
 const SLOT_UNSET: int = -2
-## Anchored-rest tick count lives in GlueDropTuning.anchor_rest_ticks.
-const GLUE_TUNING_PATH: String = "res://config/gifts/glue_drop_tuning.tres"
 ## Mirrors SnowCaps.LUMP_META (no class edge: it would grow the layer-lint cycle); test-pinned.
 const SNOW_LUMP_META: StringName = &"snow_lump"
 
@@ -24,7 +22,7 @@ var members: Array[Block] = []
 ## instance id (int) -> true; non-empty = disc-anchored.
 var anchored_members: Dictionary = {}
 ## The disc this group is anchored to (null while free).
-var anchor_field: Field = null
+var anchor_field: FieldBody = null
 ## carrier -> anchor field pose captured when the anchor formed (carrier = field * anchor_local).
 var anchor_local: Transform3D = Transform3D.IDENTITY
 
@@ -40,7 +38,8 @@ var _synced_frame: int = -1
 ## Consecutive physics ticks the anchored carrier pose has not changed (see GlueDropTuning.anchor_rest_ticks).
 var _anchor_still_ticks: int = 0
 var _anchor_refresh_frame: int = -1
-var _rest_ticks: int = -1
+## GlueDropTuning.anchor_rest_ticks, set by GlueFusion before the carrier enters the tree (an int, not the Resource: naming GlueDropTuning here pulls it into the Main scene closure, layer lint).
+var anchor_rest_ticks: int = 1
 var _anchor_prev_xform: Transform3D = Transform3D.IDENTITY
 ## Physics frame of the last add/remove of a collision shape: contact shape indices read from
 ## the physics state predate it (GlueDrops skips attribution that frame).
@@ -135,19 +134,11 @@ func refresh_owner() -> void:
 	_refresh_mass_and_owner()
 
 
-## Loaded lazily (no preload: it would pull the tuning into the Main scene closure, layer lint).
-func _anchor_rest_ticks() -> int:
-	if _rest_ticks < 0:
-		var tuning: Resource = load(GLUE_TUNING_PATH)
-		_rest_ticks = int(tuning.get(&"anchor_rest_ticks")) if tuning != null else 1
-	return _rest_ticks
-
-
 ## A disc-anchored group is "asleep" once the disc has not moved it for anchor_rest_ticks ticks;
 ## a tilt (pose change) wakes it so clients keep following the disc.
 func net_sleeping() -> bool:
 	if is_disc_anchored():
-		return _anchor_still_ticks >= _anchor_rest_ticks()
+		return _anchor_still_ticks >= anchor_rest_ticks
 	return sleeping
 
 
@@ -236,7 +227,7 @@ func is_disc_anchored_field_set() -> bool:
 
 ## Disc fusion: `member` (a member of this body) is glued to `field`; the whole group now
 ## rides the disc.
-func anchor_to_field(field: Field, member: Block) -> void:
+func anchor_to_field(field: FieldBody, member: Block) -> void:
 	if field == null or member == null or not members.has(member):
 		return
 	if not is_disc_anchored_field_set():

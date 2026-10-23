@@ -52,11 +52,6 @@ const NEIGHBOUR_DIRS: Array[Vector2i] = [
 ##   godot --headless --path . res://tests/bench/bench_tower.tscn -- --trace-disk=1
 const TRACE_ARG_PREFIX: String = "--trace-disk="
 
-## a drained batch applied these cells as holes (opened
-## only; closing a hole needs no reaction). Emitted on host and client alike;
-## game/blocks/HoleDissolver.gd ignores it off the host.
-signal hole_cells_applied(opened: PackedInt32Array)
-
 @export var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 @export var tilt_tuning: TiltTuning = preload("res://config/physics/tilt_tuning.tres")
 @export var territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
@@ -989,12 +984,6 @@ func _clear_flags() -> void:
 	_home_flags = []
 	_goal_flags = []
 
-
-## Layer constants. Everything else lives on layer 1. Beacon
-## collision sits on its own bit so blocks (mask includes it) rest on beacons
-## while placement/ghost queries (PLACEMENT_QUERY_MASK) never see them.
-const BEACON_COLLISION_LAYER: int = 1 << 1
-const PLACEMENT_QUERY_MASK: int = 1
 
 ## Child body carrying every beacon's shapes; follows this field's tilt.
 var _beacon_body: AnimatableBody3D = null

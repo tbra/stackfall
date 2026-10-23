@@ -4,7 +4,7 @@ extends Node
 ## On the host, a block whose footprint rests or
 ## lands on an applied hole cell (Field.is_hole_cell) dissolves: after
 ## HoleDissolveTuning.dissolve_delay_s it is removed through
-## Field.remove_fallen_block(), the edge-fall path (REASON_KILL_PLANE, same
+## BlockRegistry.remove_block(), the edge-fall path (REASON_KILL_PLANE, same
 ## stats, same despawn replication). Blocks stacked on it are woken when it
 ## goes, fall onto the hole and dissolve in turn.
 ##
@@ -47,7 +47,7 @@ class _Footprint:
 	var reach: float = 0.0
 
 var _registry: BlockRegistry = null
-var _field: Field = null
+var _field: FieldBody = null
 ## instance id -> seconds until removal, for blocks dissolving now.
 var _pending: Dictionary = {}
 ## instance id -> Block, alongside _pending.
@@ -56,9 +56,6 @@ var _pending_blocks: Dictionary = {}
 var _footprints: Dictionary = {}
 var _slab: BoxShape3D = null
 var _slab_query: PhysicsShapeQueryParameters3D = null
-
-## Dissolves started since the last reset().
-var dissolves_started: int = 0
 
 
 func _ready() -> void:
@@ -72,7 +69,7 @@ func setup(registry: BlockRegistry) -> void:
 ## Points this dissolver at `field` (BlockRegistry.configure()). A null or
 ## non-Field node disables it.
 func set_field(field: Node3D) -> void:
-	var typed: Field = field as Field
+	var typed: FieldBody = field as FieldBody
 	if _field == typed:
 		return
 	if _field != null and is_instance_valid(_field) and _field.hole_cells_applied.is_connected(_on_hole_cells_applied):
@@ -89,7 +86,6 @@ func reset() -> void:
 	_pending.clear()
 	_pending_blocks.clear()
 	_footprints.clear()
-	dissolves_started = 0
 
 
 func _is_host() -> bool:
@@ -117,7 +113,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 		return
 	if not candidates.is_empty() and wants_candidates():
 		for block: Block in candidates:
-			if touches_hole(block):
+			if _touches_hole(block):
 				start_dissolve(block)
 	if _pending.is_empty():
 		return
@@ -147,7 +143,7 @@ func physics_tick(delta: float, candidates: Array[Block]) -> void:
 ## the Black hole's capture sweep calls this static wrapper, which
 ## resolves the live match's registry and calls the very same start_dissolve(), so
 ## the fade event (Events.block_dissolve_started), the delay, the wake of the stack
-## above and the removal through Field.remove_fallen_block() are shared, not
+## above and the removal through BlockRegistry.remove_block() are shared, not
 ## duplicated. Returns whether a dissolve was requested (false: no registry, or not
 ## the host).
 static func request_dissolve(block: Block) -> bool:
@@ -179,7 +175,6 @@ func start_dissolve(block: Block) -> void:
 	# A hole dissolve overrides a Freeze hold on the block
 	# touching the void.
 	FreezeEffect.release_hold(block)
-	dissolves_started += 1
 	Events.block_dissolve_started.emit(block, block.net_id, tuning.dissolve_delay_s)
 	if tuning.dissolve_delay_s <= 0.0:
 		_finish(block)
@@ -193,7 +188,7 @@ func _finish(block: Block) -> void:
 	if not _field_ready():
 		return
 	_wake_supported(block)
-	_field.remove_fallen_block(block)
+	_registry.remove_block(block)
 
 
 func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
@@ -209,7 +204,7 @@ func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
 
 ## Whether `block` rests or lands on an applied hole cell right now (see the
 ## class doc for the exact rule). Pure reads: never wakes or moves anything.
-func touches_hole(block: Block) -> bool:
+func _touches_hole(block: Block) -> bool:
 	if not _field_ready() or block == null or not is_instance_valid(block):
 		return false
 	# Territory holes never destroy a gift.
@@ -362,12 +357,12 @@ func _on_hole_cells_applied(opened: PackedInt32Array) -> void:
 			if carrier != null:
 				# Glue fusion: only the members touching the opened cell dissolve.
 				for member: Block in carrier.members.duplicate():
-					if is_instance_valid(member) and _registry.is_tracked(member) and not _pending.has(member.get_instance_id()) and touches_hole(member):
+					if is_instance_valid(member) and _registry.is_tracked(member) and not _pending.has(member.get_instance_id()) and _touches_hole(member):
 						start_dissolve(member)
 				continue
 			if not _registry.is_tracked(block):
 				continue
-			if touches_hole(block):
+			if _touches_hole(block):
 				start_dissolve(block)
 
 

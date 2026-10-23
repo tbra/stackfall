@@ -134,8 +134,7 @@ func test_a_block_reaching_the_core_is_captured_once_through_the_shared_hole_dis
 	Events.block_dissolve_started.disconnect(count_started)
 	assert_true(registry.hole_dissolver().is_dissolving(core), "captured: same pending dissolve a hole starts")
 	assert_false(registry.hole_dissolver().is_dissolving(outside), "outside the core: still being pulled")
-	assert_eq(registry.hole_dissolver().dissolves_started, 1, "captured once, not per tick")
-	assert_eq(started[0], 1, "the fade event the territory holes use is emitted")
+	assert_eq(started[0], 1, "captured once, not per tick: the fade event the territory holes use is emitted once")
 	assert_false(core.is_queued_for_deletion(), "removal waits for the dissolve fade")
 	var no_candidates: Array[Block] = []
 	registry.hole_dissolver().physics_tick(1.0, no_candidates)
