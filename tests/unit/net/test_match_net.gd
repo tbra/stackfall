@@ -67,7 +67,7 @@ func _make_net(peer_slots: Dictionary, local: Array[int], client_mode: bool = fa
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	_net = node
 	return node
 
@@ -748,7 +748,7 @@ func test_rebinding_the_session_port_changes_who_the_facade_acts_as() -> void:
 
 	_unlock_slot(0)
 	var client_session: FakeNet = FakeNet.client(0)
-	assert_true(net.bind_ports(SessionPort.new(client_session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(net.bind_ports(FakeSessionPort.new(client_session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	var free_origin: Vector3 = _home_world_position(0) + Vector3(2.0, 0.0, 0.0)
 	net.submit_place(0, free_origin, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
 	assert_eq(_block_count(), 1, "rebound to a client session it sends the intent instead of placing")
@@ -796,13 +796,20 @@ func test_the_hosts_own_seat_is_not_auto_dropped_by_the_facade() -> void:
 
 func test_bind_ports_accepts_valid_ports() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
-	assert_true(net.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(net.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+
+## A session port that reports itself unusable, as one over a missing session does.
+class InvalidSessionPort:
+	extends FakeSessionPort
+
+	func is_valid() -> bool:
+		return false
+
 
 func test_bind_ports_refuses_an_invalid_port_and_keeps_working() -> void:
 	var net: MatchNetScript = _make_net({1: 0, 2: 1}, [0])
 	_start_playing()
-	var bad_session: SessionPort = SessionPort.new(null)
-	assert_push_error("SessionPort")
+	var bad_session: SessionPort = InvalidSessionPort.new()
 	assert_false(net.bind_ports(bad_session, MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	assert_push_error("MatchNet.bind_ports")
 	var reason: StringName = net.submit_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
