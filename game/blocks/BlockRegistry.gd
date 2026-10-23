@@ -73,8 +73,8 @@ var _move_epsilon: float = 0.005
 ## projection (Field.to_local/to_global are plain Node3D methods, not part of
 ## Field's projection API, which is a plain Node3D conversion).
 var _field: Node3D = null
-## Test seam: false recomputes every block's geometry (the oracle path).
-var _geometry_cache_enabled: bool = true
+## `_field` as FieldBody, whose body_fell this registry listens to.
+var _field_body: FieldBody = null
 
 ## True on the host **and offline** (Net.is_host()'s contract), so single-PC
 ## play is the default. A client allocates no net_ids — the host's are the only ones a snapshot can
@@ -107,20 +107,45 @@ func hole_dissolver() -> HoleDissolver:
 	return _ensure_dissolver()
 
 
-## Removes a block that fell off the disc (P4-S stub; P4-Ireg fills it from
-## Field.remove_fallen_block). Host-only: clients ignore it.
-# STUB: filled by P4-Ireg
-func remove_block(_body: RigidBody3D, _reason: StringName = Events.REASON_KILL_PLANE) -> void:
-	pass
+## Removes a block that fell off the disc or dissolved into a hole. Host-only:
+## clients ignore it. A glue carrier takes every member with it, a lone follower
+## leaves its group (FusedBody emits one block_removed per member).
+func remove_block(body: RigidBody3D, reason: StringName = Events.REASON_KILL_PLANE) -> void:
+	if not _host_authority:
+		return
+	if body == null or not is_instance_valid(body) or body.is_queued_for_deletion():
+		return
+	var carrier: FusedBody = body as FusedBody
+	if carrier != null:
+		carrier.remove_all_members(reason)
+		return
+	var member: Block = body as Block
+	if member != null:
+		var member_carrier: FusedBody = member.fused_carrier() as FusedBody
+		if member_carrier != null:
+			member_carrier.remove_member(member, reason)
+			return
+	Events.block_removed.emit(body, String(reason))
+	body.queue_free()
 
 
 ## Called once by Match.start_match() once the map is known. `field` supplies
 ## the disk-local projection; the map is not needed here (the second argument
 ## keeps the call sites' shape).
 func configure(field: Node3D, _map_def: MapDef) -> void:
+	var typed: FieldBody = field as FieldBody
+	if _field_body != null and is_instance_valid(_field_body) and _field_body.body_fell.is_connected(_on_body_fell):
+		_field_body.body_fell.disconnect(_on_body_fell)
+	_field_body = typed
+	if _field_body != null:
+		_field_body.body_fell.connect(_on_body_fell)
 	_field = field
 	var dissolver: HoleDissolver = _ensure_dissolver()
 	dissolver.set_field(field)
+
+
+func _on_body_fell(body: Node3D) -> void:
+	remove_block(body as RigidBody3D)
 
 
 ## Drops every tracked block (but does not free the bodies themselves — the
@@ -588,7 +613,7 @@ func _refresh_geometry(entry: _Entry, field_xform: Transform3D) -> void:
 	var block_xform: Transform3D = block.global_transform
 	var child_count: int = block.get_child_count()
 	if (
-		_geometry_cache_enabled and entry.geom_valid
+		entry.geom_valid
 		and block_xform == entry.geom_block_xform
 		and field_xform == entry.geom_field_xform
 		and child_count == entry.geom_child_count

@@ -20,7 +20,7 @@ extends Node
 ## low-rate scan (PhysicsTuning.stable_freeze_scan_interval_s) so it never has to
 ## manage a per-block connect/disconnect lifecycle as BlockRegistry's set changes
 ## on every placement/removal, and so tests can drive it deterministically
-## through _tick() without waiting real seconds.
+## through _physics_process() without waiting real seconds.
 
 @export var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 
@@ -46,8 +46,8 @@ var _frozen_by_this: Dictionary = {}
 ## the awake-read release in _scan() must not undo it (that flapped every window).
 var _settle_frozen: Dictionary = {}
 
-## Real-time accumulator gating how often _tick() below actually scans,
-## consumed by _tick() itself -- see that function's own doc comment.
+## Real-time accumulator gating how often _physics_process() actually scans,
+## consumed there.
 var _scan_accumulator: float = 0.0
 ## Field pose seen on the previous physics tick.
 var _last_field_transform: Transform3D = Transform3D.IDENTITY
@@ -94,10 +94,15 @@ func wake_for_external_force(block: Block) -> bool:
 
 func _physics_process(delta: float) -> void:
 	apply_catchup_cap()
-	if not MatchContext.current().net_is_host():
+	if _registry == null or not _registry.is_host_authority():
 		return
 	check_field_motion()
-	_tick(delta)
+	_scan_accumulator += delta
+	if _scan_accumulator < tuning.stable_freeze_scan_interval_s:
+		return
+	var scan_delta: float = _scan_accumulator
+	_scan_accumulator = 0.0
+	_scan(scan_delta)
 
 
 ## Pushes the F4 catch-up toggle to the engine when it changes
@@ -136,24 +141,6 @@ func check_field_motion() -> void:
 			block.release_freeze_static(Block.FREEZE_REASON_STABLE)
 			block.wake()
 			_frozen_by_this[id] = false
-
-
-## Test seam (tests/unit/blocks/test_stable_block_manager.gd): advances the scan
-## accumulator by `delta` seconds and, once it reaches
-## tuning.stable_freeze_scan_interval_s, runs exactly one real scan pass with
-## that accumulated span as the elapsed time credited to every block still
-## found asleep -- so a test can cross tuning.stable_freeze_delay_s in a
-## single call (e.g. `_tick(21.0)`) instead of waiting 20 real seconds or
-## driving 1200+ individual physics frames. Never checks Net.is_host() itself
-## (only _physics_process() above does) so a bare-Node unit test needs no
-## networking context to call this directly.
-func _tick(delta: float) -> void:
-	_scan_accumulator += delta
-	if _scan_accumulator < tuning.stable_freeze_scan_interval_s:
-		return
-	var scan_delta: float = _scan_accumulator
-	_scan_accumulator = 0.0
-	_scan(scan_delta)
 
 
 func _scan(scan_delta: float) -> void:

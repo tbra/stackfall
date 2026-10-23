@@ -292,7 +292,7 @@ func _ready() -> void:
 	add_to_group(TUNING_GROUP)
 	if not sleeping_state_changed.is_connected(_on_sleeping_state_changed):
 		sleeping_state_changed.connect(_on_sleeping_state_changed)
-	collision_mask |= Field.BEACON_COLLISION_LAYER
+	collision_mask |= FieldBody.BEACON_COLLISION_LAYER
 	if tuning == null:
 		# BlockFactory.build() sets `block.tuning` itself, so this fallback only
 		# matters for a bare Block never built through that factory (e.g.
