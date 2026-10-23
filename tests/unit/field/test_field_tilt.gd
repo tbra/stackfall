@@ -1,7 +1,8 @@
 extends GutTest
 ## Field's SPECIALS_ONLY tilt controller (spec 1.7, 2.7, 3.5): the
-## critically damped spring on Field._tilt, its max_tilt_deg clamp, and the
-## AnimatableBody3D conversion.
+## critically damped spring seen through tilt_vector(), its max_tilt_deg clamp, and the
+## AnimatableBody3D conversion. The spring maths itself is test_disc_tilt.gd; the
+## production tick here is Field._physics_process(dt).
 ##
 ## A deliberately tiny disk, same pattern test_field_cells.gd already uses:
 ## small enough that a real physics settle (the one test here that needs one)
@@ -31,7 +32,7 @@ func _drive_during_physics(callable: Callable) -> void:
 
 
 const SETTLE_FRAMES: int = 90
-## One manual _update_tilt() step at a time is a real 1/60 s physics tick's
+## One manual _physics_process() step at a time is a real 1/60 s physics tick's
 ## worth of the spring's own math -- no engine frame needed for the tests
 ## that only care about the ODE, so many "seconds" of decay run instantly.
 const TICK: float = 1.0 / 60.0
@@ -95,7 +96,7 @@ func test_apply_tilt_impulse_moves_the_tilt_vector() -> void:
 	assert_eq(field.tilt_vector(), Vector2.ZERO, "fixture: level before any impulse")
 
 	field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.5)
-	field._update_tilt(TICK)
+	field._physics_process(TICK)
 
 	assert_ne(field.tilt_vector(), Vector2.ZERO, "one impulse moves the tilt vector off level")
 
@@ -115,7 +116,7 @@ func test_tilt_decays_back_toward_level_over_the_return_time_constant() -> void:
 	var to_peak_window: int = int(field.tilt_tuning.return_time_constant_s * 2.0 / TICK)
 	var peak: float = 0.0
 	for _i: int in range(to_peak_window):
-		field._update_tilt(TICK)
+		field._physics_process(TICK)
 		peak = maxf(peak, field.tilt_vector().length())
 	assert_gt(peak, 0.0, "fixture: the impulse produced a real peak to decay from")
 
@@ -124,7 +125,7 @@ func test_tilt_decays_back_toward_level_over_the_return_time_constant() -> void:
 	# level" relative to the tracked peak.
 	var remaining_steps: int = int(field.tilt_tuning.return_time_constant_s * 6.0 / TICK)
 	for _i: int in range(remaining_steps):
-		field._update_tilt(TICK)
+		field._physics_process(TICK)
 
 	assert_lt(
 		field.tilt_vector().length(), peak * 0.05,
@@ -140,7 +141,7 @@ func test_tilt_is_clamped_regardless_of_how_many_impulses_land_in_one_frame() ->
 	field.set_tilt_enabled(true)
 	for _i: int in range(50):
 		field.apply_tilt_impulse(Vector2(0.0, 1.0), 10.0)
-	field._update_tilt(TICK)
+	field._physics_process(TICK)
 
 	assert_lte(
 		rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001,
@@ -151,7 +152,7 @@ func test_tilt_is_clamped_regardless_of_how_many_impulses_land_in_one_frame() ->
 	# huge left-over velocity these impulses gave it, not just on the one
 	# frame the impulses landed.
 	for _i: int in range(30):
-		field._update_tilt(TICK)
+		field._physics_process(TICK)
 		assert_lte(
 			rad_to_deg(field.tilt_vector().length()), field.tilt_tuning.max_tilt_deg + 0.001
 		)
@@ -241,7 +242,7 @@ func test_apply_replicated_pose_sets_the_transform_and_tilt_vector() -> void:
 #
 # DECISION: a kinematic-torque
 # approximation, not a real RigidBody3D/joint coupling. These exercise
-# Field._physical_balance_torque_accel() end to end through a real
+# the PHYSICAL_BALANCE torque end to end through a real
 # BlockRegistry, the same wiring MatchLifecycle._apply_tilt_mode() performs.
 
 
@@ -286,10 +287,11 @@ func test_stack_on_a_latched_leaned_disc_sleeps_and_is_carried_when_woken() -> v
 	await wait_physics_frames(SETTLE_FRAMES)
 	field.apply_tilt_impulse(Vector2(1.0, 0.0), 0.02)
 	var frames: int = 0
-	while frames < 60 * 20 and not field._tilt_at_rest:
+	# The latch drops sync_to_physics so the resting stack can sleep.
+	while frames < 60 * 20 and field.sync_to_physics:
 		await wait_physics_frames(1)
 		frames += 1
-	assert_true(field._tilt_at_rest, "fixture: the leaned disc latched at rest")
+	assert_false(field.sync_to_physics, "fixture: the leaned disc latched at rest")
 	var slept_after: int = -1
 	for f: int in range(90):
 		await wait_physics_frames(1)
@@ -320,7 +322,7 @@ func test_a_same_frame_disable_clear_enable_leaves_the_disc_level() -> void:
 	field.set_tilt_enabled(true)
 	field.apply_tilt_impulse(Vector2.RIGHT, 5.0)
 	for _i: int in range(20):
-		field._update_tilt(0.05)
+		field._physics_process(0.05)
 	await wait_physics_frames(2)
 	assert_gt(field.tilt_vector().length(), 0.1, "fixture: the disc is tilted")
 	assert_gt(absf(field.global_transform.basis.x.y), 0.1, "fixture: and the node shows it")
