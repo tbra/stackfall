@@ -886,19 +886,7 @@ func _is_gamepad_event(event: InputEvent) -> bool:
 ## The one path every settings read/write/delete uses. In a GUT run the real
 ## player file is unreachable: REAL_CONFIG_PATH maps to the per-PID GUT file.
 func effective_path() -> String:
-	if _gut_run and UserPaths.is_real_path(REAL_CONFIG_PATH, _config_path):
-		return UserPaths.gut_path(REAL_CONFIG_PATH)
 	return _config_path
-
-
-## Points Settings at a temp settings.cfg path instead of user://settings.cfg and
-## immediately (re)loads from it, reapplying persisted key overrides like
-## _ready().
-func set_config_path_for_test(path: String) -> void:
-	_config_path = path
-	_load()
-	_apply_key_overrides()
-	apply_ui_scale()
 
 
 # --- Persistence --------------------------------------------------------------

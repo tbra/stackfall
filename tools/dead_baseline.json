@@ -4,7 +4,6 @@
   "test-only-func": [
    "autoload/Match.gd:set_cat_target",
    "autoload/Net.gd:report_stats",
-   "autoload/Settings.gd:set_config_path_for_test",
    "autoload/Sfx.gd:set_root_dir_for_test",
    "autoload/match/BreezeEffect.gd:_active_weather_id",
    "autoload/match/BreezeEffect.gd:_age_and_expire",
@@ -450,11 +449,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchPlacement.gd:spawn_special_projectile",
    "reason": "live: autoload/Match.gd:905 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchStats.gd:_tick",
-   "reason": "Match.gd:530 _stats._tick(delta)"
   },
   {
    "id": "test-only-func",
