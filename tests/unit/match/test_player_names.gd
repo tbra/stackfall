@@ -206,13 +206,12 @@ func _register_world() -> void:
 	Match.register_world(field, registry, blocks_root)
 
 
-func _tiny_config(player_count: int, ai_count: int = 0, hot_seat: bool = false) -> MatchConfig:
+func _tiny_config(player_count: int, ai_count: int = 0) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
 	config.ai_count = ai_count
-	config.hot_seat = hot_seat
 	config.rng_seed = 24680
 	return config
 
