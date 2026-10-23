@@ -183,7 +183,7 @@ func _make_net(peer_slots: Dictionary) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 
