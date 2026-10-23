@@ -418,12 +418,6 @@ func team_of_slot(slot_id: int) -> int:
 	return posmod(slot_id, team_count())
 
 
-## True when exactly one actor plays at a time (turn-based).
-# TRANSITIONAL: net/MatchEventApplier.gd still calls it; MD-CS3 removes it
-func is_sequential_play() -> bool:
-	return turn_based
-
-
 ## True when the host has resolved the lobby team picks into slot_team_ids /
 ## team_numbers (teams on and both arrays present). False means "default
 ## interleave".

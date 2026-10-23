@@ -127,16 +127,16 @@ func _on_countdown(args: Array) -> bool:
 	return true
 
 
-## DECISION: offline and in hot-seat, Events.turn_changed means "it is this slot's turn". In
-## real-time networked play there are no turns (every slot plays at once), and what the signal
+## DECISION: in turn-based play, Events.turn_changed means "it is this slot's turn". In
+## real-time play there are no turns (every slot plays at once), and what the signal
 ## does on a receiving instance is point the HUD and the ghost at the controls that are live
 ## here, which is always your own slot. Mirroring the host's value verbatim would aim this
-## client's whole UI at another player, so outside sequential play a client substitutes its own
-## slot. Turn-based mirrors the host's slot verbatim like hot-seat.
+## client's whole UI at another player, so outside turn-based play a client substitutes its own
+## slot. Turn-based mirrors the host's slot verbatim.
 func _on_turn_changed(args: Array) -> bool:
 	var turn_slot: int = args[0]
 	var running: MatchConfig = _host.config()
-	if running != null and not running.is_sequential_play():
+	if running != null and not running.turn_based:
 		turn_slot = _session.local_slot()
 	if turn_slot < 0:
 		return false
