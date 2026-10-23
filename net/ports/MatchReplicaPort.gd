@@ -11,6 +11,7 @@ extends RefCounted
 ## TRANSITIONAL entries forward to Match's private `_feed` / `_lifecycle`
 ## collaborators and are no-ops when the adapted object has none (the doubles).
 
+## TRANSITIONAL (removed by NP-F-R): the dynamic bind check for non-Match doubles.
 ## Every mirror write a real Match answers.
 const REQUIRED_METHODS: Array[StringName] = [
 	&"apply_replicated_state_change",
@@ -40,6 +41,8 @@ const LIFECYCLE_PROPERTY: StringName = &"_lifecycle"
 const MATCH_TIMER_PROPERTY: StringName = &"_match_timer_left"
 
 var _match: Object = null
+## The real autoload when `_match` is one (every forwarder's typed path), else null.
+var _real: MatchAutoload = null
 var _valid: bool = false
 var _bound: Dictionary = {}
 var _reported: Dictionary = {}
@@ -48,10 +51,16 @@ var _reported: Dictionary = {}
 ## `required` is the subset of REQUIRED_METHODS the consumer actually calls
 ## (empty = all of them); a name that is not a REQUIRED_METHODS entry makes the
 ## port invalid. See SessionPort.
-func _init(match_node: Object, required: PackedStringArray = PackedStringArray()) -> void:
+## A real Match (the autoload or any MatchAutoload instance) takes the typed path and
+## needs no subset; null leaves the port invalid (spies and the invalid-port case).
+## TRANSITIONAL (removed by NP-F-R): the `required` argument and the `Object` type.
+func _init(match_node: Object = null, required: PackedStringArray = PackedStringArray()) -> void:
 	_match = match_node
 	if match_node == null:
-		push_error("MatchReplicaPort: the adapted match object is null")
+		return
+	_real = match_node as MatchAutoload
+	if _real != null:
+		_valid = true
 		return
 	var wanted: Array[StringName] = _wanted(required)
 	var unknown: Array[StringName] = []
@@ -78,10 +87,16 @@ func is_valid() -> bool:
 
 
 func apply_replicated_state_change(new_state: int) -> void:
+	if _real != null:
+		_real.apply_replicated_state_change(new_state)
+		return
 	_call(&"apply_replicated_state_change", [new_state], null)
 
 
 func apply_replicated_countdown(seconds_left: int) -> void:
+	if _real != null:
+		_real.apply_replicated_countdown(seconds_left)
+		return
 	_call(&"apply_replicated_countdown", [seconds_left], null)
 
 
@@ -93,70 +108,86 @@ func apply_replicated_feed(
 	host_feed_time_left: float = -1.0,
 	host_is_locked: bool = false
 ) -> void:
+	if _real != null:
+		_real.apply_replicated_feed(slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked)
+		return
 	_call(&"apply_replicated_feed", [slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked], null)
 
 
 func apply_replicated_turn(slot_id: int) -> void:
+	if _real != null:
+		_real.apply_replicated_turn(slot_id)
+		return
 	_call(&"apply_replicated_turn", [slot_id], null)
 
 
 func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
+	if _real != null:
+		_real.apply_replicated_elimination(slot_id, by_slot)
+		return
 	_call(&"apply_replicated_elimination", [slot_id, by_slot], null)
 
 
 func apply_replicated_mode_state(mode_state: Dictionary) -> void:
+	if _real != null:
+		_real.apply_replicated_mode_state(mode_state)
+		return
 	_call(&"apply_replicated_mode_state", [mode_state], null)
 
 
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_gift_spawned(gift_id, position)
+	if _real != null:
+		_real.apply_replicated_gift_spawned(gift_id, position)
 		return
 	_call(&"apply_replicated_gift_spawned", [gift_id, position], null)
 
 
 func apply_replicated_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_gift_flight(gift_id, origin, landing)
+	if _real != null:
+		_real.apply_replicated_gift_flight(gift_id, origin, landing)
 		return
 	_call(&"apply_replicated_gift_flight", [gift_id, origin, landing], null)
 
 
 func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_gift_landed(gift_id, landing)
+	if _real != null:
+		_real.apply_replicated_gift_landed(gift_id, landing)
 		return
 	_call(&"apply_replicated_gift_landed", [gift_id, landing], null)
 
 
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_gift_claimed(gift_id, slot_id, special_id)
+	if _real != null:
+		_real.apply_replicated_gift_claimed(gift_id, slot_id, special_id)
 		return
 	_call(&"apply_replicated_gift_claimed", [gift_id, slot_id, special_id], null)
 
 
 func apply_replicated_gift_expired(gift_id: int) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_gift_expired(gift_id)
+	if _real != null:
+		_real.apply_replicated_gift_expired(gift_id)
 		return
 	_call(&"apply_replicated_gift_expired", [gift_id], null)
 
 
 func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
+	if _real != null:
+		_real.apply_replicated_gift_slot(slot_id, contents, activated, carrier_id)
+		return
 	_call(&"apply_replicated_gift_slot", [slot_id, contents, activated, carrier_id], null)
 
 
 func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
+	if _real != null:
+		_real.apply_replicated_qol(slot_id, backlog, paused)
+		return
 	_call(&"apply_replicated_qol", [slot_id, backlog, paused], null)
 
 
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
+	if _real != null:
+		_real.apply_replicated_special_consumed(slot_id, special_id)
+		return
 	_call(&"apply_replicated_special_consumed", [slot_id, special_id], null)
 
 
@@ -173,6 +204,9 @@ func apply_replicated_territory(
 	goal_radii: PackedFloat32Array = PackedFloat32Array(),
 	argmax_mode: bool = false
 ) -> void:
+	if _real != null:
+		_real.apply_replicated_territory(cells, owners, states, full, circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode)
+		return
 	_call(&"apply_replicated_territory", [
 		cells, owners, states, full,
 		circle_xs, circle_zs, circle_radii, circle_teams,
@@ -181,37 +215,41 @@ func apply_replicated_territory(
 
 
 func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
+	if _real != null:
+		return _real.apply_replicated_glue_charges(slot_id, count, revision)
 	return bool(_call(&"apply_replicated_glue_charges", [slot_id, count, revision], false))
 
 
 func apply_replicated_block_owner(net_id: int, new_slot: int) -> bool:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		return real.apply_replicated_block_owner(net_id, new_slot)
+	if _real != null:
+		return _real.apply_replicated_block_owner(net_id, new_slot)
 	return bool(_call(&"apply_replicated_block_owner", [net_id, new_slot], false))
 
 
 func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		return real.apply_replicated_cat_start(id, slot_id, position, duration)
+	if _real != null:
+		return _real.apply_replicated_cat_start(id, slot_id, position, duration)
 	return bool(_call(&"apply_replicated_cat_start", [id, slot_id, position, duration], false))
 
 
 func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
-	var real: MatchAutoload = _match as MatchAutoload
-	if real != null:
-		real.apply_replicated_cat_state(id, position, velocity, point, remaining)
+	if _real != null:
+		_real.apply_replicated_cat_state(id, position, velocity, point, remaining)
 		return
 	_call(&"apply_replicated_cat_state", [id, position, velocity, point, remaining], null)
 
 
 ## The host ended cat `id` (EVENT_CAT_ENDED); Match ignores a stale id.
 func end_cat(id: int) -> void:
+	if _real != null:
+		_real.end_cat(id)
+		return
 	_call(&"end_cat", [id], null)
 
 
 # --- TRANSITIONAL: Match's private feed / lifecycle collaborators -----------------
+# Typing these as MatchFeed / MatchLifecycle would pull both into the autoload closure
+# (lint_layers L3), so they stay RefCounted reads until P2-Ireach/P2-Irep give Match typed accessors.
 
 ## MatchFeed.apply_replicated_next_gift(). No-op without a feed.
 func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
@@ -241,6 +279,7 @@ func _collaborator(property_name: StringName) -> Object:
 	return _match.get(property_name) as Object
 
 
+## TRANSITIONAL (removed by NP-F-R): the dynamic path for non-Match doubles.
 ## Forwards to the adapted object. A method the bind verified goes straight
 ## through; any other one is checked, and a missing one logs once and answers
 ## `fallback` (the documented default) instead of crashing.
