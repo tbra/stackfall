@@ -390,32 +390,68 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 # --- start_match()'s own transient states are not --------
 # --- replicated a second time ------------------------------------------------
 #
-# Before the fix, _on_match_state_changed() replicated every state change,
-# including the LOBBY/LOADING/COUNTDOWN start_match() produces internally --
-# already fully reproduced on a client by net_match_start's own inline
-# start_match() call. replicated_state_changes/match_starts_replicated are
-# test-only instrumentation (see net/MatchNet.gd): _can_send() is already
-# false in every test in this file with no live peer, so it alone cannot
-# prove a redundant event was suppressed rather than merely handed to a
-# no-op rpc().
+# A real client (a second Net over ENet loopback, seated by the host) receives what the host's
+# MatchNet puts on the wire. Its MatchNet is a recorder with the production RPC surface, so the
+# test sees exactly the messages that arrive, in order.
 
 
-func test_start_match_from_lobby_does_not_replicate_its_own_transient_states() -> void:
-	Match._net_provider = FakeNet.host({}, [0, 1])
-	var host_net: MatchNetScript = _make_net({}, [0, 1])
+## The client's MatchNet: same RPC surface, but it only records what the host sent.
+class RecordingClientNet:
+	extends "res://net/MatchNet.gd"
+
+	var match_starts: int = 0
+	var state_events: Array[int] = []
+	var event_names: Array[StringName] = []
+
+	func _ready() -> void:
+		set_process(false)
+
+	@rpc("authority", "call_remote", "reliable")
+	func net_match_start(_config_data: Dictionary, _roster: Array, _replay_id: int = 0) -> void:
+		match_starts += 1
+
+	@rpc("authority", "call_remote", "reliable")
+	func net_match_event(event: StringName, args: Array) -> void:
+		event_names.append(event)
+		if event == &"state_changed":
+			state_events.append(int(args[0]))
+
+
+const _SENTINEL_EVENT: StringName = &"end_of_start_sentinel"
+const _RECEIVE_WAIT_S: float = 10.0
+
+
+func test_start_match_from_lobby_replicates_only_net_match_start_to_a_real_client() -> void:
+	var loopback: LoopbackSession = LoopbackSession.new(self)
+	Net.leave()
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie", false), OK, "fixture: hosting")
+	var client_net: Node = await loopback.join_remote_client("Clienty")
+	assert_not_null(client_net, "fixture: the remote client is seated")
+	if client_net == null:
+		await loopback.end()
+		return
+	var recorder: RecordingClientNet = RecordingClientNet.new()
+	recorder.name = "MatchNet"
+	client_net.get_parent().add_child(recorder)
 	watch_signals(Events)
 
 	Match.start_match(_config())
+	# Reliable RPCs arrive in order, so once the sentinel is in, everything the start sent is in.
+	MatchNet.replicate_match_event(_SENTINEL_EVENT, [])
+	var arrived: bool = await wait_until(
+		func() -> bool: return _SENTINEL_EVENT in recorder.event_names, _RECEIVE_WAIT_S)
 
+	assert_true(arrived, "the client received what the host sent")
+	assert_eq(recorder.match_starts, 1, "the client gets exactly one net_match_start")
 	assert_eq(
-		host_net.counters.replicated_state_changes, [],
+		recorder.state_events, [],
 		"LOBBY->LOADING->COUNTDOWN inside start_match() must not be replicated a second time -- only net_match_start carries the start"
 	)
-	assert_eq(host_net.counters.match_starts_replicated, 1)
 	assert_eq(
 		get_signal_emit_count(Events, "match_state_changed"), 2,
 		"exactly the real LOBBY->LOADING and LOADING->COUNTDOWN transitions, the same two a client's own net_match_start-triggered start_match() call produces"
 	)
+	await loopback.end()
 
 
 # --- The client's read model ------------------------------------------------

@@ -1,7 +1,7 @@
 class_name NetCounters
 extends RefCounted
 ## Every instrumentation counter MatchNet keeps, in one object: the per-slot intent identities
-## the acceptance harness asserts on and the debug overlay shows, and the match-start records.
+## the acceptance harness asserts on and the debug overlay shows.
 ## MatchNet owns one instance and keeps the public accessors (intents_sent(slot), ...) as
 ## forwarders, so NetDebugOverlay and MatchFingerprint read the same names as before.
 
@@ -16,14 +16,6 @@ var auto_drops: Dictionary = {}
 ## Cursor updates the host dropped as malformed. Not an intent, so not part of the
 ## sent == accepted + refused identity.
 var cursors_refused: Dictionary = {}
-
-# --- Per-match test tallies (cleared by reset()) -------------------------------
-
-## to_state values replicated as EVENT_STATE_CHANGED, in order.
-var replicated_state_changes: Array[int] = []
-## How many times replicate_match_start() actually queued net_match_start.
-var match_starts_replicated: int = 0
-
 
 func count_sent(slot_id: int) -> void:
 	_bump(sent, slot_id)
@@ -68,8 +60,6 @@ func reset() -> void:
 	refused.clear()
 	auto_drops.clear()
 	cursors_refused.clear()
-	replicated_state_changes.clear()
-	match_starts_replicated = 0
 
 
 func _bump(counter: Dictionary, slot_id: int) -> void:
