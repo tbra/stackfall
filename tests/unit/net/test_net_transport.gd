@@ -129,11 +129,11 @@ func test_marks_clear_and_unmark() -> void:
 	_transport.mark_disconnecting(5)
 	_transport.mark_disconnecting(6)
 	assert_true(_transport.is_marked_disconnecting(5))
-	assert_eq(_transport.disconnecting_marks().size(), 2)
+	assert_true(_transport.is_marked_disconnecting(6))
 	_transport.unmark_disconnecting(5)
 	assert_false(_transport.is_marked_disconnecting(5))
 	_transport.clear_disconnecting()
-	assert_true(_transport.disconnecting_marks().is_empty())
+	assert_false(_transport.is_marked_disconnecting(6))
 
 
 # --- Targets and the NetFanout parity ----------------------------------------

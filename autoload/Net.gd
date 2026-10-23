@@ -65,14 +65,6 @@ var _mode: Mode = Mode.OFFLINE
 ## or cast to ENetMultiplayerPeer outside net/session/NetTransport.gd.
 var _peer: MultiplayerPeer = null
 
-## TRANSITIONAL: the roster table now lives in `net_roster`; this is the same Dictionary
-## for the tests that still poke it. Removed with the other private forwarders once
-## those tests use the public accessors.
-var _peers: Dictionary:
-	get:
-		return net_roster.peers
-	set(value):
-		net_roster.peers = value
 ## Host only: peer_id -> deadline (seconds, _now()) by which the peer must
 ## have sent its handshake, or it is dropped.
 var _pending_handshake: Dictionary = {}
@@ -81,12 +73,6 @@ var _pending_handshake: Dictionary = {}
 ## (net/session/NetTransport.gd). Public so a FakeSteam test can set
 ## `transport.steam_host_peer_factory`.
 var transport: NetTransport = NetTransport.new()
-## TRANSITIONAL: the disconnecting-peers table now lives in `transport`; this is
-## the same Dictionary for the tests that still poke it. Removed with the other
-## private forwarders once those tests use is_peer_disconnecting().
-var _disconnecting_peers: Dictionary:
-	get:
-		return transport.disconnecting_marks()
 ## The host-side collaborators (net/session): lobby intents, chat and ping share one
 ## flood gate built from NetConfig in _ready, so a leaver is forgotten once.
 var _flood: PeerFloodGate = null
@@ -101,13 +87,6 @@ var chat_config: ChatConfig = preload("res://config/net/chat_config.tres")
 const _CHAT_LOBBY_SEATS_KEY: String = "seats"
 const _CHAT_JOINED_FORMAT: String = "%s joined"
 const _CHAT_LEFT_FORMAT: String = "%s left"
-## TRANSITIONAL: whether _rpc_handshake may still seat a new peer now lives in `net_roster`
-## (see set_accepting_joins()).
-var _accepting_joins: bool:
-	get:
-		return net_roster.accepting_joins
-	set(value):
-		net_roster.accepting_joins = value
 ## True for a private loopback host (host_game(..., advertise=false), the
 ## Vs bots session); lets the lobby badge say so instead of "LAN". Cleared by leave().
 var _private_session: bool = false
@@ -145,17 +124,6 @@ var _host_build_version: String = ""
 var _host_port: int = 0
 
 var _local_slot: int = 0
-## TRANSITIONAL: the client's join state now lives in `net_roster`.
-var _joined_accepted: bool:
-	get:
-		return net_roster.joined_accepted
-	set(value):
-		net_roster.joined_accepted = value
-var _pending_join_name: String:
-	get:
-		return net_roster.pending_join_name
-	set(value):
-		net_roster.pending_join_name = value
 var _join_deadline: float = 0.0
 ## Client only: this instance's own ping to the host, reported down by the
 ## host (the host measures the RTT; the client cannot measure it itself).
@@ -1016,19 +984,6 @@ func _apply_handshake(sender: int, build: String, player_name: String, rejoin_to
 			_accept_peer(sender, build, player_name, decision.slot_id)
 
 
-## TRANSITIONAL: the handshake while a match runs, decided as if the match flag were
-## set (the reclaim and late-joiner rules live in HandshakePolicy). Kept for the ENet
-## acceptance harness that names it.
-func _handshake_mid_match(sender: int, build: String, player_name: String, rejoin_token: String) -> void:
-	var state: Dictionary = net_roster.host_state()
-	state["match_in_progress"] = true
-	var request: Dictionary = {
-		"sender": sender, "build": build, "name": player_name, "token": rejoin_token,
-		"already_seated": net_roster.has_peer(sender),
-	}
-	_apply_handshake(sender, build, player_name, rejoin_token, HandshakePolicy.decide(request, state))
-
-
 ## Seats `peer_id` in `slot_id` (-1 = spectator). `token` is a
 ## reconnecting peer's existing rejoin token, reused so a second drop also
 ## works; a new peer gets a fresh one.
@@ -1157,7 +1112,7 @@ func _fail_join(error: int, detail: String = "") -> void:
 ##
 ## Mid-match, game/main/Main.gd keeps it true while the running
 ## MatchConfig.allow_mid_match_join is on; set_match_in_progress() then routes
-## the handshake through _handshake_mid_match() (open seat, spectator, or a
+## the handshake through HandshakePolicy (open seat, spectator, or a
 ## rejoin token's reserved slot -- the last ignores this flag).
 ##
 ## DECISION (autoload/Net.gd): a flag the match flow flips, not a subscription
