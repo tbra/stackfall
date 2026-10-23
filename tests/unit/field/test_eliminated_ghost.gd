@@ -21,7 +21,6 @@ func after_each() -> void:
 func _start(player_count: int = 2) -> void:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.player_count = player_count
-	config.hot_seat = false
 	config.rng_seed = 13579
 	Match.start_match(config)
 
