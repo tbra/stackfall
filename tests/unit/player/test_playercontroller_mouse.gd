@@ -27,8 +27,8 @@ extends GutTest
 ## of doing nothing.
 ##
 ## Also carries a regression pin (Part B, "the host cannot
-## place"): the real root cause turned out to be ui/lobby/Lobby.gd sending
-## hot_seat = true (see tests/unit/ui/test_lobby.gd), but PlayerController's own
+## place"): the real root cause turned out to be ui/lobby/Lobby.gd starting
+## networked matches in a sequential local mode the game no longer has, but PlayerController's own
 ## networked gating -- _acting_slot() reading Net.local_slot() rather than
 ## waiting on Events.turn_changed -- is the layer that would have hidden a
 ## reintroduced version of the same class of bug, so it gets its own direct

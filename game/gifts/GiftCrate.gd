@@ -385,16 +385,12 @@ func _is_hint_hovering() -> bool:
 
 ## DECISION (game/gifts/GiftCrate.gd): "the local player's own slot",
 ## the same distinction ui/hud/HUD.gd makes with its _active_slot (set_local_slot()
-## off Events.turn_changed) -- in hot-seat exactly one human drives whichever slot's turn it is
-## (Match.active_slot()); outside hot-seat each running instance drives
-## exactly one slot of its own (Net.is_local_slot()). Recomputed here rather
-## than reused from HUD.gd: this file owns no reference to that HUD instance
-## (or any node path to one), and both branches are two public, already
-## existing calls each.
+## off Events.turn_changed) -- each running instance drives exactly one slot
+## of its own (Net.is_local_slot()). Recomputed here rather than reused from
+## HUD.gd: this file owns no reference to that HUD instance (or any node path
+## to one).
 func _local_watch_slot() -> int:
 	var ctx: MatchContext = MatchContext.current()
-	if ctx.config() != null and ctx.config().hot_seat:
-		return ctx.active_slot()
 	for slot_id: int in range(ctx.slot_count()):
 		if ctx.net_is_local_slot(slot_id):
 			return slot_id

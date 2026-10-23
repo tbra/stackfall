@@ -113,7 +113,6 @@ func build_config(base: MatchConfig) -> MatchConfig:
 	var count: int = clampi(bots, tuning().min_bots, tuning().max_bots)
 	config.player_count = count
 	config.ai_count = count
-	config.hot_seat = false
 	config.sandbox = false
 	config.game_mode = MatchConfig.resolve_game_mode(mode)
 	config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)

@@ -50,7 +50,6 @@ func before_each() -> void:
 	match_config.disc_size_step = 1
 	match_config.player_count = 4
 	match_config.ai_count = 0
-	match_config.hot_seat = false
 	match_config.rng_seed = 4242
 	match_config.allow_mid_match_join = true
 	Match.start_match(match_config)

@@ -64,8 +64,6 @@ func _launch_sandbox(preset: SandboxConfig, args: PackedStringArray) -> void:
 ## Starts a non-lobby match: the one world builder (MainMatchFlow) does the rest and calls
 ## attach_extras() once the local player exists.
 func launch(config: MatchConfig, extras: ModeExtras) -> void:
-	# TRANSITIONAL: the saved default still has hot_seat on; goes with the field (RU1/RU2).
-	config.hot_seat = false
 	main_node._mode_extras = extras
 	Match.register_world(main_node._field, main_node._registry, main_node._blocks_container)
 	Match.start_match(config)

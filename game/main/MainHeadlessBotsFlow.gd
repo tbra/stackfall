@@ -18,8 +18,8 @@ var _headless_bots_start_physics_frame: int = 0
 # --- Headless bot match: `--bots=<n>` -----------------
 #
 # `godot --headless --path . -- --headless-host --bots=<n> [--players=<n2>]
-# [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false,
-# config.hot_seat = false: the real feed/territory/win loop) with `n` bot-driven
+# [--seconds=<n3>]` starts a **real** networked match (config.sandbox = false;
+# the real feed/territory/win loop) with `n` bot-driven
 # seats and no human required to click the Lobby's Start button. Unlike
 # --hot-seat/--sandbox this does NOT return early out of _ready(): Events wiring
 # is already connected and Net.apply_command_line() has already run host_game(),
@@ -284,7 +284,6 @@ func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConf
 	var config: MatchConfig = base_config.duplicate(true) as MatchConfig
 	config.ai_count = bots
 	config.player_count = maxi(bots, _headless_bot_players_arg(args))
-	config.hot_seat = false
 	config.sandbox = false
 	# DECISION: headless bot matches have no human to wait for,
 	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).

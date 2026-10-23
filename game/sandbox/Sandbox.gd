@@ -306,8 +306,8 @@ func _set_active_slot(slot_id: int) -> void:
 	_active_slot = slot_id
 	_controller.set_acting_slot(slot_id)
 	# the HUD only re-reads Events.turn_changed's slot, which
-	# in sandbox (config.hot_seat == false) fires exactly once at match start
-	# (autoload/Match.gd's advance_turn() no-ops outside hot-seat) -- without
+	# in sandbox (not turn_based) fires exactly once at match start
+	# (autoload/Match.gd's advance_turn() no-ops outside turn_based) -- without
 	# this, cycling which slot this instance drives would leave the HUD
 	# pointed at whichever slot happened to go first.
 	_hud.set_local_slot(slot_id)

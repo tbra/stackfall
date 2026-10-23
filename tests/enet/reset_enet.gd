@@ -133,7 +133,6 @@ func _config(weather_mode: int, sky_mode: int) -> MatchConfig:
 	config.disc_size_step = 1
 	config.player_count = 2
 	config.ai_count = 0
-	config.hot_seat = false
 	config.rng_seed = SEED
 	config.countdown_seconds = COUNTDOWN_S
 	config.weather_mode = weather_mode as MatchConfig.WeatherMode

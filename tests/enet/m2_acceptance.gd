@@ -11,7 +11,7 @@ extends Node3D
 ## It prints one M2_ACCEPT line per criterion and exits non-zero if any fails.
 ##
 ## **Real-time driving.** Every criterion runs the real concurrent cadence
-## (spec 1.4): `hot_seat = false`, each slot driven independently through
+## (spec 1.4): each slot driven independently through
 ## `Match.request_place()` the way `net/MatchNet.gd` and a real
 ## `PlayerController` call it, with no scene-tree consumer of its own. A slot
 ## that releases early is locked until its interval boundary (`_await_unlocked()`
@@ -582,7 +582,6 @@ func _build_config(goal_count: int) -> MatchConfig:
 	var config: MatchConfig = (load("res://config/match/match_defaults.tres") as MatchConfig).duplicate(true)
 	config.disc_size_step = DISC_STEP
 	config.player_count = PLAYER_COUNT
-	config.hot_seat = false
 	config.goal_flag_count = goal_count
 	config.rng_seed = RNG_SEED
 	# The lobby's shortest legal window: every release waits out the rest of

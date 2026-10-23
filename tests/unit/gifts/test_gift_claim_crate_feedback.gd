@@ -37,7 +37,6 @@ func _config(player_count: int = 2) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = player_count
-	config.hot_seat = false
 	config.rng_seed = 4242
 	return config
 
@@ -155,7 +154,6 @@ func test_hint_does_not_trigger_over_a_teammates_territory_under_teams_2() -> vo
 	# differ, and the old comparison would show the hint over ground the
 	# local team already owns.
 	var config: MatchConfig = _teams_2_config()
-	config.hot_seat = false
 	config.slot_team_ids = PackedInt32Array([1, 0, 0, 1])
 	config.team_numbers = PackedInt32Array([1, 2])
 	_start_playing(config)

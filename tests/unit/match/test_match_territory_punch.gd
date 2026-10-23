@@ -4,7 +4,6 @@ extends "res://tests/unit/match/match_world_test.gd"
 func _real_time_config(hole_mode: MatchConfig.HoleMode) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 12345
 	config.hole_mode = hole_mode

@@ -1,7 +1,7 @@
 class_name MatchLifecycle
 extends RefCounted
 ## Match's state machine (Lobby -> Loading -> Countdown -> Playing -> End ->
-## Lobby, spec 2.4), slots/teams, disconnect grace and hot-seat turn logic.
+## Lobby, spec 2.4), slots/teams, disconnect grace and turn-based turn logic.
 ##
 ## See autoload/Match.gd's header comment for the full state-machine contract.
 
@@ -33,7 +33,7 @@ var _countdown_held: bool = false
 ## headless) and the run is not an agent probe -- the same conditions game/main/Main.gd
 ## uses to run the staged build behind the loading screen (headless or
 ## AgentProbe.is_active() keep the synchronous start contract). Sandbox never
-## raises the overlay so it is never gated; the tutorial, hot-seat, vs-bots and
+## raises the overlay so it is never gated; the tutorial, vs-bots and
 ## online matches all are. Headless tests, bot harnesses and windowed
 ## --agent-probe tools (screenshots, benches) drive Match by hand and see no gate
 ## (set_loading_gate_forced() is the test/harness seam that arms it anyway). An
@@ -479,7 +479,7 @@ func loading_gate_blocking() -> bool:
 
 
 ## The peers the host waits for: connected peers holding a human slot (bots are
-## auto-ready and never listed); offline/hot-seat the single local peer id, which
+## auto-ready and never listed); offline the single local peer id, which
 ## stands for every local human. A client returns the host's last mirror.
 func loading_required_peers() -> PackedInt32Array:
 	if not _match._is_host():
@@ -809,15 +809,7 @@ func _resolve_sudden_death_tiebreak() -> void:
 
 # --- Turn-based (spec 1.2) --------------------------------------------
 
-## DECISION (autoload/match/MatchLifecycle.gd): turn_based and hot_seat are mutually exclusive in practice -- the
-## lobby never offers hot_seat, and the CLI --hot-seat path never sets
-## turn_based -- so nothing here resolves "both true" (advance_turn()'s own
-## instant hand-off would just win, since it runs unconditionally once either
-## flag is set). config.sanitize() does not need a cross-field rule for a
-## combination no caller can reach.
-
-## Called from MatchPlacement's two hot-seat advance_turn() sites, in the
-## turn_based branch alongside them: arms the settle-wait instead of handing
+## Called from MatchPlacement's turn_based branches: arms the settle-wait instead of handing
 ## the turn over immediately. A no-op outside turn_based (callers only reach
 ## this from the turn_based branch, but the guard keeps the field itself
 ## authoritative about whether a wait is actually running).
@@ -865,17 +857,16 @@ func team_of(slot_id: int) -> int:
 	return target.team_id if target != null else -1
 
 
-## Hot-seat: the slot whose turn it is. Outside hot-seat this is the local
+## Turn-based: the slot whose turn it is. Otherwise this is the local
 ## player's slot, and every slot acts at once.
 func active_slot() -> int:
 	return _active_slot
 
 
-## Hot-seat and turn-based: hands the turn to the next slot. Called after a
-## placement resolves (hot-seat: immediately; turn-based: once
+## Turn-based: hands the turn to the next slot. Called once
 ## _tick_turn_based() decides the settle-wait is over), not by input.
 func advance_turn() -> void:
-	if not _match.config.is_sequential_play():
+	if not _match.config.turn_based:
 		return
 	# Any settle-wait belonged to the outgoing turn. If the active slot was
 	# eliminated mid-wait, MatchFeed._tick_feed() advances the turn here and
@@ -939,7 +930,7 @@ func _build_slots() -> void:
 		var is_bot: bool = i >= _match.config.player_count - _match.config.ai_count
 		# A human seat carries the name the host replicated for its
 		# peer (Net.name_for_slot, already sanitised by the host); a bot, an
-		# offline hot-seat seat or an empty seat keeps "Player N". Host and client
+		# offline seat or an empty seat keeps "Player N". Host and client
 		# both build from the same roster, so MatchStats' results (host-built,
 		# read from PlayerSlot.display_name) and every slot reader agree.
 		var bot_ordinal: int = i - (_match.config.player_count - _match.config.ai_count)
@@ -969,11 +960,11 @@ func _build_slots() -> void:
 
 
 ## The replicated name of the human peer seated at `slot_id`, or ""
-## when nobody holds it (a bot, an empty or hot-seat seat, a departed player) or
-## the session double has no name roster. Offline (sandbox / hot-seat) there are no
+## when nobody holds it (a bot, an empty seat, a departed player) or
+## the session double has no name roster. Offline (sandbox) there are no
 ## peers, so the local human on slot 0 goes by the name saved in Settings.
 # DECISION: offline, only slot 0 (the local player; Net.local_slot() is 0) takes the
-# saved name; further hot-seat humans share the keyboard and stay "Player N".
+# saved name; further local humans share the keyboard and stay "Player N".
 func _peer_name_for_slot(slot_id: int) -> String:
 	var session: Variant = _loading_session()
 	if session == null:

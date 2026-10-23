@@ -70,7 +70,6 @@ func _start_match() -> void:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 12345
 	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
