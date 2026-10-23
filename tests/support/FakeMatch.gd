@@ -20,10 +20,9 @@ var tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 var spawn_parent: Node = null
 
 ## mirrors the real Match's public `config` field (null until
-## a match starts). ui/hud/HUD.gd reads `match_provider.config.hot_seat` to gate
-## its "Player N's turn" wording; tests that care set this to a MatchConfig
-## with hot_seat true/false, everything else leaves it null (real-time
-## behaviour, matching the real autoload before start_match()).
+## a match starts). Tests that care set this to a MatchConfig; everything
+## else leaves it null (real-time behaviour, matching the real autoload
+## before start_match()).
 var config: MatchConfig = null
 
 var slots_by_id: Dictionary = {}
