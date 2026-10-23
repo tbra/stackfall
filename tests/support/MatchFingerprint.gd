@@ -54,10 +54,12 @@ static func capture(main: Node) -> Dictionary:
 ## at COUNTDOWN + 0.5 s on one peer and not on the other, so it is excluded too.
 # DECISION: exclude the transient rather than wait for it, since a loaded peer's fade can
 # outlast the whole countdown and a wait would then never capture.
+## The disc's sync_to_physics drops once the tilt spring has rested for its hold time, counted
+## in real physics ticks, so at COUNTDOWN + 0.5 s it also depends on machine load.
 const VOLATILE_PREFIXES: PackedStringArray = [
 	"rules.countdown_left", "rules.timer_left", "rules.slot_timers", "rules.stats", "camera.shake",
 	"net.cursors", "net.intents", "net.snapshot_bodies", "ui.hud_texts",
-	"ui.loading_", "wiring.node.LoadingScreen",
+	"ui.loading_", "wiring.node.LoadingScreen", "field.sync_to_physics",
 ]
 
 
