@@ -159,7 +159,7 @@ func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
 	assert_not_null(_main._sandbox, "Main built a Sandbox instance")
 	assert_true(_main._sandbox is Sandbox)
 	assert_not_null(_main._debug_overlay, "F3's net debug overlay is available offline too")
-	assert_eq(_main._field._home_flags.size(), 3, "one home flag per sandbox slot")
+	assert_eq(_main._field.home_flags().size(), 3, "one home flag per sandbox slot")
 
 
 func test_sandbox_never_reaches_the_lobby() -> void:
@@ -243,7 +243,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 	assert_eq(Match.slot_count(), 2, "the same config's player count survives the reset")
 	sandbox = _main._sandbox  # F5 rebuilds the world: Main now holds the new node
 	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
-	assert_eq(_main._field._home_flags.size(), 2, "flags are rebuilt for the same config")
+	assert_eq(_main._field.home_flags().size(), 2, "flags are rebuilt for the same config")
 	assert_not_null(Match.raster(), "territory is rebuilt")
 
 
@@ -382,7 +382,7 @@ func test_f5_rebuilds_the_world_exactly_once() -> void:
 	assert_eq(_hud_count(), 1, "exactly one HUD")
 	assert_eq(Match.slot_count(), 2)
 	assert_true(Match.config.sandbox, "the rebuild keeps the sandbox config")
-	assert_eq(_main._field._home_flags.size(), 2)
+	assert_eq(_main._field.home_flags().size(), 2)
 
 
 func test_f5_twice_in_a_row_still_leaves_one_of_everything() -> void:

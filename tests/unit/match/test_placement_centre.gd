@@ -17,7 +17,6 @@ func after_each() -> void:
 func _config() -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = 2
-	config.hot_seat = false
 	config.block_timer = 6.0
 	config.rng_seed = 24680
 	return config

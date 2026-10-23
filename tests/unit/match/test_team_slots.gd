@@ -100,7 +100,6 @@ func _start_world(config: MatchConfig) -> void:
 	start.team_numbers = config.team_numbers
 	start.slot_ai_difficulties = config.slot_ai_difficulties
 	start.ai_difficulty = config.ai_difficulty
-	start.hot_seat = false
 	start.sandbox = false
 	start.countdown_seconds = 0.0
 	Match.register_world(_main._field, _main._registry, _main._blocks_container)
@@ -194,6 +193,14 @@ func _assert_same_rgb(actual: Color, expected: Color, message: String) -> void:
 	assert_almost_eq(actual.b, expected.b, 0.0001, message + " (b)")
 
 
+## The colour a goal flag's capture ring shows for `team_id`, read after the
+## replicated capture-progress event the game itself emits.
+func _team_ring_color(field: Field, team_id: int) -> Color:
+	Events.goal_capture_progress.emit(team_id, 0.5)
+	var ring: MeshInstance3D = field.goal_flags()[0].find_child(&"CaptureRing", true, false) as MeshInstance3D
+	return (ring.material_override as StandardMaterial3D).albedo_color
+
+
 func test_world_build_hands_the_overlay_and_goal_flags_the_team_colours() -> void:
 	_make_main()
 	await _start_world(_resolved_config())
@@ -201,8 +208,8 @@ func test_world_build_hands_the_overlay_and_goal_flags_the_team_colours() -> voi
 	var colors: PackedColorArray = Match.config.player_colors
 	var field: Field = _main._field
 	# Team id 0 is slots 1+2 (lowest: slot 1), team id 1 is slots 0+3 (lowest: slot 0).
-	_assert_same_rgb(field._color_for_index(0), colors[1], "team 0 shows its lowest slot's colour")
-	_assert_same_rgb(field._color_for_index(1), colors[0], "team 1 shows its lowest slot's colour")
+	_assert_same_rgb(_team_ring_color(field, 0), colors[1], "team 0 shows its lowest slot's colour")
+	_assert_same_rgb(_team_ring_color(field, 1), colors[0], "team 1 shows its lowest slot's colour")
 	for slot_id: int in range(PLAYER_COUNT):
 		_assert_same_rgb(field.home_flags()[slot_id].color(), colors[slot_id], "home flag %d keeps its player's own colour" % slot_id)
 

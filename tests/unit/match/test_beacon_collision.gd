@@ -40,7 +40,7 @@ func test_block_dropped_on_beacon_rests_above_it() -> void:
 
 ## The child body carrying every beacon's shapes (Field creates it on the first place_flags()).
 func _beacon_body(field: Field) -> AnimatableBody3D:
-	return field.get_node("BeaconBody") as AnimatableBody3D
+	return field.find_child(&"BeaconBody", true, false) as AnimatableBody3D
 
 
 func test_elimination_removes_collider() -> void:

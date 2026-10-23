@@ -5,7 +5,6 @@ extends "res://tests/unit/match/match_world_test.gd"
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = block_timer
 	config.rng_seed = 98765
 	return config
@@ -21,7 +20,7 @@ func test_a_voluntary_placement_after_unanswered_expiry_unlatches_the_slot() -> 
 	# 's own precedent (test_match_flow.gd's
 	# test_an_untouched_piece_auto_drops_at_the_interval_boundary): a manual
 	# collect array, not assert_signal_emitted_with_parameters, because two
-	# slots run concurrently outside hot-seat and both may expire at the same
+	# slots run concurrently and both may expire at the same
 	# boundary -- assert_signal_emitted_with_parameters only ever checks the
 	# LAST emission (and GUT 9.6.1's signal_watcher chokes rebuilding a diff
 	# across more than one differently-shaped emission of the same signal).

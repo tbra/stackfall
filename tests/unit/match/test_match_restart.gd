@@ -49,7 +49,6 @@ func _config(weather_mode: int) -> MatchConfig:
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = 2
-	config.hot_seat = false
 	config.rng_seed = 777
 	config.weather_mode = weather_mode as MatchConfig.WeatherMode
 	return config
