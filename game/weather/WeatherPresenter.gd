@@ -86,4 +86,4 @@ func _on_intensity_changed(weather_id: StringName, intensity: float) -> void:
 func clear_now() -> void:
 	if _ceiling != null:
 		_ceiling.snap_clear()
-	WeatherFogShader.reset_to_launch(get_tree() if is_inside_tree() else null)
+	WeatherFogShader.reset_to_launch(get_tree() if is_inside_tree() else null, false)

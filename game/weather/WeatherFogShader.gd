@@ -68,15 +68,18 @@ static func _blend(tree: SceneTree) -> void:
 			node.call(&"refresh_weather_fog")
 
 
-## match reset parity: the state as at launch, group refreshed.
+## match reset parity: the weather part as at launch (no weather, group refreshed).
 ## FogPresentation leaves begin / end / color at its tuning values when it fades
 ## out; they are invisible at strength 0 but a fresh launch has the defaults.
-static func reset_to_launch(tree: SceneTree) -> void:
-	ambient_strength = DEFAULT_STRENGTH
-	ambient_begin_m = DEFAULT_BEGIN_M
-	ambient_end_m = DEFAULT_END_M
-	ambient_color = DEFAULT_COLOR
-	set_state(1.0, DEFAULT_STRENGTH, DEFAULT_BEGIN_M, DEFAULT_END_M, DEFAULT_COLOR, tree)
+## `include_ambient` also drops the sky's haze; a live sky dome keeps it (it pushes the haze
+## only when its inputs change, so wiping it here would leave the puffs cleared).
+static func reset_to_launch(tree: SceneTree, include_ambient: bool = true) -> void:
+	if include_ambient:
+		ambient_strength = DEFAULT_STRENGTH
+		ambient_begin_m = DEFAULT_BEGIN_M
+		ambient_end_m = DEFAULT_END_M
+		ambient_color = DEFAULT_COLOR
+	set_state(0.0, DEFAULT_STRENGTH, DEFAULT_BEGIN_M, DEFAULT_END_M, DEFAULT_COLOR, tree)
 
 
 static func apply(material: ShaderMaterial) -> void:
