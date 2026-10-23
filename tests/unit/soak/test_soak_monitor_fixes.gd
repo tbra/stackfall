@@ -8,7 +8,7 @@ const KILL_PLANE_Y: float = -40.0
 const PHYSICS_HZ: int = 60
 const PER_BODY_FIELD: String = "monitor_overhead_us_per_body"
 const REAL_TILT_DEG: float = 1.0
-const ANGLE_ERROR_MAX_DEG: float = 0.1
+const COMPONENT_ERROR_MAX: float = 0.00001
 const SMALL_BODIES: int = 48
 const LARGE_BODIES: int = 1516
 ## Measured by calibration: what a monitor sample cost at those body counts, in microseconds.
@@ -16,13 +16,6 @@ const MEASURED_US_SMALL: int = 753
 const MEASURED_US_LARGE: int = 14915
 
 var _config: SoakConfig = load("res://config/soak/soak_config.tres") as SoakConfig
-
-
-## The angle between two quaternions as tools/soak_report.py computes it: from the parsed text
-## components, with no renormalisation.
-func _report_angle_deg(a: Quaternion, b: Quaternion) -> float:
-	var dot: float = absf(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w)
-	return rad_to_deg(2.0 * acos(minf(1.0, dot)))
 
 
 func _parsed_q(line: String) -> Quaternion:
@@ -40,28 +33,33 @@ func _parsed_q(line: String) -> Quaternion:
 # --- agree.pose_after_sleep: quaternion precision ---------------------------------------------
 
 
+## The report reads these components as text; its angle maths is covered by tools/test_soak_report.py.
+func _assert_q_close(read: Quaternion, written: Quaternion) -> void:
+	assert_almost_eq(read.x, written.x, COMPONENT_ERROR_MAX, "x keeps the written value")
+	assert_almost_eq(read.y, written.y, COMPONENT_ERROR_MAX, "y keeps the written value")
+	assert_almost_eq(read.z, written.z, COMPONENT_ERROR_MAX, "z keeps the written value")
+	assert_almost_eq(read.w, written.w, COMPONENT_ERROR_MAX, "w keeps the written value")
+
+
 func test_body_line_keeps_a_one_degree_tilt_readable_near_identity() -> void:
 	var tilted: Quaternion = Quaternion(Vector3.RIGHT, deg_to_rad(REAL_TILT_DEG))
-	var rest: String = SoakLine.body(&"host", 1, 7, Vector3.ZERO, Quaternion.IDENTITY, true)
 	var moved: String = SoakLine.body(&"client", 1, 7, Vector3.ZERO, tilted, true)
-	var measured: float = _report_angle_deg(_parsed_q(rest), _parsed_q(moved))
-	assert_almost_eq(measured, REAL_TILT_DEG, ANGLE_ERROR_MAX_DEG, "the logged tilt is the real tilt")
+	_assert_q_close(_parsed_q(moved), tilted)
+	assert_ne(_parsed_q(moved), Quaternion.IDENTITY, "the tilt is not rounded away")
 
 
-func test_identical_pose_written_twice_reads_as_zero_rotation() -> void:
+func test_identical_pose_written_twice_reads_as_the_same_components() -> void:
 	var pose: Quaternion = Quaternion(Vector3.UP, deg_to_rad(0.4))
 	var host: String = SoakLine.body(&"host", 1, 7, Vector3.ZERO, pose, true)
 	var client: String = SoakLine.body(&"client", 1, 7, Vector3.ZERO, pose, true)
-	assert_almost_eq(_report_angle_deg(_parsed_q(host), _parsed_q(client)), 0.0, ANGLE_ERROR_MAX_DEG)
+	assert_eq(_parsed_q(host), _parsed_q(client))
 
 
-func test_small_drift_without_rotation_stays_under_the_convergence_tolerance() -> void:
-	# A body that moved 1.5 mm and did not rotate: the quaternions are the same, so the logged
-	# rotation difference must be under converge_angle_tol_deg.
+func test_small_drift_without_rotation_writes_the_same_quaternion() -> void:
 	var pose: Quaternion = Quaternion(Vector3(1, 2, 3).normalized(), deg_to_rad(0.6))
 	var host: String = SoakLine.body(&"host", 1, 7, Vector3.ZERO, pose, true)
 	var client: String = SoakLine.body(&"client", 1, 7, Vector3(0.0015, 0.0, 0.0), pose, true)
-	assert_lt(_report_angle_deg(_parsed_q(host), _parsed_q(client)), _config.converge_angle_tol_deg)
+	assert_eq(_parsed_q(host), _parsed_q(client), "moving does not change the logged rotation")
 
 
 func test_body_line_stays_one_token_per_field_for_the_report() -> void:
