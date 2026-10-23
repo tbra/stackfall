@@ -136,6 +136,8 @@ var _lan: LanDiscovery
 ## built only for the real autoload on a windowed, non-agent run; tests set `upnp_backend_factory`
 ## to a Callable returning a fake UpnpBackend and never touch a router.
 signal upnp_state_changed(state: int)
+## This session's own mode change (the per-instance twin of Events.net_mode_changed).
+signal mode_changed(mode: int)
 var upnp_config: UpnpConfig = preload("res://config/net/upnp_config.tres")
 var upnp_backend_factory: Callable = Callable()
 var _upnp: UpnpRunner = UpnpRunner.new()
@@ -272,6 +274,7 @@ func host_game(port: int = 0, player_name: String = "", advertise: bool = true, 
 	_private_session = not advertise
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
+	mode_changed.emit(_mode)
 	# Agent runs must not appear in the owner's LAN browser.
 	# `lan_visible=false` keeps the normal "*" bind and open joins but skips the
 	# broadcast (headless bot hosts must not show up in a Join browser).
@@ -299,6 +302,7 @@ func join_game(address: String, port: int = 0, player_name: String = "") -> Erro
 	_join_scope = "enet:%s:%d" % [address, use_port]
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
+	mode_changed.emit(_mode)
 	return OK
 
 
@@ -337,6 +341,7 @@ func leave(forget_rejoin: bool = true) -> void:
 	_private_session = false
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
+	mode_changed.emit(_mode)
 
 
 func mode() -> Mode:
@@ -666,6 +671,7 @@ func _on_steam_host_ready(peer: MultiplayerPeer, _lobby_id: int, host_name: Stri
 	net_roster.add_host(host_name, _host_build_version, true)
 	_reset_rejoin_state()
 	Events.net_mode_changed.emit(_mode)
+	mode_changed.emit(_mode)
 
 
 ## From here _on_connected_to_server() fires once the peer's own connection
@@ -677,6 +683,7 @@ func _on_steam_client_ready(peer: MultiplayerPeer, _lobby_id: int, local_name: S
 	net_roster.begin_client(PlayerNames.clean(local_name, config.max_player_name_length))
 	_join_deadline = _now() + config.connect_timeout + config.handshake_timeout
 	Events.net_mode_changed.emit(_mode)
+	mode_changed.emit(_mode)
 
 
 ## Seconds --host-online's smoke test waits for Steam's async lobby_created

@@ -939,6 +939,11 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:peer_of_slot",
+   "reason": "live: autoload/match/MatchStats.gd:230 (SessionPort.peer_of_slot forwards by callv)"
   }
  ]
 }

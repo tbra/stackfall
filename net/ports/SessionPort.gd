@@ -17,6 +17,10 @@ extends RefCounted
 ## today (MatchNet, MatchEventApplier, SnapshotSync, WeatherNet, SnowNet,
 ## BreezeNet, NetFanout); nothing else.
 
+## Forwards the adapted session's own mode_changed (hosting started/ended, joined,
+## left); a double without that signal simply never emits it.
+signal mode_changed(mode: int)
+
 ## Every method the adapted object must have. `is_peer_disconnecting` is not
 ## listed: FakeNet and the NetFanout doubles never implemented it, and "a
 ## session without it never has a peer in that state" is NetFanout's contract.
@@ -51,6 +55,8 @@ func _init(session_node: Object, required: PackedStringArray = PackedStringArray
 	if session_node == null:
 		push_error("SessionPort: the adapted session object is null")
 		return
+	if session_node.has_signal(&"mode_changed"):
+		session_node.connect(&"mode_changed", mode_changed.emit)
 	var wanted: Array[StringName] = _wanted(required)
 	var unknown: Array[StringName] = []
 	var missing: Array[StringName] = []
