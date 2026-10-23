@@ -30,7 +30,7 @@ extends Node
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
 ## The same NodePath pattern as
-## ghost_path above, wired in game/main/HotSeat.tscn / game/sandbox/Sandbox.tscn to a
+## ghost_path above, wired in game/main/LocalPlayer.tscn / game/sandbox/Sandbox.tscn to a
 ## sibling ThrowArcPreview instance. Null on a bare unit-test controller
 ## (no scene wiring) -- every call site below guards for that.
 @export var arc_preview_path: NodePath

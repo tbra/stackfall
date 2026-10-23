@@ -37,7 +37,7 @@ func _make_ghost_with_shape() -> GhostPreview:
 
 
 func test_camera_target_matches_the_ghost_position_the_same_frame_it_moves() -> void:
-	# Same order as game/main/Main.tscn/game/LocalPlayer.tscn: the rig exists first,
+	# Same order as game/main/LocalPlayer.tscn: the rig exists first,
 	# the controller (and its ghost) are added afterward.
 	var rig: CameraRig = _make_rig()
 	var ghost: GhostPreview = _make_ghost_with_shape()

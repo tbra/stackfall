@@ -365,7 +365,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 **Scenes.**
 - `game/main/Boot.tscn` is the main scene; it loads `Main.tscn` on a worker thread to keep the window responsive. `Main` owns the flow: menu, lobby, loading screen, pause, results, scoreboard, and the match world.
-- The match world is `game/main/HotSeat.tscn` (name retained): one `PlayerController` with `GhostPreview`, the HUD and the tuning panel, plus `Field.tscn` (the disc), `CameraRig.tscn` and `RemoteCursors.tscn`. Every mode plays in it: a mode is a `MatchConfig` (built by `MatchLaunch`) plus optional extras (`ModeExtras`). `game/sandbox/Sandbox.tscn` (the sandbox tools) and `ui/menus/Tutorial.tscn` (the lesson prompts) own no controller; `Main` attaches them to the match world after it is built.
+- The match world is `game/main/LocalPlayer.tscn`: one `PlayerController` with `GhostPreview`, the HUD and the tuning panel, plus `Field.tscn` (the disc), `CameraRig.tscn` and `RemoteCursors.tscn`. Every mode plays in it: a mode is a `MatchConfig` (built by `MatchLaunch`) plus optional extras (`ModeExtras`). `game/sandbox/Sandbox.tscn` (the sandbox tools) and `ui/menus/Tutorial.tscn` (the lesson prompts) own no controller; `Main` attaches them to the match world after it is built.
 - Blocks are `game/blocks/Block.tscn`, created by `BlockFactory`, tracked by `BlockRegistry` (net ids, settled state, per-block influence feed).
 - `game/world/MatchContext.gd` is the port world code (fields, specials, presenters, weather effects) uses to reach the running match without naming the `Match` or `Net` autoloads; `autoload/match/MatchContextLive.gd` forwards it to the real autoloads, and tests install a fake.
 

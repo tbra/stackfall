@@ -256,7 +256,7 @@ func _ready() -> void:
 
 # --- Wiring (game/main/Main.gd / HotSeat.gd / Sandbox.gd) -------------------------
 
-## Called once by game/main/HotSeat.gd: the controller whose Controls/Physics tabs this panel
+## Called once by game/main/LocalPlayer.gd: the controller whose Controls/Physics tabs this panel
 ## reads (both fields default to the same preloaded singletons a bare test constructs this panel
 ## with).
 func set_controller(controller: PlayerController) -> void:
@@ -267,7 +267,7 @@ func set_controller(controller: PlayerController) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/HotSeat.gd and game/sandbox/Sandbox.gd (through their own
+## Called once by game/main/LocalPlayer.gd and game/sandbox/Sandbox.gd (through their own
 ## set_camera_rig()) with the shared CameraRig.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
@@ -276,7 +276,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/HotSeat.gd and game/sandbox/Sandbox.gd with the shared Field, for the
+## Called once by game/main/LocalPlayer.gd and game/sandbox/Sandbox.gd with the shared Field, for the
 ## Territory tab and refresh_territory_visuals_live()'s overlay push.
 func set_field(field: Field) -> void:
 	_field = field
