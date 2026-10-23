@@ -1,7 +1,7 @@
 class_name SpectatorController
 extends Node
 ## what the local player has in a debug "Watch bots" match (every seat is a bot, so there
-## is no HotSeat, ghost or held block). It owns the spectator camera, the speed control and a corner HUD:
+## is no LocalPlayer, ghost or held block). It owns the spectator camera, the speed control and a corner HUD:
 ##   - overview: free orbit / pan / zoom over the arena (the CameraRig's own orbit and zoom input, plus
 ##     spectate pan here);
 ##   - follow: spectate_next / spectate_prev cycle through the bot seats (wrapping) and the camera tracks
