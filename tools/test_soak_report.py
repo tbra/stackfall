@@ -116,6 +116,28 @@ class AngleTest(unittest.TestCase):
         small = (round(math.sin(math.radians(0.01) / 2.0), 8), 0.0, 0.0, 1.0)
         self.assertLess(sr._angle_deg(ident, small), 0.02)
 
+    def test_near_identity_angles_are_small_finite_and_proportional(self):
+        # w rounds to exactly 1.0 here (as in the logged text), so only the vector part carries the angle.
+        ident = (0.0, 0.0, 0.0, 1.0)
+        for deg in (1e-2, 1e-3, 1e-4, 1e-6):
+            q = (math.sin(math.radians(deg) / 2.0), 0.0, 0.0, 1.0)
+            got = sr._angle_deg(ident, q)
+            self.assertTrue(math.isfinite(got))
+            self.assertAlmostEqual(got / deg, 1.0, delta=1e-3, msg="angle %g" % deg)
+
+    def test_near_identity_between_two_non_identity_poses(self):
+        half = math.radians(40.0) / 2.0
+        base = (0.0, math.sin(half), 0.0, math.cos(half))
+        step = math.radians(0.0005) / 2.0  # a further 0.0005 degrees about the same axis
+        half2 = half + step
+        other = (0.0, round(math.sin(half2), 12), 0.0, round(math.cos(half2), 12))
+        self.assertAlmostEqual(sr._angle_deg(base, other), 0.0005, delta=1e-6)
+        self.assertAlmostEqual(sr._angle_deg(other, base), 0.0005, delta=1e-6)
+
+    def test_identical_unnormalised_text_reads_zero(self):
+        q = (0.0, 0.0001, 0.0, 1.0)  # four-digit text is not unit length
+        self.assertEqual(sr._angle_deg(q, q), 0.0)
+
 
 class JoinTest(unittest.TestCase):
     def test_clean_pair_passes(self):
