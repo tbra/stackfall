@@ -60,7 +60,7 @@ func test_watch_match_has_no_local_seat_and_a_bot_per_slot() -> void:
 	await _main.start_watch_bots(options)
 	assert_eq(Match.slot_count(), TEST_BOTS)
 	assert_eq(Match.config.player_count, Match.config.ai_count, "every seat is a bot")
-	assert_null(_main._hot_seat, "no HotSeat: nothing to place, no ghost, no held block")
+	assert_null(_main._local_player, "no LocalPlayer: nothing to place, no ghost, no held block")
 	assert_eq(_main._bot_controllers.size(), TEST_BOTS, "a bot controller per seat")
 	assert_not_null(_main._spectator, "the spectator controller stands in for the player")
 	for _i: int in range(PHYSICS_FRAMES):

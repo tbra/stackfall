@@ -91,10 +91,10 @@ func _sample(frame: int) -> Dictionary:
 		"has_piece": false,
 		"anchor": Vector3.ZERO,
 	}
-	if _main._hot_seat != null:
-		var ghost: GhostPreview = (_main._hot_seat.get_node("GhostPreview") as GhostPreview)
+	if _main._local_player != null:
+		var ghost: GhostPreview = (_main._local_player.get_node("GhostPreview") as GhostPreview)
 		sample["has_piece"] = ghost.get_shape() != null and ghost.is_visible_in_tree()
-		sample["anchor"] = _main._hot_seat.controller()._camera_follow_anchor()
+		sample["anchor"] = _main._local_player.controller()._camera_follow_anchor()
 	print("CAMTRACE f=%d state=%d held=%s fading=%s cam=%s target=%s pitch=%.4f dist=%.3f piece=%s anchor=%s" % [
 		frame, sample["state"], sample["held"], sample["fading"], (sample["camera"] as Transform3D).origin,
 		sample["target"], sample["pitch"], sample["distance"], sample["has_piece"], sample["anchor"],

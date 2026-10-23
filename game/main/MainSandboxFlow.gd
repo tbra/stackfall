@@ -74,7 +74,7 @@ func launch(config: MatchConfig, extras: ModeExtras) -> void:
 ## Adds the mode's node to the freshly built world. Runs inside build_match_world, after it
 ## unsuppressed the pause menu, and before the match is PLAYING.
 func attach_extras(extras: ModeExtras, local_player: Node) -> void:
-	var player: HotSeat = local_player as HotSeat
+	var player: LocalPlayer = local_player as LocalPlayer
 	if extras.kind == ModeExtras.Kind.SANDBOX:
 		var sandbox: Sandbox = main_node._load_scene(Main.SANDBOX_SCENE_PATH).instantiate() as Sandbox
 		main_node._sandbox = sandbox

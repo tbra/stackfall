@@ -5,7 +5,7 @@ extends GutTest
 ## path, not the bare sandbox fixture: the real Main scene, a real
 ## Net.host_game() listen server, Match started through Main's own
 ## `_start_headless_bot_match_with_args()` (the exact function the owner's
-## command line reaches), and the HotSeat PlayerController / GhostPreview /
+## command line reaches), and the LocalPlayer PlayerController / GhostPreview /
 ## CameraRig / HUD that Main itself wires for the host's slot 0.
 ##
 ## Why this exists: on that path nothing clamped the wheel below
@@ -85,7 +85,7 @@ func _start_hosted_match() -> void:
 
 
 func _controller() -> PlayerController:
-	return _main._hot_seat.controller()
+	return _main._local_player.controller()
 
 
 func _wheel_up() -> InputEventMouseButton:

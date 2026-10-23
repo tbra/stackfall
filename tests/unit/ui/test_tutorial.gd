@@ -166,7 +166,7 @@ func test_the_f4_tuning_panel_exists_under_the_local_player() -> void:
 	_setup_menu()
 	_start_tutorial()
 
-	var local_player: Node = _main._hot_seat
+	var local_player: Node = _main._local_player
 	assert_not_null(local_player, "the tutorial runs on the real local player.")
 	assert_eq(local_player.find_children("*", "TuningPanel", true, false).size(), 1)
 

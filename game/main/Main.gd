@@ -61,7 +61,7 @@ const SANDBOX_FLOW_SCRIPT_PATH: String = "res://game/main/MainSandboxFlow.gd"
 const MATCH_FLOW_SCRIPT_PATH: String = "res://game/main/MainMatchFlow.gd"
 const LOBBY_SCENE_PATH: String = "res://ui/lobby/Lobby.tscn"
 const LOADING_STATUS_TEXT: String = "Loading..."
-const HOT_SEAT_SCENE_PATH: String = "res://game/main/HotSeat.tscn"
+const LOCAL_PLAYER_SCENE_PATH: String = "res://game/main/LocalPlayer.tscn"
 const WATCH_BOTS_OPTIONS_PATH: String = "res://game/main/WatchBotsOptions.gd"
 const SANDBOX_SCENE_PATH: String = "res://game/sandbox/Sandbox.tscn"
 const GIFT_DEMO_PRESET_PATH: String = "res://config/match/sandbox_gift_demo.tres"
@@ -109,9 +109,9 @@ var _headless_bots_flow: MainHeadlessBotsFlowPort = null
 var _match_flow: MainMatchFlowPort = null
 var _main_menu: MainMenu = null
 var _lobby: Node = null
-var _hot_seat: Node = null
+var _local_player: Node = null
 ## debug Watch bots: true from start_watch_bots() until the session ends or returns to
-## the menu; the match flow then builds a SpectatorController instead of a HotSeat.
+## the menu; the match flow then builds a SpectatorController instead of a LocalPlayer.
 var _watch_bots_active: bool = false
 var _spectator: Node = null
 var _sandbox: Node = null
@@ -180,7 +180,7 @@ var _headless_loop_restart_pending: bool = false
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
 ## (should not happen, but a state machine is exactly the place to be
-## defensive about it) cannot double-instance HotSeat/RemoteCursors, and
+## defensive about it) cannot double-instance LocalPlayer/RemoteCursors, and
 ## _end_match_world() is a no-op when there is nothing to tear down.
 var _world_built: bool = false
 var _first_territory_ready: bool = false
@@ -773,7 +773,7 @@ func start_bots_from_menu(player_name: String) -> void:
 
 
 ## debug-only. A local host session with every seat a bot and no human seat, so the
-## match flow builds a SpectatorController (watch, follow, speed) instead of a HotSeat. Back to menu and
+## match flow builds a SpectatorController (watch, follow, speed) instead of a LocalPlayer. Back to menu and
 ## Play again on the results screen work as for any host match.
 func start_watch_bots(options: RefCounted) -> void:
 	if not DebugMode.is_enabled():
@@ -884,7 +884,7 @@ func _load_scene(path: String) -> PackedScene:
 func _prefetch_match_scenes() -> void:
 	if _prewarm_background:
 		return  # the serial queue owns these (a second threaded request could hang)
-	for path: String in [HOT_SEAT_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
+	for path: String in [LOCAL_PLAYER_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
 			ResourceLoader.load_threaded_request(path)
 

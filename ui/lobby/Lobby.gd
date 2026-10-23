@@ -1385,7 +1385,7 @@ func _config_from_controls() -> MatchConfig:
 	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
 	# _tick_feed and friends). The lobby is reachable only for networked play —
 	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/main/HotSeat.tscn — so lobby-built matches must run the real-time
+	# game/main/LocalPlayer.tscn — so lobby-built matches must run the real-time
 	# per-player-timer branch instead.
 	config.hot_seat = false
 	# there is one map; the disc size is the choice.

@@ -27,7 +27,6 @@ func _sample_match_config_dict() -> Dictionary:
 		"match_timer_minutes": 10,
 		"sudden_death": true,
 		"per_player_timer": false,
-		"hot_seat": false,
 		"player_colors": [],
 		"rng_seed": 12345,
 	}

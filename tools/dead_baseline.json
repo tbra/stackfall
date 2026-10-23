@@ -103,7 +103,6 @@
    "tests/unit/match/test_match_reset_rules.gd: docs/MATCH_RESET_AUDIT.md",
    "tests/unit/match/test_match_reset_sky.gd: docs/MATCH_RESET_AUDIT.md",
    "tests/unit/net/test_net_match_config_flag.gd: res://tests/support/fixtures/match_configs/does_not_exist.tres",
-   "tests/unit/player/test_camera_rig.gd: game/main/Main.tscn/game/HotSeat.tscn",
    "tests/unit/player/test_playercontroller_mouse.gd: docs/ORIGINAL_BONTAGO_NOTES.md",
    "tests/unit/ui/test_menu_prewarm_queue.gd: res://fake/a.tscn",
    "tests/unit/ui/test_menu_prewarm_queue.gd: res://fake/b.gd",

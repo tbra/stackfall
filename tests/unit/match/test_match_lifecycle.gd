@@ -110,8 +110,8 @@ func _count(type_check: Callable) -> int:
 	return total
 
 
-func _hot_seats() -> int:
-	return _count(func(node: Node) -> bool: return node is HotSeat)
+func _local_players() -> int:
+	return _count(func(node: Node) -> bool: return node is LocalPlayer)
 
 
 func _remote_cursors() -> int:
@@ -131,7 +131,7 @@ func _home_flag_count() -> int:
 
 
 ## How many listeners hang on the bus. Compared across a full
-## build/teardown/build so a leaked HotSeat, RemoteCursors or debug overlay
+## build/teardown/build so a leaked LocalPlayer, RemoteCursors or debug overlay
 ## (or a SnapshotSync connection never dropped) shows up as growth.
 func _bus_connection_count() -> int:
 	var total: int = 0
@@ -143,7 +143,7 @@ func _bus_connection_count() -> int:
 func _assert_one_fresh_world(player_count: int, context: String) -> void:
 	assert_true(_main._world_built, "%s: the world is built" % context)
 	assert_null(_main._lobby, "%s: the lobby is gone" % context)
-	assert_eq(_hot_seats(), 1, "%s: exactly one HotSeat" % context)
+	assert_eq(_local_players(), 1, "%s: exactly one LocalPlayer" % context)
 	assert_eq(_remote_cursors(), 1, "%s: exactly one RemoteCursors" % context)
 	assert_eq(_debug_overlays(), 1, "%s: exactly one NetDebugOverlay" % context)
 	assert_not_null(Match.raster(), "%s: the match has a raster" % context)
@@ -184,7 +184,7 @@ func test_leaving_during_play_aborts_the_match_and_tears_the_world_down() -> voi
 	assert_null(Match.config)
 	assert_false(SnapshotSync.is_running())
 	assert_false(_main._world_built)
-	assert_null(_main._hot_seat)
+	assert_null(_main._local_player)
 	assert_null(_main._remote_cursors)
 	assert_null(_main._debug_overlay)
 	assert_not_null(_main._main_menu, "back on the main menu")
@@ -200,7 +200,7 @@ func test_leaving_during_play_aborts_the_match_and_tears_the_world_down() -> voi
 	assert_signal_not_emitted(Events, "match_state_changed")
 
 	await _settle()
-	assert_eq(_hot_seats(), 0, "the HotSeat is gone")
+	assert_eq(_local_players(), 0, "the LocalPlayer is gone")
 	assert_eq(_remote_cursors(), 0, "the RemoteCursors is gone")
 	assert_eq(_debug_overlays(), 0, "the debug overlay is gone")
 
@@ -260,7 +260,7 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 # --- (f) Field state does not survive the match that opened it ---------------
 #
 # game/field/Field.gd is persistent (Main never frees or rebuilds it, unlike
-# HotSeat/RemoteCursors/NetDebugOverlay), and Match's own teardown
+# LocalPlayer/RemoteCursors/NetDebugOverlay), and Match's own teardown
 # (_reset_match_state()) never touches it, so leaving mid-match used to leave
 # its flags, its overlay's raster reference and every hole it had opened
 # behind on the field the main menu sits over (Beads).
