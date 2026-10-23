@@ -33,6 +33,5 @@ sky_theme_mode = 0
 allow_mid_match_join = true
 countdown_seconds = 0.0
 per_player_timer = true
-hot_seat = false
 rng_seed = 20261020
 sandbox = false

@@ -505,13 +505,13 @@ func _ensure_capacity(slot_id: int) -> void:
 ## DECISION (autoload/match/MatchGifts.gd): "the feed issues a new window" is
 ## Events.feed_block_issued -- MatchFeed._issue_next_block() emits it every time
 ## any slot is handed a new held piece, on an early release, a forced
-## auto-drop, or a hot-seat turn change alike. autoload/Match.gd connects this
+## auto-drop, or a turn change alike. autoload/Match.gd connects this
 ## to Events.feed_block_issued and forwards slot_id here.
 ##
 ## Feed issuance activates a queued gift in MatchFeed before this callback.
 ## Gift activation and the ordinary piece after gift use do not create new
 ## ordinary placement windows, so neither gets a gift-spawn roll. Other rolls
-## are gated by _should_roll_for_window(): outside hot-seat every slot's window
+## are gated by _should_roll_for_window(): every slot's window
 ## advances independently (spec 1.4), so rolling unconditionally would give an
 ## N-player match ~N rolls per window instead of GiftSpawner.should_spawn()'s
 ## "one roll per window, for the whole match, not per player".
@@ -530,20 +530,16 @@ func on_feed_block_issued(slot_id: int) -> void:
 	_try_spawn()
 
 
-## DECISION (autoload/match/MatchGifts.gd): outside hot-seat, every slot's own window fires this signal independently, so rolling on
+## DECISION (autoload/match/MatchGifts.gd): every slot's own window fires this signal independently, so rolling on
 ## every one of them would multiply the match-wide roll by player_count. The
 ## lowest-indexed slot that still has a home flag stands in for "the match's
 ## own window" here -- it need not be synchronized with anyone else's timer
 ## (early releases desync individual slots' windows over time), but it is
 ## always exactly one slot at any instant, which is all should_spawn()'s
-## contract actually needs: one roll, somewhere, per window. Hot-seat already
-## has only one slot issuing at a time, so it always rolls (spec 1.4's
-## turn-based mode needs no such gate).
+## contract actually needs: one roll, somewhere, per window.
 func _should_roll_for_window(slot_id: int) -> bool:
 	if _match.config == null:
 		return false
-	if _match.config.hot_seat:
-		return true
 	return slot_id == _lowest_alive_slot()
 
 
@@ -793,7 +789,7 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var shape: BlockShape = _match.held_shape(slot_id)
 	if slot == null or not slot.home_flag_alive or shape == null:
 		return false
-	if _match.config.is_sequential_play() and slot_id != _match.active_slot():
+	if _match.config.turn_based and slot_id != _match.active_slot():
 		return false
 	var origin: Vector3 = Vector3.ZERO
 	var orientation: int = 0

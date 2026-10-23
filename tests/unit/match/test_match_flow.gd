@@ -21,7 +21,6 @@ func after_each() -> void:
 func _real_time_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = false
 	config.turn_based = false
 	config.block_timer = block_timer
 	config.rng_seed = 12345
@@ -43,7 +42,6 @@ func _turn_based_config(player_count: int = 2, block_timer: float = 6.0) -> Matc
 func _free_for_all_config(player_count: int = 2, block_timer: float = 6.0) -> MatchConfig:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = player_count
-	config.hot_seat = false
 	config.block_timer = block_timer
 	config.rng_seed = 98765
 	return config

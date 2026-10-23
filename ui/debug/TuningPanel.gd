@@ -254,7 +254,7 @@ func _ready() -> void:
 	_selected_tab_index = _load_selected_tab_index()
 
 
-# --- Wiring (game/main/Main.gd / HotSeat.gd / Sandbox.gd) -------------------------
+# --- Wiring (game/main/Main.gd / LocalPlayer.gd / Sandbox.gd) -------------------------
 
 ## Called once by game/main/LocalPlayer.gd: the controller whose Controls/Physics tabs this panel
 ## reads (both fields default to the same preloaded singletons a bare test constructs this panel

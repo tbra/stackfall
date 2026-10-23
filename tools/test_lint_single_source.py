@@ -41,8 +41,6 @@ CASES = {
                   "autoload/Match.gd", None),
     "NET_PREDICATE": ("ui/Peer.gd", 'func _is_host() -> bool:\n\treturn true\n',
                       "autoload/Net.gd", None),
-    "SEQUENTIAL_PREDICATE": ("ui/lobby/Lobby.gd", 'var seq: bool = hot_seat or turn_based\n',
-                             "config/match/MatchConfig.gd", None),
     "SEAT_WIRE_KEY": ("net/Roster.gd", 'var sid: int = entry.get("slot_id", -1)\n',
                       "core/rules/LobbySeats.gd", "ui/Roster.gd"),
 }

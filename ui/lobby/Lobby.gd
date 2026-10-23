@@ -14,8 +14,8 @@ extends Control
 ## another outbound publish.
 ##
 ## **Host-only editing.** Net.is_host() is true on the host and offline
-## (autoload/Net.gd's docstring), so gating on it alone is exactly the hot-seat-still-works
-## hot-seat still works" rule this project uses everywhere else. A client's
+## (autoload/Net.gd's docstring), so gating on it alone is the "offline still works"
+## rule this project uses everywhere else. A client's
 ## controls are disabled; only its own Ready checkbox stays live.
 ##
 ## Connects to Events and Net only — no node paths into game/main/Main.gd. Start
@@ -1380,14 +1380,6 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 
 func _config_from_controls() -> MatchConfig:
 	var config: MatchConfig = MatchConfig.new()
-	# DECISION (ui/lobby/Lobby.gd): MatchConfig.hot_seat defaults to
-	# true (config/match/match_defaults.tres and MatchConfig.new() alike), which
-	# forces Match's strict-alternation single-timer branch (autoload/Match.gd
-	# _tick_feed and friends). The lobby is reachable only for networked play —
-	# hot-seat stays a separate, unlisted `--hot-seat` path straight to
-	# game/main/LocalPlayer.tscn — so lobby-built matches must run the real-time
-	# per-player-timer branch instead.
-	config.hot_seat = false
 	# there is one map; the disc size is the choice.
 	config.disc_size_step = _disc_size_step()
 	config.player_count = int(_player_count_spin.value)
@@ -1478,15 +1470,6 @@ func _apply_data(data: Dictionary) -> void:
 	_apply_count += 1
 	var config: MatchConfig = MatchConfig.from_dict(data)
 	config.sanitize()
-	# DECISION (ui/lobby/Lobby.gd): this screen is reachable only for networked play (see
-	# _config_from_controls()'s DECISION), but the hot_seat=false override only ran through
-	# _config_from_controls(), i.e. once a host touched a control. _ready()'s first call feeds
-	# this function config/match/match_defaults.tres's dict verbatim (hot_seat true), so a host
-	# who pressed Start without editing anything started a strict single-active-slot
-	# alternation match: the turn banner cycled and the host's clicks were refused with
-	# REASON_NOT_YOUR_TURN. Forcing it false on every apply also covers any malformed or
-	# stale config a client might receive over the wire.
-	config.hot_seat = false
 	_last_config = config
 	_bot_names = config.bot_names.duplicate()
 

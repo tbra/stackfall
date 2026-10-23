@@ -93,7 +93,7 @@ func _intent_gate(slot_id: int, feed_seq: int, kind: IntentKind) -> StringName:
 	if seat == null or not seat.home_flag_alive:
 		return PlacementRules.REASON_NO_BLOCK
 	if (
-		_match.config.is_sequential_play()
+		_match.config.turn_based
 		and slot_id != _match.active_slot()
 	):
 		return PlacementRules.REASON_NOT_YOUR_TURN
@@ -242,9 +242,7 @@ func request_place(
 		var in_place_def: SpecialDef = _resolve_deliverable_special(held_id) if held_id != &"" else null
 		if in_place_def != null and in_place_def.activates_in_place and _activation.try_activate(slot_id, in_place_def, final_disk_centre):
 			_match._feed._consume_and_refeed(slot_id, auto_drop)
-			if _match.config.hot_seat:
-				_match.advance_turn()
-			elif _match.config.turn_based:
+			if _match.config.turn_based:
 				_match._lifecycle.begin_turn_settle_wait()
 			return PlacementRules.REASON_OK
 		# Host-side spawn validation (see _lift_pose_clear()). A sky-drop gift (Anvil) spawns high
@@ -308,9 +306,7 @@ func request_place(
 			Events.placement_relocated.emit(slot_id, final_disk_origin)
 
 	_match._feed._consume_and_refeed(slot_id, auto_drop)
-	if _match.config.hot_seat:
-		_match.advance_turn()
-	elif _match.config.turn_based:
+	if _match.config.turn_based:
 		_match._lifecycle.begin_turn_settle_wait()
 
 	return reason
@@ -445,9 +441,7 @@ func request_throw(
 		_apply_aim_direction(spawned, held_def, aim_direction)
 
 	_match._feed._consume_and_refeed(slot_id, false)
-	if _match.config.hot_seat:
-		_match.advance_turn()
-	elif _match.config.turn_based:
+	if _match.config.turn_based:
 		_match._lifecycle.begin_turn_settle_wait()
 
 	return PlacementRules.REASON_OK

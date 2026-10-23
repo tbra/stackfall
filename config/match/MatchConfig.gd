@@ -169,10 +169,8 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
 ## Spec 1.2 "Turn-based [NEW]": physics settles completely before the next
-## player's turn starts. Orthogonal to team_mode and to hot_seat (the single-PC
-## test harness, spec Part 4 M2: "must not become normal play"); a real,
-## networkable mode driven by active_slot/advance_turn(), the same machinery
-## hot_seat uses with its own instant hand-off.
+## player's turn starts. Orthogonal to team_mode; a real, networkable mode
+## driven by active_slot/advance_turn().
 @export var turn_based: bool = false
 ## Which objective decides the match (see GameMode). Default CLASSIC.
 @export var game_mode: GameMode = GameMode.CLASSIC
@@ -222,10 +220,6 @@ const COUNTDOWN_SECONDS_DEFAULT: float = 3.0
 ## Spec "Still open" 1: was the block timer shared or per player? The spec's
 ## stated default is per player, which is what true means here.
 @export var per_player_timer: bool = true
-## Hot-seat: one PC, players take turns. Networked play turns this off.
-## DECISION: the hot-seat rule is being removed (MODES_PLAN MD-RU1); the default
-## flips to false now, and the field itself is deleted by the later MD-RU2 package.
-@export var hot_seat: bool = false
 ## Slot colors, indexed by slot_id. Eight entries, one per possible player.
 @export var player_colors: PackedColorArray = PackedColorArray([
 	Color(0.90, 0.25, 0.25),
@@ -424,10 +418,10 @@ func team_of_slot(slot_id: int) -> int:
 	return posmod(slot_id, team_count())
 
 
-## True when exactly one actor plays at a time (hot-seat or turn-based): the
-## single owner of that pair, enforced by the SEQUENTIAL_PREDICATE lint.
+## True when exactly one actor plays at a time (turn-based).
+# TRANSITIONAL: net/MatchEventApplier.gd still calls it; MD-CS3 removes it
 func is_sequential_play() -> bool:
-	return hot_seat or turn_based
+	return turn_based
 
 
 ## True when the host has resolved the lobby team picks into slot_team_ids /
@@ -709,7 +703,6 @@ func to_dict() -> Dictionary:
 		"sky_start_phase": sky_start_phase,
 		"allow_mid_match_join": allow_mid_match_join,
 		"per_player_timer": per_player_timer,
-		"hot_seat": hot_seat,
 		"player_colors": player_colors.duplicate(),
 		"rng_seed": rng_seed,
 	}
@@ -774,7 +767,6 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	if mid_match_join is bool:
 		config.allow_mid_match_join = mid_match_join
 	config.per_player_timer = bool(data.get("per_player_timer", config.per_player_timer))
-	config.hot_seat = bool(data.get("hot_seat", config.hot_seat))
 	if data.has("player_colors"):
 		config.player_colors = PackedColorArray(data["player_colors"])
 	config.rng_seed = int(data.get("rng_seed", config.rng_seed))

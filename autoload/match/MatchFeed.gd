@@ -40,8 +40,8 @@ var _feed_seq: Array[int] = []
 ## permits exactly one release; placing early does not restart the interval
 ## -- it hands the slot its next piece to aim/prepare immediately, but that
 ## piece stays locked until the interval boundary. Only meaningful outside
-## hot-seat and turn_based -- see _consume_and_refeed()'s DECISION for why
-## neither ever sets this. Parallel to Match's slots, like every other
+## turn_based -- see _consume_and_refeed()'s DECISION for why
+## it never sets this. Parallel to Match's slots, like every other
 ## per-slot feed array.
 var _release_locked: Array[bool] = []
 ## A gift uses the ordinary bag's carrier shape, but is a distinct release.
@@ -220,9 +220,9 @@ func _tick_feed(delta: float) -> void:
 		# (see _consume_and_refeed()'s DECISION).
 		return
 	_tick_qol_pause(delta)
-	if _match.config.is_sequential_play():
-		# turn_based shares hot-seat's one-actor-at-a-time shape (spec 1.2 vs.
-		# spec 1.4's concurrent "[ORIGINAL target]"): ticking every slot would
+	if _match.config.turn_based:
+		# turn_based is one-actor-at-a-time (spec 1.2 vs. spec 1.4's
+		# concurrent "[ORIGINAL target]"): ticking every slot would
 		# let a non-active slot expire and auto-drop, which net/MatchNet.gd
 		# refuses as NOT_YOUR_TURN. Same single-slot branch, recovery included.
 		var active_slot: int = _match.active_slot()
@@ -232,7 +232,7 @@ func _tick_feed(delta: float) -> void:
 			# An active slot eliminated before it ever places (e.g. a hole from
 			# another player's territory capture) leaves _turn_settle_wait_left
 			# at -1.0, so no settle-wait would advance the turn and the match
-			# would deadlock. Mirrors hot-seat's own recovery.
+			# would deadlock.
 			#
 			# DECISION: known gap -- if a settle-wait IS already running (the
 			# active slot placed, then lost its home flag before its blocks
@@ -423,21 +423,15 @@ func _build_bags() -> void:
 ## (request_place()'s own doc comment; never taken from the wire), so every
 ## other call here is the "released early" case.
 ##
-## DECISION (autoload/Match.gd): hot-seat is exempt -- its turn passes to a
-## *different* player's controls the instant a block lands (strict
-## alternation), so a slot can never place twice in a row and there is nothing
-## for a release lock to prevent. The spec calls hot-seat a test harness, not
-## the target cadence ("A separate hot-seat/turn-based test mode must not
-## become normal play"), so it gets no lock.
-##
-## turn_based shares the exemption: its turn passes to a different slot once
-## the settle-wait ends, so the same slot never places twice in a turn.
+## DECISION (autoload/Match.gd): turn_based is exempt -- its turn passes to a
+## different slot once the settle-wait ends, so the same slot never places
+## twice in a turn and there is nothing for a release lock to prevent.
 func _consume_and_refeed(slot_id: int, auto_drop: bool) -> void:
 	var released_gift: bool = is_held_gift(slot_id)
 	# Advance the sequence before issuing, so the feed_block_issued that tells
 	# the owner "you have a block" carries the sequence its next intent must quote.
 	_feed_seq[slot_id] += 1
-	if _match.config.is_sequential_play():
+	if _match.config.turn_based:
 		_feed_time_left[slot_id] = _match.config.block_timer
 		_feed_expired[slot_id] = false
 		_issue_next_block(slot_id)
@@ -496,7 +490,7 @@ func feed_seq(slot_id: int) -> int:
 ## Spec 1.4 "[ORIGINAL target]" cadence: whether `slot_id`'s currently held
 ## piece may be released right now. game/player/PlayerController.gd reads this
 ## every frame to tint the ghost ("a location-valid ghost does not imply that
-## the current interval permits release"). Always false in hot-seat and
+## the current interval permits release"). Always false in turn_based and
 ## whenever the feed timer is disabled, as _consume_and_refeed() never sets it
 ## there. On a client this is a mirror kept by apply_replicated_feed()'s
 ## `host_is_locked`; request_place() is host-only.

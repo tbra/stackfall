@@ -196,7 +196,6 @@ func _start_live_match() -> void:
 	config.disc_size_step = 1
 	config.player_count = 3
 	config.ai_count = 0
-	config.hot_seat = false
 	config.rng_seed = 4242
 	config.allow_mid_match_join = true
 	Match.start_match(config)
