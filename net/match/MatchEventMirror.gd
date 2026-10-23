@@ -10,6 +10,11 @@ extends RefCounted
 var _session: SessionPort = null
 var _host: MatchHostPort = null
 var _seams: MatchIntentGateway.Seams = null
+## Host: net ids of blocks currently fused into a FusedBody.
+var _fused_ids: Dictionary = {}
+## net ids of charged glue drops coated at spawn (cleared when their last bond ends, as that is
+## when the coat is removed).
+var _glue_charged_ids: Dictionary = {}
 
 
 ## `seams` is the same shape the intent gateway takes (production wiring MatchNet binds; a test
@@ -52,6 +57,9 @@ func bind(events_source: Node) -> void:
 	events_source.connect(&"block_frozen_changed", on_block_frozen)
 	events_source.connect(&"cat_started", on_cat_started)
 	events_source.connect(&"cat_ended", on_cat_ended)
+	events_source.connect(&"blocks_fused", on_blocks_fused)
+	events_source.connect(&"fused_member_released", on_fused_member_released)
+	events_source.connect(&"glue_drop_charged", on_glue_drop_charged)
 
 
 ## The LOADING/COUNTDOWN states a start_match() runs through are carried by net_match_start.
@@ -160,6 +168,68 @@ func on_block_glued(net_id: int, glued: bool) -> void:
 	_send(MatchWireEvents.BLOCK_GLUED, [net_id, glued])
 
 
+## Host: members newly fused into a FusedBody join the glued set; the coat event fires only for
+## ids that were not already coated (a charged drop is coated at spawn).
+func on_blocks_fused(_carrier: Node, members: Array) -> void:
+	if not _session.is_host():
+		return
+	for member: Variant in members:
+		var block: BlockBody = member as BlockBody
+		if block == null or not Quantize.is_wire_id(block.net_id):
+			continue
+		var was_coated: bool = _fused_ids.has(block.net_id) or _glue_charged_ids.has(block.net_id)
+		_fused_ids[block.net_id] = true
+		if not was_coated:
+			_set_block_coated(block, true)
+			on_block_glued(block.net_id, true)
+
+
+## Host: a member left its group alive (the survivor of a collapse); it uncoats. Members that were
+## removed (hole, kill plane) are handled by forget_glued.
+func on_fused_member_released(member: Node) -> void:
+	var block: BlockBody = member as BlockBody
+	if not _session.is_host() or block == null or not Quantize.is_wire_id(block.net_id):
+		return
+	var was_fused: bool = _fused_ids.erase(block.net_id)
+	var was_charged: bool = _glue_charged_ids.erase(block.net_id)
+	if was_fused or was_charged:
+		_set_block_coated(block, false)
+		on_block_glued(block.net_id, false)
+
+
+## Host: a charged glue drop is coated (and the coat replicated) at spawn, so it wears the jelly
+## while falling. DECISION: a never-bonded charged block stays coated; the existing 1 -> 0 bond
+## transition already only fires for blocks that bonded.
+func on_glue_drop_charged(body: Node) -> void:
+	var block: BlockBody = body as BlockBody
+	if not _session.is_host() or block == null or not Quantize.is_wire_id(block.net_id):
+		return
+	_glue_charged_ids[block.net_id] = true
+	_set_block_coated(block, true)
+	on_block_glued(block.net_id, true)
+
+
+## A removed block leaves the glued set (its despawn tells clients; no uncoat event).
+func forget_glued(net_id: int) -> void:
+	_fused_ids.erase(net_id)
+	_glue_charged_ids.erase(net_id)
+
+
+## Net ids of blocks fused into a FusedBody or coated by a glue drop, ascending.
+func glued_ids() -> Array:
+	var ids: Array = _fused_ids.keys()
+	for charged_id: int in _glue_charged_ids:
+		if not ids.has(charged_id):
+			ids.append(charged_id)
+	ids.sort()
+	return ids
+
+
+func reset_glue() -> void:
+	_fused_ids.clear()
+	_glue_charged_ids.clear()
+
+
 func on_block_owner_changed(net_id: int, owner_slot: int) -> void:
 	_send(MatchWireEvents.BLOCK_OWNER_CHANGED, [net_id, owner_slot])
 
@@ -184,6 +254,10 @@ func on_block_dissolve_started(_block: RigidBody3D, net_id: int, _duration_s: fl
 
 func on_live_scores(scores: Dictionary) -> void:
 	_send(MatchWireEvents.LIVE_SCORES, [scores])
+
+
+func _set_block_coated(block: BlockBody, coated: bool) -> void:
+	LateScripts.script(LateScripts.HONEY_COAT).call(&"set_coated", block, coated)
 
 
 func _send(event: StringName, args: Array) -> void:

@@ -168,11 +168,6 @@ var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon
 ## Every instrumentation counter (the per-slot intent identities and the match-start
 ## records); net/NetCounters.gd.
 var counters: NetCounters = NetCounters.new()
-## Host: net ids of blocks currently fused into a FusedBody.
-var _fused_ids: Dictionary = {}
-## net ids of charged glue drops coated at spawn (cleared when their
-## last bond ends, as that is when the coat is removed).
-var _glue_charged_ids: Dictionary = {}
 ## Replicated block impacts (net/match/ImpactReplicator.gd), built on first use and dropped on a
 ## reset or a provider change.
 var _impacts: ImpactReplicator = null
@@ -267,9 +262,6 @@ func _ready() -> void:
 	Events.feed_timer_expired.connect(_on_feed_timer_expired)
 	Events.placement_rejected.connect(_on_placement_rejected)
 	Events.placement_relocated.connect(_on_placement_relocated)
-	Events.blocks_fused.connect(_on_blocks_fused)
-	Events.fused_member_released.connect(_on_fused_member_released)
-	Events.glue_drop_charged.connect(_on_glue_drop_charged)
 	Events.block_removed.connect(_on_block_removed)
 	Events.block_dissolve_started.connect(_on_block_dissolve_started)
 	_territory_replicator()
@@ -432,22 +424,12 @@ func _replays() -> MatchWorldReplay:
 		seams.now_s = _now
 		seams.clear_cursor = func(slot_id: int) -> void: _cursors.erase(slot_id)
 		seams.spawn_args = _spawn_args
-		seams.glued_ids = _glued_ids
+		seams.glued_ids = func() -> Array: return _event_mirror().glued_ids()
 		seams.territory_args = _territory_replay_args
 		seams.slot_replay_args = _slot_replay_args
 		seams.replay_acknowledged = _on_replay_acknowledged
 		_world_replay_host = MatchWorldReplay.new(_session_port(), _host_port(), config, seams)
 	return _world_replay_host
-
-
-## Net ids of blocks fused into a FusedBody or coated by a glue drop, ascending.
-func _glued_ids() -> Array:
-	var ids: Array = _fused_ids.keys()
-	for charged_id: int in _glue_charged_ids:
-		if not ids.has(charged_id):
-			ids.append(charged_id)
-	ids.sort()
-	return ids
 
 
 ## Spec 2.6's snapshots resume: the next one carries every body, so the joiner's interpolator
@@ -746,8 +728,7 @@ func reset_counters() -> void:
 	# a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_world_replay.reset()
-	_fused_ids.clear()
-	_glue_charged_ids.clear()
+	_event_mirror().reset_glue()
 
 
 # --- Host-side intent handling ----------------------------------------------
@@ -955,55 +936,13 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	_event_mirror().on_placement_relocated(slot_id, point)
 
 
-## Host: members newly fused into a FusedBody join the glued set; the coat event
-## fires only for ids that were not already coated (a charged drop is coated at spawn).
-func _on_blocks_fused(_carrier: Node, members: Array) -> void:
-	if not _session_port().is_host():
-		return
-	for member: Variant in members:
-		var block: BlockBody = member as BlockBody
-		if block == null or not Quantize.is_wire_id(block.net_id):
-			continue
-		var was_coated: bool = _fused_ids.has(block.net_id) or _glue_charged_ids.has(block.net_id)
-		_fused_ids[block.net_id] = true
-		if not was_coated:
-			_set_block_coated(block, true)
-			_event_mirror().on_block_glued(block.net_id, true)
-
-
-## Host: a member left its group alive (the survivor of a collapse); it uncoats.
-## Members that were removed (hole, kill plane) are handled by _on_block_removed.
-func _on_fused_member_released(member: Node) -> void:
-	var block: BlockBody = member as BlockBody
-	if not _session_port().is_host() or block == null or not Quantize.is_wire_id(block.net_id):
-		return
-	var was_fused: bool = _fused_ids.erase(block.net_id)
-	var was_charged: bool = _glue_charged_ids.erase(block.net_id)
-	if was_fused or was_charged:
-		_set_block_coated(block, false)
-		_event_mirror().on_block_glued(block.net_id, false)
-
-
-## Host: a charged glue drop is coated (and the coat replicated) at spawn, so it
-## wears the jelly while falling. DECISION: a never-bonded charged block stays coated;
-## the existing 1 -> 0 bond transition already only fires for blocks that bonded.
-func _on_glue_drop_charged(body: Node) -> void:
-	var block: BlockBody = body as BlockBody
-	if not _session_port().is_host() or block == null or not Quantize.is_wire_id(block.net_id):
-		return
-	_glue_charged_ids[block.net_id] = true
-	_set_block_coated(block, true)
-	_event_mirror().on_block_glued(block.net_id, true)
-
-
 ## Field's kill plane removes a body by emitting on the bus, so the despawn is
 ## replicated from here rather than from Field — which then needs no idea that
 ## multiplayer exists.
 func _on_block_removed(block: RigidBody3D, reason: String) -> void:
 	var typed: BlockBody = block as BlockBody
 	if typed != null:
-		_fused_ids.erase(typed.net_id)
-		_glue_charged_ids.erase(typed.net_id)
+		_event_mirror().forget_glued(typed.net_id)
 		replicate_despawn(typed.net_id, reason)
 
 
