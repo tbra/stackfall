@@ -106,7 +106,7 @@ var _rotation_drag: Vector2 = Vector2.ZERO
 ## is a drag -- rotate_drag's InputEventMouseMotion branch below starts applying
 ## apply_free_rotation_delta() every frame, and release no longer snaps.
 var _rotate_drag_motion_px: float = 0.0
-## Set by HotSeat.gd/Sandbox.gd via enable_mouse_capture(); left false for
+## Set by LocalPlayer.gd/Sandbox.gd via enable_mouse_capture(); left false for
 ## bare unit-test instances so GUT never captures a test runner's real mouse.
 var _mouse_capture_enabled: bool = false
 
@@ -238,7 +238,7 @@ func _ready() -> void:
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 
 
-## HotSeat.gd calls this after Main builds the shared CameraRig: HotSeat.tscn
+## LocalPlayer.gd calls this after Main builds the shared CameraRig: LocalPlayer.tscn
 ## is self-contained, but the camera rig lives in Main's
 ## tree, so it can't be wired by NodePath at scene-author time.
 func set_camera_rig(rig: CameraRig) -> void:
@@ -262,7 +262,7 @@ func spawn_camera_anchor() -> Vector3:
 	return _camera_follow_anchor()
 
 
-## Called once by HotSeat.bind_local_slot()/Sandbox's own turn-changed handler
+## Called once by LocalPlayer.bind_local_slot()/Sandbox's own turn-changed handler
 ## with that slot's home-flag world position (Match.default_ghost_origin(slot_id),
 ## a read-only API). Seeds _cursor there (so the first frame's ghost/footprint
 ## sit at the home flag, not the world origin) and points the camera rig the same
@@ -305,7 +305,7 @@ func _take_back_home_spawn_raise() -> void:
 	_home_spawn_raise = 0.0
 
 
-## called once by HotSeat.gd/Sandbox.gd (never by a bare unit
+## called once by LocalPlayer.gd/Sandbox.gd (never by a bare unit
 ## test) so a real play session hides/captures the OS cursor -- the original's
 ## mouse only ever positions the held block, there is nothing on screen for a
 ## free system cursor to point at. ui/menus/PauseMenu.gd releases it

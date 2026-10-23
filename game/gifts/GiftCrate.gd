@@ -384,8 +384,8 @@ func _is_hint_hovering() -> bool:
 
 
 ## DECISION (game/gifts/GiftCrate.gd): "the local player's own slot",
-## the same distinction ui/hud/HUD.gd's own _hot_seat_active()/_active_slot pair
-## makes -- in hot-seat exactly one human drives whichever slot's turn it is
+## the same distinction ui/hud/HUD.gd makes with its _active_slot (set_local_slot()
+## off Events.turn_changed) -- in hot-seat exactly one human drives whichever slot's turn it is
 ## (Match.active_slot()); outside hot-seat each running instance drives
 ## exactly one slot of its own (Net.is_local_slot()). Recomputed here rather
 ## than reused from HUD.gd: this file owns no reference to that HUD instance

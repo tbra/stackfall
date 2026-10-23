@@ -50,7 +50,7 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## Fallback player colours for a slot Match cannot name — before a match
 ## starts, or in a HUD-only test with no Match behind it. An @export var
 ## rather than a const: a const's value has to resolve while the script is
-## still being parsed, and the editor parses HUD.gd (through Main -> HotSeat)
+## still being parsed, and the editor parses HUD.gd (through Main -> LocalPlayer)
 ## before it can load a .tres whose script is MatchConfig, which made the
 ## constant null and the parse fail.
 @export var default_palette: MatchConfig = preload("res://config/match/match_defaults.tres")
