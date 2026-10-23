@@ -119,15 +119,13 @@ func test_sting_once_per_break_and_not_on_win() -> void:
 	assert_eq(_sfx.claim_tension_level(), 0.0)
 
 
-func test_rival_break_plays_a_cue_and_signals() -> void:
+func test_rival_break_plays_a_cue() -> void:
 	_sfx._claim_test_local_team = NOT_LOCAL
-	watch_signals(Events)
 	var before: int = _sfx._next_sfx_player_index
 	Events.goal_capture_progress.emit(RIVAL, 0.7)
 	Events.goal_capture_progress.emit(-1, 0.0)
 	await get_tree().process_frame
 	assert_eq(_stings(before), 1)
-	assert_signal_emitted_with_parameters(Events, "claim_interrupted", [false, 0.7])
 
 
 func test_not_live_break_is_silent() -> void:

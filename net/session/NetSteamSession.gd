@@ -14,7 +14,6 @@ signal client_ready(peer: MultiplayerPeer, lobby_id: int, local_name: String)
 signal request_failed(error: int, detail: String)
 ## A joined lobby could not become a session (Net's full join-failure path).
 signal join_refused(error: int, detail: String)
-signal status_changed(ready: bool, verbal: String)
 signal lobbies_discovered(lobbies: Array[Dictionary])
 
 
@@ -115,7 +114,7 @@ func process(delta: float) -> void:
 	SteamClient.log_line("SELFCHECK role=%s %s" % [role, steam.self_check_line(_lobby_id)])
 
 
-## Idempotent: steamInitEx through the provider; status_changed answers.
+## Idempotent: steamInitEx through the provider.
 func init() -> void:
 	if _initialized:
 		return
@@ -230,9 +229,8 @@ func _real_provider() -> bool:
 	return steam.get_script() == SteamClient
 
 
-func _on_init_result(status: int, verbal: String) -> void:
+func _on_init_result(status: int, _verbal: String) -> void:
 	_ready = status == 0
-	status_changed.emit(_ready, verbal)
 
 
 ## Pops the request entry `index` resolves (-1: none matches) and reports whether

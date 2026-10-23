@@ -180,17 +180,6 @@ signal hole_cells_changed(opened: PackedInt32Array, closed: PackedInt32Array)
 ## ring (spec 1.5). team_id is -1 with progress 0 when a capture breaks.
 signal goal_capture_progress(team_id: int, progress: float)
 
-## Local-player-relative claim tension, derived from
-## goal_capture_progress by core/audio/ClaimTensionState via Sfx; nothing new is
-## replicated. `level` is 0..1 (0 = silent), `mine` is true when a team this
-## machine's human seat belongs to is the one holding.
-signal claim_tension_changed(level: float, mine: bool)
-
-## A hold that had reached claim_interrupt_min_progress broke before the match
-## ended. `was_mine` tells my claim from a rival's; `peak` is the highest
-## progress it reached.
-signal claim_interrupted(was_mine: bool, peak: float)
-
 ## A slot's home flag was lost to a hole opening under it (spec 1.5 is silent
 ## on this). PlayerSlot.home_flag_alive goes false, its circles unanchor, and
 ## it gets no more feed. Match ends the match itself via match_won if only one
@@ -336,11 +325,6 @@ signal remote_cursor_updated(
 )
 
 # --- Steam transport (spec 2.6) -------------------------------------------------
-
-## Net.init_steam() finished (or the extension isn't installed). `available`
-## mirrors Net.steam_available(); `detail` is a human-readable line for the
-## menu's notice label, never parsed.
-signal net_steam_status_changed(available: bool, detail: String)
 
 ## The Steam lobby list changed after Net.refresh_lobby_list(). Each entry is
 ## {lobby_id, name, players, max, map}, the Steam-side equivalent of
