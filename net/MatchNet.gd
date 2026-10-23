@@ -686,7 +686,6 @@ func replicate_match_start(match_config: MatchConfig) -> void:
 	if not _session_port().is_host() or match_config == null or _match_start_sent:
 		return
 	_match_start_sent = true
-	counters.match_starts_replicated += 1
 	var territory: TerritoryReplicator = _territory_replicator()
 	territory.force_full()
 	if not NetFanout.can_send(multiplayer, _session_port()):
@@ -882,8 +881,6 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		_match_start_sent = false
 	# The LOBBY/LOADING/COUNTDOWN start_match() produces internally is replayed on a client by
 	# net_match_start alone (the mirror skips it); every other state change replicates normally.
-	if not _host_port().is_starting_match():
-		counters.replicated_state_changes.append(to_state)
 	_event_mirror().on_state_changed(from_state, to_state)
 
 
