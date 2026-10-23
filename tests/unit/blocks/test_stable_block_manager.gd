@@ -2,11 +2,10 @@ extends GutTest
 ## game/blocks/StableBlockManager.gd (spec 2.7 "Stable-block optimization" [NEW]):
 ## a block asleep past PhysicsTuning.stable_freeze_delay_s
 ## gets frozen static; waking releases it; below the threshold it's left
-## alone. Drives the manager deterministically through its own _tick(delta)
-## seam (see that function's own doc comment) instead of waiting real seconds
-## or real physics frames -- Net.is_host()/_physics_process() are never
-## exercised here, only _tick()/_scan() themselves, the same "test the pure
-## seam directly" approach.
+## alone. Drives the manager through its production callback,
+## _physics_process(delta), with one large delta instead of waiting real seconds
+## (the scan accumulator credits the whole span to every block found asleep), on
+## a registry with host authority. Only the host freezes blocks.
 
 var _tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 var _glue_tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
@@ -18,9 +17,18 @@ var _glue_tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tre
 var _map_def: MapDef
 
 
+var _engine_steps: int = 0
+
+
 func before_each() -> void:
+	_engine_steps = Engine.max_physics_steps_per_frame
 	_map_def = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_map_def.field_radius = 20.0
+
+
+func after_each() -> void:
+	# _physics_process also pushes the catch-up cap to the engine.
+	Engine.max_physics_steps_per_frame = _engine_steps
 
 
 func _make_field() -> Field:
@@ -34,6 +42,7 @@ func _make_registry(field: Field) -> BlockRegistry:
 	var registry: BlockRegistry = autofree(BlockRegistry.new())
 	add_child_autofree(registry)
 	registry.configure(field, _map_def)
+	registry.set_host_authority(true)
 	return registry
 
 
@@ -61,14 +70,43 @@ func test_block_asleep_past_the_delay_gets_frozen_static() -> void:
 	var block: Block = _place(field, 0)
 	block.sleeping = true
 
-	# One _tick() call whose delta alone crosses both the scan interval and
-	# the freeze delay -- see StableBlockManager._tick()'s own doc comment for
-	# why a single call this large is equivalent to many smaller real ticks.
-	manager._tick(_tuning.stable_freeze_delay_s + 1.0)
+	# One call whose delta alone crosses both the scan interval and the freeze
+	# delay: equivalent to many smaller real ticks.
+	manager._physics_process(_tuning.stable_freeze_delay_s + 1.0)
 
 	assert_true(block.is_freeze_static(), "asleep past the delay is frozen static")
 	assert_true(block.freeze)
 	assert_eq(block.freeze_mode, RigidBody3D.FREEZE_MODE_STATIC)
+
+
+## The field-motion check and catch-up cap that share the callback must not
+## disturb a freeze: a still disc and repeated zero-length frames keep it.
+func test_a_frozen_block_stays_frozen_across_idle_frames_on_a_still_disc() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	var manager: StableBlockManager = _make_manager(registry)
+	var block: Block = _place(field, 0)
+	block.sleeping = true
+	manager._physics_process(_tuning.stable_freeze_delay_s + 1.0)
+	assert_true(block.is_freeze_static(), "fixture: frozen")
+	for _i: int in range(5):
+		manager._physics_process(0.0)
+	assert_true(block.is_freeze_static(), "idle frames on a still disc keep the freeze")
+	assert_true(manager.is_stable_frozen(block))
+
+
+## A client's bodies are frozen and moved by snapshots; only the host decides to
+## freeze (V25).
+func test_a_client_registry_never_freezes_a_sleeping_block() -> void:
+	var field: Field = _make_field()
+	var registry: BlockRegistry = _make_registry(field)
+	registry.set_host_authority(false)
+	var manager: StableBlockManager = _make_manager(registry)
+	var block: Block = _place(field, 0)
+	block.sleeping = true
+	manager._physics_process(_tuning.stable_freeze_delay_s + 1.0)
+	assert_false(block.is_freeze_static(), "no host authority: left unfrozen")
+	assert_false(manager.is_stable_frozen(block))
 
 
 func test_block_asleep_below_the_delay_is_left_untouched() -> void:
@@ -79,7 +117,7 @@ func test_block_asleep_below_the_delay_is_left_untouched() -> void:
 	var block: Block = _place(field, 0)
 	block.sleeping = true
 
-	manager._tick(_tuning.stable_freeze_delay_s - 1.0)
+	manager._physics_process(_tuning.stable_freeze_delay_s - 1.0)
 
 	assert_false(block.is_freeze_static(), "asleep, but not yet past the delay")
 	assert_false(block.freeze)
@@ -92,11 +130,11 @@ func test_waking_a_frozen_block_releases_it() -> void:
 
 	var block: Block = _place(field, 0)
 	block.sleeping = true
-	manager._tick(_tuning.stable_freeze_delay_s + 1.0)
+	manager._physics_process(_tuning.stable_freeze_delay_s + 1.0)
 	assert_true(block.is_freeze_static(), "sanity check: frozen first")
 
 	block.sleeping = false
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._physics_process(_tuning.stable_freeze_scan_interval_s)
 
 	assert_false(block.is_freeze_static(), "waking releases this manager's own reason")
 	assert_false(block.freeze)
@@ -112,25 +150,24 @@ func test_tilting_field_releases_frozen_blocks_and_restarts_the_timer() -> void:
 	var field: Field = _make_field()
 	var registry: BlockRegistry = _make_registry(field)
 	var manager: StableBlockManager = _make_manager(registry)
-	manager.check_field_motion()
+	manager._physics_process(0.0)  # records the disc pose
 
 	var block: Block = _place(field, 0)
 	block.sleeping = true
-	manager._tick(_tuning.stable_freeze_delay_s + 1.0)
+	manager._physics_process(_tuning.stable_freeze_delay_s + 1.0)
 	assert_true(block.is_freeze_static(), "sanity check: frozen first")
 
 	field.transform = Transform3D(Basis(Vector3.RIGHT, 0.05), field.transform.origin)
-	manager.check_field_motion()
+	manager._physics_process(0.0)
 
 	assert_false(block.is_freeze_static(), "disc motion releases the stable freeze")
 	assert_false(block.freeze)
 	assert_false(block.sleeping, "released block is awake so it rides the disc")
 
 	block.sleeping = true
-	manager._tick(_tuning.stable_freeze_delay_s - 1.0)
+	manager._physics_process(_tuning.stable_freeze_delay_s - 1.0)
 	assert_false(block.is_freeze_static(), "timer restarted; still inside the delay")
-	manager.check_field_motion()
-	manager._tick(2.0)
+	manager._physics_process(2.0)
 	assert_true(block.is_freeze_static(), "disc still: re-freezes after the normal delay")
 
 
@@ -154,7 +191,7 @@ func test_a_disc_anchored_carrier_never_freeze_statics() -> void:
 	carrier.sleeping = true
 	assert_true(carrier.sleeping, "fixture: the carrier reads asleep")
 
-	manager._tick(_tuning.stable_freeze_delay_s + _tuning.stable_freeze_scan_interval_s)
+	manager._physics_process(_tuning.stable_freeze_delay_s + _tuning.stable_freeze_scan_interval_s)
 
 	assert_false(carrier.is_freeze_static(), "a disc-anchored carrier is never freeze-static")
 	assert_eq(carrier.freeze_mode, RigidBody3D.FREEZE_MODE_KINEMATIC, "it keeps riding the disc")
@@ -214,10 +251,10 @@ func test_awake_but_still_block_freezes_after_the_window() -> void:
 	var parts: Array = _awake_still_setup()
 	var manager: StableBlockManager = parts[0]
 	var block: Block = parts[1]
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	manager._tick(_tuning.settle_freeze_window_s - 1.0)
+	manager._physics_process(_tuning.stable_freeze_scan_interval_s)
+	manager._physics_process(_tuning.settle_freeze_window_s - 1.0)
 	assert_false(block.is_freeze_static(), "below the window: not frozen")
-	manager._tick(2.0)
+	manager._physics_process(2.0)
 	assert_true(block.is_freeze_static(), "still for the whole window: frozen")
 	assert_true(manager.is_stable_frozen(block))
 
@@ -232,11 +269,11 @@ func test_fast_neighbour_holds_back_a_still_block() -> void:
 	runner.sleeping = false
 	runner.global_position = still.global_position + Vector3(1.0, 0.0, 0.0)
 	runner.linear_velocity = Vector3(0.0, 0.0, _tuning.settle_freeze_fast_speed_mps * 4.0)
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
-	manager._tick(_tuning.settle_freeze_window_s + 1.0)
+	manager._physics_process(_tuning.stable_freeze_scan_interval_s)
+	manager._physics_process(_tuning.settle_freeze_window_s + 1.0)
 	assert_false(still.is_freeze_static(), "a fast block next to it keeps it unfrozen")
 	runner.linear_velocity = Vector3.ZERO
-	manager._tick(_tuning.stable_freeze_scan_interval_s)
+	manager._physics_process(_tuning.stable_freeze_scan_interval_s)
 	assert_true(still.is_freeze_static(), "frozen on the first scan after the neighbour slows")
 
 

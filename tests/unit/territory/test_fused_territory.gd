@@ -131,7 +131,7 @@ func test_kill_plane_removes_every_member_with_exactly_one_block_removed() -> vo
 	var ids: Array[int] = [pair[0].get_instance_id(), pair[1].get_instance_id()]
 	var carrier_id: int = carrier.get_instance_id()
 
-	_field.remove_fallen_block(carrier)
+	_registry.remove_block(carrier)
 	await wait_physics_frames(3)
 
 	for id: int in ids:

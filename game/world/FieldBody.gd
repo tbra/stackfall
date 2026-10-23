@@ -6,6 +6,20 @@ extends AnimatableBody3D
 
 @export var map_def: MapDef = preload("res://config/match/maps/round.tres")
 
+## a drained batch applied these cells as holes (opened
+## only; closing a hole needs no reaction). Emitted on host and client alike;
+## game/blocks/HoleDissolver.gd ignores it off the host.
+signal hole_cells_applied(opened: PackedInt32Array)
+## A body the kill plane (spec 1.7) found below the disc edge; Field emits it,
+## BlockRegistry removes the block on the host.
+signal body_fell(body: Node3D)
+
+## Layer constants. Everything else lives on layer 1. Beacon
+## collision sits on its own bit so blocks (mask includes it) rest on beacons
+## while placement/ghost queries (PLACEMENT_QUERY_MASK) never see them.
+const BEACON_COLLISION_LAYER: int = 1 << 1
+const PLACEMENT_QUERY_MASK: int = 1
+
 
 func map_definition() -> MapDef:
 	return map_def
@@ -42,4 +56,24 @@ func apply_tilt_impulse(_direction: Vector2, _magnitude: float) -> void:
 
 
 func apply_replicated_pose(_offset: Vector3, _tilt: Quaternion) -> void:
+	pass
+
+
+func grid() -> CellGrid:
+	return null
+
+
+func is_hole_cell(_index: int) -> bool:
+	return false
+
+
+func applied_hole_count() -> int:
+	return 0
+
+
+func set_tilt_enabled(_on: bool) -> void:
+	pass
+
+
+func set_physical_balance_enabled(_on: bool) -> void:
 	pass
