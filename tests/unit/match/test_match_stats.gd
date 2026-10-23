@@ -323,6 +323,36 @@ func test_a_vacated_seat_that_a_bot_takes_loses_its_tally_and_the_host_keeps_its
 	assert_eq(_play_ffa_round(2, 1, 1), [2, 1] as Array[int], "the bot's own wins count from then on")
 
 
+func test_a_seat_vacated_during_a_match_starts_again_when_the_round_is_recorded() -> void:
+	var leaver: Node = await _host_with_client("B")
+	assert_eq(_play_ffa_round(2, 0, 1), [0, 1] as Array[int])
+	Match.abort_match()
+
+	# The round starts with B seated (the match-start check sees no change) ...
+	var config: MatchConfig = _free_for_all_config(2)
+	Match.start_match(config)
+	_run_countdown()
+	assert_eq(Match.stats().session_wins(1), 1, "fixture: B's win survives the round start")
+	# ... then B leaves before the round ends and nobody takes the seat.
+	leaver.leave()
+	await _wait_for_roster(1)
+
+	assert_eq(_wins_of(_finish_and_capture(1)), [0, 1] as Array[int],
+		"the vacated seat starts at 0 and earns this round's win, not B's carried-over 1 plus it")
+
+
+func test_a_human_seat_that_becomes_a_bot_seat_between_offline_matches_starts_again() -> void:
+	assert_eq(_play_ffa_round(2, 0, 1), [0, 1] as Array[int], "fixture: offline, seat 1 is a human with a win")
+	Match.abort_match()
+
+	var config: MatchConfig = _free_for_all_config(2)
+	config.ai_count = 1
+	Match.start_match(config)
+	assert_eq(Match.stats().session_wins(1), 0, "the seat is a bot now: its tally is dropped at match start")
+	_run_countdown()
+	assert_eq(_wins_of(_finish_and_capture(1)), [0, 1] as Array[int], "the bot counts its own wins from zero")
+
+
 func test_another_net_instance_changing_mode_does_not_wipe_the_hosts_tally() -> void:
 	var client: Node = await _host_with_client("B")
 	assert_eq(_play_ffa_round(2, 0, 0), [1, 0] as Array[int])
