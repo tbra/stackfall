@@ -153,6 +153,12 @@ class RunSoakTest(unittest.TestCase):
             self.assertIn(flag, client)
         self.assertNotIn("--soak-fuzz", rs.build_client_cmd("godot", "wt", port, "load", cfg))
 
+    def test_both_peers_name_the_scenario_they_run(self):
+        cfg = sr.read_tres(CFG_TEXT)
+        for name in ("load", "authority"):
+            for cmd in (rs.build_host_cmd("godot", "wt", 1, name, cfg, 10.0), rs.build_client_cmd("godot", "wt", 1, name, cfg)):
+                self.assertIn("--soak-scenario=%s" % name, cmd)
+
     def test_scenario_all_runs_both_with_their_durations(self):
         clock = Clock()
         runner = FakeRunner(clock)
