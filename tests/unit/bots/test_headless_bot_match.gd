@@ -110,7 +110,7 @@ func test_bots_zero_is_a_no_op() -> void:
 # --- Review finding 1: refuse a bot match with nobody actually hosting -------
 
 
-func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> void:
+func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_local_player() -> void:
 	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
 	await _settle()
@@ -122,7 +122,7 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> vo
 		assert_true(Match.slot(i).is_bot, "slot %d must be a bot" % i)
 
 	assert_eq(_bot_controller_count(), 4, "one BotController per bot slot")
-	assert_null(_main._hot_seat, "an all-bot match has no local human slot to bind a HotSeat/PlayerController to")
+	assert_null(_main._local_player, "an all-bot match has no local human slot to bind a LocalPlayer/PlayerController to")
 
 	# Advance past the countdown so the match is actually PLAYING, not merely
 	# counting down (the literal "8-bot match reaches PLAYING" acceptance
@@ -132,7 +132,7 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_hot_seat() -> vo
 	assert_eq(Match.state(), Match.State.PLAYING)
 
 
-func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat() -> void:
+func test_players_override_leaves_idle_human_seats_and_still_builds_a_local_player() -> void:
 	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2", "--players=3"]))
 	await _settle()
@@ -143,7 +143,7 @@ func test_players_override_leaves_idle_human_seats_and_still_builds_a_hot_seat()
 	assert_true(Match.slot(1).is_bot)
 	assert_true(Match.slot(2).is_bot)
 	assert_eq(_bot_controller_count(), 2)
-	assert_not_null(_main._hot_seat, "a human seat exists, so HotSeat binds Net.local_slot() (0) as usual")
+	assert_not_null(_main._local_player, "a human seat exists, so LocalPlayer binds Net.local_slot() (0) as usual")
 
 
 func test_end_match_world_frees_the_bot_controllers() -> void:

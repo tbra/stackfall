@@ -119,7 +119,7 @@ func test_leaving_a_sandbox_leaves_no_local_player_no_extras_node_and_the_launch
 	_main._on_pause_leave_requested()
 	await get_tree().process_frame
 
-	assert_null(_main._hot_seat, "leaving a sandbox must leave no local player behind")
+	assert_null(_main._local_player, "leaving a sandbox must leave no local player behind")
 	assert_eq(
 		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0,
 		"leaving a sandbox must free its PlayerController/GhostPreview subtree"
@@ -164,7 +164,7 @@ func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
 
 func test_sandbox_never_reaches_the_lobby() -> void:
 	_start_sandbox(2)
-	assert_null(_main._lobby, "sandbox never opens a lobby (game/main/Main.gd's early return, like --hot-seat)")
+	assert_null(_main._lobby, "sandbox never opens a lobby (game/main/Main.gd's early return)")
 	assert_true(Net.is_offline(), "sandbox never calls Net.host_game()/join_game()")
 
 
@@ -175,14 +175,14 @@ func test_sandbox_next_slot_cycles_the_acting_slot_and_wraps() -> void:
 	_run_countdown()
 	var sandbox: Sandbox = _main._sandbox
 	assert_eq(sandbox.active_slot(), 0, "Match._begin_playing() seeds slot 0 first")
-	assert_eq(_main._hot_seat.controller()._active_slot, 0)
+	assert_eq(_main._local_player.controller()._active_slot, 0)
 
 	var event: InputEventKey = _key_press(KEY_TAB)
 	assert_true(event.is_action_pressed(&"sandbox_next_slot"), "Tab should map to sandbox_next_slot")
 
 	sandbox._unhandled_input(event)
 	assert_eq(sandbox.active_slot(), 1)
-	assert_eq(_main._hot_seat.controller()._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
+	assert_eq(_main._local_player.controller()._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
 
 	sandbox._unhandled_input(event)
 	sandbox._unhandled_input(event)
@@ -367,7 +367,7 @@ func test_f5_rebuilds_the_world_exactly_once() -> void:
 	_start_sandbox(2)
 	_run_countdown()
 	var old_sandbox: Sandbox = _main._sandbox
-	var old_player: Node = _main._hot_seat
+	var old_player: Node = _main._local_player
 	watch_signals(Events)
 
 	_f5(old_sandbox)
@@ -476,12 +476,12 @@ func test_tab_still_cycles_slots_after_f5_and_the_hud_follows() -> void:
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 
 	assert_eq(sandbox.active_slot(), 1)
-	assert_eq(_main._hot_seat.controller()._active_slot, 1, "the controller follows")
-	assert_eq(_main._hot_seat.hud()._active_slot, 1, "the HUD follows")
+	assert_eq(_main._local_player.controller()._active_slot, 1, "the controller follows")
+	assert_eq(_main._local_player.hud()._active_slot, 1, "the HUD follows")
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	assert_eq(sandbox.active_slot(), 0, "wraps")
-	assert_eq(_main._hot_seat.hud()._active_slot, 0)
+	assert_eq(_main._local_player.hud()._active_slot, 0)
 
 
 ## A sandbox F5 resets the camera like any rebuild.
