@@ -95,7 +95,7 @@ func test_eliminated_active_slot_advances_the_turn_before_it_ever_places() -> vo
 	# _tick_feed() (which used to tick every slot's timer under turn_based,
 	# never checking whose turn it was) ever called advance_turn(): the match
 	# deadlocked on a slot that can never place again.
-	Match._lifecycle._eliminate_slot(0)
+	Match._lifecycle.eliminate_slots(PackedInt32Array([0]))
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: one of three eliminated must not end the match")
 
 	Match._process(1.0 / 60.0)

@@ -135,6 +135,7 @@ Holes are a visual void, not an opening: disc collision stays solid. A block who
 - In `TEMPORARY` and `PERMANENT` hole modes the trigger is a hole opening under the home flag; in `OFF` it is an enemy area owning the home flag's cell (`autoload/match/MatchTerritory.gd`).
 - In Elimination both triggers are replaced by a claim timer: an attacker must control the home continuously for `capture_hold`. Progress shows on the goal-capture ring and restarts at zero when the attacker changes. When control lapses, progress fades at `home_claim_decay_rate` = 0.25 s per second; resumed pressure by the same attacker continues from the faded value.
 - A capture and eliminations in the same territory step: the capture latches first, then eliminations resolve; if they leave one team standing it wins, otherwise the capturing team wins.
+- Outside Elimination, home flags lost in the same territory step are judged together after any capture: if one team is left it wins; otherwise the capturing team wins if a capture latched in that step; otherwise, if none is left, the largest territory share among the teams that lost a flag wins (equal shares: the lowest team index).
 - An eliminated player's held and next block are cleared and their screen shows a large red "Eliminated by <name>" (plain "Eliminated" when no single eliminator).
 - A player whose peer is gone longer than `NetConfig.disconnect_grace` = 10 s is eliminated the same way (§2.6).
 

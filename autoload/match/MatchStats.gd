@@ -73,7 +73,7 @@ extends RefCounted
 ##           share (MatchTerritory.territory_share(team_id)) -- territory is
 ##           tracked per team, not per slot, so teammates share one number.
 ##       "eliminated_at": float,       # seconds into the match this slot's
-##           home flag was lost (MatchLifecycle._eliminate_slot()), or
+##           home flag was lost (MatchLifecycle.eliminate_slots()), or
 ##           NOT_ELIMINATED (-1.0) if it survived to match end.
 ##     }
 ## }
@@ -425,7 +425,7 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 	if slot_id < 0 or slot_id >= _eliminated_at.size():
 		return
 	if _eliminated_at[slot_id] >= 0.0:
-		# Already recorded -- MatchLifecycle._eliminate_slot() only fires this
+		# Already recorded -- MatchLifecycle.eliminate_slots() only fires this
 		# once per slot (its own home_flag_alive guard), but a second listener
 		# elsewhere re-emitting the same slot must not overwrite an earlier,
 		# more accurate elapsed time with a later one.

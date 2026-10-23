@@ -103,12 +103,12 @@ func test_elimination_during_sudden_death_finishes_the_match_immediately() -> vo
 	# Free-for-all (_config()'s default team_mode): three players, three teams.
 	# Eliminating the first of the two non-surviving teams must not end the
 	# match by itself -- two teams (1 and 2) are still alive.
-	Match._lifecycle._eliminate_slot(0)
+	Match._lifecycle.eliminate_slots(PackedInt32Array([0]))
 	assert_eq(Match.state(), Match.State.SUDDEN_DEATH,
 		"one team down of three: two are still alive, the match keeps running")
 
 	# Eliminating the second-to-last team leaves exactly one team standing.
-	Match._lifecycle._eliminate_slot(1)
+	Match._lifecycle.eliminate_slots(PackedInt32Array([1]))
 
 	assert_eq(Match.state(), Match.State.END,
 		"F1: an elimination during SUDDEN_DEATH must finish the match immediately, not only at the tiebreak")

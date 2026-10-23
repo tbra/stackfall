@@ -117,6 +117,46 @@ func on_round_timer_end() -> int:
 	return best_team
 
 
+## Host: `slot`'s home flag was lost. Default no-op (EliminationObjective overrides).
+func slot_eliminated(_slot: int) -> void:
+	pass
+
+
+## Host, once after a batch of home losses (also called with an empty batch).
+## `batch_teams`: the teams that lost a home flag in this batch.
+## `alive_teams`: teams with a living home flag. `shares`: territory share per team id.
+## Returns the winning team or NO_TEAM: one alive -> it; else a latched winner() (the capture
+## that latched first in this step); else, none alive -> the largest share
+## among `batch_teams` only (a team lost in an earlier step cannot win), lowest team id on a tie.
+## DECISION: this default lives in the base class, not ClassicObjective, because every
+## non-Elimination mode (Classic, CTF, Reach the Sky, Domination) ends on home elimination
+## (spec 1.5); EliminationObjective overrides it. The lowest-id tie is the sudden-death
+## tiebreak rule (MatchLifecycle._resolve_sudden_death_tiebreak).
+func resolve_eliminations(
+	batch_teams: PackedInt32Array, alive_teams: PackedInt32Array, shares: PackedFloat32Array
+) -> int:
+	if alive_teams.size() == 1:
+		return alive_teams[0]
+	if winner() != NO_TEAM:
+		# A capture latched in the same step wins over a wipe-out that leaves 0 or 2+ teams (spec 1.5).
+		return winner()
+	if not alive_teams.is_empty():
+		return NO_TEAM
+	var best_team: int = NO_TEAM
+	var best_share: float = -1.0
+	for team: int in batch_teams:
+		var share: float = shares[team] if team >= 0 and team < shares.size() else 0.0
+		if share > best_share or (share == best_share and team < best_team):
+			best_share = share
+			best_team = team
+	return best_team
+
+
+## False for Classic (its results payload carries no mode fields). Default true.
+func reports_mode_results() -> bool:
+	return true
+
+
 func scores() -> PackedFloat32Array:
 	return _scores.duplicate()
 

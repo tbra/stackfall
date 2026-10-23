@@ -197,7 +197,7 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	assert_eq(blocks_before.size(), 2, "fixture placed two blocks")
 	var converted: Block = blocks_before[blocks_before.keys().min()] as Block
 	assert_true(_registry.convert_owner(converted, 1, Color.BLUE), "fixture converts one block")
-	Match._lifecycle._eliminate_slot(2)
+	Match._lifecycle.eliminate_slots(PackedInt32Array([2]))
 	Match._lifecycle._check_last_team_standing()
 	assert_eq(Match.state(), Match.State.PLAYING, "three teams remain, the match runs on")
 	Match._gifts._queue_claimed_special(3, MatchGifts.PENDING_SPECIAL_ID)

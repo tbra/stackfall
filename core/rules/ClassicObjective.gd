@@ -30,6 +30,11 @@ func replicates_state() -> bool:
 	return false
 
 
+## Classic's results payload carries no mode fields.
+func reports_mode_results() -> bool:
+	return false
+
+
 func reset(team_count: int) -> void:
 	super.reset(team_count)
 	if _checker != null:

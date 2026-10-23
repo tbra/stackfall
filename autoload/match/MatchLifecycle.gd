@@ -86,6 +86,8 @@ var _disconnect_grace_left: Array[float] = []
 ## slot -> slot credited with the knockout (-1 / absent = unknown). Mirrored on
 ## clients through the player_eliminated event.
 var _eliminated_by: Dictionary = {}
+## Teams of the slots eliminated since the last judgement (_check_last_team_standing).
+var _batch_teams: PackedInt32Array = PackedInt32Array()
 
 ## -- Match timer + sudden death (spec 1.9) ----------------------------
 
@@ -290,6 +292,7 @@ func _reset_match_state() -> void:
 	_match._feed._release_locked.clear()
 	_disconnect_grace_left.clear()
 	_eliminated_by.clear()
+	_batch_teams.clear()
 	_active_slot = -1
 	_countdown_remaining = 0.0
 	_countdown_last_whole = 0
@@ -650,7 +653,7 @@ func _tick_match_timer(delta: float) -> void:
 	if _state != MatchAutoload.State.PLAYING:
 		return
 	_match_timer_left = maxf(_match_timer_left - delta, 0.0)
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	if objective != null and objective.is_timed():
 		# Timed modes: the timer ends the round through the objective, with no
 		# sudden death. Clients get the time left once a second.
@@ -679,7 +682,7 @@ func _tick_match_timer(delta: float) -> void:
 ## Seconds the match timer starts with: a timed mode's round_timer_minutes, else
 ## classic's match_timer_minutes (0 = off). Host-side, read at PLAYING start.
 func _armed_timer_seconds() -> float:
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	if objective != null and objective.is_timed():
 		return _match.config.round_timer_minutes * 60.0
 	return _match.config.match_timer_minutes * 60.0 if _match.config.match_timer_minutes > 0 else 0.0
@@ -694,7 +697,7 @@ func _build_mode_state(objective: ModeObjective) -> Dictionary:
 ## Host: emits Events.mode_state_changed when the objective's state changed
 ## since the last publish (MatchNet replicates it). No-op for classic.
 func publish_mode_state_if_changed() -> void:
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	if objective == null or not objective.replicates_state():
 		return
 	if objective.consume_state_dirty():
@@ -704,7 +707,7 @@ func publish_mode_state_if_changed() -> void:
 ## Client: mirrors the host's validated mode state for display; never decides
 ## an outcome (the match ends only via the replicated state/win events).
 func apply_replicated_mode_state(state: Dictionary) -> void:
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	if objective == null:
 		# Rejoin snapshot can arrive before the objective is built: keep the
 		# latest and apply it once it exists (flush_pending_mode_state()).
@@ -724,7 +727,7 @@ func apply_replicated_mode_state(state: Dictionary) -> void:
 
 ## Client: applies a mode snapshot that arrived before the objective existed.
 func flush_pending_mode_state() -> void:
-	if _pending_mode_state.is_empty() or _match._territory._objective == null:
+	if _pending_mode_state.is_empty() or _match._territory.objective() == null:
 		return
 	var pending: Dictionary = _pending_mode_state
 	_pending_mode_state = {}
@@ -734,7 +737,7 @@ func flush_pending_mode_state() -> void:
 ## Current mode state for a late joiner/reconnect snapshot, or {} (classic or
 ## no objective).
 func mode_state_snapshot() -> Dictionary:
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	if objective == null or not objective.replicates_state():
 		return {}
 	return _build_mode_state(objective)
@@ -1043,7 +1046,7 @@ func disconnect_grace_left(slot_id: int) -> float:
 
 
 func _tick_disconnect_grace(delta: float) -> void:
-	var eliminated_any: bool = false
+	var expired: PackedInt32Array = PackedInt32Array()
 	for i: int in range(_disconnect_grace_left.size()):
 		if _disconnect_grace_left[i] < 0.0:
 			continue
@@ -1051,15 +1054,22 @@ func _tick_disconnect_grace(delta: float) -> void:
 		if _disconnect_grace_left[i] > 0.0:
 			continue
 		_disconnect_grace_left[i] = -1.0
-		_eliminate_slot(i)
-		eliminated_any = true
-	if eliminated_any and _match._territory._objective is EliminationObjective:
-		_check_last_team_standing()
+		expired.append(i)
+	if not expired.is_empty():
+		eliminate_slots(expired)
 
 
-## The one elimination path, shared by a home flag lost to a hole (spec 1.5)
+## Eliminates every slot in `slot_ids` (record only), then judges once. Always judges,
+## even for an empty array. `attackers`: slot id -> attacker slot (-1 or absent = none).
+func eliminate_slots(slot_ids: PackedInt32Array, attackers: Dictionary = {}) -> void:
+	for slot_id: int in slot_ids:
+		_eliminate_slot_record(slot_id, int(attackers.get(slot_id, -1)))
+	_check_last_team_standing()
+
+
+## The one elimination record, shared by a home flag lost to a hole (spec 1.5)
 ## and by a peer that never came back, so the two cannot drift apart.
-func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
+func _eliminate_slot_record(slot_id: int, by_slot: int) -> void:
 	var target: PlayerSlot = _slots[slot_id]
 	if not target.home_flag_alive:
 		return
@@ -1067,41 +1077,37 @@ func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:
 	_eliminated_by[slot_id] = by_slot
 	# An eliminated player holds nothing and cannot drop.
 	_match._feed.clear_slot_blocks(slot_id)
-	var objective: ModeObjective = _match._territory._objective
-	if objective is EliminationObjective:
-		# Elimination judges a whole batch together (simultaneous home losses),
-		# so the caller's _check_last_team_standing() runs after its loop.
-		(objective as EliminationObjective).slot_eliminated(slot_id)
-		Events.player_eliminated.emit(target.slot_id, target.team_id)
-		return
+	var objective: ModeObjective = _match._territory.objective()
+	if objective != null:
+		objective.slot_eliminated(slot_id)
+	_batch_teams.append(target.team_id)
 	Events.player_eliminated.emit(target.slot_id, target.team_id)
-	_check_last_team_standing()
 
 
+## Judges the teams eliminated since the last judgement through the objective.
 func _check_last_team_standing() -> void:
+	var batch_teams: PackedInt32Array = _batch_teams
+	_batch_teams = PackedInt32Array()
 	if not MatchAutoload.is_live(_state):
 		return
-	var elimination: ModeObjective = _match._territory._objective
-	if elimination is EliminationObjective:
-		_resolve_elimination(elimination as EliminationObjective)
-		return
-	var alive_teams: Dictionary = {}
+	_match._territory.flush_pending()
+	var objective: ModeObjective = _match._territory.objective()
+	if objective == null:
+		# DECISION: no objective (before a match is built) still gets last team standing.
+		objective = ModeObjective.new()
+	var alive_set: Dictionary = {}
 	for slot_item: PlayerSlot in _slots:
 		if slot_item.home_flag_alive:
-			alive_teams[slot_item.team_id] = true
-	if alive_teams.size() == 1:
-		_finish_match(alive_teams.keys()[0])
-
-
-## Elimination: the objective decides the outcome of the
-## eliminations since the last call (last team standing, or the same-batch
-## larger-share tiebreak) and the final state is published before the END.
-func _resolve_elimination(objective: EliminationObjective) -> void:
-	_match._territory.flush_pending()
+			alive_set[slot_item.team_id] = true
+	var alive_teams: PackedInt32Array = PackedInt32Array()
+	var alive_ids: Array = alive_set.keys()
+	alive_ids.sort()
+	for team: int in alive_ids:
+		alive_teams.append(team)
 	var shares: PackedFloat32Array = PackedFloat32Array()
 	for team: int in range(_match.config.team_count()):
 		shares.append(_match._territory.territory_share(team))
-	var winning_team: int = objective.resolve(shares)
+	var winning_team: int = objective.resolve_eliminations(batch_teams, alive_teams, shares)
 	publish_mode_state_if_changed()
 	if winning_team != ModeObjective.NO_TEAM:
 		_finish_match(winning_team)
@@ -1122,9 +1128,9 @@ func _finish_match(winning_team: int) -> void:
 	# the host (its callers are reached from host-gated ticks); a client
 	# reaches State.END and its results payload through EVENT_STATE_CHANGED and
 	# EVENT_MATCH_RESULTS (net/MatchNet.gd).
-	var objective: ModeObjective = _match._territory._objective
+	var objective: ModeObjective = _match._territory.objective()
 	var mode_fields: Dictionary = {}
-	if objective != null and objective.mode_id() != MatchConfig.GameMode.CLASSIC:
+	if objective != null and objective.reports_mode_results():
 		mode_fields = objective.results_fields()
 		mode_fields["mode_id"] = objective.mode_id()
 		mode_fields["scores"] = Array(objective.scores())
