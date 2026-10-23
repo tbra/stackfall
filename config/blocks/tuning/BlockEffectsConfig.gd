@@ -29,6 +29,12 @@ extends Resource
 @export var dust_particle_amount: int = 9
 @export var dust_lifetime_s: float = 0.5
 @export var dust_initial_speed: float = 0.5
+## Dust ring emitter thickness along its axis.
+@export var dust_emission_ring_height_m: float = 0.05
+## Lower bound of every burst's initial speed as a fraction of its maximum.
+@export var velocity_min_ratio: float = 0.5
+## Falling speed below which a trail points straight up instead of along the velocity.
+@export var trail_min_speed: float = 0.001
 ## Half-angle from the UP emission direction; mild since the ring emission shape
 ## (dust_ring_radius_m) already spreads puffs across the ground.
 @export var dust_spread_deg: float = 40.0
