@@ -92,7 +92,6 @@ func _config(players: int, teams: MatchConfig.TeamMode = MatchConfig.TeamMode.OF
 	(config as TinyMapMatchConfig).set_tiny_map(_tiny_map)
 	config.player_count = players
 	config.team_mode = teams
-	config.hot_seat = true
 	config.block_timer = 6.0
 	config.rng_seed = 99
 	config.sudden_death = false
