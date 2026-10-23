@@ -1057,6 +1057,13 @@ func _tick_disconnect_grace(delta: float) -> void:
 		_check_last_team_standing()
 
 
+## Eliminates every slot in `slot_ids` (record only), then judges once. Always judges,
+## even for an empty array. `attackers`: slot id -> attacker slot (-1 or absent = none).
+## Stub: not wired yet.
+func eliminate_slots(_slot_ids: PackedInt32Array, _attackers: Dictionary = {}) -> void:
+	pass
+
+
 ## The one elimination path, shared by a home flag lost to a hole (spec 1.5)
 ## and by a peer that never came back, so the two cannot drift apart.
 func _eliminate_slot(slot_id: int, by_slot: int = -1) -> void:

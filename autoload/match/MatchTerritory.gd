@@ -123,6 +123,11 @@ func fresh_solve_matches_live() -> bool:
 	return true
 
 
+## The active objective, or null before a match is built.
+func objective() -> ModeObjective:
+	return _objective
+
+
 ## The winning team, or -1.
 func winner_team() -> int:
 	return _objective.winner() if _objective != null else WinChecker.NO_TEAM

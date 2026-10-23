@@ -117,6 +117,28 @@ func on_round_timer_end() -> int:
 	return best_team
 
 
+## Host: `slot`'s home flag was lost. Default no-op (EliminationObjective overrides).
+func slot_eliminated(_slot: int) -> void:
+	pass
+
+
+## Host, once after a batch of home losses (also called with an empty batch).
+## `batch_teams`: the teams that lost a home flag in this batch.
+## `alive_teams`: teams with a living home flag. `shares`: territory share per team id.
+## Returns the winning team or NO_TEAM. The intended default is last team standing
+## (one alive -> it; none alive -> the largest share among `batch_teams`, lowest team id
+## on a tie; else NO_TEAM); this stub answers NO_TEAM until that rule lands.
+func resolve_eliminations(
+	_batch_teams: PackedInt32Array, _alive_teams: PackedInt32Array, _shares: PackedFloat32Array
+) -> int:
+	return NO_TEAM
+
+
+## False for Classic (its results payload carries no mode fields). Default true.
+func reports_mode_results() -> bool:
+	return true
+
+
 func scores() -> PackedFloat32Array:
 	return _scores.duplicate()
 
