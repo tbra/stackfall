@@ -213,6 +213,7 @@ func start_match(match_config: MatchConfig) -> void:
 	# Field spring stays enabled in step with the host's.
 	_apply_tilt_mode()
 
+	# SHORTCUT: lobby gravity is written into the shared PhysicsTuning for the process, upgrade when a per-match tuning copy is introduced
 	# DECISION (autoload/match/MatchLifecycle.gd): the lobby's
 	# gravity_multiplier (spec 1.9 "Gravity 0.5x-2x") is written straight into
 	# the shared config/physics/physics_tuning.tres *instance* Match already holds
@@ -284,12 +285,8 @@ func abort_match() -> void:
 func _reset_match_state() -> void:
 	_match._placement._clear_blocks()
 	_slots.clear()
-	_match._feed._bags.clear()
-	_match._feed._held_shapes.clear()
-	_match._feed._feed_time_left.clear()
-	_match._feed._feed_expired.clear()
-	_match._feed._feed_seq.clear()
-	_match._feed._release_locked.clear()
+	var feed: MatchFeed = _match._feed
+	feed.reset()
 	_disconnect_grace_left.clear()
 	_eliminated_by.clear()
 	_batch_teams.clear()
@@ -302,20 +299,10 @@ func _reset_match_state() -> void:
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
 	_turn_settle_wait_left = -1.0
-	# no async solve outlives the territory it would apply to.
-	_match._territory.cancel_pending()
-	_match._territory._cell_grid = null
-	_match._territory._raster = null
-	_match._territory._solver = null
-	_match._territory._win_checker = null
-	_match._territory._objective = null
+	var territory: MatchTerritory = _match._territory
+	territory.reset()
 	_last_published_second = -1
 	_pending_mode_state = {}
-	_match._territory._last_groups = null
-	_match._territory._solve_accum = 0.0
-	# No stale influence circles into the next match's replication.
-	_match._territory.clear_circles()
-	_match._feed._feed_timer_enabled = true
 	_match._gifts.reset()
 	# A replay or a return-to-lobby must never leak one match's stats into the
 	# next. resize_for_slots() (in _build_slots()) runs after this on every

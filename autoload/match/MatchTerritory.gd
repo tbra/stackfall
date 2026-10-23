@@ -502,6 +502,21 @@ func flush_pending() -> void:
 		_complete_pending()
 
 
+## Back to the empty state for the next match: no async solve outlives the
+## territory it would apply to, and no stale influence circles reach the next
+## match's replication. Called by MatchLifecycle's reset.
+func reset() -> void:
+	cancel_pending()
+	_cell_grid = null
+	_raster = null
+	_solver = null
+	_win_checker = null
+	_objective = null
+	_last_groups = null
+	_solve_accum = 0.0
+	clear_circles()
+
+
 ## Waits for the in-flight solve and discards it (match build/reset/abort).
 func cancel_pending() -> void:
 	if _pending == null:
