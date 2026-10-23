@@ -216,16 +216,7 @@ func _assert_same(reference: Dictionary, other: Dictionary, label: String) -> vo
   ".join(real)])
 
 
-## The first match of a process initialises weather statics (the cloud ceiling's pushed
-## overcast/storm start at a -1 "never pushed" sentinel, the fog shader at its scene default), so a
-## capture taken before any match differs from every later one. Recorded captures follow one
-## unrecorded reference match.
-func _warm_up() -> void:
-	await _reference_lobby_match()
-
-
 func _assert_mode_matches_reference(label: String, mode_playing: Dictionary) -> void:
-	await _warm_up()
 	var reference: Dictionary = await _reference_lobby_match()
 	_assert_same(reference["playing"] as Dictionary, mode_playing, label)
 
@@ -233,7 +224,6 @@ func _assert_mode_matches_reference(label: String, mode_playing: Dictionary) -> 
 # --- floor ----------------------------------------------------------------------------
 
 func test_floor_two_fresh_reference_matches_are_equal() -> void:
-	await _warm_up()
 	var first: Dictionary = await _reference_lobby_match()
 	var second: Dictionary = await _reference_lobby_match()
 	for checkpoint: String in CHECKPOINTS:
