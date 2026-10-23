@@ -73,6 +73,8 @@ func _ready() -> void:
 	# actively tuning or diagnosing a sandbox run.
 	_panel.visible = OS.get_cmdline_args().has("--debug-ui")
 	_special_roster_ids = _load_special_roster_ids()
+	_panel.block_picked.connect(force_next_shape)
+	_panel.special_picked.connect(_on_panel_special_picked)
 	add_child(SandboxHintBar.new())
 	Events.block_placed.connect(_on_diagnostic_block_placed)
 	# sandbox_pause_physics (F11): PROCESS_MODE_ALWAYS so this whole
@@ -128,7 +130,8 @@ func attach(player: LocalPlayer, camera_rig: CameraRig, field: Field, extras: Mo
 	camera_rig.suppress_pad_home_focus = true
 	_field = field
 	_extras = extras
-	_panel.configure(self, _ghost)
+	_panel.configure(_ghost)
+	_push_panel_state()
 	if extras.sandbox_preset != null:
 		apply_preset(extras.sandbox_preset)
 	if extras.forced_special != &"":
@@ -152,6 +155,19 @@ func forced_special() -> StringName:
 ## every refresh.
 func forced_special_queue_full() -> bool:
 	return _forced_special_queue_full
+
+
+func _push_panel_state() -> void:
+	_panel.set_sandbox_state(
+		active_slot(), forced_special(), forced_special_queue_full(), is_slow_motion_active(), is_physics_paused()
+	)
+
+
+func _on_panel_special_picked(special_id: StringName) -> void:
+	if special_id == &"":
+		force_special_off()
+	else:
+		force_special_by_id(special_id)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -239,6 +255,7 @@ func _dispatch_spawn_tower_or_pause(event: InputEvent) -> void:
 func _toggle_slow_motion() -> void:
 	_slow_motion_active = not _slow_motion_active
 	Engine.time_scale = sandbox_config.slow_motion_scale if _slow_motion_active else 1.0
+	_push_panel_state()
 
 
 var _pause_menu_open: bool = false
@@ -262,6 +279,7 @@ func _toggle_physics_paused() -> void:
 		return
 	_physics_paused = not _physics_paused
 	get_tree().paused = _physics_paused
+	_push_panel_state()
 
 
 ## ui/debug/SandboxPanel.gd reads this every refresh.
@@ -311,6 +329,7 @@ func _set_active_slot(slot_id: int) -> void:
 	# this, cycling which slot this instance drives would leave the HUD
 	# pointed at whichever slot happened to go first.
 	_hud.set_local_slot(slot_id)
+	_push_panel_state()
 
 
 ## sandbox_reset_field (F5): restore the territory state, then restart the
@@ -523,12 +542,14 @@ func _apply_forced_special() -> void:
 		_forced_special_queue_full = false
 		_remember_forced_special()
 		Match.restore_default_special_drawer()
+		_push_panel_state()
 		return
 	var special_id: StringName = _special_roster_ids[_forced_special_index]
 	_forced_special_id = special_id
 	_remember_forced_special()
 	Match.set_special_drawer(func() -> StringName: return special_id)
 	_forced_special_queue_full = not Match.debug_queue_special(_active_slot, special_id)
+	_push_panel_state()
 
 
 ## Keeps the extras current so an F5 rebuild's new attach() reapplies F9.

@@ -877,11 +877,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/sandbox/Sandbox.gd:active_slot",
-   "reason": "live: ui/debug/SandboxPanel.gd:90 (untyped call; the panel keeps _sandbox Variant to avoid a script cycle)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
