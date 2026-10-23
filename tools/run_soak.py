@@ -11,8 +11,10 @@ red. Per scenario the host starts first; the client starts when the host log sho
 logs are merged with `[host]`/`[client]` prefixes, joined by tools/soak_report.py and gated by
 `tools/triage_log.py --soak --no-classify`. Prints one line per scenario and one
 `SOAK RESULT PASS|REPORT|FAIL|INVALID: ...` line; exit 0 PASS/REPORT, 1 FAIL, 2 INVALID, 3 refused.
-SOAK_PLAN sections 4 and 7.4. --duration-s shortens the host --seconds (duration + host_ready_timeout_s) and the deadline for a dry run; the
-monitors still end at their own duration_s, so a dry run is usually INVALID (truncated).
+SOAK_PLAN sections 4 and 7.4. Both processes get `--soak-scenario=<name>`, which the SOAK_CONFIG line
+reports. --duration-s is a shortened run, not a dry run that skips Godot: it sets the host --seconds
+(duration + host_ready_timeout_s) and the deadline; the client monitor still quits at SoakConfig.duration_s
+and the report expects a full run, so a shortened run is usually INVALID (truncated).
 Expected duration: about 18 minutes for `all`.
 """
 
@@ -82,12 +84,14 @@ def build_host_cmd(godot, path, port, scenario, cfg, duration_s):
     return [godot, "--headless", "--path", path, "--", "--headless-host", "--port=%d" % port,
             "--bots=%d" % bots, "--players=%d" % HOST_PLAYERS,
             "--match-config=res://config/soak/soak_match_%s.tres" % scenario,
-            "--match-seed=%d" % cfg["match_seed"], "--seconds=%g" % duration_s, "--soak", "--debug"]
+            "--match-seed=%d" % cfg["match_seed"], "--seconds=%g" % duration_s, "--soak",
+            "--soak-scenario=%s" % scenario, "--debug"]
 
 
 def build_client_cmd(godot, path, port, scenario, cfg):
     cmd = [godot, "--headless", "--path", path, "--", "--join=%s:%d" % (LOOPBACK, port),
-           "--sim-lag=%g" % cfg["client_sim_lag_ms"], "--sim-loss=%g" % cfg["client_sim_loss"], "--soak"]
+           "--sim-lag=%g" % cfg["client_sim_lag_ms"], "--sim-loss=%g" % cfg["client_sim_loss"], "--soak",
+           "--soak-scenario=%s" % scenario]
     if SCENARIOS[scenario][1]:
         cmd.append("--soak-fuzz")
     return cmd + ["--debug"]

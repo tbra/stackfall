@@ -6,11 +6,11 @@ extends Node
 ## no gameplay write, no RPC, no signal emitted.
 ##
 ## Main creates it when `--soak` is on the command line in debug mode and sets `config`, `role`
-## and `sampler` before add_child.
+## and `sampler` before add_child. The launcher names the scenario with `--soak-scenario=<name>`
+## on both processes; the SOAK_CONFIG line carries it (load when absent).
 
-const _CLI_FUZZ: String = "soak-fuzz"
+const _CLI_SCENARIO_PREFIX: String = "--soak-scenario="
 const _SCENARIO_LOAD: StringName = &"load"
-const _SCENARIO_AUTHORITY: StringName = &"authority"
 const _MS_PER_S: float = 1000.0
 const _US_PER_S: float = 1000000.0
 
@@ -26,7 +26,6 @@ var _violations: Array[SoakCheck.Violation] = []
 var _last_recorded_epoch: Dictionary = {}
 var _observer: SoakObserver = null
 var _curve: TickBudgetCurve = null
-var _fuzz_run: bool = false
 var _tracked_bodies: int = 0
 var _last_epoch: int = -1
 var _samples: int = 0
@@ -57,8 +56,10 @@ func _ready() -> void:
 		config.curve_bands, config.curve_band_half_width_fraction, budget_ms,
 		config.curve_bucket_ms, config.curve_max_ms
 	)
-	_fuzz_run = OS.get_cmdline_user_args().has("--" + _CLI_FUZZ)
-	var scenario: StringName = _SCENARIO_AUTHORITY if _fuzz_run else _SCENARIO_LOAD
+	var scenario: StringName = _SCENARIO_LOAD
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with(_CLI_SCENARIO_PREFIX):
+			scenario = StringName(arg.trim_prefix(_CLI_SCENARIO_PREFIX))
 	print(SoakLine.config_line(role, scenario, config))
 
 
