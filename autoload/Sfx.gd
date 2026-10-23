@@ -1375,7 +1375,6 @@ func _flush_claim_interrupt() -> void:
 		return
 	var was_mine: bool = bool(info.get("was_mine", false))
 	play(AudioConfig.EVENT_CLAIM_INTERRUPTED if was_mine else AudioConfig.EVENT_CLAIM_RIVAL_BROKEN)
-	Events.claim_interrupted.emit(was_mine, float(info.get("peak", 0.0)))
 
 
 func _on_claim_match_won(_team_id: int) -> void:
@@ -1448,8 +1447,6 @@ func _refresh_claim_target(immediate: bool) -> void:
 		_start_claim_bed()
 	_kill_claim_tweens()
 	var rising: bool = level > _claim_last_level
-	if not is_equal_approx(level, _claim_last_level):
-		Events.claim_tension_changed.emit(level, _claim_state.is_mine())
 	_claim_last_level = level
 	if not immediate and level <= 0.0 and not _claim_player.playing and _claim_duck_db == duck:
 		return

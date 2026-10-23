@@ -579,8 +579,7 @@ func steam_available() -> bool:
 	return _steam.available()
 
 
-## Calls Steam.steamInitEx() through steam_provider and emits
-## Events.net_steam_status_changed once it answers. Idempotent, safe for
+## Calls Steam.steamInitEx() through steam_provider. Idempotent, safe for
 ## game/main/Main.gd to call unconditionally at boot even if something else
 ## already did. A no-op (not an error) when steam_provider is null, which
 ## only happens if this is called before _ready() has run.
@@ -654,7 +653,6 @@ func _build_steam_session() -> void:
 	_steam.client_ready.connect(_on_steam_client_ready)
 	_steam.request_failed.connect(Events.net_join_failed.emit)
 	_steam.join_refused.connect(_fail_join)
-	_steam.status_changed.connect(Events.net_steam_status_changed.emit)
 	_steam.lobbies_discovered.connect(Events.net_steam_lobbies_discovered.emit)
 
 
