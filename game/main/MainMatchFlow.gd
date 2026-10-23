@@ -144,11 +144,11 @@ func _finish_loading_when_ready(generation: int) -> void:
 	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
 	# the camera starts at the local player's own beacon, looking
 	# at the centre, whatever the loading frames did to it.
-	if main_node._hot_seat != null and _camera_rig != null:
+	if main_node._local_player != null and _camera_rig != null:
 		_camera_rig.begin_start_framing(Net.local_slot())
-	if main_node._hot_seat != null:
-		(main_node._hot_seat as HotSeat).controller().set_process(main_node._controller_was_processing)
-		(main_node._hot_seat as HotSeat).controller().set_process_unhandled_input(main_node._controller_was_handling_input)
+	if main_node._local_player != null:
+		(main_node._local_player as LocalPlayer).controller().set_process(main_node._controller_was_processing)
+		(main_node._local_player as LocalPlayer).controller().set_process_unhandled_input(main_node._controller_was_handling_input)
 	await _loading_screen.fade_out()
 	# DECISION: Main may be freed while this coroutine is suspended.
 	if not is_instance_valid(main):
@@ -224,34 +224,34 @@ func build_match_world() -> void:
 	main_node._remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
 	main_node.add_child(main_node._remote_cursors)
 
-	# A HotSeat instance always binds Net.local_slot() (0 on the host), so it must not
+	# A LocalPlayer instance always binds Net.local_slot() (0 on the host), so it must not
 	# be built when that slot is a bot: the all-bot `--bots=<n>` command
 	# (config.player_count == config.ai_count) leaves no human slot. A mixed lobby
 	# match still gets it: humans fill the lowest slot ids first
 	# (MatchLifecycle._build_slots()'s `is_bot = i >= player_count - ai_count`).
 	# A mid-match spectator (Net.local_slot() == -1) gets no controller at all.
 	# DECISION: it watches through the default camera rig
-	# with no HotSeat -- there is no slot for one to drive.
+	# with no LocalPlayer -- there is no slot for one to drive.
 	if main_node._watch_bots_active and DebugMode.is_enabled():
 		build_spectator(config)
 	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
-		var hot_seat: HotSeat = main_node._load_scene(Main.HOT_SEAT_SCENE_PATH).instantiate() as HotSeat
-		main_node._hot_seat = hot_seat
-		main_node.add_child(hot_seat)
-		hot_seat.set_camera_rig(_camera_rig)
-		hot_seat.set_field(_field)
-		hot_seat.bind_local_slot(Net.local_slot())
-		# HotSeat.gd's _ready() already captures the mouse; called again here because
+		var local_player: LocalPlayer = main_node._load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
+		main_node._local_player = local_player
+		main_node.add_child(local_player)
+		local_player.set_camera_rig(_camera_rig)
+		local_player.set_field(_field)
+		local_player.bind_local_slot(Net.local_slot())
+		# LocalPlayer.gd's _ready() already captures the mouse; called again here because
 		# this is the one place that wires a controller into a match Main owns, so
 		# it does not depend on a child scene's _ready() timing. Idempotent and a
 		# no-op headless.
-		hot_seat.controller().enable_mouse_capture()
-		main_node._controller_was_processing = hot_seat.controller().is_processing()
-		main_node._controller_was_handling_input = hot_seat.controller().is_processing_unhandled_input()
+		local_player.controller().enable_mouse_capture()
+		main_node._controller_was_processing = local_player.controller().is_processing()
+		main_node._controller_was_handling_input = local_player.controller().is_processing_unhandled_input()
 		if stage_build:
-			hot_seat.controller().set_process(false)
-			hot_seat.controller().set_process_unhandled_input(false)
-		main_node._attach_mode_extras(hot_seat)
+			local_player.controller().set_process(false)
+			local_player.controller().set_process_unhandled_input(false)
+		main_node._attach_mode_extras(local_player)
 
 	spawn_bot_controllers(config)
 
@@ -275,7 +275,7 @@ func build_match_world() -> void:
 
 
 ## debug Watch bots: the local player's whole presence in an all-bot match -- spectator
-## camera, follow / speed controls and the match HUD -- in place of a HotSeat.
+## camera, follow / speed controls and the match HUD -- in place of a LocalPlayer.
 func build_spectator(config: MatchConfig) -> void:
 	var spectator: SpectatorController = SpectatorController.new()
 	main_node._spectator = spectator
@@ -349,8 +349,8 @@ func end_match_world() -> void:
 	if main_node._remote_cursors != null and is_instance_valid(main_node._remote_cursors):
 		main_node._remote_cursors.queue_free()
 	main_node._remote_cursors = null
-	_free_inert(main_node._hot_seat)
-	main_node._hot_seat = null
+	_free_inert(main_node._local_player)
+	main_node._local_player = null
 	_end_mode_extras()
 	if main_node._spectator != null and is_instance_valid(main_node._spectator):
 		(main_node._spectator as SpectatorController).reset_speed()
