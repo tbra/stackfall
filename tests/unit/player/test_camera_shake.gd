@@ -1,29 +1,20 @@
 extends GutTest
 ## M7 P4, spec 1.10 "effects + camera shake":
 ## game/player/CameraRig.gd's shake_offset()/Settings.camera_shake_enabled()
-## integration. game/player/CameraRig.gd reads the real "Settings" autoload directly
-## (as autoload/Sfx.gd does for master_volume_db()), so
-## isolation here redirects that singleton to a temp cfg
-## (Settings.set_config_path_for_test), restored in after_each -- the same
-## pattern tests/unit/audio/test_sfx.gd uses.
+## integration. game/player/CameraRig.gd reads the real "Settings" autoload
+## directly, so each test starts with shake enabled through the public setter and
+## restores the player's value in after_each.
 
-var _settings_cfg_path: String
+var _shake_before: bool
 
 
 func before_each() -> void:
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_camera_shake_settings_tmp.cfg")
-	_delete_if_exists(_settings_cfg_path)
-	Settings.set_config_path_for_test(_settings_cfg_path)
+	_shake_before = Settings.camera_shake_enabled()
+	Settings.set_camera_shake_enabled(true)
 
 
 func after_each() -> void:
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	_delete_if_exists(_settings_cfg_path)
-
-
-func _delete_if_exists(path: String) -> void:
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	Settings.set_camera_shake_enabled(_shake_before)
 
 
 func _make_rig() -> CameraRig:

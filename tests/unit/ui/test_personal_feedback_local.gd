@@ -43,7 +43,8 @@ var _tiny_map: MapDef
 var _sfx: Node
 var _audio_config: AudioConfig
 var _tmp_dir: String
-var _settings_cfg_path: String
+var _rumble_enabled_before: bool
+var _rumble_strength_before: float
 var _rumble_calls: Array[Dictionary] = []
 
 var _loopback: LoopbackSession
@@ -51,9 +52,8 @@ var _loopback: LoopbackSession
 
 func before_each() -> void:
 	_loopback = LoopbackSession.new(self)
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_personal_feedback_settings_tmp.cfg")
-	_delete_if_exists(_settings_cfg_path)
-	Settings.set_config_path_for_test(_settings_cfg_path)
+	_rumble_enabled_before = Settings.rumble_enabled()
+	_rumble_strength_before = Settings.rumble_strength()
 	Settings.set_rumble_enabled(true)
 	Settings.set_rumble_strength(1.0)
 
@@ -101,13 +101,8 @@ func after_each() -> void:
 	Rumble._last_family = &""
 	for filename: String in DirAccess.get_files_at(_tmp_dir):
 		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	_delete_if_exists(_settings_cfg_path)
-
-
-func _delete_if_exists(path: String) -> void:
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
+	Settings.set_rumble_enabled(_rumble_enabled_before)
+	Settings.set_rumble_strength(_rumble_strength_before)
 
 
 func _record_rumble(device: int, weak_magnitude: float, strong_magnitude: float, duration_s: float) -> void:

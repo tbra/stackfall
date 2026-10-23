@@ -24,7 +24,6 @@ var _registry: BlockRegistry
 var _sfx: Node
 var _audio: AudioConfig
 var _sound_dir: String
-var _settings_cfg_path: String
 
 
 func before_each() -> void:
@@ -43,11 +42,6 @@ func after_each() -> void:
 		for filename: String in DirAccess.get_files_at(_sound_dir):
 			DirAccess.remove_absolute(_sound_dir.path_join(filename))
 		_sound_dir = ""
-	if _settings_cfg_path != "":
-		Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-		if FileAccess.file_exists(_settings_cfg_path):
-			DirAccess.remove_absolute(_settings_cfg_path)
-		_settings_cfg_path = ""
 	await get_tree().process_frame
 
 
@@ -113,8 +107,6 @@ func _write_tiny_wav(path: String) -> void:
 
 ## A fresh Sfx with the drop, breakage and gift cues installed.
 func _make_sfx() -> void:
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_late_join_silence_settings.cfg")
-	Settings.set_config_path_for_test(_settings_cfg_path)
 	_audio = load("res://config/audio/audio_config.tres").duplicate() as AudioConfig
 	_audio.contextual_music_enabled = false
 	_audio.bundled_theme = null

@@ -13,7 +13,6 @@ var _registry: BlockRegistry
 var _sfx: Node
 var _audio_config: AudioConfig
 var _tmp_dir: String
-var _settings_cfg_path: String
 
 
 func before_each() -> void:
@@ -30,11 +29,6 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
-	# Sfx/Rumble read the real Settings autoload; redirect it to a temp cfg for the file.
-	_settings_cfg_path = OS.get_user_data_dir().path_join("test_match_reset_rules_settings_tmp.cfg")
-	_delete_if_exists(_settings_cfg_path)
-	Settings.set_config_path_for_test(_settings_cfg_path)
-
 
 func after_each() -> void:
 	Match._net_provider = null
@@ -42,8 +36,6 @@ func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
-	Settings.set_config_path_for_test(Settings.REAL_CONFIG_PATH)
-	_delete_if_exists(_settings_cfg_path)
 	if _tmp_dir != "" and DirAccess.dir_exists_absolute(_tmp_dir):
 		for filename: String in DirAccess.get_files_at(_tmp_dir):
 			DirAccess.remove_absolute(_tmp_dir.path_join(filename))
