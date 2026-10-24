@@ -95,7 +95,9 @@ const THROW_MAX_DEG: float = 15.0
 ## first replicated pose gravity has bent the path off the launch vector (6.8 deg seen); the first pose is judged
 ## against the launch vector with the same slack as the whole-flight heading, not the rocket's straight-line 5 deg.
 const MAGNET_FIRST_POSE_MAX_DEG: float = THROW_MAX_DEG
-const THROW_SPEED_TOLERANCE: float = 0.4
+const THROW_SPEED_TOLERANCE: float = 0.2
+const FLIGHT_COLLECT_S: float = 0.8
+const FLIGHT_MOVING_FRACTION: float = 0.5
 const THROW_VELOCITY_EPS: float = 0.05
 const THROW_SAMPLE_TIMEOUT: float = 8.0
 const EXPECT_TIMEOUT: float = 10.0
@@ -695,6 +697,56 @@ func _watch_rocket() -> void:
 	_ack(&"rocket", "done", true)
 
 
+## The replicated `gift`'s pose once per client tick: {"t": Array[float], "pos": Array[Vector3]}. `t` is HOST
+## simulation time, read off the snapshot clock the client renders poses at (SnapshotSync.sky_cycle_seconds) right
+## after client_tick() wrote the pose, so a machine that runs the host (or this client) slower than real time cannot
+## skew a speed computed from it. Collects FLIGHT_COLLECT_S of that clock, or until the carrier is gone.
+func _record_replicated_flight(gift: Block) -> Dictionary:
+	var times: Array[float] = []
+	var positions: Array[Vector3] = []
+	var deadline: int = Time.get_ticks_msec() + int(THROW_SAMPLE_TIMEOUT * MSEC_PER_S)
+	while Time.get_ticks_msec() < deadline and is_instance_valid(gift):
+		await get_tree().physics_frame
+		if not is_instance_valid(gift):
+			break
+		times.append(SnapshotSync.sky_cycle_seconds())
+		positions.append(gift.global_position)
+		if times[times.size() - 1] - times[0] >= FLIGHT_COLLECT_S:
+			break
+	return {"t": times, "pos": positions}
+
+
+## How far the recorded carrier moves over THROW_MIN_SPAN_S of host time once it is on the host track:
+## {"delta": Vector3, "span_s": float} (span 0 when no such window exists). Before that the pose is not on the
+## track: it sits on the spawn position, then on the oldest buffered snapshot until the render clock reaches it,
+## and the step between the two is a jump. The window therefore starts at the first sample that begins two
+## consecutive steps each at least FLIGHT_MOVING_FRACTION of the expected speed (a jump is followed by a held pose).
+func _flight_window(flight: Dictionary, expected_speed: float) -> Dictionary:
+	var times: Array = flight["t"] as Array
+	var positions: Array = flight["pos"] as Array
+	var floor_speed: float = FLIGHT_MOVING_FRACTION * expected_speed
+	var start: int = -1
+	for i: int in range(1, times.size() - 1):
+		if _step_speed(times, positions, i) >= floor_speed and _step_speed(times, positions, i + 1) >= floor_speed:
+			start = i
+			break
+	if start < 0:
+		return {"delta": Vector3.ZERO, "span_s": 0.0}
+	for j: int in range(start + 1, times.size()):
+		var span_s: float = float(times[j]) - float(times[start])
+		if span_s >= THROW_MIN_SPAN_S:
+			return {"delta": (positions[j] as Vector3) - (positions[start] as Vector3), "span_s": span_s}
+	return {"delta": Vector3.ZERO, "span_s": 0.0}
+
+
+## Speed of the step that ends at sample `index`, in metres per second of recorded host time.
+func _step_speed(times: Array, positions: Array, index: int) -> float:
+	var dt: float = float(times[index]) - float(times[index - 1])
+	if dt <= 0.0:
+		return 0.0
+	return (positions[index] as Vector3).distance_to(positions[index - 1] as Vector3) / dt
+
+
 func _watch_magnet() -> void:
 	var seen: bool = await _until(func() -> bool: return _gift_block(&"magnet") != null, WATCH_TIMEOUT)
 	var gift: Block = _gift_block(&"magnet")
@@ -706,21 +758,14 @@ func _watch_magnet() -> void:
 	var magnet_def: SpecialDef = SpecialDef.find_by_id(&"magnet")
 	var magnet_nose: Vector3 = (magnet_def.effect as MagnetEffect).model_nose_axis.normalized()
 	var first_nose: Vector3 = (gift.global_basis * magnet_nose).normalized()
-	var first_pos: Vector3 = gift.global_position
-	var first_ms: int = Time.get_ticks_msec()
-	var span_pos: Vector3 = first_pos
-	var span_s: float = 0.0
-	var deadline: int = first_ms + int(THROW_SAMPLE_TIMEOUT * MSEC_PER_S)
-	while Time.get_ticks_msec() < deadline and is_instance_valid(gift) and span_s < THROW_MIN_SPAN_S:
-		await _wait(FRAME_S)
-		if is_instance_valid(gift):
-			span_pos = gift.global_position
-			span_s = float(Time.get_ticks_msec() - first_ms) / MSEC_PER_S
+	var flight: Dictionary = await _record_replicated_flight(gift)
 	var got: bool = await _until(func() -> bool: return _expect.has("magnet"), EXPECT_TIMEOUT)
 	var expected: Vector3 = Vector3.ZERO
 	if got:
 		expected = (_expect["magnet"] as Array)[0] as Vector3
-	var delta: Vector3 = span_pos - first_pos
+	var window: Dictionary = _flight_window(flight, expected.length())
+	var delta: Vector3 = window["delta"] as Vector3
+	var span_s: float = float(window["span_s"])
 	var angle_deg: float = 180.0
 	var speed_ratio: float = 0.0
 	if got and span_s >= THROW_MIN_SPAN_S and delta.length() > 0.0 and expected.length() > 0.0:
