@@ -89,7 +89,6 @@ class AgentEvalsTest(unittest.TestCase):
         self.accepted_rev = git(self.repo, "rev-parse", "HEAD")
         write(self.repo, "CLAUDE.md", "rules\n" + "setup line\n" * 30)
         write(self.repo, ".claude/agents/x.md", "agent\n" * 20)
-        write(self.repo, BASELINE, baseline("a.gd:f", "z.gd:z"))
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "setup")
         self.setup_rev = git(self.repo, "rev-parse", "HEAD")
@@ -183,7 +182,7 @@ class AgentEvalsTest(unittest.TestCase):
     def test_a_guard_entry_added_by_the_worker_is_counted(self):
         wt = self.prep(1)
         self.fix(wt)
-        write(wt, BASELINE, baseline("a.gd:f", "z.gd:z", "new.gd:n"))
+        write(wt, BASELINE, baseline("a.gd:f", "new.gd:n"))
         self.assertEqual(self.score(wt)["guard_entries_added"], 1)
 
     # (d) one bead's handback rows, another bead's rows ignored
