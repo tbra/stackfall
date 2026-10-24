@@ -226,7 +226,6 @@ static func _capture_camera(main: Node, out: Dictionary) -> void:
 	out["camera.focus_action"] = str(_p(rig, &"_focus_action"))
 	out["camera.focus_hold_elapsed"] = _fp(rig, &"_focus_hold_elapsed_s")
 	out["camera.goal_cycle_index"] = int(_p(rig, &"_goal_cycle_index"))
-	out["camera.block_held"] = rig.block_held
 	out["camera.drop_recovering"] = _bp(rig, &"_drop_recovering")
 	out["camera.local_slot"] = int(_p(rig, &"_local_slot"))
 	out["camera.follow_position"] = _v3(_p(rig, &"_follow_position") as Vector3)

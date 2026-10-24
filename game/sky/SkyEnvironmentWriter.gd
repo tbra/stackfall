@@ -14,8 +14,6 @@ const WEATHER_FOG_CURVE: float = 1.0
 
 ## Names of the fields written by the last `apply` / `apply_preset` call (tests read it).
 var last_written: Array[StringName] = []
-## Total field writes since bind.
-var total_writes: int = 0
 
 var _environment: Environment = null
 var _light: DirectionalLight3D = null
@@ -188,7 +186,6 @@ func _changed(key: StringName, value: Variant) -> bool:
 		return false
 	_written[key] = value
 	last_written.append(key)
-	total_writes += 1
 	return true
 
 

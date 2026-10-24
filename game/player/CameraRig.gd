@@ -64,11 +64,6 @@ const _DROP_RECOVER_CONVERGED_M: float = 0.001
 ## _goal_focus_chord_blocked() (Back is camera_snap_home).
 @export var suppress_pad_home_focus: bool = false
 
-## Set by PlayerController each frame: true while the player holds a ghost
-## block. Spec 1.4 scopes trigger zoom to "while not holding a block"; the
-## dedicated Z/X keys always zoom regardless (see _unhandled_input).
-var block_held: bool = false
-
 var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _distance: float = 0.0
@@ -271,7 +266,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	# camera_zoom_in/out are keyboard-only (Z/X; tools/bootstrap_project.gd), so both
-	# always zoom regardless of block_held. The gamepad's zoom gesture (LT + left
+	# always zoom. The gamepad's zoom gesture (LT + left
 	# stick, continuous) is PlayerController._drive_gamepad_zoom() ->
 	# zoom_continuous(), driven every frame rather than through this handler. The
 	# wheel is block height only (ghost_tuning's hover_raise/hover_lower), so it is
@@ -451,7 +446,6 @@ func reset_view() -> void:
 	_target = Vector3.ZERO
 	_follow_position = Vector3.ZERO
 	_local_slot = -1
-	block_held = false
 	_drop_recovering = false
 	_peek_active = false
 	_peek_returning = false
