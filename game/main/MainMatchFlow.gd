@@ -65,7 +65,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	# and drop rejoin reservations and reseat spectators.
 	if to_state == Match.State.LOADING:
 		Net.set_match_in_progress(true)
-	elif to_state == Match.State.LOBBY and not Match._lifecycle.is_starting_match():
+	elif to_state == Match.State.LOBBY and not Match.lifecycle().is_starting_match():
 		Net.set_match_in_progress(false)
 	var live_state: bool = Match.is_replicating(to_state)
 	var mid_match_join: bool = live_state and Match.config != null and Match.config.allow_mid_match_join
@@ -81,7 +81,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# so _on_net_mode_changed() cannot rebuild the lobby for us. A replay
 		# briefly passes through LOBBY inside start_match(); keep that transition
 		# out of the UI route so the new match builds directly.
-		if not Match._lifecycle.is_starting_match() and not Net.is_offline():
+		if not Match.lifecycle().is_starting_match() and not Net.is_offline():
 			if main_node._watch_bots_active:
 				# a watch match has no lobby to return to; Back to menu leaves the
 				# session, which routes to the main menu (Main._on_net_mode_changed).
@@ -320,7 +320,7 @@ func _reset_match_scope() -> void:
 ## A restart passes through (X -> LOBBY) inside start_match(); the build that follows
 ## resets the scope itself, so the pair resets once.
 func _reset_match_scope_unless_restarting() -> void:
-	if not Match._lifecycle.is_starting_match():
+	if not Match.lifecycle().is_starting_match():
 		_reset_match_scope()
 
 
@@ -388,5 +388,5 @@ func _end_mode_extras() -> void:
 	main_node._sandbox = null
 	_free_inert(main_node._tutorial)
 	main_node._tutorial = null
-	if not Match._lifecycle.is_starting_match():
+	if not Match.lifecycle().is_starting_match():
 		main_node._mode_extras = null

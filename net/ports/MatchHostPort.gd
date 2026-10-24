@@ -256,28 +256,28 @@ func weather() -> RefCounted:
 ## Whether `shape_id` names a known block shape (MatchFeed._shape_by_id is not
 ## null). False when there is no feed.
 func feed_knows_shape(shape_id: StringName) -> bool:
-	var feed: RefCounted = _match._feed
+	var feed: RefCounted = _match.feed()
 	if feed == null:
 		return false
 	return feed.call(&"_shape_by_id", shape_id) != null
 
 
 func feed_claim_carrier_shape_id(slot_id: int) -> StringName:
-	var feed: RefCounted = _match._feed
+	var feed: RefCounted = _match.feed()
 	if feed == null:
 		return &""
 	return StringName(feed.call(&"claim_carrier_shape_id", slot_id))
 
 
 func feed_gift_after_next_active() -> bool:
-	var feed: RefCounted = _match._feed
+	var feed: RefCounted = _match.feed()
 	if feed == null:
 		return false
 	return bool(feed.call(&"gift_after_next_active"))
 
 
 func feed_staged_gift_shape_id(slot_id: int) -> StringName:
-	var feed: RefCounted = _match._feed
+	var feed: RefCounted = _match.feed()
 	if feed == null:
 		return &""
 	return StringName(feed.call(&"staged_gift_shape_id", slot_id))
@@ -285,14 +285,14 @@ func feed_staged_gift_shape_id(slot_id: int) -> StringName:
 
 ## QoL: a triggered special freezes block timers. No-op without a feed.
 func feed_note_special_triggered() -> void:
-	var feed: RefCounted = _match._feed
+	var feed: RefCounted = _match.feed()
 	if feed != null:
 		feed.call(&"note_special_triggered")
 
 
 ## MatchLifecycle.is_starting_match(). False when there is no lifecycle.
 func is_starting_match() -> bool:
-	var lifecycle: RefCounted = _match._lifecycle
+	var lifecycle: RefCounted = _match.lifecycle()
 	if lifecycle == null:
 		return false
 	return bool(lifecycle.call(&"is_starting_match"))
@@ -300,7 +300,7 @@ func is_starting_match() -> bool:
 
 ## MatchLifecycle.loading_gate_replay_args(); empty without a lifecycle.
 func loading_gate_replay_args() -> Array:
-	var lifecycle: RefCounted = _match._lifecycle
+	var lifecycle: RefCounted = _match.lifecycle()
 	if lifecycle == null:
 		return []
 	return lifecycle.call(&"loading_gate_replay_args") as Array

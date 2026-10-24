@@ -294,10 +294,10 @@ func is_physics_paused() -> bool:
 ## ui/debug/SandboxPanel.gd's block-picker OptionButton: forces the active
 ## slot's held shape to `shape_id`. See autoload/match/MatchFeed.gd's own
 ## debug_force_next_shape() doc comment for the host/config.sandbox gate and
-## why this reaches into Match._feed directly rather than through a new
+## why this calls Match.feed() directly rather than through a new
 ## Match wrapper.
 func force_next_shape(shape_id: StringName) -> void:
-	Match._feed.debug_force_next_shape(_active_slot, shape_id)
+	Match.feed().debug_force_next_shape(_active_slot, shape_id)
 
 
 ## ui/debug/SandboxPanel.gd's special-spawn dropdown "off" entry: force_special_
@@ -467,7 +467,7 @@ func _build_tower(slot_id: int, at: Vector2, height: int, built: Array[RigidBody
 	var edge: float = tuning.cube_size - tuning.cube_margin
 	var base_y: float = -tuning.cube_margin * 0.5
 	for i: int in range(height):
-		Match._feed.debug_force_next_shape(slot_id, _preset.preplaced_shape_id)
+		Match.feed().debug_force_next_shape(slot_id, _preset.preplaced_shape_id)
 		var origin: Vector3 = _field.to_global(Vector3(at.x, base_y + edge * float(i), at.y))
 		var result: StringName = Match.request_place(slot_id, origin, 0, Quaternion.IDENTITY, false)
 		if result != PlacementRules.REASON_OK:
