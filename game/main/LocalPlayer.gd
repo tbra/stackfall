@@ -20,6 +20,7 @@ extends Node
 ## captures the OS cursor (PlayerController.enable_mouse_capture()). Safe to call
 ## unconditionally: it is a silent no-op headless.
 func _ready() -> void:
+	_controller.bind_session(SessionPort.new(Net))
 	_controller.enable_mouse_capture()
 	_tuning_panel.set_controller(_controller)
 

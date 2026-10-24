@@ -93,8 +93,8 @@ func test_the_end_of_a_match_clears_every_remote_ghost() -> void:
 
 
 # --- PlayerController, networked ---------------------------------------------
-# These five still inject a session and a Match straight into the controller (set_session_provider,
-# _match): the typed SessionPort seam from the controller's parent replaces it (open follow-up).
+# These five bind a FakeSessionPort into the controller (bind_session) and inject a Match
+# straight into it (_match).
 
 func _fake_match_with_slots() -> FakeMatch:
 	var fake: FakeMatch = FakeMatch.new()
@@ -109,7 +109,7 @@ func _make_controller(session: FakeNet, fake_match: FakeMatch) -> PlayerControll
 	add_child_autofree(local_player)
 	var controller: PlayerController = local_player.controller()
 	controller._match = fake_match
-	controller.set_session_provider(session)
+	controller.bind_session(FakeSessionPort.new(session))
 	(local_player.get_node("GhostPreview") as GhostPreview).set_shape(load("res://config/blocks/cube.tres"))
 	return controller
 
