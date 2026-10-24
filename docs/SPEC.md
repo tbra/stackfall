@@ -355,7 +355,7 @@ res://
 | Net | `autoload/Net.gd` | Session lifecycle, transports, roster, lobby data, chat, ready gates (§2.6) |
 | Match | `autoload/Match.gd` | Match state and authoritative entry points; a thin autoload over `autoload/match/` parts |
 | SnapshotSync | `net/SnapshotSync.gd` | Body snapshots host to clients (§2.6) |
-| MatchNet | `net/MatchNet.gd` | Match RPCs and replication (§2.6) |
+| MatchNet | `net/MatchNet.gd` | Match RPC surface and wiring (§2.6); its collaborators in `net/match/` hold the logic: `MatchReplication` (spawn, territory, impacts, match start), `MatchWorldReplay` (late-join replay and seat policy), `ClientReplayGate` (client world gate), `SlotCursors` (cursors and AFK auto-drop pose), `GiftWireGuard` (client gift wire checks), with `MatchEventApplier` applying match events |
 | Sfx | `autoload/Sfx.gd` | Sound effects and music |
 | Screenshots | `autoload/Screenshots.gd` | Screenshot capture |
 | Rumble | `autoload/Rumble.gd` | Gamepad haptics |
