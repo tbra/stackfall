@@ -275,7 +275,8 @@ func set_locked_phase(phase: float) -> void:
 	if phase < 0.0:
 		if _clock.locked_phase() < 0.0:
 			return
-		_clock.set_locked(-1.0)
+		_cycle_clock_s = _shared_clock_s()
+		_clock.unlock(_cycle_clock_s)
 		_reflections.set_running(true)
 		return
 	_clock.set_locked(phase)

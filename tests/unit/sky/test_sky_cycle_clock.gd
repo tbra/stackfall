@@ -78,12 +78,21 @@ func test_lock_and_unlock_a_running_cycle_keep_the_phase_continuous() -> void:
 	assert_almost_eq(clock.advance(60.0, LENGTH_S), 0.75, EPS, "the clock does not move a locked sky")
 	clock.set_locked(1.25)
 	assert_almost_eq(clock.locked_phase(), 0.25, EPS, "a lock wraps into 0..1")
-	clock.set_locked(-1.0)
+	clock.unlock(60.0)
 	assert_eq(clock.locked_phase(), -1.0, "running again")
 	assert_almost_eq(clock.phase_at(60.0), 0.25, EPS, "no jump at the unlock")
 	assert_almost_eq(clock.advance(90.0, LENGTH_S), 0.35, EPS, "and it carries on at the cycle rate")
-	clock.set_locked(-1.0)
+	clock.unlock(90.0)
 	assert_almost_eq(clock.phase_at(90.0), 0.35, EPS, "unlocking a running cycle is a no-op")
+
+
+func test_unlock_uses_the_clock_at_the_unlock_not_the_last_one_seen() -> void:
+	var clock: SkyCycleClock = _running()
+	clock.advance(30.0, LENGTH_S)
+	clock.set_locked(0.40)
+	clock.unlock(500.0)
+	assert_almost_eq(clock.phase_at(500.0), 0.40, EPS, "continues from the locked phase at the unlock clock")
+	assert_almost_eq(clock.phase_at(530.0), 0.50, EPS, "then at the cycle rate")
 
 
 func test_start_locked_ignores_the_clock() -> void:
@@ -99,7 +108,7 @@ func test_length_edit_while_locked_applies_at_the_unlock() -> void:
 	clock.advance(40.0, LENGTH_S)
 	clock.set_locked(0.40)
 	assert_almost_eq(clock.advance(80.0, 600.0), 0.40, EPS, "locked phase holds through a length edit")
-	clock.set_locked(-1.0)
+	clock.unlock(80.0)
 	assert_almost_eq(clock.phase_at(80.0), 0.40, EPS)
 	assert_almost_eq(clock.phase_at(140.0), 0.50, EPS, "60 s at the new 600 s length")
 
@@ -115,7 +124,7 @@ func test_night_index_counts_whole_cycles() -> void:
 	assert_eq(clock.night_index(), 2)
 	clock.set_locked(0.75)
 	assert_eq(clock.night_index(), 0, "locked is night 0")
-	clock.set_locked(-1.0)
+	clock.unlock(250.0)
 	assert_eq(clock.night_index(), 0, "unlocking re-bases the offset onto the held phase 0.75")
 
 
@@ -131,7 +140,7 @@ func test_a_lock_at_phase_zero_is_a_lock() -> void:
 	clock.set_locked(0.0)
 	assert_eq(clock.locked_phase(), 0.0, "a lock at exactly 0 holds")
 	assert_eq(clock.advance(60.0, LENGTH_S), 0.0)
-	clock.set_locked(-1.0)
+	clock.unlock(60.0)
 	assert_eq(clock.locked_phase(), -1.0, "and unlocks")
 	assert_almost_eq(clock.phase_at(60.0), 0.0, EPS, "no jump at the unlock")
 	assert_almost_eq(clock.phase_at(90.0), 0.10, EPS, "then it runs on")
