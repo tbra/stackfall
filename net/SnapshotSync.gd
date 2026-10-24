@@ -501,8 +501,12 @@ func _select_bodies() -> Dictionary:
 			sleepers.append(block)
 			continue
 		_refresh_carrier_pose(block)
-		if not sleeping or _selector.moved_since_sent(
-			net_id, block.global_position, block.global_basis.get_rotation_quaternion()
+		if (
+			not sleeping
+			or _selector.sleep_flipped(net_id, sleeping)
+			or _selector.moved_since_sent(
+				net_id, block.global_position, block.global_basis.get_rotation_quaternion()
+			)
 		):
 			awake_or_moved.append(_record(block))
 		else:

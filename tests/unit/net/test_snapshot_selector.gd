@@ -133,6 +133,19 @@ func test_a_sleep_flip_on_one_body_does_not_check_the_others() -> void:
 	assert_false(_selector.needs_check(ID_B, true), "its neighbour does not")
 
 
+func test_a_sleeper_that_settled_inside_the_epsilon_is_flagged_as_flipped() -> void:
+	_selector.begin_tick(_disc)
+	_selector.remember_sent(ID_A, _pose, _rot, false)
+	_selector.begin_tick(_disc)
+	var settled: Vector3 = _pose + Vector3(_config.resend_position_epsilon * 0.5, 0.0, 0.0)
+	assert_false(_selector.moved_since_sent(ID_A, settled, _rot), "fixture: it moved less than the epsilon")
+	assert_true(_selector.sleep_flipped(ID_A, true), "awake when last sent, asleep now: resend it")
+	assert_false(_selector.sleep_flipped(ID_A, false), "still awake: no flip")
+	_selector.remember_sent(ID_A, settled, _rot, true)
+	assert_false(_selector.sleep_flipped(ID_A, true), "once sent as asleep the flip is consumed")
+	assert_true(_selector.sleep_flipped(ID_B, true), "a never-sent body counts as flipped")
+
+
 # --- (e) slow creep ---------------------------------------------------------
 
 func test_position_creep_below_the_epsilon_stays_unsent_until_the_drift_adds_up() -> void:

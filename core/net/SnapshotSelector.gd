@@ -36,8 +36,15 @@ func begin_tick(disc: Transform3D) -> void:
 ## True when this body must be drift-tested this tick: never sent, its sleeping
 ## flag differs from the last sent one, or the disc moved this tick.
 func needs_check(net_id: int, sleeping: bool) -> bool:
+	return _disc_changed or sleep_flipped(net_id, sleeping)
+
+
+## True when the sleeping flag differs from the last SENT one (never sent counts
+## as flipped). A flipped body must be resent even inside the resend epsilon, so
+## clients learn it is at rest without waiting for its keyframe slice.
+func sleep_flipped(net_id: int, sleeping: bool) -> bool:
 	# A never-sent id reads back the opposite flag, so it counts as a flip.
-	return _disc_changed or _sent_sleeping.get(net_id, not sleeping) != sleeping
+	return _sent_sleeping.get(net_id, not sleeping) != sleeping
 
 
 ## True when the pose passed the resend epsilon against the last SENT pose

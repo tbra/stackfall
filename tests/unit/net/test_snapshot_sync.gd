@@ -398,6 +398,22 @@ func test_a_moving_disc_resends_a_sleeper_that_drifted() -> void:
 	assert_lt(ids.size(), BODY_COUNT, "bodies that did not move past the epsilon stay out")
 
 
+func test_a_body_that_falls_asleep_in_place_is_resent_with_its_sleep_flag() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	var settling: Block = _make_block(FIRST_NET_ID + BODY_COUNT, false, Vector3(0.0, 1.0, 5.0))
+	_host_bodies.append(settling)
+	_track_block(settling)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+	assert_true(_next_snapshot_ids(stub).has(settling.net_id), "fixture: the awake body is sent every snapshot")
+
+	settling.sleeping = true # no movement at all: well inside the resend epsilon
+	assert_true(settling.net_sleeping(), "fixture: it now sleeps")
+	assert_true(_next_snapshot_ids(stub).has(settling.net_id), "the sleep flip is resent, not left to the keyframe slice")
+
+
 func test_an_awake_body_goes_out_every_snapshot() -> void:
 	var stub: PeerStubSync = _host_stub()
 	_sleepers()
