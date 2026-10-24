@@ -249,24 +249,21 @@ func test_breeze_net_client_applies_a_good_gust_and_refuses_the_rest() -> void:
 	var authority: BreezeHost = BreezeHost.new()
 	var node: BreezeNet = _breeze_net(_session(), authority)
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_applied, 1)
 	assert_eq(_gusts_seen.size(), 1, "re-emitted for the presenter")
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_refused, 1, "a repeated id is dropped")
+	assert_eq(_gusts_seen.size(), 1, "a repeated id is dropped")
 	authority.match_state = MatchAutoload.State.END
 	node.net_breeze_gust(_wire(2))
-	assert_eq(node.gusts_refused, 2, "a late packet after the match is dropped")
-	assert_eq(node.gusts_applied, 1)
+	assert_eq(_gusts_seen.size(), 1, "a late packet after the match is dropped")
 
 
 func test_breeze_net_host_refuses_replicated_gusts_and_rebinding_swaps_the_session() -> void:
 	var node: BreezeNet = _breeze_net(_session(true), BreezeHost.new())
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_refused, 1, "the host never applies a replicated gust")
-	assert_eq(node.gusts_applied, 0)
+	assert_eq(_gusts_seen.size(), 0, "the host never applies a replicated gust")
 	assert_true(node.bind(_session(), BreezeHost.new()))
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_applied, 1, "the new binding answers: this node is now a client")
+	assert_eq(_gusts_seen.size(), 1, "the new binding answers: this node is now a client")
 
 
 func test_breeze_net_binds_through_the_shared_port_bound_base() -> void:
@@ -288,7 +285,7 @@ func test_breeze_net_bind_keeps_the_previous_binding_when_refused() -> void:
 	var broken: MatchHostPort = MatchHostPort.new(null)
 	assert_false(node.bind(_session(), broken))
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_applied, 1, "the earlier binding still answers")
+	assert_eq(_gusts_seen.size(), 1, "the earlier binding still answers")
 
 
 func test_an_unbound_breeze_net_reads_the_real_net() -> void:
@@ -296,8 +293,7 @@ func test_an_unbound_breeze_net_reads_the_real_net() -> void:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
 	node.net_breeze_gust(_wire(1))
-	assert_eq(node.gusts_refused, 1, "no bind: the host check goes to the real Net")
-	assert_eq(node.gusts_applied, 0)
+	assert_eq(_gusts_seen.size(), 0, "no bind: the host check goes to the real Net")
 
 
 func test_tuning_panel_breeze_toggle_is_host_only() -> void:
