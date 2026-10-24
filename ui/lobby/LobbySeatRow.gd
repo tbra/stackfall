@@ -110,7 +110,6 @@ var mute_button: Button = null
 ## Test seam: returns whether this row's session can chat (default: networked, not the private host).
 var mute_column_override: Callable = Callable()
 var badge: UiStatusBadge = null
-var badge_label: Label = null
 ## Variant controls (TILES / TABLE / BOARD): the team as ONE block that cycles in place (click / accept = next,
 ## right click = previous; painted in the team colour, or in the destination team's colour on the BOARD mover) and
 ## a bot's difficulty as ONE icon block that cycles the same way. No popups, no < > steppers.
@@ -518,7 +517,6 @@ func _make_badge() -> UiStatusBadge:
 	pill.variant = UiStatusBadge.Look.READY if is_ready else UiStatusBadge.Look.NOT_READY
 	pill.text = ready_tooltip(is_ready)
 	badge = pill
-	badge_label = pill.label
 	return pill
 
 

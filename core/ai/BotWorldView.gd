@@ -222,7 +222,6 @@ static var _scan_revision: int = -1
 static var _scan_live: float = 0.0
 static var _extent_grid_id: int = 0
 static var _extent_value: float = 0.0
-static var scan_count: int = 0
 
 
 static func live_radius_from_raster(raster_value: TerritoryRaster, grid_value: CellGrid) -> float:
@@ -241,7 +240,6 @@ static func live_radius_from_raster(raster_value: TerritoryRaster, grid_value: C
 
 
 static func _scan_live_radius(raster_value: TerritoryRaster, grid_value: CellGrid) -> float:
-	scan_count += 1
 	var best_sq: float = 0.0
 	for index: int in grid_value.in_disk_cells():
 		var xy: Vector2i = grid_value.cell_coords(index)
