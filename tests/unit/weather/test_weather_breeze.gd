@@ -312,6 +312,7 @@ func test_tuning_panel_breeze_toggle_is_host_only() -> void:
 	panel.weather_provider = w
 	panel.net_provider = FakeNet.host()
 	panel.rebuild()
+	panel._tab_container.current_tab = panel._tab_container.get_tab_idx_from_control(panel._tab_container.get_node("Sky"))
 	var toggle: CheckButton = panel._tab_container.find_child("BreezeToggle", true, false) as CheckButton
 	assert_not_null(toggle)
 	assert_false(toggle.disabled)
@@ -319,6 +320,7 @@ func test_tuning_panel_breeze_toggle_is_host_only() -> void:
 	assert_false(w.breeze_enabled())
 	panel.net_provider = FakeNet.client(0)
 	panel.rebuild()
+	panel._tab_container.current_tab = panel._tab_container.get_tab_idx_from_control(panel._tab_container.get_node("Sky"))
 	toggle = panel._tab_container.find_child("BreezeToggle", true, false) as CheckButton
 	assert_true(toggle.disabled)
 	assert_false(panel.apply_breeze_enabled(true))
