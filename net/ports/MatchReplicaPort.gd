@@ -7,13 +7,9 @@ extends RefCounted
 ##
 ## DECISION: see SessionPort for why this is an adapter holding the autoload with a
 ## runtime is_valid() instead of an assert. Signatures are copied from autoload/Match.gd,
-## which is not edited. The TRANSITIONAL entries forward to Match's private `_feed` /
-## `_lifecycle` collaborators and are no-ops when the port adapts nothing (the spies,
-## which override every mirror write).
-
-const FEED_PROPERTY: StringName = &"_feed"
-const LIFECYCLE_PROPERTY: StringName = &"_lifecycle"
-const MATCH_TIMER_PROPERTY: StringName = &"_match_timer_left"
+## which is not edited. The feed / lifecycle entries are no-ops when the port adapts
+## nothing (the spies, which override every mirror write).
+## SHORTCUT: dynamic calls on the RefCounted feed/lifecycle controllers, upgrade when P7 lets the autoload closure name MatchFeed/MatchLifecycle (V1 typing)
 
 var _match: MatchAutoload = null
 var _valid: bool = false
@@ -131,20 +127,18 @@ func end_cat(id: int) -> void:
 	_match.end_cat(id)
 
 
-# --- TRANSITIONAL: Match's private feed / lifecycle collaborators -----------------
-# Typing these as MatchFeed / MatchLifecycle would pull both into the autoload closure
-# (lint_layers L3), so they stay RefCounted reads until P2-Ireach/P2-Irep give Match typed accessors.
+# --- Feed / lifecycle controllers (dynamic calls on Match.feed() / Match.lifecycle()) -----
 
 ## MatchFeed.apply_replicated_next_gift(). No-op without a feed.
 func apply_replicated_next_gift(slot_id: int, shape_id: StringName) -> void:
-	var feed: Object = _collaborator(FEED_PROPERTY)
+	var feed: RefCounted = _match.feed() if _match != null else null
 	if feed != null:
 		feed.call(&"apply_replicated_next_gift", slot_id, shape_id)
 
 
 ## MatchFeed.apply_replicated_staged_gift(). No-op without a feed.
 func apply_replicated_staged_gift(slot_id: int, shape_id: StringName) -> void:
-	var feed: Object = _collaborator(FEED_PROPERTY)
+	var feed: RefCounted = _match.feed() if _match != null else null
 	if feed != null:
 		feed.call(&"apply_replicated_staged_gift", slot_id, shape_id)
 
@@ -152,12 +146,6 @@ func apply_replicated_staged_gift(slot_id: int, shape_id: StringName) -> void:
 ## Writes the host's match clock into MatchLifecycle (MatchWireEvents.MATCH_CLOCK).
 ## No-op without a lifecycle.
 func apply_replicated_match_timer(seconds_left: float) -> void:
-	var lifecycle: Object = _collaborator(LIFECYCLE_PROPERTY)
+	var lifecycle: RefCounted = _match.lifecycle() if _match != null else null
 	if lifecycle != null:
-		lifecycle.set(MATCH_TIMER_PROPERTY, seconds_left)
-
-
-func _collaborator(property_name: StringName) -> Object:
-	if _match == null:
-		return null
-	return _match.get(property_name) as Object
+		lifecycle.apply_replicated_match_timer(seconds_left)

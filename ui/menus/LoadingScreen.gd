@@ -151,8 +151,8 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	_is_fading = false
 	# only the LOADING-state call arms (show_pending() runs in the
 	# lobby state and is a no-op here), and never headless.
-	# DECISION: reaches Match._lifecycle directly (like net/MatchNet.gd's _authority()._lifecycle) rather than through a Match forward.
-	_ready_gate_armed = Match._lifecycle.arm_loading_ready_gate()
+	# DECISION: reaches the controller through Match.lifecycle() rather than a Match forward.
+	_ready_gate_armed = Match.lifecycle().arm_loading_ready_gate()
 	_map_label.text = _map_display_name(config)
 	if not keep_tip:
 		_show_next_tip()
@@ -234,7 +234,7 @@ func accepts_ready_input() -> bool:
 func _gate_waits_for_local_peer() -> bool:
 	if not _ready_gate_armed:
 		return false
-	return Match._lifecycle.loading_gate_blocking() and Match._lifecycle.loading_required_peers().has(Net.local_peer_id())
+	return Match.lifecycle().loading_gate_blocking() and Match.lifecycle().loading_required_peers().has(Net.local_peer_id())
 
 
 func ready_gate_armed() -> bool:
@@ -331,7 +331,7 @@ func _wait_for_ready_gate(token: int) -> void:
 	_refresh_ready_ui()
 	# DECISION: no wait cap -- the overlay stays until the host's gate opens
 	# (everyone ready), the match leaves the pre-play window, or cancel() bumps the token.
-	while Match._lifecycle.loading_gate_blocking():
+	while Match.lifecycle().loading_gate_blocking():
 		await get_tree().process_frame
 		if token != _fade_token:
 			return
@@ -709,9 +709,9 @@ func _refresh_ready_ui() -> void:
 	if not _ready_gate_armed:
 		_ready_box.visible = false
 		return
-	var ready_ids: PackedInt32Array = Match._lifecycle.loading_ready_peers()
+	var ready_ids: PackedInt32Array = Match.lifecycle().loading_ready_peers()
 	for row: Dictionary in _ready_rows:
-		var slot_ready: bool = bool(row["is_bot"]) or Match._lifecycle.loading_slot_ready(int(row["slot_id"]))
+		var slot_ready: bool = bool(row["is_bot"]) or Match.lifecycle().loading_slot_ready(int(row["slot_id"]))
 		var mark: UiStatusBadge = row["mark"] as UiStatusBadge
 		mark.visible = true
 		if (mark.variant == UiStatusBadge.Look.READY) != slot_ready:

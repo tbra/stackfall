@@ -616,6 +616,11 @@ func match_timer_left() -> float:
 	return _match_timer_left
 
 
+## Client mirror of the host's match clock (MatchWireEvents.MATCH_CLOCK).
+func apply_replicated_match_timer(seconds_left: float) -> void:
+	_match_timer_left = seconds_left
+
+
 ## True only in State.SUDDEN_DEATH. MatchGifts._effective_special_frequency()
 ## reads it to ramp the gift chance only once sudden death has started.
 func sudden_death_active() -> bool:

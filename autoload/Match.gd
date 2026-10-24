@@ -279,31 +279,6 @@ func _on_cat_match_state_changed(_old: int, next: int) -> void:
 			end_cat(cat.activation_id)
 
 
-# --- Test/debug seams -------------------------------------------------------
-#
-# tests/ and tools/ reach these directly: _held_shapes (index-assigned),
-# _raster and _solver (read, then a method called on the returned object) and
-# _territory_tuning. Each forwards to the controller that owns the field and,
-# since Array/Object are reference types in GDScript, an index-assignment
-# through a get-only property still mutates the controller's own storage.
-
-var _held_shapes: Array[BlockShape]:
-	get:
-		if not _late_active:
-			var none: Array[BlockShape] = []
-			return none
-		return _feed._held_shapes
-	set(value):
-		_ensure_active()
-		_feed._held_shapes = value
-
-var _raster: TerritoryRaster:
-	get: return _territory._raster if _late_active else null
-
-var _solver: TerritorySolver:
-	get: return _territory._solver if _late_active else null
-
-
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
 func _physics_process(delta: float) -> void:
 	if not _late_active:
@@ -943,6 +918,21 @@ func winner_team() -> int:
 ## tests read it; rules never do).
 func weather() -> RefCounted:
 	return _weather
+
+
+## The feed controller (a MatchFeed); null until late_activate().
+## DECISION: untyped, like stats()/weather(): a typed return would compile the
+## controller closure into the autoload, the startup cost measured against
+## deferred activation. Callers make dynamic calls on the RefCounted; typing
+## waits for the controllers to join the autoload's compile graph.
+func feed() -> RefCounted:
+	return _feed
+
+
+## The lifecycle controller (a MatchLifecycle); null until late_activate().
+## Untyped for the same reason as feed().
+func lifecycle() -> RefCounted:
+	return _lifecycle
 
 
 # --- Match statistics + results (spec 2.4) ----------------------------------

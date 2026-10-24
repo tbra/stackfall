@@ -672,7 +672,7 @@ func apply_replicated_feed(
 ## in-flight intent for the previous held shape is invalidated.
 ##
 ## DECISION (autoload/match/MatchFeed.gd): game/sandbox/Sandbox.gd calls this
-## directly as `Match._feed.debug_force_next_shape(...)` rather than through a
+## directly as `Match.feed().debug_force_next_shape(...)` rather than through a
 ## new one-line Match wrapper like debug_queue_special/set_special_drawer.
 func debug_force_next_shape(slot_id: int, shape_id: StringName) -> void:
 	if not _match._is_host():
