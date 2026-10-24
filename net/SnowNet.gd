@@ -21,11 +21,6 @@ var states_applied: int = 0
 var states_refused: int = 0
 var last_sent_state: Dictionary = {}
 
-## The session methods and the Match reads this node calls; a port is bound with
-## exactly this subset, so a narrow test double stays valid.
-const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_METHODS: PackedStringArray = ["weather", "state", "field", "registry"]
-
 var _tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
 var _pending: Dictionary = {}
 var _has_pending: bool = false
@@ -52,14 +47,6 @@ func _exit_tree() -> void:
 
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
-
-
-func _session_methods() -> PackedStringArray:
-	return SESSION_METHODS
-
-
-func _authority_methods() -> PackedStringArray:
-	return AUTHORITY_METHODS
 
 
 func _process(delta: float) -> void:

@@ -15,11 +15,6 @@ extends PortBoundNode
 ## Largest heading magnitude (radians) a gust may carry: four turns. Wire format, not a tunable.
 const GUST_MAX_ANGLE: float = TAU * 4.0
 
-## The session methods and the Match reads this node calls; a port is bound with
-## exactly this subset, so a narrow test double stays valid.
-const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_METHODS: PackedStringArray = ["state"]
-
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
 var gusts_sent: int = 0
@@ -37,14 +32,6 @@ func _ready() -> void:
 	add_child(presenter)
 	Events.breeze_gust_started.connect(_on_gust_started)
 	Events.match_state_changed.connect(_on_match_state_changed)
-
-
-func _session_methods() -> PackedStringArray:
-	return SESSION_METHODS
-
-
-func _authority_methods() -> PackedStringArray:
-	return AUTHORITY_METHODS
 
 
 func _on_match_state_changed(_from_state: int, to_state: int) -> void:

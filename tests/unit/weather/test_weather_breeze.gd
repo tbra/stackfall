@@ -9,9 +9,6 @@ const HIGH_M: float = 20.0
 const SIM_STEP: float = 0.1
 const BUSY_INTERVAL_S: float = 1.2
 const BUSY_DURATION_S: float = 0.5
-## What the narrow doubles below answer: the calls BreezeNet makes on its two ports.
-const SESSION_CALLS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_CALLS: PackedStringArray = ["state"]
 
 var _tuning: BreezeTuning = null
 var _blocks: Array[Block] = []
@@ -225,35 +222,32 @@ func test_client_sanitizer_accepts_good_and_refuses_hostile_gusts() -> void:
 		assert_true(BreezeNet.sanitize_gust(gust, _tuning).is_empty(), "rejects %s=%s" % [bad[0], bad[1]])
 
 
-class BreezeFakeNet:
-	extends RefCounted
-	var host: bool = false
-
-	func is_host() -> bool:
-		return host
-
-	func is_offline() -> bool:
-		return true
+## An offline session (nothing is sent) that is, or is not, its own host.
+func _session(host: bool = false) -> FakeSessionPort:
+	var fake: FakeNet = FakeNet.offline()
+	fake.is_host_value = host
+	return FakeSessionPort.new(fake)
 
 
-class BreezeFakeMatch:
-	extends RefCounted
+## The host port spy answering the one read BreezeNet makes: state().
+class BreezeHost:
+	extends FakeHostPort
 	var match_state: int = MatchAutoload.State.PLAYING
 
 	func state() -> int:
 		return match_state
 
 
-func _breeze_net(net: BreezeFakeNet, authority: BreezeFakeMatch) -> BreezeNet:
+func _breeze_net(session: SessionPort, authority: MatchHostPort) -> BreezeNet:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
-	assert_true(node.bind(SessionPort.new(net, SESSION_CALLS), MatchHostPort.new(authority, AUTHORITY_CALLS)), "narrow doubles bind")
+	assert_true(node.bind(session, authority), "spy ports bind")
 	return node
 
 
 func test_breeze_net_client_applies_a_good_gust_and_refuses_the_rest() -> void:
-	var authority: BreezeFakeMatch = BreezeFakeMatch.new()
-	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), authority)
+	var authority: BreezeHost = BreezeHost.new()
+	var node: BreezeNet = _breeze_net(_session(), authority)
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_applied, 1)
 	assert_eq(_gusts_seen.size(), 1, "re-emitted for the presenter")
@@ -266,37 +260,34 @@ func test_breeze_net_client_applies_a_good_gust_and_refuses_the_rest() -> void:
 
 
 func test_breeze_net_host_refuses_replicated_gusts_and_rebinding_swaps_the_session() -> void:
-	var net: BreezeFakeNet = BreezeFakeNet.new()
-	net.host = true
-	var node: BreezeNet = _breeze_net(net, BreezeFakeMatch.new())
+	var node: BreezeNet = _breeze_net(_session(true), BreezeHost.new())
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_refused, 1, "the host never applies a replicated gust")
 	assert_eq(node.gusts_applied, 0)
-	var client_net: BreezeFakeNet = BreezeFakeNet.new()
-	assert_true(node.bind(SessionPort.new(client_net, SESSION_CALLS), MatchHostPort.new(BreezeFakeMatch.new(), AUTHORITY_CALLS)))
+	assert_true(node.bind(_session(), BreezeHost.new()))
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_applied, 1, "the new binding answers: this node is now a client")
 
 
 func test_breeze_net_binds_through_the_shared_port_bound_base() -> void:
-	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), BreezeFakeMatch.new())
+	var node: BreezeNet = _breeze_net(_session(), BreezeHost.new())
 	assert_true(is_instance_of(node, PortBoundNode))
-	assert_true(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), MatchHostPort.new(BreezeFakeMatch.new(), AUTHORITY_CALLS)))
+	assert_true(node.bind(_session(), BreezeHost.new()))
 
 
 func test_breeze_net_bind_refuses_an_invalid_port() -> void:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
-	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), broken))
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	assert_false(node.bind(_session(), broken))
 	assert_push_error_count(1, "one conformance error from the broken port")
 	assert_false(node.bind(null, null), "null ports are refused")
 
 
 func test_breeze_net_bind_keeps_the_previous_binding_when_refused() -> void:
-	var node: BreezeNet = _breeze_net(BreezeFakeNet.new(), BreezeFakeMatch.new())
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
-	assert_false(node.bind(SessionPort.new(BreezeFakeNet.new(), SESSION_CALLS), broken))
+	var node: BreezeNet = _breeze_net(_session(), BreezeHost.new())
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	assert_false(node.bind(_session(), broken))
 	assert_push_error_count(1, "one conformance error from the broken port")
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_applied, 1, "the earlier binding still answers")
