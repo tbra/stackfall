@@ -26,7 +26,16 @@ var _fake_match_net: FakeMatchNet = null
 var _fake_match: FakeMatch = null
 
 
+## Frames a wait may take before it fails; a loaded shard delays input delivery, never reorders it.
+const WAIT_FRAMES_MAX: int = 120
+var _mouse_mode_before: Input.MouseMode = Input.MOUSE_MODE_VISIBLE
+
+
 func before_each() -> void:
+	# Drop input a previous test file left queued or held, so it cannot reach this screen.
+	Input.flush_buffered_events()
+	Input.action_release(&"ui_accept")
+	_mouse_mode_before = Input.mouse_mode
 	_screen = autofree(RESULTS_SCREEN_SCENE.instantiate())
 	add_child_autofree(_screen)
 	_fake_net = FakeNet.host()
@@ -45,7 +54,20 @@ func before_each() -> void:
 ## inherit gamepad mode from this one (tests/unit/ui/test_options_menu.gd's own
 ## after_each() already does this for its own gamepad tests).
 func after_each() -> void:
+	Input.flush_buffered_events()
+	Input.mouse_mode = _mouse_mode_before
 	Settings._input(InputEventKey.new())
+
+
+## Waits until `done` is true, at most WAIT_FRAMES_MAX frames, then fails with `what`.
+func _wait_until(done: Callable, what: String) -> bool:
+	for _i: int in WAIT_FRAMES_MAX:
+		if done.call():
+			return true
+		await get_tree().process_frame
+	var reached: bool = done.call()
+	assert_true(reached, "timed out waiting for: %s" % what)
+	return reached
 
 
 func _ffa_results(winner_slot: int = 0) -> Dictionary:
@@ -164,7 +186,7 @@ func test_gamepad_dpad_down_moves_focus_to_the_next_button() -> void:
 	event.button_index = JOY_BUTTON_DPAD_DOWN
 	event.pressed = true
 	Input.parse_input_event(event)
-	await get_tree().process_frame
+	await _wait_until(_screen._lobby_button.has_focus, "D-pad-down moves focus to the Lobby button")
 
 	assert_true(_screen._lobby_button.has_focus(), "a synthetic gamepad D-pad-down press must move focus along the wired chain.")
 
@@ -186,8 +208,7 @@ func test_gamepad_a_activates_the_focused_replay_button() -> void:
 	release.button_index = JOY_BUTTON_A
 	release.pressed = false
 	Input.parse_input_event(release)
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await _wait_until(func() -> bool: return _fake_match_net.replay_calls > 0, "A activates Replay")
 
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A on the focused Replay button must activate it via ui_accept.")
 
@@ -207,7 +228,7 @@ func test_pause_menu_open_at_round_end_leaves_results_interactive() -> void:
 	# Simulate PlayerController re-capturing the mouse on pause_menu_closed.
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_screen._on_pause_menu_closed()
-	await get_tree().process_frame
+	await _wait_until(_screen._replay_button.has_focus, "results regain focus after the pause menu closes")
 	assert_eq(Input.mouse_mode, Input.MOUSE_MODE_VISIBLE, "cursor usable on results")
 	assert_true(_screen._replay_button.has_focus(), "results regain focus")
 	var press: InputEventJoypadButton = InputEventJoypadButton.new()
@@ -219,8 +240,7 @@ func test_pause_menu_open_at_round_end_leaves_results_interactive() -> void:
 	release.device = -1
 	release.button_index = JOY_BUTTON_A
 	Input.parse_input_event(release)
-	await get_tree().process_frame
-	await get_tree().process_frame
+	await _wait_until(func() -> bool: return _fake_match_net.replay_calls > 0, "A reaches Replay after the pause menu closed")
 	assert_eq(_fake_match_net.replay_calls, 1, "gamepad A reaches the results after the pause menu closed")
 
 
