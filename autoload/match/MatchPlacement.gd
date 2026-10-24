@@ -609,30 +609,13 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 
 func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning, gift_id: StringName = &"") -> bool:
 	var physics: PhysicsTuning = _match._physics_tuning
-	# a gift that spawns enlarged is tested as its one scaled cube (bottom-anchored
-	# at the gift cell, like BlockFactory.apply_gift_visual), not as the 1x carrier cells.
-	var gift_scale: float = BlockFactory.activation_scale_for(gift_id) if gift_id != &"" else 1.0
-	if gift_id != &"" and not is_equal_approx(gift_scale, 1.0):
-		var big: BoxShape3D = BoxShape3D.new()
-		big.size = Vector3.ONE * ((physics.cube_size - physics.cube_margin) * gift_scale)
-		var centre: Vector3 = BlockFactory.gift_cell_center(shape, physics) + Vector3.UP * ((gift_scale - 1.0) * (physics.cube_size - physics.cube_margin) * 0.5)
-		var big_params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-		big_params.shape = big
-		big_params.transform = Transform3D(basis, origin + basis * centre)
-		big_params.collide_with_bodies = true
-		big_params.collide_with_areas = false
-		big_params.collision_mask = Field.PLACEMENT_QUERY_MASK
-		for hit: Dictionary in space.intersect_shape(big_params, tuning.collision_probe_max_bodies):
-			if hit.get("collider") is RigidBody3D:
-				return true
-		return false
+	# the same boxes the client ghost tests (BlockFactory.overlap_probe_*)
 	var box: BoxShape3D = BoxShape3D.new()
-	box.size = Vector3.ONE * (physics.cube_size - physics.cube_margin)
-	var pivot: Vector3 = shape.bottom_center()
-	for cell: Vector3i in shape.cells:
+	box.size = Vector3.ONE * BlockFactory.overlap_probe_size(physics, gift_id)
+	for centre: Vector3 in BlockFactory.overlap_probe_centers(shape, physics, gift_id):
 		var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
 		params.shape = box
-		params.transform = Transform3D(basis, origin + basis * ((Vector3(cell) - pivot) * physics.cube_size))
+		params.transform = Transform3D(basis, origin + basis * centre)
 		params.collide_with_bodies = true
 		params.collide_with_areas = false
 		params.collision_mask = Field.PLACEMENT_QUERY_MASK

@@ -4,8 +4,8 @@ extends GutTest
 ## ghost showed before its own lift) and the client (the lift the PlayerController
 ## applies to its ghost on release). The player sees the client ghost, the host
 ## spawns the block, so the two raised poses must agree within the search's own
-## precision. Scope: plain blocks at the unfaced pose over placed blocks (enlarged
-## gifts and faced throws use a different overlap query).
+## precision. Covers plain blocks, an enlarged gift (the host tests one scaled cube) and
+## a faced throw (the host tests the flight-facing basis at the muzzle-matched origin).
 ##
 ## Fixture follows test_playercontroller_spawn_clearance.gd: tiny map, real
 ## Field/Match, no live peer, so Match.request_place() resolves host-inline.
@@ -21,6 +21,7 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 var _saved_feed_config: BlockFeedConfig = null
+var _special_tuning: SpecialTuning = load("res://config/gifts/special_tuning.tres") as SpecialTuning
 var _tuning: GhostTuning = load("res://config/blocks/tuning/ghost_tuning.tres") as GhostTuning
 
 
@@ -105,6 +106,54 @@ func _host_place(pose: Transform3D, controller: PlayerController) -> Block:
 	return captured[0] if not captured.is_empty() else null
 
 
+## Makes `gift_id` the slot's held piece (&"" keeps the plain block) and shows it on the ghost.
+func _hold_gift(controller: PlayerController, gift_id: StringName) -> void:
+	if gift_id == &"":
+		return
+	Match._gifts._ensure_capacity(HOME_SLOT)
+	Match._gifts._held_specials[HOME_SLOT] = gift_id
+	controller._ghost.set_shape(Match.held_shape(HOME_SLOT))
+	controller._ghost.set_held_gift(gift_id)
+
+
+## What the controller sends for a gift release: no camera rig, so a level aim along +Z.
+func _gift_aim(controller: PlayerController) -> Vector3:
+	return controller._camera_forward()
+
+
+func _host_throw(pose: Transform3D, controller: PlayerController, gift_id: StringName) -> Block:
+	var captured: Array[Block] = []
+	var grab: Callable = func(block: RigidBody3D, _shape_id: StringName) -> void:
+		captured.append(block as Block)
+	Events.block_placed.connect(grab)
+	var reason: StringName = Match.request_throw(
+		HOME_SLOT, pose.origin, controller._ghost.orientation_index, controller._ghost.free_quaternion, _gift_aim(controller)
+	)
+	Events.block_placed.disconnect(grab)
+	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the %s throw" % gift_id)
+	return captured[0] if not captured.is_empty() else null
+
+
+## The origin a thrown gift is spawned from: the pose moved onto the camera line (never below
+## gift_aim_min_height_m over the surface), as the host's request_throw() does.
+func _spawn_origin(origin: Vector3, controller: PlayerController) -> Vector3:
+	return GiftAim.spawn_point(origin, _gift_aim(controller), _field.surface_y(), _special_tuning)
+
+
+## Height the host starts its lift search from: the pose itself, or for a gift the spawn point
+## and, for a faced (aimed) one, the muzzle-matched origin.
+func _host_base_y(pose: Transform3D, controller: PlayerController, gift_id: StringName) -> float:
+	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
+	if def == null:
+		return pose.origin.y
+	var origin: Vector3 = _spawn_origin(pose.origin, controller)
+	var faced: Variant = MatchPlacement.launch_facing_basis(def, GiftThrow.mode_for(def), _gift_aim(controller), Vector3.ZERO)
+	if faced == null or GiftThrow.mode_for(def) != GiftThrow.Mode.AIMED:
+		return origin.y
+	var shape: BlockShape = Match.held_shape(HOME_SLOT)
+	return BlockFactory.muzzle_matched_origin(origin, faced as Basis, shape, Match._physics_tuning, gift_id).y
+
+
 func _wait_settled(block: Block) -> void:
 	for _i: int in range(SETTLE_MAX_FRAMES):
 		if block.sleeping:
@@ -119,27 +168,40 @@ func _build_tower(controller: PlayerController, height: int) -> void:
 		await _wait_settled(block)
 
 
-## Host lift (unlifted pose in) vs client release lift (same pose), as rises in
-## metres. Returns {host, client, clear}.
-func _lifts_for(tower_height: int, hover_offset: float) -> Dictionary:
+## Host lift (unlifted pose in) vs client release lift (same pose), as rises in metres above the
+## height the host starts its search from. Returns {host, client, clear, ghost_rise}; ghost_rise is
+## how far the release moved the ghost itself.
+func _lifts_for(tower_height: int, hover_offset: float, gift_id: StringName = &"", lateral_cells: float = 0.0) -> Dictionary:
 	_start_match()
 	var controller: PlayerController = _make_controller()
 	await _build_tower(controller, tower_height)
+	_hold_gift(controller, gift_id)
+	controller._cursor += Vector3.RIGHT * lateral_cells * Match._physics_tuning.cube_size
 	var unlifted: Transform3D = _ghost_pose(controller, hover_offset)
+	controller.set_acting_slot(HOME_SLOT)  # the held gift is the acting seat's
 	var clear_already: bool = not controller._ghost_overlaps_a_placed_block()
+	controller.set_acting_slot(OTHER_SLOT)
 	# host search on its own, from the unlifted pose; its block is then removed
-	var host_block: Block = _host_place(unlifted, controller)
-	var host_rise: float = host_block.global_position.y - unlifted.origin.y
+	var host_block: Block = _host_place(unlifted, controller) if gift_id == &"" else _host_throw(unlifted, controller, gift_id)
+	var host_rise: float = host_block.global_position.y - _host_base_y(unlifted, controller, gift_id)
 	host_block.get_parent().remove_child(host_block)
 	host_block.free()
 	await wait_physics_frames(2)
 	# client lift: the controller's own release of the same pose
 	controller.set_acting_slot(HOME_SLOT)
+	_hold_gift(controller, gift_id)
 	var shown: Vector3 = _ghost_pose(controller, hover_offset).origin
 	assert_eq(shown, unlifted.origin, "fixture: the ghost shows the same unlifted pose")
 	assert_eq(controller._request_place(false), PlacementRules.REASON_OK, "the client's release is accepted")
-	var client_rise: float = controller._ghost.global_position.y - unlifted.origin.y
-	return {"host": host_rise, "client": client_rise, "clear": clear_already}
+	var released: Vector3 = controller._ghost.global_position
+	var ghost_rise: float = released.y - unlifted.origin.y
+	var client_rise: float = ghost_rise
+	if gift_id != &"":
+		# the spawn point lifts the probe to the minimum aim height, so only the part of the
+		# ghost's rise above that clamp reaches the body
+		client_rise = _spawn_origin(released, controller).y - _spawn_origin(unlifted.origin, controller).y
+	await wait_process_frames(1)  # a real idle frame frees the swapped-out held visual before GUT counts orphans
+	return {"host": host_rise, "client": client_rise, "clear": clear_already, "ghost_rise": ghost_rise}
 
 
 ## step / 2^bisect: strictly below the margin spawn_clearance.
@@ -193,3 +255,38 @@ func test_bisect_refined_depths_agree() -> void:
 		_assert_parity(result, "offset %.2f" % offset, true)
 		after_each()
 		before_each()
+
+
+func test_enlarged_gift_agrees() -> void:
+	# bomb: a throw spawning one cube scaled 3x; the host tests that cube, not the 1x carrier cell
+	var result: Dictionary = await _lifts_for(2, 0.0, &"bomb")
+	_assert_parity(result, "enlarged bomb", true)
+
+
+func test_gift_released_at_floor_level_is_probed_at_the_host_spawn_height() -> void:
+	# Hovering on the floor, a one-block tower reaches above the ghost but not above the minimum
+	# aim height the host raises every thrown gift to: the host sees it clear, so the ghost must
+	# not lift either.
+	var result: Dictionary = await _lifts_for(1, 0.0, &"bomb")
+	assert_true(bool(result["clear"]), "fixture: the host's spawn height clears the placed block")
+	_assert_parity(result, "floor-level bomb", false)
+	assert_almost_eq(float(result["ghost_rise"]), 0.0, 0.0001, "the ghost does not lift for a block the host never touches")
+
+
+func test_enlarged_gift_over_a_taller_tower_agrees() -> void:
+	var result: Dictionary = await _lifts_for(3, 0.0, &"bomb")
+	_assert_parity(result, "enlarged bomb, tower of three", true)
+
+
+func test_faced_throw_agrees() -> void:
+	# rocket: spawns facing its flight line, enlarged 2x, at the muzzle-matched origin. Hovered
+	# so the 2x box clears the floor: the floor's shapes would otherwise fill the probe's body cap.
+	var result: Dictionary = await _lifts_for(1, 0.3, &"rocket")
+	_assert_parity(result, "faced rocket", true)
+
+
+func test_enlarged_gift_beside_a_tower_agrees() -> void:
+	# 1.75 cells aside: a 1x cube clears the tower, the 3x bomb cube reaches it
+	var result: Dictionary = await _lifts_for(3, 0.0, &"bomb", 1.75)
+	assert_false(bool(result["clear"]), "fixture: the enlarged cube overlaps the tower")
+	_assert_parity(result, "enlarged bomb beside a tower", true)
