@@ -41,7 +41,7 @@ func before_each() -> void:
 	_net.set_process(false)
 	add_child_autofree(_net)
 	Match._net_provider = FakeNet.client(LOCAL_SLOT)
-	assert_true(_net.bind_ports(SessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(_net.bind_ports(FakeSessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	watch_signals(Events)
 
 
@@ -319,7 +319,7 @@ func test_values_the_client_cannot_trust_are_refused_through_the_port() -> void:
 
 func test_a_host_applies_nothing_it_receives() -> void:
 	Match._net_provider = FakeNet.host({}, [0])
-	assert_true(_net.bind_ports(SessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(_net.bind_ports(FakeSessionPort.new(Match._net_provider), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	var spy: SpyReplica = SpyReplica.new()
 	var applier: Node = _spied_applier(spy)
 	assert_false(applier.apply_event(MatchWireEvents.QOL_FEED, [0, 1, false]))
