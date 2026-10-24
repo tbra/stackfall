@@ -103,8 +103,6 @@ func test_disc_blocks_the_flare_ray_seen_from_below() -> void:
 			"fixture: the forward ray from below passes through the single-sided disc without a hit")
 	assert_eq(flare._occlusion_factor(sun), 0.0, "the reverse ray finds the disc, so the sun is hidden from below")
 	assert_eq(flare._compute_visibility(), 0.0, "and the flare visibility follows")
-	flare.config.reverse_ray_enabled = false
-	assert_eq(flare._occlusion_factor(sun), 1.0, "with the reverse ray off, the old single ray lets the sun through")
 
 
 func test_open_sky_beside_the_disc_is_not_occluded() -> void:

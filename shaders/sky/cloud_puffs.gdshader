@@ -55,7 +55,6 @@ uniform float grade_gamma = 1.2;
 // The far fade targets the shared procedural sky/sea
 // (cloud_common.gdshaderinc). game/sky/CloudSea.gd copies every uniform below
 // from the sky material.
-uniform float procedural_sea_mix = 0.0;
 uniform sampler2D noise_tex : filter_linear_mipmap, repeat_enable;
 uniform vec3 sun_direction = vec3(0.963087, 0.069011, -0.260192);
 uniform vec4 proc_zenith_color : source_color = vec4(0.161, 0.2, 0.333, 1.0);
@@ -466,8 +465,7 @@ void fragment() {
 	float depth = smoothstep(depth_fade_start_m, depth_fade_end_m, -surface.y) * depth_fade_amount;
 	fade = min(1.0 - (1.0 - fade) * (1.0 - depth), far_fade_cap);
 	if (fade > 0.001) {
-		// DECISION: the far fade always targets the procedural sky/sea
-		// (procedural_sea_mix is only copied, not a gate).
+		// DECISION: the far fade always targets the procedural sky/sea.
 		vec3 sky;
 		{
 			// Same composition as sunset_clouds.gdshader's procedural branch, so

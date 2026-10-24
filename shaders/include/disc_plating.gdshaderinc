@@ -26,7 +26,6 @@ uniform float disc_proc_seam_darkness = 0.85;
 uniform float disc_proc_lip_width_px = 1.2;
 uniform float disc_proc_lip_strength = 0.35;
 uniform float disc_proc_lip_highlight = 0.07;
-uniform float disc_proc_seam_reflection_occlusion = 0.6;
 uniform float disc_proc_rivet_radius_m = 0.085;
 uniform float disc_proc_rivet_spacing_m = 0.32;
 uniform float disc_proc_rivet_inset_m = 0.3;

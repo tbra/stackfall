@@ -12,7 +12,6 @@ shader_parameter/grade_dark = Color(0.02, 0.03, 0.08, 1)
 shader_parameter/grade_mid = Color(0.12, 0.17, 0.33, 1)
 shader_parameter/grade_light = Color(0.55, 0.64, 0.82, 1)
 shader_parameter/grade_gamma = 1.2
-shader_parameter/procedural_sea_mix = null
 shader_parameter/sun_direction = null
 shader_parameter/proc_zenith_color = null
 shader_parameter/proc_mid_color = null

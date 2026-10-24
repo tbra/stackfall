@@ -19,7 +19,6 @@ render_mode unshaded, blend_add, cull_disabled, depth_draw_never, skip_vertex_tr
 uniform float wfog_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float wfog_begin = 25.0;
 uniform float wfog_end = 110.0;
-uniform vec4 wfog_color : source_color = vec4(0.72, 0.8, 0.88, 1.0);
 varying float wfog_visible;
 uniform float disc_radius = 30.0;
 uniform vec2 rim_offset = vec2(-1.0, 26.0);

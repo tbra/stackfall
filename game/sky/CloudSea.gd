@@ -24,7 +24,7 @@ const SHARED_SKY_PARAMETERS: Array[StringName] = [
 	&"exposure", &"grade_amount", &"grade_dark", &"grade_mid",
 	&"grade_light", &"grade_gamma",
 	# Procedural sea/gradient the far fade targets.
-	&"procedural_sea_mix", &"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
+	&"noise_tex", &"sun_direction", &"proc_zenith_color", &"proc_mid_color",
 	&"proc_horizon_color", &"proc_gradient_mid_height", &"proc_gradient_power", &"proc_gradient_bands",
 	&"proc_gradient_band_edge", &"proc_horizon_glow_color", &"proc_horizon_glow_width",
 	&"proc_horizon_glow_strength", &"proc_horizon_glow_sun_bias", &"proc_sea_color_near",
@@ -226,8 +226,6 @@ func _copy_static_sky() -> void:
 
 
 func _static_sky_value(parameter: StringName) -> Variant:
-	if parameter == &"procedural_sea_mix":
-		return SkyDomeWriter.PROCEDURAL_SEA_MIX
 	if _static_sky == null:
 		return null
 	return _static_sky.get_shader_parameter(parameter)

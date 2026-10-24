@@ -61,8 +61,7 @@ func setup(t: GiftExplosionFxTuning, radius_m: float, shape_seed: int = 0) -> vo
 	_ring.setup(
 		tuning.ring_color, tuning.ring_radius_per_blast_radius * blast_radius_m, tuning.ring_width_m, tuning.ring_s
 	)
-	if tuning.dust_enabled:
-		_add_dust()
+	_add_dust()
 	advance(0.0)
 	set_process(true)
 

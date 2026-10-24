@@ -294,11 +294,10 @@ func _occlusion_factor(direction: Vector3) -> float:
 	var forward: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
 	if not space_state.intersect_ray(forward).is_empty():
 		return 0.0
-	if config.reverse_ray_enabled:
-		var start: Vector3 = from + direction * minf(config.reverse_ray_length_m, _sun_projection_distance())
-		var reverse: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, from)
-		if not space_state.intersect_ray(reverse).is_empty():
-			return 0.0
+	var start: Vector3 = from + direction * minf(config.reverse_ray_length_m, _sun_projection_distance())
+	var reverse: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, from)
+	if not space_state.intersect_ray(reverse).is_empty():
+		return 0.0
 	return 1.0
 
 

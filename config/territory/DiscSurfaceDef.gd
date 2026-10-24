@@ -44,9 +44,6 @@ extends Resource
 @export var proc_lip_strength: float = 0.35
 ## Additive brightness of the sun-facing lip highlight.
 @export var proc_lip_highlight: float = 0.07
-## How much a seam also darkens the mirror reflection over it (0 = seams vanish
-## under a strong reflection, 1 = seams cut through it).
-@export var proc_seam_reflection_occlusion: float = 0.6
 
 @export_group("Procedural rivets")
 ## Rivet head radius in meters.

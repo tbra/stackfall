@@ -30,9 +30,6 @@ const OUTLINE_MATERIAL: Material = preload("res://assets/models/gifts/gift_outli
 ## Opacity of the hint/owning-slot tint overlay painted over the crate model.
 @export var crate_tint_alpha: float = 0.5
 
-## Cel-shade every built model (gift_toon shader + ink outline).
-@export var toon_enabled: bool = true
-
 static var _shared: GiftModelTable = null
 ## Source material instance id -> its cel-shaded copy, shared by every visual.
 static var _toon_cache: Dictionary = {}
@@ -90,8 +87,7 @@ func _build(entry: GiftModelEntry, world: bool) -> Node3D:
 	var scale_factor: float = entry.model_scale
 	if world and entry.world_scale > 0.0:
 		scale_factor = entry.world_scale
-	if toon_enabled:
-		apply_toon(model)
+	apply_toon(model)
 	var root: Node3D = Node3D.new()
 	root.name = MODEL_NODE
 	model.scale = Vector3.ONE * scale_factor

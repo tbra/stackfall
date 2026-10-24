@@ -217,4 +217,3 @@ func test_configure_cycle_copies_the_cycles_static_sky_material() -> void:
 	var static_value: Variant = def.sky_material.get_shader_parameter(&"proc_sea_softness")
 	if static_value != null:
 		assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"proc_sea_softness"), static_value, "static sea key copied")
-	assert_eq(SkyTestKit.puff_material(sea).get_shader_parameter(&"procedural_sea_mix"), SkyDomeWriter.PROCEDURAL_SEA_MIX, "the cycle's constant sea mix")

@@ -972,7 +972,6 @@ func _apply_procedural_disc(surface: DiscSurfaceDef) -> void:
 		&"disc_proc_lip_width_px": surface.proc_lip_width_px,
 		&"disc_proc_lip_strength": surface.proc_lip_strength,
 		&"disc_proc_lip_highlight": surface.proc_lip_highlight,
-		&"disc_proc_seam_reflection_occlusion": surface.proc_seam_reflection_occlusion,
 		&"disc_proc_rivet_radius_m": surface.proc_rivet_radius_m,
 		&"disc_proc_rivet_spacing_m": surface.proc_rivet_spacing_m,
 		&"disc_proc_rivet_inset_m": surface.proc_rivet_inset_m,
