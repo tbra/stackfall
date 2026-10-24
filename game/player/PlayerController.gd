@@ -1398,20 +1398,22 @@ func _absorb_clearance_raise() -> void:
 ## true size. `unsettled_only` counts only bodies that have not come to rest yet
 ## (_is_settled_body()), for the spawn clearance's settle wait.
 func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
-	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
-	if boxes.is_empty():
+	var gift_id: StringName = _held_gift_id()
+	var physics: PhysicsTuning = _ghost.tuning
+	var centers: Array[Vector3] = BlockFactory.overlap_probe_centers(_ghost.get_shape(), physics, gift_id) if _ghost.get_shape() != null else []
+	if centers.is_empty():
 		return false
 	var world: World3D = get_viewport().world_3d
 	if world == null:
 		return false
+	var pose: Transform3D = _release_pose(gift_id)
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	var box_shape: BoxShape3D = BoxShape3D.new()
-	box_shape.size = Vector3.ONE * (_ghost.collision_half_size() * 2.0)
-	for local_center: Vector3 in boxes:
-		var world_center: Vector3 = _ghost.global_position + _ghost.basis * local_center
+	box_shape.size = Vector3.ONE * BlockFactory.overlap_probe_size(physics, gift_id)
+	for local_center: Vector3 in centers:
 		var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
 		params.shape = box_shape
-		params.transform = Transform3D(_ghost.basis, world_center)
+		params.transform = Transform3D(pose.basis, pose.origin + pose.basis * local_center)
 		params.collide_with_bodies = true
 		params.collide_with_areas = false
 		params.collision_mask = Field.PLACEMENT_QUERY_MASK
@@ -1421,6 +1423,33 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 			if body != null and (not unsettled_only or not _is_settled_body(body)):
 				return true
 	return false
+
+
+## The held gift's id (&"" for an ordinary piece).
+func _held_gift_id() -> StringName:
+	if _match == null or _acting_slot() < 0:
+		return &""
+	return StringName(_match.held_special(_acting_slot()))
+
+
+## The pose the host overlap-tests this release at: the ghost's, except that a gift launched
+## facing its flight line (Rocket, Paintball, Magnet) is tested in that faced basis at the
+## muzzle-matched origin, as MatchPlacement.request_throw() does.
+func _release_pose(gift_id: StringName) -> Transform3D:
+	var pose: Transform3D = Transform3D(_ghost.basis, _ghost.global_position)
+	var def: SpecialDef = SpecialDef.find_by_id(gift_id) if gift_id != &"" else null
+	var mode: GiftThrow.Mode = GiftThrow.mode_for(def)
+	if def == null or mode == GiftThrow.Mode.NONE:
+		return pose
+	var aim: Vector3 = _camera_forward()
+	var velocity: Vector3 = GiftAim.throw_velocity(aim, special_tuning, _throw_range_scale()) if mode == GiftThrow.Mode.THROW else Vector3.ZERO
+	var faced: Variant = MatchPlacement.launch_facing_basis(def, mode, aim, velocity)
+	if faced == null:
+		return pose
+	pose.basis = faced as Basis
+	if mode == GiftThrow.Mode.AIMED:
+		pose.origin = BlockFactory.muzzle_matched_origin(pose.origin, pose.basis, _ghost.get_shape(), _ghost.tuning, gift_id)
+	return pose
 
 
 ## Spec 1.4's auto-drop is [ORIGINAL]: the held block drops from its current
