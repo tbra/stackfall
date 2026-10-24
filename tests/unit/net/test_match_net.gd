@@ -527,8 +527,7 @@ func test_a_replicated_territory_packet_drives_the_mirror_and_the_hole_signal() 
 	assert_false(Match.raster().is_hole_index(target), "fixture: the mirror starts without the hole")
 	watch_signals(Events)
 
-	# The RPC keeps its old arguments for wire compatibility; only the payload counts.
-	net.net_territory(payload, false, PackedFloat32Array(), 9, NAN)
+	net.net_territory(payload)
 
 	assert_true(Match.raster().is_hole_index(target), "The mirror holds exactly what the host sent.")
 	assert_signal_emitted(Events, "hole_cells_changed")
@@ -543,7 +542,7 @@ func test_a_malformed_territory_payload_leaves_the_mirror_alone() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	var before: PackedByteArray = Match.raster().owner_bytes()
 	watch_signals(Events)
-	net.net_territory(PackedByteArray([9, 9, 9]), true, PackedFloat32Array([0.5, 0.5]), 1, 0.5)
+	net.net_territory(PackedByteArray([9, 9, 9]))
 	assert_eq(Match.raster().owner_bytes(), before)
 	assert_signal_not_emitted(Events, "territory_replicated")
 

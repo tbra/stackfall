@@ -163,11 +163,6 @@ func after_each() -> void:
 	Events.block_impacted_at.disconnect(_at_listener)
 
 
-## net_territory's arguments after the packet: neutral values for the slots the packet carries.
-func _tail() -> Array:
-	return [false, PackedFloat32Array(), -1, 0.0]
-
-
 ## The packet of the first net_territory broadcast, empty (and the assert fails) when none went out.
 func _first_packet(rig: Rig) -> PackedByteArray:
 	var sent: Array[Array] = rig.spy.broadcasts_of(&"net_territory")
@@ -399,9 +394,8 @@ func test_territory_goes_out_in_the_rpc_shape_only_when_something_changed() -> v
 	assert_eq(packets.size(), 1)
 	if packets.size() == 1:
 		var args: Array = packets[0]
-		assert_eq(args.size(), 5)
+		assert_eq(args.size(), 1)
 		assert_true(args[0] is PackedByteArray and not (args[0] as PackedByteArray).is_empty())
-		assert_eq(args.slice(1), _tail())
 	rig.module.send_territory()
 	assert_eq(rig.spy.broadcasts_of(&"net_territory").size(), 1)
 	_set_cell(rig, 9, 2)
@@ -421,10 +415,9 @@ func test_the_replay_args_are_a_full_keyframe_a_fresh_client_can_apply() -> void
 	_set_cell(rig, 4, 1)
 	rig.module.send_territory()
 	var args: Array = rig.module.territory_replay_args()
-	assert_eq(args.size(), 5)
-	assert_eq(args.slice(1), _tail())
+	assert_eq(args.size(), 1)
 	var client: Rig = _rig(FakeNet.client(1), true)
-	assert_true(args.size() == 5 and client.module.receive_territory(args[0] as PackedByteArray))
+	assert_true(args.size() == 1 and client.module.receive_territory(args[0] as PackedByteArray))
 	assert_true(client.side.raster_value.owner_bytes() == rig.side.raster_value.owner_bytes(), "same raster")
 
 

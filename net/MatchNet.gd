@@ -788,18 +788,8 @@ func net_block_despawned(net_id: int, reason: String) -> void:
 ## `payload` is one TerritoryReplicator packet (raster diff or keyframe, shares, capture ring,
 ## circles); a client applies it to its mirror raster and re-emits the territory signals, so Field
 ## opens the same holes without a second RPC. A malformed packet is dropped whole.
-# SHORTCUT: the trailing arguments after payload are neutral and ignored, drop them with the next wire version bump.
-# They stay so the RPC surface and its history entry do not change.
-@warning_ignore("unused_parameter")
 @rpc("authority", "call_remote", "reliable")
-func net_territory(
-	payload: PackedByteArray,
-	full: bool,
-	shares: PackedFloat32Array,
-	capture_team: int,
-	capture_progress: float,
-	circle_payload: PackedByteArray = PackedByteArray()
-) -> void:
+func net_territory(payload: PackedByteArray) -> void:
 	if _client_awaiting_world():
 		return
 	_replication().receive_territory(payload)

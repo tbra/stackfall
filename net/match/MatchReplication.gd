@@ -248,6 +248,6 @@ func _impact_replicator() -> ImpactReplicator:
 	return _impacts
 
 
-## net_territory's arguments: the packet, then neutral values for the slots the packet now carries.
+## net_territory's arguments: the packet alone.
 func _territory_rpc_args(packet: PackedByteArray) -> Array:
-	return [packet, false, PackedFloat32Array(), -1, 0.0]
+	return [packet]
