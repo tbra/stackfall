@@ -19,8 +19,8 @@ extends RefCounted
 ## speed=<Engine.time_scale while waiting>, name=<file stem>,
 ## weather=<id>:<intensity> (snaps the CloudCeiling fade, e.g. storm:0.5),
 ## pin_sky_time=<sky_time_s>[,<cloud_drift_s>] (Skybox.set_capture_pin, parity captures; the drift
-## defaults to 0), rng_seed=<n >= 0> (match target: a fixed MatchConfig.rng_seed so block bags and
-## weather rolls repeat run to run). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
+## defaults to 0), rng_seed=<n >= 0> (match and sandbox targets: a fixed MatchConfig.rng_seed so block
+## bags and weather rolls repeat run to run). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
 ## advances by a fixed step per frame.
 
 const TARGET_MAIN_MENU: String = "main_menu"
@@ -59,8 +59,9 @@ const DEFAULT_SPEED: float = 1.0
 const MAX_FRAMES: int = 36000
 const MAX_SPEED: float = 8.0
 const WEATHER_PARTS: int = 2
-## One step this long drives every CloudCeiling fade to its target (snap, not fade).
-const WEATHER_SNAP_STEP_S: float = 100000.0
+## One step this long drives a fade to its target (snap, not fade): every CloudCeiling, and the
+## pinned CloudShadows' sun dimming.
+const SNAP_STEP_S: float = 100000.0
 const CAM_MIN_PARTS: int = 3
 const CAM_TARGET_PARTS: int = 6
 const NO_VALUE: int = -1
@@ -353,7 +354,7 @@ static func setup(host: Node, vp: SubViewport, main: Node, shot: Dictionary) -> 
 		TARGET_LOBBY:
 			error = await _lobby(host, main, shot)
 		TARGET_SANDBOX:
-			error = await _sandbox(host, main, str(shot["preset"]))
+			error = await _sandbox(host, main, shot)
 		TARGET_MATCH:
 			error = await _match(host, main, shot)
 	if not error.is_empty():
@@ -416,14 +417,16 @@ static func apply_capture_pin(tree: SceneTree, sky_time_s: float, cloud_drift_s:
 		shadows.process_mode = Node.PROCESS_MODE_DISABLED if pinned else Node.PROCESS_MODE_INHERIT
 
 
-## Places the pinned CloudShadows for the current sky (zero delta); no-op for an unpinned scene.
+## Places the pinned CloudShadows for the current sky and snaps its sun dimming to the cover at the
+## pinned clouds (the shadow clock does not advance: step() leaves it to _process); no-op for an
+## unpinned scene.
 static func step_pinned_shadows(tree: SceneTree) -> void:
 	for shadows: Node in tree.root.find_children("*", "CloudShadows", true, false):
 		if shadows.process_mode != Node.PROCESS_MODE_DISABLED:
 			continue
 		var sky: Skybox = tree.get_first_node_in_group(Skybox.OVERCAST_GROUP) as Skybox
 		if sky != null:
-			(shadows as CloudShadows).step(0.0, sky.sun_direction(), sky.daylight(), sky.cloud_drift_speed_mps(), sky.cloud_wind_dir())
+			(shadows as CloudShadows).step(SNAP_STEP_S, sky.sun_direction(), sky.daylight(), sky.cloud_drift_speed_mps(), sky.cloud_wind_dir())
 
 
 ## Sets weather `weather_id` to `intensity` and fast-forwards every CloudCeiling fade to it. "" on success.
@@ -434,7 +437,7 @@ static func snap_weather(main: Node, weather_id: StringName, intensity: float) -
 	for node: Node in ceilings:
 		var ceiling: CloudCeiling = node as CloudCeiling
 		ceiling.set_weather_intensity(weather_id, intensity)
-		ceiling.step(WEATHER_SNAP_STEP_S)
+		ceiling.step(SNAP_STEP_S)
 	return ""
 
 
@@ -554,7 +557,8 @@ static func _host_lobby(host: Node, main: Node, shot: Dictionary) -> String:
 	return ""
 
 
-static func _sandbox(host: Node, main: Node, preset: String) -> String:
+static func _sandbox(host: Node, main: Node, shot: Dictionary) -> String:
+	var preset: String = str(shot["preset"])
 	var method: StringName = &"start_sandbox_from_menu"
 	var property: String = "_sandbox"
 	match preset:
@@ -565,14 +569,22 @@ static func _sandbox(host: Node, main: Node, preset: String) -> String:
 		"tutorial":
 			method = &"start_tutorial_from_menu"
 			property = "_tutorial"
+	# The sandbox builds its match from Main's base config: seed a copy for this launch only.
+	var base: MatchConfig = main.get("match_config") as MatchConfig
+	if int(shot["rng_seed"]) != NO_VALUE:
+		var seeded: MatchConfig = base.duplicate(true) as MatchConfig
+		seeded.rng_seed = int(shot["rng_seed"])
+		main.set("match_config", seeded)
 	main.call(method)
-	if not await wait_for(host, func() -> bool: return main.get(property) != null):
+	var started: bool = await wait_for(host, func() -> bool: return main.get(property) != null)
+	main.set("match_config", base)
+	if not started:
 		return "%s did not start" % preset
 	var loading: LoadingScreen = main.get("_loading_screen") as LoadingScreen
 	if loading != null:
 		await wait_for(host, func() -> bool: return not loading.visible)
 	await settle(host, LONG_SETTLE_FRAMES)
-	return ""
+	return _seed_error(shot)
 
 
 static func _match(host: Node, main: Node, shot: Dictionary) -> String:
@@ -604,6 +616,11 @@ static func _match(host: Node, main: Node, shot: Dictionary) -> String:
 	if loading != null:
 		await wait_for(host, func() -> bool: return not loading.visible)
 	await settle(host, LONG_SETTLE_FRAMES)
+	return _seed_error(shot)
+
+
+## "" unless the shot asked for an rng_seed the running match does not use.
+static func _seed_error(shot: Dictionary) -> String:
 	if int(shot["rng_seed"]) != NO_VALUE and Match.config.rng_seed != int(shot["rng_seed"]):
 		return "rng_seed %d did not reach the match (it runs with %d)" % [int(shot["rng_seed"]), Match.config.rng_seed]
 	return ""

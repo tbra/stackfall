@@ -15,8 +15,9 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // silhouettes are round and lumpy at any distance with no mesh facets, and
 // shading uses the true entry point and ellipsoid normal.
 //
-// Motion is all here, driven by TIME and per-instance custom data, so it
-// runs in the game, the editor and the baked demo with no script:
+// Motion is all here, driven by the `sky_time` global (the sky dome's clock, so the far
+// fade's procedural sea matches the sky's; a capture pin freezes it) and per-instance
+// custom data, with no per-frame script writes:
 //  - drift: every clump slides along the shared cloud wind by
 //    drift_offset (integrated on the CPU, core/sky/CloudDriftState.gd) times its own
 //    speed (INSTANCE_CUSTOM.x, set per depth layer: parallax). The clump's rest
@@ -43,6 +44,9 @@ render_mode unshaded, world_vertex_coords, cull_back, depth_draw_always, fog_dis
 // disc and painted cloud patches onto the disc surface; the transparent pass
 // is not part of the SSR/SSAO depth, and it also skips the depth prepass that
 // a discarding opaque shader pays for twice.
+
+// The sky clock game/sky/Skybox.gd publishes (project.godot [shader_globals]).
+global uniform float sky_time;
 
 // Shared with the sky material (game/sky/CloudSea.gd copies these from it).
 uniform float exposure = 0.8;
@@ -334,7 +338,7 @@ void fragment() {
 	}
 	vec3 view_dir = to_frag / max(dist, 0.001);
 	vec3 axes = vec3(puff_axes.x, puff_axes.y, puff_axes.x);
-	float t_boil = TIME * lump_speed;
+	float t_boil = sky_time * lump_speed;
 	vec3 mesh_n = normalize(world_normal);
 	bool round_bottom = base_flat >= round_base_from;
 	bool on_base = mesh_n.y < -0.7 && !round_bottom;
@@ -360,7 +364,7 @@ void fragment() {
 		}
 		vec3 dir = normalize(closest);
 		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale, 1.0, dir.xz);
-		float wave = sin(TIME * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
+		float wave = sin(sky_time * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
 		float radius = 1.0 + (coarse - lump_bias) * lump_height + wave * billow_amount;
 		float miss = closest_sq - radius * radius;
 		float soft = fwidth(miss) * edge_soft_px;
@@ -383,7 +387,7 @@ void fragment() {
 		// direction, so side and base meet along one continuous edge.
 		vec3 dir = normalize(unit);
 		float coarse = lumps(dir, puff_seed, t_boil, lump_vertex_scale, 1.0, dir.xz);
-		float wave = sin(TIME * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
+		float wave = sin(sky_time * billow_speed + puff_seed + dot(dir, vec3(1.0, 0.7, 1.3)) * billow_frequency);
 		float radius = 1.0 + (coarse - lump_bias) * lump_height + wave * billow_amount;
 		float base_sq = dot(unit, unit);
 		if (base_sq > radius * radius) {
@@ -477,7 +481,7 @@ void fragment() {
 				float below = smoothstep(0.0, max(proc_sea_horizon_fade, 0.001), -view_dir.y);
 				pcol = mix(pcol, proc_sea_color_near.rgb, below);
 				pcol = mix(pcol, proc_sea_color_far.rgb, smoothstep(0.0, 1.0, -view_dir.y) * below);
-				pcol = procedural_sea_color(noise_tex, view_dir, sun_dir, TIME, proc_sea_params, proc_sea_heights,
+				pcol = procedural_sea_color(noise_tex, view_dir, sun_dir, sky_time, proc_sea_params, proc_sea_heights,
 					proc_sea_wind, proc_sea_coverage, proc_sea_softness, proc_sea_band_edge, proc_sea_horizon_fade,
 					proc_sea_color_near.rgb, proc_sea_color_far.rgb, cloud_shadow_color, cloud_mid_color,
 					cloud_lit_color, cloud_rim_color, pcol);
