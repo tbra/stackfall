@@ -21,21 +21,18 @@ class FakeSlots:
         self._cap = cap
         self.events = []
         self.held = 0
-        self.fail_on_slot = None
 
     def cap(self):
         return self._cap
 
     @contextlib.contextmanager
-    def godot_slot(self, label="godot", wait_s=None):
-        if self.fail_on_slot is not None and self.held == self.fail_on_slot:
-            raise TimeoutError("no slot")
-        self.held += 1
-        self.events.append(("slot", label))
+    def godot_slots(self, label="godot", count=1, wait_s=None):
+        self.held += count
+        self.events.append(("slots", label, count))
         try:
-            yield self.held
+            yield list(range(count))
         finally:
-            self.held -= 1
+            self.held -= count
 
     @contextlib.contextmanager
     def godot_exclusive(self, label="exclusive", wait_s=None):
@@ -85,7 +82,7 @@ class HoldCapacityTest(unittest.TestCase):
         with res.hold_capacity("glue_fuse", 3, slots=slots):
             self.assertEqual(slots.held, 3)
         self.assertEqual(slots.held, 0)
-        self.assertEqual([e[0] for e in slots.events], ["slot"] * 3)
+        self.assertEqual(slots.events, [("slots", "enet:glue_fuse", 3)])
 
     def test_over_cap_runs_exclusive_not_partial_slots(self):
         slots = FakeSlots(cap=3)
@@ -99,13 +96,6 @@ class HoldCapacityTest(unittest.TestCase):
         with res.hold_capacity("qol", 2, slots=slots):
             pass
         self.assertEqual([e[0] for e in slots.events], ["exclusive"])
-
-    def test_timeout_on_later_slot_releases_earlier_ones(self):
-        slots = FakeSlots(cap=3)
-        slots.fail_on_slot = 2
-        with self.assertRaises(TimeoutError):
-            res.hold_capacity("glue_fuse", 3, slots=slots)
-        self.assertEqual(slots.held, 0)
 
 
 class RunOneTest(unittest.TestCase):

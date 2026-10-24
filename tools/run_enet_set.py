@@ -11,7 +11,7 @@ a wall-clock limit that kills the whole process tree. Every runner declares how 
 it has running at once (host + clients + a late joiner) on a header line `# ENET-PROCESSES: <n>`
 (ENET_PROCESSES_RE); that line is the single source of the count, and a runner without it fails the
 harness (test_run_enet_set fails for it too). The harness holds one tools/godot_slots.py slot per
-declared process; one that declares more processes than godot_slots.cap() runs under
+declared process, all taken at once (godot_slots.godot_slots); one that declares more processes than godot_slots.cap() runs under
 `godot_slots.godot_exclusive` instead, because no slot count could ever cover it. A harness passes only
 on its single `ENET RESULT PASS` line; `ENET RESULT FAIL: <reason>`, a missing result line or a
 timeout is a failure. Prints one line per harness and a final `ENET SET GREEN|RED: p/n passed`.
@@ -19,7 +19,6 @@ Exit 0 = GREEN. Expected duration: several minutes per harness, roughly 30-45 mi
 """
 
 import argparse
-import contextlib
 import glob
 import os
 import re
@@ -73,17 +72,11 @@ def hold_capacity(name, processes, slots=None):
     or the whole machine (godot_exclusive) when that exceeds the slot cap."""
     if slots is None:
         import godot_slots as slots
-    stack = contextlib.ExitStack()
-    try:
-        if processes > slots.cap():
-            stack.enter_context(slots.godot_exclusive("enet:%s x%d" % (name, processes), wait_s=EXCLUSIVE_WAIT_S))
-        else:
-            for i in range(processes):
-                stack.enter_context(slots.godot_slot("enet:%s#%d" % (name, i)))
-    except BaseException:
-        stack.close()  # a timeout on a later slot must not leak the ones already held
-        raise
-    return stack
+    if processes > slots.cap():
+        return slots.godot_exclusive("enet:%s x%d" % (name, processes), wait_s=EXCLUSIVE_WAIT_S)
+    # All slots at once: holding some while waiting for the rest deadlocks against another set's
+    # exclusive request, which blocks new slots until every holder drains.
+    return slots.godot_slots("enet:%s" % name, processes)
 
 
 def parse_result(text):

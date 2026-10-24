@@ -19,7 +19,7 @@ CLI:
   python tools/godot_slots.py run [--label L] [--max-wait S] -- <cmd...>     # holds a slot for the child's life, returns its exit code
   python tools/godot_slots.py run --exclusive [--wait-timeout S] -- <cmd...> # runs the child ALONE (benches, timing)
 Exit codes: 75 = timed out waiting for a slot / for exclusivity.
-API: `with godot_slot("label"): ...`, `with godot_exclusive("label", wait_s=...): ...`
+API: `with godot_slot("label"): ...`, `with godot_slots("label", n): ...` (n slots all-or-none), `with godot_exclusive("label", wait_s=...): ...`
 
 Exclusive mode: a single gate file exclusive.json (O_EXCL, owner pid,
 state waiting|running, same PID-liveness stale reclaim as slots). While a live gate exists
@@ -35,6 +35,7 @@ import argparse
 import contextlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -294,6 +295,34 @@ def acquire(label="godot", pid=None, wait_s=None):
         time.sleep(POLL_S)
 
 
+def acquire_many(label="godot", count=1, pid=None, wait_s=None):
+    """Atomically take `count` slots: all or none. A partial set is released and retried after a
+    jittered pause, never held while waiting: a holder of some slots would otherwise deadlock
+    against an exclusive request that waits for it to drain (and block new slots meanwhile)."""
+    d = slots_dir()
+    pid = pid or os.getpid()
+    wait_s = max_wait() if wait_s is None else wait_s
+    deadline = time.time() + wait_s
+    announced = False
+    while True:
+        got = []
+        for k in range(count):
+            i = try_acquire("%s#%d" % (label, k), pid)
+            if i is None:
+                break
+            got.append(i)
+        if len(got) == count:
+            return got
+        for i in got:
+            release(i)
+        if not announced:
+            print("waiting for %d Godot slots (%d/%d busy)" % (count, busy_count(d), cap()), file=sys.stderr, flush=True)
+            announced = True
+        if time.time() >= deadline:
+            raise TimeoutError("no %d Godot slots free after %.0fs (cap %d)" % (count, wait_s, cap()))
+        time.sleep(POLL_S * (0.5 + random.random()))  # jitter: two sets must not retry in lockstep
+
+
 def _drop_slot(d, index):
     try:
         os.remove(_path(d, index))
@@ -376,6 +405,16 @@ def godot_exclusive(label="exclusive", wait_s=None):
     finally:
         if owner:
             release_exclusive()
+
+
+@contextlib.contextmanager
+def godot_slots(label="godot", count=1, wait_s=None):
+    held = acquire_many(label, count, wait_s=wait_s)
+    try:
+        yield held
+    finally:
+        for i in held:
+            release(i)
 
 
 def release(index):
