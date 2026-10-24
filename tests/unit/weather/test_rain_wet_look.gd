@@ -23,8 +23,17 @@ func _param(key: StringName) -> float:
 	return float(_overlay.material().get_shader_parameter(key))
 
 
+## Stands in for WeatherPresenter's lookup: the one disc this test built.
+func _wet_targets() -> Array[TerritoryOverlay]:
+	var found: Array[TerritoryOverlay] = []
+	if is_instance_valid(_overlay):
+		found.append(_overlay)
+	return found
+
+
 func _presentation() -> RainPresentation:
 	var p: RainPresentation = RainPresentation.new()
+	p.wet_source = _wet_targets
 	add_child_autofree(p)
 	return p
 

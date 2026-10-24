@@ -11,6 +11,18 @@ var intensity: float = 0.0
 var skybox_source: Callable = Callable()
 
 
+## Returns the live Array[TerritoryOverlay] wet-look targets; set by
+## WeatherPresenter before add_child, like skybox_source.
+var wet_source: Callable = Callable()
+
+
+func wet_targets() -> Array[TerritoryOverlay]:
+	var found: Array[TerritoryOverlay] = []
+	if wet_source.is_valid():
+		found = wet_source.call()
+	return found
+
+
 func skyboxes() -> Array[Skybox]:
 	var found: Array[Skybox] = []
 	if skybox_source.is_valid():

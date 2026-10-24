@@ -46,6 +46,17 @@ func _find_skyboxes() -> Array[Skybox]:
 	return found
 
 
+## The wet-look twin of _find_skyboxes: the territory disc also lives in Main.
+func _find_wet_targets() -> Array[TerritoryOverlay]:
+	var found: Array[TerritoryOverlay] = []
+	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
+	if tree == null:
+		return found
+	for node: Node in tree.get_nodes_in_group(TerritoryOverlay.WET_GROUP):
+		found.append(node as TerritoryOverlay)
+	return found
+
+
 func presentation_for(weather_id: StringName) -> WeatherPresentation:
 	var node: Variant = _instances.get(weather_id)
 	return node as WeatherPresentation if is_instance_valid(node) else null
@@ -69,6 +80,7 @@ func _on_started(weather_id: StringName) -> void:
 	var presentation: WeatherPresentation = node as WeatherPresentation
 	if presentation != null:
 		presentation.skybox_source = _find_skyboxes
+		presentation.wet_source = _find_wet_targets
 	add_child(node)
 	_instances[weather_id] = node
 	if presentation != null:
