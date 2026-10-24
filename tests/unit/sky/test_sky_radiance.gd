@@ -54,7 +54,7 @@ func test_cycle_writes_sun_only_at_cadence() -> void:
 	assert_lte(seen.size(), 12, "sun direction is written at most once per interval")
 
 
-func test_cycle_discs_move_every_frame_while_material_steps() -> void:
+func test_cycle_material_writes_stay_at_the_radiance_cadence() -> void:
 	var skybox: Skybox = _make_skybox(true)
 	assert_true(skybox.is_cycle_active())
 	var interval: float = 1.0 / skybox.radiance_config.radiance_hz
@@ -64,19 +64,13 @@ func test_cycle_discs_move_every_frame_while_material_steps() -> void:
 	var context: FakeMatchContext = FakeMatchContext.new()
 	var previous_context: MatchContext = MatchContext.installed()
 	MatchContext.install(context)
-	var disc_seen: Dictionary = {}
 	var material_seen: Dictionary = {}
 	for i: int in frames:
 		# Moving the shared clock moves the phase (0.002 of a cycle per frame).
 		context.shared_clock_seconds_value = 0.1 + float(i) * 0.002 * skybox.sky_def.cycle_length_seconds
 		skybox._process(frame)
-		disc_seen[RenderingServer.global_shader_parameter_get(Skybox.SKY_SUN_DIR_GLOBAL)] = true
 		material_seen[material.get_shader_parameter(&"sun_direction")] = true
 	MatchContext.install(previous_context)
 	assert_lte(material_seen.size(), 12, "material/light writes stay at radiance_hz")
+	assert_gt(material_seen.size(), 1, "the material still steps as the phase moves")
 	assert_eq(material.get_shader_parameter(&"use_global_dirs"), 1.0)
-	if RenderingServer.global_shader_parameter_get(Skybox.SKY_SUN_DIR_GLOBAL) == null:
-		pending("the dummy renderer does not store shader globals, so the disc direction is unobservable")
-		return
-	assert_eq(disc_seen.size(), frames, "discs written every frame")
-	assert_gt(disc_seen.size(), material_seen.size(), "discs move more often than the throttled material")

@@ -663,3 +663,16 @@ func test_palette_variation_values_stay_inside_the_theme_ranges_whatever_the_see
 	def.variation_exposure_max = 1.2
 	SkyEvaluator.apply_variation(def, 0.3, 5, frame)
 	assert_eq(frame.exposure, 1.2, "a collapsed range is a fixed exposure")
+
+
+func test_sun_direction_pins_the_azimuth_and_elevation_at_phases() -> void:
+	var def: SkyCycleDef = SkyCycleDef.new()
+	def.sun_base_direction = Vector3(1.0, 0.5, 0.0)
+	def.cycle_sun_peak_degrees = 60.0
+	var peak: float = deg_to_rad(60.0)
+	var dawn: Vector3 = SkyEvaluator.sun_direction(def, 0.0)
+	assert_almost_eq(dawn, Vector3(1.0, 0.0, 0.0), Vector3.ONE * TOLERANCE, "phase 0 faces the base heading on the horizon")
+	var noon: Vector3 = SkyEvaluator.sun_direction(def, 0.25)
+	assert_almost_eq(noon, Vector3(0.0, sin(peak), cos(peak)), Vector3.ONE * TOLERANCE, "phase 0.25 is the quarter turn at the peak elevation")
+	var night: Vector3 = SkyEvaluator.sun_direction(def, 0.75)
+	assert_almost_eq(night, Vector3(0.0, -sin(peak), -cos(peak)), Vector3.ONE * TOLERANCE, "phase 0.75 is the opposite quarter turn below the horizon")
