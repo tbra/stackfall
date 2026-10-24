@@ -6,11 +6,7 @@ extends RefCounted
 
 const FALLING: int = 0
 const LANDED: int = 1
-## Client-side wire-tracking only states (net/MatchNet.gd's own GiftWirePhase
-## enum aliases these). Never stored in a crate.
-const WIRE_LEGACY: int = 2
+## Client-side wire-tracking only states (net/match/GiftWireGuard.gd). Never stored in a crate.
+const WIRE_SPAWN_ONLY: int = 2
 const WIRE_REMOVED: int = 3
 
-
-static func is_valid_wire_phase(value: int) -> bool:
-	return value >= FALLING and value <= WIRE_REMOVED
