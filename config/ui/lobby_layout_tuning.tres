@@ -4,14 +4,7 @@
 
 [resource]
 script = ExtResource("1_lobbylayout")
-section_spacing_px = 10
 advanced_indent_px = 12
-advanced_toggle_padding_px = 8
-label_column_width_px = 98
-value_column_width_px = 120
-row_control_height_px = 36
-row_separation_px = 12
-row_spacing_px = 8
 color_box_size_px = Vector2(24, 24)
 color_box_corner_radius_px = 6
 seat_row_min_height_px = 0
@@ -26,7 +19,6 @@ open_seat_gap_px = 6
 open_seat_border_px = 2
 open_seat_diamond_alpha = 0.45
 players_card_min_width_px = 384
-seat_difficulty_margin_px = 8
 seat_tile_columns = 4
 seat_tile_marker_px = 48
 seat_tile_tint_mix = 0.22

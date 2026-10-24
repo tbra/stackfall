@@ -62,11 +62,7 @@ extends WeatherTuning
 ## Outline irregularity (0 = smooth oval) and per-puddle darkness spread (0 = uniform).
 @export_range(0.0, 0.5, 0.01) var puddle_outline_irregularity: float = 0.18
 @export_range(0.0, 0.5, 0.01) var puddle_tint_variation: float = 0.18
-## Seeded collection spots (low points): share of puddles drawn around them, how
-## many spots, and the spread around a spot (m).
-@export_range(0.0, 1.0, 0.05) var puddle_cluster_share: float = 0.6
 @export var puddle_cluster_count: int = 6
-@export var puddle_cluster_spread_m: float = 5.0
 
 @export_group("Presentation")
 ## Streak instances at full density on a High/Medium preset.

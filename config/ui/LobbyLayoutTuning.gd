@@ -13,29 +13,14 @@ extends Resource
 ## literal it replaced, so moving the roster rows into LobbyPlayersPanel changes
 ## no pixel. The section/advanced fields are consumed by the S1 packages.
 
-## Vertical gap between two UiSection blocks in the settings column (S1a).
-@export var section_spacing_px: int = 10
 
 ## Left indent of an Advanced block under its section header (S1b).
 @export var advanced_indent_px: int = 12
-## Horizontal padding inside the Advanced disclosure so its focus ring clears the text.
-@export var advanced_toggle_padding_px: int = 8
 
-## Width of the label column every settings row shares, in px.
-@export var label_column_width_px: int = 98
 
-## Width of the value column (slider readout chip / value label) every row shares.
-@export var value_column_width_px: int = 120
 
-## one height for every control in a settings row (cycle selectors, toggles, the
-## -/value/+ stepper pill, the segmented meters), so rows align and no row type towers over another.
-@export var row_control_height_px: int = 36
 
-## Horizontal gap between the cells of one settings row.
-@export var row_separation_px: int = 12
 
-## Vertical gap between settings rows (and between checklist rows).
-@export var row_spacing_px: int = 8
 
 ## smallest width of the Players card, so a full seat row (colour box, name,
 ## difficulty, remove, badge) never clips on the 960x540 mockup-scale canvas; the settings column
@@ -69,8 +54,6 @@ extends Resource
 
 ## Smallest width of a bot's difficulty dropdown, in px.
 @export var seat_difficulty_min_width_px: int = 108
-## largest side margin of the difficulty pill's text, in px.
-@export var seat_difficulty_margin_px: int = 8
 
 ## Width of the focus ring drawn round the colour box while it holds gamepad/keyboard
 ## focus, in px (the box is a flat colour, so the shared theme's ring would vanish

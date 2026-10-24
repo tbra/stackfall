@@ -106,5 +106,4 @@ flake_edge_start = 0.4
 snow_rim_color = Color(0.8, 0.9, 1, 1)
 snow_rim_strength = 0.2
 snow_color = Color(0.8, 0.82, 0.9, 1)
-snow_mid_color = Color(0.8, 0.82, 0.93, 1)
 snow_shade_color = Color(0.55, 0.58, 0.82, 1)

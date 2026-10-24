@@ -21,14 +21,10 @@ extends Resource
 @export var lockup_height_px: float = 46.0
 ## Minimum height of a full-width block (Host, Join, Play offline, local-page options).
 @export var block_height_px: float = 46.0
-## Minimum height of the small blocks (Options, Quit, Back) and compact join-page rows.
-@export var block_small_height_px: float = 36.0
 ## Gap between stacked blocks in addition to the ledge (design: space-3 + drop).
 @export var block_gap_px: int = 10
 ## Extra gap between the lockup/tagline and the first field.
 @export var section_gap_px: float = 10.0
-## Gap between a section label (NAME) and its field.
-@export var label_gap_px: int = 4
 
 ## -- Left scrim ----------------------------------------------------------------------------
 ## Width of the disc-dark gradient that keeps the column readable over the arena.

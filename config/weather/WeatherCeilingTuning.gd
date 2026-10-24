@@ -118,10 +118,6 @@ extends Resource
 ## Rain volume bottom, below the camera, and the tallest volume allowed.
 @export var rain_below_camera_m: float = 20.0
 @export var rain_max_height_m: float = 90.0
-## Snow falls from the ceiling down to this far below the camera; the fall is
-## capped, and quantised in steps so the flake lifetime is not rewritten every
-## frame while the camera moves.
-@export var snow_below_camera_m: float = 4.0
 @export var snow_max_fall_m: float = 80.0
 @export var snow_fall_step_m: float = 8.0
 

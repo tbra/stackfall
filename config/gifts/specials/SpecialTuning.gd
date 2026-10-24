@@ -61,17 +61,11 @@ extends Resource
 @export var gift_throw_range_scale_min: float = 0.5
 @export var gift_throw_range_scale_max: float = 2.0
 
-## Vertical component of the fixed gift throw relative to its horizontal heading (1.0 = 45 deg).
-@export var gift_throw_loft_ratio: float = 1.0
-
 ## Accepted length range of a client-sent aim direction (Rocket/Paintball camera forward).
 ## The client sends a unit vector; anything outside this band is a malformed intent and is
 ## refused (the piece stays held).
 @export var gift_aim_min_length: float = 0.5
 @export var gift_aim_max_length: float = 2.0
-
-## Smallest horizontal component of a fixed-throw aim treated as a heading at all.
-@export var gift_aim_min_horizontal: float = 0.001
 
 ## core/gifts/GiftAim.gd: how far back along the camera forward, in meters,
 ## a camera-aimed gift spawns from the cursor surface point, so the aim line passes through
@@ -83,7 +77,7 @@ extends Resource
 @export var gift_aim_min_height_m: float = 1.0
 
 ## Vertical component added to the unit camera forward of a THROW gift
-## (Bomb, Magnet, Jumping Bean) before renormalising; replaces gift_throw_loft_ratio for the
+## (Bomb, Magnet, Jumping Bean) before renormalising for the
 ## camera-aimed throw (GiftAim.throw_velocity).
 @export var gift_throw_up_ratio: float = 0.35
 
