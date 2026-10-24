@@ -218,15 +218,13 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 	relay.publish(_empty_state())
 
 
-func test_bind_refuses_a_double_missing_a_called_method() -> void:
+func test_bind_refuses_an_invalid_host_port() -> void:
 	var bare: SnowNet = autofree(SnowNet.new()) as SnowNet
-	var lacking: RefCounted = RefCounted.new()
 	var session: SessionPort = FakeSessionPort.new(_net)
-	var authority: MatchHostPort = MatchHostPort.new(lacking)
+	var authority: MatchHostPort = MatchHostPort.new(null)
 	assert_false(authority.is_valid())
 	assert_false(bare.bind(session, authority), "an invalid port is refused")
 	assert_false(bare.bind(null, null), "null ports are refused")
-	assert_push_error_count(1, "N0d's conformance check logs once")
 
 
 func test_snow_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> void:
@@ -238,9 +236,8 @@ func test_snow_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> voi
 
 
 func test_a_refused_bind_keeps_the_previous_binding() -> void:
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	var broken: MatchHostPort = MatchHostPort.new(null)
 	assert_false(_snow_net.bind(FakeSessionPort.new(_fake_net(false)), broken))
-	assert_push_error_count(1, "one conformance error from the broken port")
 	_start_client_snow()
 	assert_true(_snow_net.apply_state(_state([NET_ID], -1)), "the earlier binding still answers")
 

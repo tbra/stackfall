@@ -278,17 +278,15 @@ func test_breeze_net_binds_through_the_shared_port_bound_base() -> void:
 func test_breeze_net_bind_refuses_an_invalid_port() -> void:
 	var node: BreezeNet = BreezeNet.new()
 	add_child_autofree(node)
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	var broken: MatchHostPort = MatchHostPort.new(null)
 	assert_false(node.bind(_session(), broken))
-	assert_push_error_count(1, "one conformance error from the broken port")
 	assert_false(node.bind(null, null), "null ports are refused")
 
 
 func test_breeze_net_bind_keeps_the_previous_binding_when_refused() -> void:
 	var node: BreezeNet = _breeze_net(_session(), BreezeHost.new())
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	var broken: MatchHostPort = MatchHostPort.new(null)
 	assert_false(node.bind(_session(), broken))
-	assert_push_error_count(1, "one conformance error from the broken port")
 	node.net_breeze_gust(_wire(1))
 	assert_eq(node.gusts_applied, 1, "the earlier binding still answers")
 

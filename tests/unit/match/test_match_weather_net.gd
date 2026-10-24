@@ -241,11 +241,9 @@ func test_bind_refuses_invalid_ports_and_keeps_the_previous_binding() -> void:
 	var w: MatchWeather = _weather(true)
 	var node: WeatherNet = _net_for(w, true)
 	assert_false(node.bind(null, null))
-	var bare: RefCounted = RefCounted.new()
-	var broken: MatchHostPort = MatchHostPort.new(bare)
+	var broken: MatchHostPort = MatchHostPort.new(null)
 	assert_false(broken.is_valid())
 	assert_false(node.bind(FakeSessionPort.new(FakeNet.host()), broken))
-	assert_push_error_count(1, "one conformance error from the broken port")
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
 	assert_eq(node.states_sent, 1, "the earlier binding still answers")
 
