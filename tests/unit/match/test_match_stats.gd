@@ -310,6 +310,24 @@ func test_a_seat_taken_by_a_different_peer_loses_its_tally_and_the_host_keeps_it
 		"only the seat that changed occupant starts at 0; the host keeps its wins")
 
 
+func test_a_peer_joining_a_seat_vacated_during_a_match_starts_at_zero_and_the_host_keeps_its_own() -> void:
+	var leaver: Node = await _host_with_client("B")
+	assert_eq(_play_ffa_round(2, 0, 1), [0, 1] as Array[int], "fixture: B holds a win")
+	Match.abort_match()
+	Match.start_match(_free_for_all_config(2))
+	_run_countdown()
+
+	leaver.leave()
+	await _wait_for_roster(1)
+	var newcomer: Node = await _loopback.join_remote_client("C")
+	assert_not_null(newcomer, "fixture: C seated mid-match")
+	assert_eq(Net.slot_of_peer(newcomer.local_peer_id()), 1, "fixture: C takes the vacated seat")
+	await wait_frames(10) # the host's match RPCs reach C's MatchNet without an engine error
+
+	assert_eq(_wins_of(_finish_and_capture(0)), [1, 0] as Array[int],
+		"B's win does not pass to C, and the host's round win counts")
+
+
 func test_a_vacated_seat_that_a_bot_takes_loses_its_tally_and_the_host_keeps_its_own() -> void:
 	var client: Node = await _host_with_client("B")
 	assert_eq(_play_ffa_round(2, 0, 0), [1, 0] as Array[int])

@@ -13,6 +13,8 @@ const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const _ROOT_NAME: String = "LoopbackHostRoot"
 const _HOST_NAME: String = "Net"
 const _CLIENT_ROOT_PREFIX: String = "LoopbackClientRoot"
+const _MATCH_NET_SCRIPT: GDScript = preload("res://net/MatchNet.gd")
+const _MATCH_NET_NAME: String = "MatchNet"
 const _JOIN_WAIT_S: float = 10.0
 ## The first joiner of a host takes the first seat after the host's own.
 const CLIENT_SLOT: int = 1
@@ -54,7 +56,10 @@ func join_net_as_client() -> bool:
 
 ## Joins one more path-isolated Net instance to the session the Net autoload is hosting, the way a
 ## second player does. Returns it once it is seated and holds the full roster, or null.
-func join_remote_client(player_name: String) -> Node:
+## The client root also holds a real MatchNet at the path the host's RPCs target, built over the
+## client's own session; its Match ports are spies, so nothing it receives reaches the host's real
+## Match. Pass with_match_net false when the test installs its own node named "MatchNet".
+func join_remote_client(player_name: String, with_match_net: bool = true) -> Node:
 	if not Net.is_host() or Net.is_offline():
 		return null
 	var root_name: String = "%s%d" % [_CLIENT_ROOT_PREFIX, _remote_clients.size()]
@@ -67,6 +72,11 @@ func join_remote_client(player_name: String) -> Node:
 	client.name = _HOST_NAME
 	root.add_child(client)
 	_remote_clients.append(client)
+	if with_match_net:
+		var match_net: Node = _MATCH_NET_SCRIPT.new()
+		match_net.name = _MATCH_NET_NAME
+		match_net.bind_ports(SessionPort.new(client), FakeHostPort.new(), FakeReplicaPort.new())
+		root.add_child(match_net)
 	Net.set_accepting_joins(true) # a private loopback host refuses remote joins until told otherwise
 	var expected_peers: int = Net.peer_ids().size() + 1
 	if client.join_game("127.0.0.1", Net.host_port(), player_name) != OK:

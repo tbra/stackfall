@@ -173,7 +173,7 @@ func _host_with_client() -> bool:
 	MatchNet.set_process(false)
 	Match.set_replicator(MatchNet)
 	_loopback = LoopbackSession.new(self)
-	_client_net = await _loopback.join_remote_client("Clienty")
+	_client_net = await _loopback.join_remote_client("Clienty", false)
 	assert_not_null(_client_net, "fixture: the remote client is seated")
 	if _client_net == null:
 		return false

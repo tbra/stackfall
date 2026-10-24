@@ -425,7 +425,7 @@ func test_start_match_from_lobby_replicates_only_net_match_start_to_a_real_clien
 	var loopback: LoopbackSession = LoopbackSession.new(self)
 	Net.leave()
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie", false), OK, "fixture: hosting")
-	var client_net: Node = await loopback.join_remote_client("Clienty")
+	var client_net: Node = await loopback.join_remote_client("Clienty", false)
 	assert_not_null(client_net, "fixture: the remote client is seated")
 	if client_net == null:
 		await loopback.end()
