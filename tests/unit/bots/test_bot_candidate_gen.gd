@@ -43,12 +43,12 @@ func _circles(with_tower: bool, with_enemy: bool = false) -> Array[InfluenceCirc
 	]
 	var body: int = 1
 	for x: float in SNAKE_XS:
-		list.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(SNAKE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, SNAKE_TOP_M))
+		list.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(SNAKE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body))
 		body += 1
 	if with_tower:
-		list.append(InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body, TOWER_TOP_M))
+		list.append(InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, body))
 	if with_enemy:
-		list.append(InfluenceCircle.new(ENEMY_POS, InfluenceCircle.radius_for_height(ENEMY_TOP_M, _territory_tuning, MAP_RADIUS), 1, 1, false, 99, ENEMY_TOP_M))
+		list.append(InfluenceCircle.new(ENEMY_POS, InfluenceCircle.radius_for_height(ENEMY_TOP_M, _territory_tuning, MAP_RADIUS), 1, 1, false, 99))
 	return list
 
 

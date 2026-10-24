@@ -88,7 +88,6 @@ func _same(a: InfluenceCircle, b: InfluenceCircle) -> bool:
 	return (
 		a.center == b.center and a.radius == b.radius and a.team_id == b.team_id
 		and a.slot_id == b.slot_id and a.body_id == b.body_id and a.is_home == b.is_home
-		and a.top_height == b.top_height
 	)
 
 
@@ -114,30 +113,6 @@ func _assert_equal(
 	if torque_cached != torque_oracle or height_cached != height_oracle:
 		fail_test("%s: torque or height differs" % label)
 		return false
-	return _assert_adapter_equal(registry, field, cached, label)
-
-
-## the adapter's registry-cached heights must equal heights
-## measured straight from each body (the pre-pooling instance_from_id path).
-func _assert_adapter_equal(
-	registry: BlockRegistry, field: Field, circles: Array[InfluenceCircle], label: String
-) -> bool:
-	for source: int in [SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.HEIGHT_TOP]:
-		var heights: PackedFloat32Array = PackedFloat32Array()
-		for circle: InfluenceCircle in circles:
-			var body: Block = instance_from_id(circle.body_id) as Block
-			if source == SandboxConeExperiment.HEIGHT_TOP:
-				heights.append(circle.top_height)
-			else:
-				heights.append(maxf(field.to_local(body.global_transform * body.center_of_mass).y, 0.0))
-		var measured: Dictionary = SandboxConeAdapter.measure_heights(circles, field, registry, source)
-		if measured.has("error"):
-			fail_test("%s: adapter error %s (source %d)" % [label, measured["error"], source])
-			return false
-		var actual: PackedFloat32Array = measured["heights"]
-		if actual != heights:
-			fail_test("%s: adapter heights differ (source %d)" % [label, source])
-			return false
 	return true
 
 

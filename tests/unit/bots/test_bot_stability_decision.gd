@@ -46,7 +46,7 @@ func before_each() -> void:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(HOME_A, 0, 0, _territory_tuning),
 		InfluenceCircle.for_home(HOME_B, 1, 1, _territory_tuning),
-		InfluenceCircle.new(TOWER, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7, TOWER_TOP_M),
+		InfluenceCircle.new(TOWER, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
 	_raster.fill_ownership(circles, solver.solve(circles), false)
@@ -54,7 +54,7 @@ func before_each() -> void:
 
 
 func _view(held: BlockShape) -> BotWorldView:
-	var block: InfluenceCircle = InfluenceCircle.new(TOWER, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7, TOWER_TOP_M)
+	var block: InfluenceCircle = InfluenceCircle.new(TOWER, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7)
 	var arrays: Dictionary = {
 		"xs": PackedFloat32Array([HOME_A.x, HOME_B.x, TOWER.x]),
 		"zs": PackedFloat32Array([HOME_A.y, HOME_B.y, TOWER.y]),
