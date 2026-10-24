@@ -1298,28 +1298,11 @@ func _raise_ghost_until_clear(for_release: bool = false) -> void:
 	var cap: float = maxf(_hover_offset_ceiling() - base_offset, 0.0)
 	if not for_release:
 		cap = minf(ghost_tuning.spawn_clearance_max_raise, cap)
-	var step: float = maxf(ghost_tuning.spawn_clearance_step, 0.001)
-	# Linear search for the first clear raise, then bisect inside that last step
-	# so the raise is (nearly) the minimum that clears.
-	var low: float = 0.0
-	var high: float = -1.0
-	var raise_try: float = step
-	while raise_try <= cap + 0.0001:
-		if not _overlaps_with_offset(base_offset + minf(raise_try, cap)):
-			high = minf(raise_try, cap)
-			break
-		low = raise_try
-		raise_try += step
-	if high < 0.0:
-		high = cap
-	else:
-		for _i: int in range(ghost_tuning.spawn_clearance_bisect_steps):
-			var mid: float = (low + high) * 0.5
-			if _overlaps_with_offset(base_offset + mid):
-				low = mid
-			else:
-				high = mid
-	var raise_amount: float = minf(high + ghost_tuning.spawn_clearance, cap)
+	var raise_amount: float = ClearanceRaise.first_clear_raise(
+			func(r: float) -> bool: return _overlaps_with_offset(base_offset + r),
+			ghost_tuning.spawn_clearance_step, cap, ghost_tuning.spawn_clearance_bisect_steps, ghost_tuning.spawn_clearance)
+	if raise_amount == ClearanceRaise.NOT_CLEARED:
+		raise_amount = cap
 	_ghost.manual_hover_offset = base_offset + raise_amount
 	_clearance_raise += raise_amount
 	_ghost.update_placement(_last_hit_point, _last_hit_normal)

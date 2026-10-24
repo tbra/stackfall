@@ -18,5 +18,23 @@ const CAP_EPSILON: float = 0.0001
 ## at `step`; the caller keeps its own zero-raise check. Caller policy (cap, refuse vs auto-drop)
 ## stays at the call sites.
 static func first_clear_raise(overlaps: Callable, step: float, cap: float, bisect_steps: int, margin: float) -> float:
-	push_error("not implemented")
-	return NOT_CLEARED
+	var linear_step: float = maxf(step, MIN_STEP)
+	var low: float = 0.0
+	var high: float = NOT_CLEARED
+	var raise_try: float = linear_step
+	while raise_try <= cap + CAP_EPSILON:
+		var r: float = minf(raise_try, cap)
+		if not overlaps.call(r):
+			high = r
+			break
+		low = raise_try
+		raise_try += linear_step
+	if high < 0.0:
+		return NOT_CLEARED
+	for _i: int in range(bisect_steps):
+		var mid: float = (low + high) * 0.5
+		if overlaps.call(mid):
+			low = mid
+		else:
+			high = mid
+	return minf(high + margin, cap)
