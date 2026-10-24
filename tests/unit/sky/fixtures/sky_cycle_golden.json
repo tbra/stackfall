@@ -135,10 +135,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -700,10 +696,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -1267,10 +1259,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -1832,10 +1820,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -2399,10 +2383,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -2964,10 +2944,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -3531,10 +3507,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": true,
 			"light": {
 				"basis": [
@@ -4096,10 +4068,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -4663,10 +4631,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": true,
 			"light": {
 				"basis": [
@@ -5228,10 +5192,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -5795,10 +5755,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -6360,10 +6316,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -6927,10 +6879,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -7457,10 +7405,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -8024,10 +7968,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -8589,10 +8529,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -9156,10 +9092,6 @@
 				"visible": false,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -9721,10 +9653,6 @@
 				],
 				"visible": false,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -10288,10 +10216,6 @@
 				"visible": false,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": true,
 			"light": {
 				"basis": [
@@ -10854,10 +10778,6 @@
 				"visible": false,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -11384,10 +11304,6 @@
 				],
 				"visible": false,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -11951,10 +11867,6 @@
 				"visible": false,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -12516,10 +12428,6 @@
 				],
 				"visible": false,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -13083,10 +12991,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -13648,10 +13552,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -14215,10 +14115,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": true,
 			"light": {
 				"basis": [
@@ -14781,10 +14677,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -15311,10 +15203,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -15878,10 +15766,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -16443,10 +16327,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -17010,10 +16890,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -17575,10 +17451,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -18142,10 +18014,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -18707,10 +18575,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -19274,10 +19138,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -19839,10 +19699,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -20406,10 +20262,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -20971,10 +20823,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -21560,10 +21408,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -22125,10 +21969,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -22692,10 +22532,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -23257,10 +23093,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -23824,10 +23656,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -24389,10 +24217,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -24956,10 +24780,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -25521,10 +25341,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -26088,10 +25904,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -26653,10 +26465,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -27220,10 +27028,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -27785,10 +27589,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -28352,10 +28152,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -28917,10 +28713,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -29484,10 +29276,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -30014,10 +29802,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -30581,10 +30365,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -31146,10 +30926,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -31735,10 +31511,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": true,
 			"light": {
 				"basis": [
@@ -32323,10 +32095,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -32888,10 +32656,6 @@
 				],
 				"visible": false,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -33455,10 +33219,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -34020,10 +33780,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {
@@ -34587,10 +34343,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -35152,10 +34904,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": true,
 			"light": {
@@ -35719,10 +35467,6 @@
 				"visible": true,
 				"y": -40.0
 			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
-			},
 			"life_is_night": false,
 			"light": {
 				"basis": [
@@ -36284,10 +36028,6 @@
 				],
 				"visible": true,
 				"y": -40.0
-			},
-			"globals": {
-				"sky_moon_dir": null,
-				"sky_sun_dir": null
 			},
 			"life_is_night": false,
 			"light": {

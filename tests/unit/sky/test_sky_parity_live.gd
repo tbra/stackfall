@@ -252,10 +252,6 @@ static func dump(rig: Rig) -> Dictionary:
 		"sun_direction": _enc(rig.flare.config.sun_direction),
 	}
 	out["life_is_night"] = _probe_life_is_night(rig)
-	out["globals"] = {
-		"sky_sun_dir": _enc(RenderingServer.global_shader_parameter_get(Skybox.SKY_SUN_DIR_GLOBAL)),
-		"sky_moon_dir": _enc(RenderingServer.global_shader_parameter_get(Skybox.SKY_MOON_DIR_GLOBAL)),
-	}
 	out["facade"] = {
 		"phase": rig.skybox.current_cycle_phase(), "locked": rig.skybox.locked_phase(),
 		"sun_direction": _enc(rig.skybox.sun_direction()), "daylight": rig.skybox.daylight(),
