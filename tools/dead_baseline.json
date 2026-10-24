@@ -120,11 +120,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "net/match/SlotCursors.gd",
-   "reason": "MatchNet cut stub: wired by MC-D"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },

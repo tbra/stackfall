@@ -435,7 +435,11 @@ static func _capture_net(out: Dictionary) -> void:
 	# fingerprinted from LOADING on. The raster-diff cache is excluded: MatchNet._process fills
 	# it on wall-clock cadence, so it differs run to run.
 	if Match.state() != Match.State.LOBBY:
-		out["net.cursors"] = _size_of(_p(MatchNet, &"_cursors"))
+		var cursor_slots: int = 0
+		for slot_id: int in Match.slot_count():
+			if not MatchNet.cursor_for_slot(slot_id).is_empty():
+				cursor_slots += 1
+		out["net.cursors"] = cursor_slots
 		var intents: Array = []
 		for slot_id: int in Match.slot_count():
 			intents.append([MatchNet.intents_sent(slot_id), MatchNet.intents_accepted(slot_id), MatchNet.intents_refused(slot_id)])
