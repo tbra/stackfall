@@ -25,8 +25,9 @@ extends GutTest
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
 const REMOTE_SLOT: int = 1
-const FLOOD_FACTOR: int = 3
-const FLOOD_TIME_S: float = 5.0
+const HALF: float = 0.5
+## HALF + this is just over one refill interval.
+const REFILL_OVERSHOOT: float = 0.75
 const GOOD_ORIENTATION: int = 3
 const TIGHT_BURST: int = 2
 
@@ -360,14 +361,24 @@ func test_a_flood_of_refused_placements_are_answered_only_up_to_the_burst() -> v
 	_make_gateway()
 	_start_playing()
 	var burst: int = _net_config.flood_place_burst
-	_now_s = FLOOD_TIME_S
-	for _i: int in range(FLOOD_FACTOR * burst):
+	var interval_s: float = 1.0 / _net_config.flood_place_refill_per_s
+	for _i: int in range(burst):
 		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst, "the whole burst is answered")
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
 	assert_eq(_replies.size(), burst, "no reply for a flooded intent")
 	assert_eq(_counters.sent_count(REMOTE_SLOT), burst, "a flooded intent is not even counted as sent")
 	assert_eq(_block_count(), 0)
 	assert_eq(_broadcasts, 0, "a dropped intent is not rebroadcast")
 	assert_eq(_fake_net.kick_peer_calls.size(), 0, "a flooder is dropped, never kicked")
+	_now_s += interval_s * HALF
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst, "half a refill interval has not earned a token")
+	_now_s += interval_s * REFILL_OVERSHOOT
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst + 1, "the refilled token admits one more")
+	_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
+	assert_eq(_replies.size(), burst + 1, "and only one")
 
 
 func test_a_single_normal_refusal_is_still_answered_once() -> void:
@@ -384,20 +395,25 @@ func test_a_flood_of_remote_cursors_updates_the_ghost_only_up_to_the_burst() -> 
 	_make_gateway()
 	_start_playing()
 	var burst: int = _net_config.flood_cursor_burst
-	_now_s = FLOOD_TIME_S
-	for _i: int in range(FLOOD_FACTOR * burst):
+	var interval_s: float = 1.0 / _net_config.flood_cursor_refill_per_s
+	for _i: int in range(burst + 1):
 		_remote_cursor(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
 	assert_eq(_ghost_updates, burst, "only what the bucket let through reaches the ghost")
 	assert_eq(_stored_cursors.size(), burst, "and only that is kept for the auto-drop")
 	assert_eq(_broadcasts, burst, "and only that is rebroadcast")
+	_now_s += interval_s * HALF
+	_remote_cursor(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
+	assert_eq(_ghost_updates, burst, "half a refill interval has not earned a token")
+	_now_s += interval_s * REFILL_OVERSHOOT
+	_remote_cursor(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY)
+	assert_eq(_ghost_updates, burst + 1, "the refilled token admits one more")
 
 
 func test_a_peer_leaving_gives_a_rejoin_full_buckets() -> void:
 	_make_gateway()
 	_start_playing()
 	var burst: int = _net_config.flood_place_burst
-	_now_s = FLOOD_TIME_S
-	for _i: int in range(2 * burst):
+	for _i: int in range(burst + 1):
 		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
 	assert_eq(_replies.size(), burst, "fixture: the bucket is drained")
 	_gateway.forget_peer(REMOTE_PEER)
@@ -411,7 +427,6 @@ func test_the_net_config_a_gateway_is_built_with_sets_its_limits() -> void:
 	tight.flood_place_burst = TIGHT_BURST
 	_make_gateway(tight)
 	_start_playing()
-	_now_s = FLOOD_TIME_S
-	for _i: int in range(2 * TIGHT_BURST + 2):
+	for _i: int in range(TIGHT_BURST + 1):
 		_remote_place(_home_world_position(REMOTE_SLOT), 0, Quaternion.IDENTITY, -1)
 	assert_eq(_replies.size(), TIGHT_BURST, "the burst of the config it was built with applies")
