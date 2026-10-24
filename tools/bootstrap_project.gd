@@ -52,6 +52,11 @@ func _apply_settings() -> void:
 		# splash / SplashScreen background so there is no grey flash.
 		"rendering/environment/defaults/default_clear_color": Color.BLACK,
 		"physics/3d/physics_engine": "Jolt Physics",
+		# DECISION: the engine wraps shader TIME every 3600 s by default, which makes
+		# every TIME-animated shader jump once an hour. 86400 s moves the wrap past any
+		# session; float32 TIME then has ~7.8 ms steps near the end (under 1 ms in the
+		# first minutes), about half a frame at 60 fps, so late-session motion stays smooth.
+		"rendering/limits/time/time_rollover_secs": 86400.0,
 		# M8 P7: the macOS export preset is universal/arm64,
 		# which Godot refuses unless ETC2/ASTC VRAM compression is imported.
 		"rendering/textures/vram_compression/import_etc2_astc": true,
