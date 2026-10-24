@@ -381,10 +381,10 @@ func test_a_client_mirrors_a_replicated_dissolve_start_and_drops_bad_payloads() 
 	watch_signals(Events)
 
 	for payload: Array in [[], [92], ["91"], [-1], [91, 0]]:
-		net.net_match_event(MatchNetScript.EVENT_BLOCK_DISSOLVE_STARTED, payload)
+		net.net_match_event(MatchWireEvents.BLOCK_DISSOLVE_STARTED, payload)
 	assert_signal_not_emitted(Events, "block_dissolve_started", "Malformed or unknown ids are dropped.")
 
-	net.net_match_event(MatchNetScript.EVENT_BLOCK_DISSOLVE_STARTED, [91])
+	net.net_match_event(MatchWireEvents.BLOCK_DISSOLVE_STARTED, [91])
 	assert_signal_emitted_with_parameters(
 		Events, "block_dissolve_started", [block, 91, _dissolve_tuning.dissolve_delay_s]
 	)

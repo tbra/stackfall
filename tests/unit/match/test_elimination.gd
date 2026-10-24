@@ -186,7 +186,7 @@ func test_reconnecting_keeps_the_eliminated_and_alive_state() -> void:
 	add_child_autofree(node)
 	node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
-	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [snapshot])
+	node.net_match_event(MatchWireEvents.MODE_STATE, [snapshot])
 	assert_false(Match.slot(1).home_flag_alive)
 	assert_true(Match.slot(0).home_flag_alive)
 	assert_true(Match.slot(2).home_flag_alive)
@@ -208,7 +208,7 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	}
 	var shown: Array[Dictionary] = []
 	Events.mode_state_changed.connect(func(s: Dictionary) -> void: shown.append(s))
-	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [wire])
+	node.net_match_event(MatchWireEvents.MODE_STATE, [wire])
 	var objective: ModeObjective = Match._territory._objective
 	assert_eq(objective.scores()[1], 0.0)
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM)

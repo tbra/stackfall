@@ -222,10 +222,10 @@ func test_net_match_event_match_results_drops_a_malformed_payload() -> void:
 	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
 	Events.match_results_ready.connect(collect)
 
-	net.net_match_event(MatchNetScript.EVENT_MATCH_RESULTS, ["not a dictionary"])
+	net.net_match_event(MatchWireEvents.MATCH_RESULTS, ["not a dictionary"])
 	assert_eq(captured.size(), 0, "a malformed results payload must never reach game code")
 
-	net.net_match_event(MatchNetScript.EVENT_MATCH_RESULTS, [_sample_valid_payload()])
+	net.net_match_event(MatchWireEvents.MATCH_RESULTS, [_sample_valid_payload()])
 	Events.match_results_ready.disconnect(collect)
 	assert_eq(captured.size(), 1, "a well-formed payload is re-emitted for the client's own game code")
 	assert_eq(String(captured[0]["winner_kind"]), "slot")
@@ -376,7 +376,7 @@ func test_client_receives_the_same_tally_over_the_results_event() -> void:
 	var captured: Array[Dictionary] = []
 	var collect: Callable = func(results: Dictionary) -> void: captured.append(results)
 	Events.match_results_ready.connect(collect)
-	net.net_match_event(MatchNetScript.EVENT_MATCH_RESULTS, [wire])
+	net.net_match_event(MatchWireEvents.MATCH_RESULTS, [wire])
 	Events.match_results_ready.disconnect(collect)
 	assert_eq(captured.size(), 1)
 	var client_rows: Array = captured[0]["rows"]

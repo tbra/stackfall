@@ -91,7 +91,7 @@ const LAYOUT_SOURCES: Dictionary = {
 	"res://net/SnapshotSync.gd": "res://core/net/SnapshotWire.gd",
 }
 
-const EVENT_PREFIX: String = "EVENT_"
+const _WIRE_EVENTS_PATH: String = "res://core/net/MatchWireEvents.gd"
 const _NET_CONFIG_SCRIPT: GDScript = preload("res://config/net/NetConfig.gd")
 const _NET_CONFIG_RES: String = "res://config/net/net_config.tres"
 
@@ -200,12 +200,12 @@ static func _wire_constants() -> Dictionary:
 		for const_name: String in LAYOUT_CONSTANTS[path] as Array:
 			values[const_name] = int(map.get(const_name, -1))
 		out[path] = values
-	var match_script: Script = load("res://net/MatchNet.gd") as Script
+	var wire_script: Script = load(_WIRE_EVENTS_PATH) as Script
 	var events: Array = []
-	var match_consts: Dictionary = match_script.get_script_constant_map()
-	for const_name: Variant in match_consts.keys():
-		if String(const_name).begins_with(EVENT_PREFIX) and typeof(match_consts[const_name]) == TYPE_STRING_NAME:
-			events.append(String(match_consts[const_name]))
+	var wire_consts: Dictionary = wire_script.get_script_constant_map()
+	for const_name: Variant in wire_consts.keys():
+		if typeof(wire_consts[const_name]) == TYPE_STRING_NAME:
+			events.append(String(wire_consts[const_name]))
 	events.sort()
 	out["match_event_names"] = events
 	var default_config: Variant = _NET_CONFIG_SCRIPT.new()

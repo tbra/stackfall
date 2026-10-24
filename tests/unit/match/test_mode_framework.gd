@@ -128,7 +128,7 @@ func test_client_mirrors_a_valid_host_mode_state_for_display_only() -> void:
 	var stub: StubTimedObjective = _start_with_stub()
 	var net: MatchNetScript = _client_net()
 	watch_signals(Events)
-	net.net_match_event(MatchNetScript.EVENT_MODE_STATE, [_wire_state()])
+	net.net_match_event(MatchWireEvents.MODE_STATE, [_wire_state()])
 	assert_almost_eq(stub.scores()[0], 3.5, 0.0001)
 	assert_almost_eq(Match._lifecycle.match_timer_left(), 42.0, 0.0001)
 	assert_signal_emitted(Events, "mode_state_changed")
@@ -149,9 +149,9 @@ func test_client_drops_malformed_or_foreign_mode_state() -> void:
 		{"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [9.0, 9.0], "round_left": 1.0},
 	]
 	for bad: Variant in bad_states:
-		net.net_match_event(MatchNetScript.EVENT_MODE_STATE, [bad])
+		net.net_match_event(MatchWireEvents.MODE_STATE, [bad])
 	assert_almost_eq(stub.scores()[0], before, 0.0001, "nothing reached the objective")
-	net.net_match_event(MatchNetScript.EVENT_MODE_STATE, [])
+	net.net_match_event(MatchWireEvents.MODE_STATE, [])
 
 
 # --- Results screen ----------------------------------------------------------------
