@@ -24,17 +24,19 @@ var _hosted: Array[Dictionary] = []
 var _failed: Array[Array] = []
 var _refused: Array[Array] = []
 var _discovered: Array = []
+var _joined: Array[Dictionary] = []
 
 
 func before_each() -> void:
 	_fake = FakeSteam.new()
-	_transport = NetTransport.new()
+	_transport = _ClientTransport.new()
 	_host_peer_builds = 0
 	_offline = true
 	_hosted.clear()
 	_failed.clear()
 	_refused.clear()
 	_discovered.clear()
+	_joined.clear()
 	_session = NetSteamSession.new(_fake, _transport)
 	_session.seams.is_offline = func() -> bool: return _offline
 	_session.seams.is_host = func() -> bool: return true
@@ -48,6 +50,9 @@ func before_each() -> void:
 	_session.host_ready.connect(func(peer: MultiplayerPeer, lobby_id: int, host_name: String) -> void:
 		_offline = false
 		_hosted.append({"peer": peer, "lobby_id": lobby_id, "host_name": host_name}))
+	_session.client_ready.connect(func(peer: MultiplayerPeer, lobby_id: int, local_name: String) -> void:
+		_offline = false
+		_joined.append({"peer": peer, "lobby_id": lobby_id, "local_name": local_name}))
 	_session.request_failed.connect(func(error: int, detail: String) -> void: _failed.append([error, detail]))
 	_session.join_refused.connect(func(error: int, detail: String) -> void: _refused.append([error, detail]))
 	_session.lobbies_discovered.connect(func(lobbies: Array[Dictionary]) -> void: _discovered.append(lobbies))
@@ -59,6 +64,21 @@ func _ready_steam() -> void:
 	_session.init()
 	_transport.steam_host_peer_factory = func() -> MultiplayerPeer:
 		_host_peer_builds += 1
+		return _StubPeer.new()
+
+
+## A NetTransport whose Steam client peer is a stub once `grant_client_peer` is set
+## (SteamMultiplayerPeer is never built in a test); otherwise the real gate answers.
+class _ClientTransport:
+	extends NetTransport
+
+	var grant_client_peer: bool = false
+	var client_peer_hosts: Array[int] = []
+
+	func make_steam_client_peer(host_steam_id: int, steam_ready: bool, real_provider: bool) -> MultiplayerPeer:
+		if not grant_client_peer:
+			return super(host_steam_id, steam_ready, real_provider)
+		client_peer_hosts.append(host_steam_id)
 		return _StubPeer.new()
 
 
@@ -508,3 +528,116 @@ func test_the_frame_pump_only_runs_once_steam_is_ready() -> void:
 	_session.init()
 	_session.process(0.0)
 	assert_eq(_fake.run_callbacks_calls, 1)
+
+
+# --- Joining as a client ---------------------------------------------------------
+
+func test_a_granted_join_hands_net_a_client_peer_for_the_lobby_owner() -> void:
+	(_transport as _ClientTransport).grant_client_peer = true
+	_fake.lobby_owners[_OTHER_LOBBY] = 9001
+	_session.init()
+	assert_eq(_session.join_lobby(_OTHER_LOBBY, "Clienty"), OK)
+	_fake.queue_lobby_joined(_OTHER_LOBBY, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	_frame()
+	assert_eq(_joined.size(), 1, "Net is told once")
+	assert_eq(_joined[0]["lobby_id"], _OTHER_LOBBY)
+	assert_eq(_joined[0]["local_name"], "Clienty")
+	assert_not_null(_joined[0]["peer"])
+	assert_eq((_transport as _ClientTransport).client_peer_hosts, [9001], "the peer targets the lobby's owner")
+	assert_true(_session.is_live())
+	assert_eq(_session.lobby_id(), _OTHER_LOBBY)
+	assert_eq(_failure_count(), 0)
+	assert_true(_fake.leave_lobby_calls.is_empty(), "a joined lobby is kept")
+
+
+func test_a_joined_session_is_left_once_on_leave() -> void:
+	(_transport as _ClientTransport).grant_client_peer = true
+	_session.init()
+	_session.join_lobby(_OTHER_LOBBY, "Clienty")
+	_fake.queue_lobby_joined(_OTHER_LOBBY, FakeSteam.CHAT_ROOM_ENTER_SUCCESS)
+	_frame()
+	_session.leave()
+	assert_eq(_fake.leave_lobby_calls, [_OTHER_LOBBY])
+	assert_false(_session.is_live())
+
+
+# --- Lobby debug list ------------------------------------------------------------
+
+func test_without_lobby_debug_no_unfiltered_search_follows_the_answer() -> void:
+	_ready_steam()
+	_session.steam_lobby_debug = false
+	_session.refresh_lobby_list()
+	_fake.queue_lobby_match_list([])
+	_frame()
+	assert_eq(_fake.unfiltered_requests, 0)
+
+
+func test_lobby_debug_asks_for_the_unfiltered_list_after_the_filtered_answer() -> void:
+	_ready_steam()
+	_session.steam_lobby_debug = true
+	_session.refresh_lobby_list()
+	assert_eq(_fake.unfiltered_requests, 0, "never sent alongside the filtered request")
+	_seed_lobby(1, String(NetIds.DISCOVERY_MAGIC), _VERSION, "Alpha", 3)
+	_fake.queue_lobby_match_list([1])
+	_frame()
+	assert_eq(_fake.unfiltered_requests, 1)
+	assert_eq(_discovered.size(), 1, "the filtered answer is still published")
+	assert_eq((_discovered[0] as Array).size(), 1)
+
+
+func test_the_unfiltered_answer_is_not_published_and_frees_the_next_refresh() -> void:
+	_ready_steam()
+	_session.steam_lobby_debug = true
+	_session.refresh_lobby_list()
+	_fake.queue_lobby_match_list([])
+	_frame()
+	# A foreign lobby in the unfiltered answer must not reach the published list.
+	_seed_lobby(3, "otherGame", "x", "Foreign", 2)
+	_session.refresh_lobby_list()
+	assert_eq(_fake.request_lobby_list_calls.size(), 1, "a refresh waits while the debug request is out")
+	_fake.queue_lobby_match_list([3])
+	_frame()
+	assert_eq(_discovered.size(), 1, "the debug answer publishes nothing")
+	assert_eq(_session.discovered_lobbies().size(), 0)
+	assert_eq(_fake.request_lobby_list_calls.size(), 2, "the waiting refresh goes out after the debug answer")
+	assert_eq(_fake.unfiltered_requests, 1, "the debug answer does not ask again")
+
+
+# --- Self-check ------------------------------------------------------------------
+
+func test_the_selfcheck_runs_once_per_period_while_a_session_is_live() -> void:
+	_host_live()
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S - 0.5)
+	assert_true(_fake.self_check_calls.is_empty(), "not before the period")
+	_session.process(0.5)
+	assert_eq(_fake.self_check_calls, [_HOST_LOBBY])
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S - 0.5)
+	assert_eq(_fake.self_check_calls.size(), 1, "the period restarts after a check")
+	_session.process(0.5)
+	assert_eq(_fake.self_check_calls.size(), 2)
+
+
+func test_the_selfcheck_is_silent_without_a_live_session_and_after_leave() -> void:
+	_ready_steam()
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S * 2.0)
+	assert_true(_fake.self_check_calls.is_empty(), "nothing to check before a session")
+	_host_live()
+	_session.leave()
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S * 2.0)
+	assert_true(_fake.self_check_calls.is_empty(), "nothing to check after leave")
+
+
+func test_a_new_session_restarts_the_selfcheck_period() -> void:
+	_host_live()
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S - 1.0)
+	_session.leave()
+	_hosted.clear()
+	_host_live(_OTHER_LOBBY)
+	_session.process(2.0)
+	assert_true(_fake.self_check_calls.is_empty(), "the old session's elapsed time is not carried over")
+	_session.process(NetSteamSession.SELFCHECK_PERIOD_S)
+	assert_eq(_fake.self_check_calls, [_OTHER_LOBBY])
+
+
+# Manual only: the unfiltered debug search's log line (sample size and fields) and the
+# real SteamMultiplayerPeer client connect need two Steam accounts (the Steam two-account manual steps).
