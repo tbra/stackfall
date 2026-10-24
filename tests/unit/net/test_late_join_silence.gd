@@ -267,4 +267,51 @@ func test_a_replay_that_outlives_the_ack_timeout_stops_muting() -> void:
 	assert_false(_sfx._world_replay_silent, "the host would have dropped this peer by now")
 
 
+func _rebind(client_net: MatchNetScript) -> void:
+	assert_true(client_net.bind_ports(FakeSessionPort.new(FakeNet.client(3)), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+
+
+## The client's world gate and replay span survive a config assignment and a bind_ports rebind:
+## a rebind neither mutes nor un-mutes, and emits no world_replay_changed of its own.
+func test_a_config_set_and_a_rebind_keep_the_replay_gate_state() -> void:
+	var capture: Array[Array] = _build_host_replay()
+	assert_false(capture.is_empty(), "the replay has rows")
+	if capture.is_empty():
+		return
+	var client_net: MatchNetScript = _become_client(3)
+	client_net.config = client_net.config.duplicate() as NetConfig
+	_rebind(client_net)
+	watch_signals(Events)
+	_apply(client_net, capture[0])
+	assert_eq(get_signal_emit_count(Events, "world_replay_changed"), 1)
+	assert_eq(get_signal_parameters(Events, "world_replay_changed", 0), [true])
+
+	# Mid-replay: a rebind and a config set add no emit and do not lift the mute.
+	_rebind(client_net)
+	client_net.config = client_net.config.duplicate() as NetConfig
+	assert_eq(get_signal_emit_count(Events, "world_replay_changed"), 1, "a rebind mid-replay emits nothing")
+	_finish(client_net, capture)
+	assert_eq(get_signal_emit_count(Events, "world_replay_changed"), 2, "the end still closes the span")
+	assert_eq(get_signal_parameters(Events, "world_replay_changed", 1), [false])
+
+
+func test_a_client_that_never_saw_a_match_start_still_awaits_after_config_and_rebind() -> void:
+	var capture: Array[Array] = _build_host_replay()
+	assert_false(capture.is_empty(), "the replay has rows")
+	if capture.is_empty():
+		return
+	var client_net: MatchNetScript = _become_client(3)
+	client_net.config = client_net.config.duplicate() as NetConfig
+	_rebind(client_net)
+	# The gate is shut: a live match event is dropped rather than applied.
+	watch_signals(Events)
+	client_net.net_match_event(MatchWireEvents.PLAYER_ELIMINATED, [1, 1, 1])
+	assert_eq(get_signal_emit_count(Events, "player_eliminated"), 0, "still awaiting the world")
+	# Positive control: the same event is applied once the match start has opened the gate.
+	_apply(client_net, capture[0])
+	var before: int = get_signal_emit_count(Events, "player_eliminated")
+	client_net.net_match_event(MatchWireEvents.PLAYER_ELIMINATED, [1, 1, 1])
+	assert_eq(get_signal_emit_count(Events, "player_eliminated"), before + 1, "the gate opened at the match start")
+
+
 # --- Impacts are not part of the replay -----------------------------------------
