@@ -642,7 +642,7 @@ func invite_friends() -> void:
 
 ## Builds the Steam lobby session and turns its answers into Net state.
 func _build_steam_session() -> void:
-	_steam = NetSteamSession.new(SteamClient.new(), transport, net_roster)
+	_steam = NetSteamSession.new(SteamClient.new(), transport)
 	_steam.config = config
 	var seams: NetSteamSession.Seams = NetSteamSession.Seams.new()
 	seams.is_offline = func() -> bool: return _mode == Mode.OFFLINE

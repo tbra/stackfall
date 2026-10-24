@@ -63,7 +63,6 @@ var steam: SteamClient = null:
 		steam.lobby_join_requested.connect(_on_lobby_join_requested)
 
 var _transport: NetTransport
-var _roster: NetRoster
 var _initialized: bool = false
 ## True once init_result reported status 0 (steamInitEx succeeded).
 var _ready: bool = false
@@ -92,9 +91,8 @@ var _list_sent_msec: int = 0
 var _selfcheck_accum: float = 0.0
 
 
-func _init(provider: SteamClient, transport: NetTransport, roster: NetRoster) -> void:
+func _init(provider: SteamClient, transport: NetTransport) -> void:
 	_transport = transport
-	_roster = roster
 	steam = provider
 
 
