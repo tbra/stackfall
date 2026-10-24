@@ -1388,11 +1388,10 @@ func _absorb_clearance_raise() -> void:
 	_home_spawn_raise = 0.0
 
 
-## A stationary (zero-motion) overlap query at the ghost's *current*
-## global_position/basis, using the same collision boxes _sweep_motion() builds
-## for the swept collision test (collision_box_local_centers()/
-## collision_half_size(), matching what game/blocks/BlockFactory.gd would give
-## the spawned Block). No ghost_collision_skin inflation here (unlike
+## A stationary (zero-motion) overlap query at the pose the host would test the ghost's
+## release at (_release_pose()), with the boxes the host tests for the held piece
+## (BlockFactory.overlap_probe_centers()/overlap_probe_size(), shared with
+## MatchPlacement). No ghost_collision_skin inflation here (unlike
 ## _sweep_motion()'s clearance gap): this asks "does it overlap right now", not
 ## "how much gap should be kept while sliding", so the boxes are used at their
 ## true size. `unsettled_only` counts only bodies that have not come to rest yet
@@ -1432,9 +1431,10 @@ func _held_gift_id() -> StringName:
 	return StringName(_match.held_special(_acting_slot()))
 
 
-## The pose the host overlap-tests this release at: the ghost's, except that a gift launched
-## facing its flight line (Rocket, Paintball, Magnet) is tested in that faced basis at the
-## muzzle-matched origin, as MatchPlacement.request_throw() does.
+## The pose the host overlap-tests this release at: the ghost's, except that an aimed gift
+## spawns on the camera line (GiftAim.spawn_point) and one launched facing its flight line
+## (Rocket, Paintball, Magnet) is tested in that faced basis at the muzzle-matched origin, as
+## MatchPlacement.request_throw() does.
 func _release_pose(gift_id: StringName) -> Transform3D:
 	var pose: Transform3D = Transform3D(_ghost.basis, _ghost.global_position)
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id) if gift_id != &"" else null
@@ -1442,6 +1442,8 @@ func _release_pose(gift_id: StringName) -> Transform3D:
 	if def == null or mode == GiftThrow.Mode.NONE:
 		return pose
 	var aim: Vector3 = _camera_forward()
+	var field: Field = Match.field() if _match == Match else null
+	pose.origin = GiftAim.spawn_point(pose.origin, aim, field.surface_y() if field != null else pose.origin.y, special_tuning)
 	var velocity: Vector3 = GiftAim.throw_velocity(aim, special_tuning, _throw_range_scale()) if mode == GiftThrow.Mode.THROW else Vector3.ZERO
 	var faced: Variant = MatchPlacement.launch_facing_basis(def, mode, aim, velocity)
 	if faced == null:

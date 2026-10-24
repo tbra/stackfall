@@ -192,8 +192,8 @@ static func activation_scale_for(gift_id: StringName) -> float:
 ## cube bottom-anchored at the gift cell (like apply_gift_visual), anything else one box per cell.
 static func overlap_probe_centers(shape: BlockShape, tuning: PhysicsTuning, gift_id: StringName) -> Array[Vector3]:
 	var centers: Array[Vector3] = []
-	var gift_scale: float = activation_scale_for(gift_id) if gift_id != &"" else 1.0
-	if gift_id != &"" and not is_equal_approx(gift_scale, 1.0):
+	var gift_scale: float = activation_scale_for(gift_id)
+	if not is_equal_approx(gift_scale, 1.0):
 		centers.append(gift_cell_center(shape, tuning) + Vector3.UP * ((gift_scale - 1.0) * (tuning.cube_size - tuning.cube_margin) * 0.5))
 		return centers
 	var pivot: Vector3 = shape.bottom_center()
@@ -204,8 +204,7 @@ static func overlap_probe_centers(shape: BlockShape, tuning: PhysicsTuning, gift
 
 ## Edge length of each box overlap_probe_centers() places.
 static func overlap_probe_size(tuning: PhysicsTuning, gift_id: StringName) -> float:
-	var gift_scale: float = activation_scale_for(gift_id) if gift_id != &"" else 1.0
-	return (tuning.cube_size - tuning.cube_margin) * (gift_scale if gift_id != &"" else 1.0)
+	return (tuning.cube_size - tuning.cube_margin) * activation_scale_for(gift_id)
 
 
 ## Where the host must put an AIMED gift's body origin so its model lands on the

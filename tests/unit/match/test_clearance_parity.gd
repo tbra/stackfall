@@ -21,6 +21,7 @@ var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
 var _saved_feed_config: BlockFeedConfig = null
+var _special_tuning: SpecialTuning = load("res://config/gifts/special_tuning.tres") as SpecialTuning
 var _tuning: GhostTuning = load("res://config/blocks/tuning/ghost_tuning.tres") as GhostTuning
 
 
@@ -133,18 +134,24 @@ func _host_throw(pose: Transform3D, controller: PlayerController, gift_id: Strin
 	return captured[0] if not captured.is_empty() else null
 
 
-## Height the host starts its lift search from: the pose itself, or the muzzle-matched origin
-## of a faced (aimed) gift.
+## The origin a thrown gift is spawned from: the pose moved onto the camera line (never below
+## gift_aim_min_height_m over the surface), as the host's request_throw() does.
+func _spawn_origin(origin: Vector3, controller: PlayerController) -> Vector3:
+	return GiftAim.spawn_point(origin, _gift_aim(controller), _field.surface_y(), _special_tuning)
+
+
+## Height the host starts its lift search from: the pose itself, or for a gift the spawn point
+## and, for a faced (aimed) one, the muzzle-matched origin.
 func _host_base_y(pose: Transform3D, controller: PlayerController, gift_id: StringName) -> float:
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id)
 	if def == null:
 		return pose.origin.y
-	var aim: Vector3 = _gift_aim(controller)
-	var faced: Variant = MatchPlacement.launch_facing_basis(def, GiftThrow.mode_for(def), aim, Vector3.ZERO)
+	var origin: Vector3 = _spawn_origin(pose.origin, controller)
+	var faced: Variant = MatchPlacement.launch_facing_basis(def, GiftThrow.mode_for(def), _gift_aim(controller), Vector3.ZERO)
 	if faced == null or GiftThrow.mode_for(def) != GiftThrow.Mode.AIMED:
-		return pose.origin.y
+		return origin.y
 	var shape: BlockShape = Match.held_shape(HOME_SLOT)
-	return BlockFactory.muzzle_matched_origin(pose.origin, faced as Basis, shape, Match._physics_tuning, gift_id).y
+	return BlockFactory.muzzle_matched_origin(origin, faced as Basis, shape, Match._physics_tuning, gift_id).y
 
 
 func _wait_settled(block: Block) -> void:
@@ -161,8 +168,9 @@ func _build_tower(controller: PlayerController, height: int) -> void:
 		await _wait_settled(block)
 
 
-## Host lift (unlifted pose in) vs client release lift (same pose), as rises in
-## metres. Returns {host, client, clear}.
+## Host lift (unlifted pose in) vs client release lift (same pose), as rises in metres above the
+## height the host starts its search from. Returns {host, client, clear, ghost_rise}; ghost_rise is
+## how far the release moved the ghost itself.
 func _lifts_for(tower_height: int, hover_offset: float, gift_id: StringName = &"", lateral_cells: float = 0.0) -> Dictionary:
 	_start_match()
 	var controller: PlayerController = _make_controller()
@@ -185,8 +193,15 @@ func _lifts_for(tower_height: int, hover_offset: float, gift_id: StringName = &"
 	var shown: Vector3 = _ghost_pose(controller, hover_offset).origin
 	assert_eq(shown, unlifted.origin, "fixture: the ghost shows the same unlifted pose")
 	assert_eq(controller._request_place(false), PlacementRules.REASON_OK, "the client's release is accepted")
-	var client_rise: float = controller._ghost.global_position.y - unlifted.origin.y
-	return {"host": host_rise, "client": client_rise, "clear": clear_already}
+	var released: Vector3 = controller._ghost.global_position
+	var ghost_rise: float = released.y - unlifted.origin.y
+	var client_rise: float = ghost_rise
+	if gift_id != &"":
+		# the spawn point lifts the probe to the minimum aim height, so only the part of the
+		# ghost's rise above that clamp reaches the body
+		client_rise = _spawn_origin(released, controller).y - _spawn_origin(unlifted.origin, controller).y
+	await wait_process_frames(1)  # a real idle frame frees the swapped-out held visual before GUT counts orphans
+	return {"host": host_rise, "client": client_rise, "clear": clear_already, "ghost_rise": ghost_rise}
 
 
 ## step / 2^bisect: strictly below the margin spawn_clearance.
@@ -244,8 +259,18 @@ func test_bisect_refined_depths_agree() -> void:
 
 func test_enlarged_gift_agrees() -> void:
 	# bomb: a throw spawning one cube scaled 3x; the host tests that cube, not the 1x carrier cell
-	var result: Dictionary = await _lifts_for(1, 0.0, &"bomb")
+	var result: Dictionary = await _lifts_for(2, 0.0, &"bomb")
 	_assert_parity(result, "enlarged bomb", true)
+
+
+func test_gift_released_at_floor_level_is_probed_at_the_host_spawn_height() -> void:
+	# Hovering on the floor, a one-block tower reaches above the ghost but not above the minimum
+	# aim height the host raises every thrown gift to: the host sees it clear, so the ghost must
+	# not lift either.
+	var result: Dictionary = await _lifts_for(1, 0.0, &"bomb")
+	assert_true(bool(result["clear"]), "fixture: the host's spawn height clears the placed block")
+	_assert_parity(result, "floor-level bomb", false)
+	assert_almost_eq(float(result["ghost_rise"]), 0.0, 0.0001, "the ghost does not lift for a block the host never touches")
 
 
 func test_enlarged_gift_over_a_taller_tower_agrees() -> void:
