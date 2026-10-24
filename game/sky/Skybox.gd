@@ -151,8 +151,8 @@ func _process(delta: float) -> void:
 	_publish_globals()
 	# The sky material is written at radiance_hz (a write re-renders the radiance octmap); the
 	# phase comes from the exact shared clock at each write so host and client agree. A locked
-	# sky is never ticked.
-	if radiance_due and _clock.is_active() and _clock.locked_phase() < 0.0:
+	# sky is never ticked, nor a capture-pinned one (it holds the phase set_cycle_phase gave it).
+	if radiance_due and _clock.is_active() and _clock.locked_phase() < 0.0 and _pinned_sky_time_s < 0.0:
 		_advance_cycle(_shared_clock_s())
 	_flush_weather()
 	_probe_wait_s += delta
@@ -179,11 +179,13 @@ func _shared_clock_s() -> float:
 
 
 ## Writes the shader globals every frame: the sky clock and the exact (not tick-stepped) sun and
-## moon disc directions. A global lives in the shared buffer, so there is no material dirty.
+## moon disc directions (under a capture pin, the held evaluated phase's). A global lives in the
+## shared buffer, so there is no material dirty.
 func _publish_globals() -> void:
 	var direction: Vector3 = _last_disc_sun_direction
 	if _clock.is_active() and sky_def != null:
-		direction = SkyEvaluator.sun_direction(sky_def, _clock.phase_at(_shared_clock_s()))
+		var phase: float = _cycle_phase_last if _pinned_sky_time_s >= 0.0 else _clock.phase_at(_shared_clock_s())
+		direction = SkyEvaluator.sun_direction(sky_def, phase)
 		_last_disc_sun_direction = direction
 	var wrap: float = radiance_config.time_wrap_seconds
 	_dome.publish_globals(direction, fposmod(_sky_clock_s, wrap))
@@ -326,15 +328,25 @@ func set_cycle_length_seconds(seconds: float) -> void:
 	_clock.advance(_cycle_clock_s, length)
 
 
-## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global and the cloud drift
-## offset so two shots of one state are identical. A negative value leaves that clock running.
+## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global and the cloud puffs'
+## clock at it, holds a running cycle at its evaluated phase and freezes the cloud drift offset,
+## so two shots of one state are identical. A negative value leaves that clock running.
 func set_capture_pin(sky_time_s: float, cloud_drift_s: float) -> void:
 	_pinned_sky_time_s = sky_time_s
 	_pinned_cloud_drift_s = cloud_drift_s
+	if _cloud_sea != null:
+		# DECISION: in play the puffs keep engine TIME (the main-branch look, pause included); only a
+		# pin hands them the pinned sky clock, wrapped as the dome's is so the far fade still matches.
+		var puff_time_s: float = fposmod(sky_time_s, radiance_config.time_wrap_seconds) if sky_time_s >= 0.0 else -1.0
+		_cloud_sea.set_capture_time(puff_time_s)
 	if sky_time_s >= 0.0 or cloud_drift_s >= 0.0:
-		# A pinned capture uses the fixed default seed so two shots of one state agree.
+		# A pinned capture uses the fixed default seed so two shots of one state agree; the shown
+		# phase is re-evaluated with it (a locked sky is never re-ticked otherwise).
 		_variation_seed = SkyVariation.DEFAULT_SEED
 		_cloud_drift.reset(_variation_seed)
+		if _has_tick:
+			_tick_to(_cycle_phase_last, true)
+			_flush_weather()
 
 
 # --- evaluation -------------------------------------------------------------------------------

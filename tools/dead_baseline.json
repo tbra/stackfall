@@ -530,6 +530,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/sky/CloudSea.gd:set_capture_time",
+   "reason": "game/sky/Skybox.gd set_capture_pin, called by tools/shot_targets.gd apply_capture_pin (capture tool)"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/sky/Skybox.gd:set_capture_pin",
    "reason": "tools/shot_targets.gd:410 (capture tool)"
   },
