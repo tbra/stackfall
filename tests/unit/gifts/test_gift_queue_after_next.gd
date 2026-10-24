@@ -151,6 +151,6 @@ func test_slot_replay_carries_the_staged_gift() -> void:
 	Match._feed._staged_gift_shapes.clear()
 	Match._gifts._pending_queues[0].clear()
 	Match._net_provider = fake
-	net._apply_slot_replay(args)
+	net.net_match_event(MatchWireEvents.SLOT_REPLAY, args)
 	assert_eq(Match.after_next_special(0), &"anvil")
 	assert_eq(Match.next_special(0), &"")

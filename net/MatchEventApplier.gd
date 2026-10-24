@@ -11,29 +11,29 @@ extends Node
 ## validates the values the shape cannot (ranges, ids, ownership, match state) and then makes
 ## its writes through the typed MatchReplicaPort. Every handler answers whether it applied.
 
-## The owning MatchNet autoload (or a test instance); set before first use.
-var _net: Node = null
+## EVENT_SPECIAL_TRIGGERED's chain_depth wire bound (SpecialTuning.max_chain_depth): the config is
+## architecture-fixed for the build, so it is preloaded rather than read from the running match.
+var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
+## The fade length a client reports with a replicated dissolve start (the shipped resource the
+## host's HoleDissolver reads).
+var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 
 var _session: SessionPort = null
 var _host: MatchHostPort = null
 var _replica: MatchReplicaPort = null
-## String(SpecialDef.id) -> true, built once from the roster.
-var _known_special_ids: Dictionary = {}
-var _known_special_ids_built: bool = false
+var _config: NetConfig = null
+var _gifts: GiftWireGuard = null
 var _handlers: Dictionary = {}
 
 
-## Binds the typed write port (MatchNet passes the real one; a test passes a port over a spy).
-## Until it is bound every event is refused.
-func bind_replica(replica: MatchReplicaPort) -> void:
-	_replica = replica
-
-
-## Interface stub of the MatchNet cut: replaces bind_replica and the _net reach-in. Nothing calls
-## it yet.
-@warning_ignore("unused_parameter")
+## Binds the ports, the wire config and the gift wire state; MatchNet calls it again on every
+## rebind (this node holds no state beyond these refs). Until it is bound every event is refused.
 func bind(session: SessionPort, host: MatchHostPort, replica: MatchReplicaPort, config: NetConfig, gifts: GiftWireGuard) -> void:
-	push_error("MatchEventApplier.bind: not implemented")
+	_session = session
+	_host = host
+	_replica = replica
+	_config = config
+	_gifts = gifts
 
 
 ## Validates and applies one host-authored match event. False when the event is unknown, its
@@ -44,16 +44,9 @@ func apply_event(event: StringName, args: Array) -> bool:
 		return false
 	if _replica == null or not _replica.is_valid():
 		return false
-	_bind_ports()
 	if _handlers.is_empty():
 		_build_handlers()
 	return bool((_handlers[event] as Callable).call(args))
-
-
-## The session and host ports are MatchNet's; they are re-read so a bind_ports() swap reaches here.
-func _bind_ports() -> void:
-	_session = _net._session_port()
-	_host = _net._host_port()
 
 
 func _build_handlers() -> void:
@@ -92,25 +85,8 @@ func _build_handlers() -> void:
 	}
 
 
-func _wire_config() -> NetConfig:
-	return _net.config as NetConfig
-
-
 func _slot_ok(slot_id: int) -> bool:
 	return slot_id >= 0 and slot_id < _host.slot_count()
-
-
-## A special id shaped like one of ours AND either the pending placeholder or a roster member.
-func _gift_special_id_ok(special_id: StringName) -> bool:
-	if not WireLimits.special_id_ok(special_id, _wire_config()):
-		return false
-	if special_id == SpecialIds.PENDING:
-		return true
-	if not _known_special_ids_built:
-		for def: SpecialDef in SpecialDef.load_all_specials():
-			_known_special_ids[def.id] = true
-		_known_special_ids_built = true
-	return _known_special_ids.has(special_id)
 
 
 func _block_for(net_id: int) -> BlockBody:
@@ -171,12 +147,12 @@ func _on_gift_slot(args: Array) -> bool:
 		return false
 	var slot_contents: Array[StringName] = []
 	for entry: Variant in contents:
-		if not (entry is String or entry is StringName) or not _gift_special_id_ok(StringName(entry)):
+		if not (entry is String or entry is StringName) or not _gifts.special_id_ok(StringName(entry)):
 			return false
 		slot_contents.append(StringName(entry))
 	var activated_special: StringName = args[2]
 	var carrier_id: StringName = args[3]
-	if activated_special != &"" and (not _gift_special_id_ok(activated_special) or not _host.feed_knows_shape(carrier_id)):
+	if activated_special != &"" and (not _gifts.special_id_ok(activated_special) or not _host.feed_knows_shape(carrier_id)):
 		return false
 	_replica.apply_replicated_gift_slot(args[0], slot_contents, activated_special, carrier_id)
 	return true
@@ -198,7 +174,7 @@ func _on_placement_rejected(args: Array) -> bool:
 	var reason: String = String(args[1])
 	if _session.is_host() or not _slot_ok(rejected_slot):
 		return false
-	if WireLimits.reject_reason_clamped(reason, _wire_config()) != reason:
+	if WireLimits.reject_reason_clamped(reason, _config) != reason:
 		return false
 	if not _session.is_local_slot(rejected_slot):
 		return false
@@ -275,10 +251,9 @@ func _on_gift_flight(args: Array) -> bool:
 		return false
 	if not is_finite(origin.distance_to(landing)) or origin.y < landing.y:
 		return false
-	if _net._gift_wire_phases.has(gift_id) and int(_net._gift_wire_phases[gift_id]) != MatchNet.GiftWirePhase.SPAWN_ONLY:
+	if not _gifts.begin_flight(gift_id):
 		return false
 	_replica.apply_replicated_gift_flight(gift_id, origin, landing)
-	_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.FALLING)
 	Events.gift_flight_spawned.emit(gift_id, origin, landing)
 	return true
 
@@ -286,13 +261,12 @@ func _on_gift_flight(args: Array) -> bool:
 func _on_gift_landed(args: Array) -> bool:
 	var gift_id: int = args[0]
 	var landing: Vector3 = args[1]
-	if gift_id < 0 or not landing.is_finite() or _net._gift_wire_phases.get(gift_id, -1) != MatchNet.GiftWirePhase.FALLING:
+	if gift_id < 0 or not landing.is_finite():
 		return false
 	var state: Dictionary = _host.gift_state(gift_id)
-	if state.is_empty() or not landing.is_equal_approx(state["landing"]):
+	if state.is_empty() or not landing.is_equal_approx(state["landing"]) or not _gifts.land(gift_id):
 		return false
 	_replica.apply_replicated_gift_landed(gift_id, landing)
-	_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.LANDED)
 	Events.gift_landed.emit(gift_id, landing)
 	return true
 
@@ -300,14 +274,9 @@ func _on_gift_landed(args: Array) -> bool:
 func _on_gift_spawned(args: Array) -> bool:
 	var gift_id: int = args[0]
 	var position: Vector2 = args[1]
-	if _net._gift_spawn_notified.has(gift_id) or not _net._gift_wire_ok(gift_id, position):
+	if not _gifts.note_spawn(gift_id, position):
 		return false
-	if _net._gift_wire_phases.get(gift_id, -1) in [MatchNet.GiftWirePhase.SPAWN_ONLY, MatchNet.GiftWirePhase.LANDED, MatchNet.GiftWirePhase.REMOVED]:
-		return false
-	if not _net._gift_wire_phases.has(gift_id):
-		_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.SPAWN_ONLY)
 	_replica.apply_replicated_gift_spawned(gift_id, position)
-	_net._gift_spawn_notified[gift_id] = true
 	Events.gift_spawned.emit(gift_id, position)
 	return true
 
@@ -317,12 +286,11 @@ func _on_gift_claimed(args: Array) -> bool:
 	var slot_id: int = args[1]
 	var special_id: StringName = args[2]
 	var gift_shape_id: StringName = args[3]
-	if gift_id < 0 or _net._gift_wire_phases.get(gift_id, -1) == MatchNet.GiftWirePhase.REMOVED:
-		return false
 	# Bounds-check the slot before it reaches MatchGifts.apply_replicated_claim() or the Events bus.
-	if not _slot_ok(slot_id) or not _gift_special_id_ok(special_id) or not _host.feed_knows_shape(gift_shape_id):
+	if not _slot_ok(slot_id) or not _gifts.special_id_ok(special_id) or not _host.feed_knows_shape(gift_shape_id):
 		return false
-	_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.REMOVED)
+	if not _gifts.remove(gift_id):
+		return false
 	if _host.gift_slot_enabled():
 		# The gift went to the slot (EVENT_GIFT_SLOT), not the block queue; only the crate
 		# visual is retired here.
@@ -339,9 +307,8 @@ func _on_gift_claimed(args: Array) -> bool:
 
 func _on_gift_expired(args: Array) -> bool:
 	var gift_id: int = args[0]
-	if gift_id < 0 or _net._gift_wire_phases.get(gift_id, -1) == MatchNet.GiftWirePhase.REMOVED:
+	if not _gifts.remove(gift_id):
 		return false
-	_net._set_gift_wire_phase(gift_id, MatchNet.GiftWirePhase.REMOVED)
 	_replica.apply_replicated_gift_expired(gift_id)
 	Events.gift_expired.emit(gift_id)
 	return true
@@ -355,9 +322,9 @@ func _on_special_triggered(args: Array) -> bool:
 	var def_id: StringName = args[1]
 	var position: Vector3 = args[2]
 	var chain_depth: int = args[3]
-	if net_id < 0 or not WireLimits.special_id_ok(def_id, _wire_config()) or not position.is_finite():
+	if net_id < 0 or not WireLimits.special_id_ok(def_id, _config) or not position.is_finite():
 		return false
-	if chain_depth < 0 or chain_depth > _net._special_tuning.max_chain_depth:
+	if chain_depth < 0 or chain_depth > _special_tuning.max_chain_depth:
 		return false
 	Events.special_triggered.emit(net_id, def_id, position, chain_depth)
 	return true
@@ -372,7 +339,7 @@ func _on_special_consumed(args: Array) -> bool:
 		return false
 	# Only the syntactic shape check, not the roster-membership tightening: a special already
 	# popped on the host was roster-checked when it was queued.
-	if not WireLimits.special_id_ok(args[1], _wire_config()):
+	if not WireLimits.special_id_ok(args[1], _config):
 		return false
 	_replica.apply_replicated_special_consumed(args[0], args[1])
 	Events.special_consumed.emit(args[0], args[1])
@@ -396,14 +363,59 @@ func _on_block_dissolve_started(args: Array) -> bool:
 	var dissolving: BlockBody = _block_for(args[0])
 	if dissolving == null:
 		return false
-	Events.block_dissolve_started.emit(dissolving, args[0], _net._hole_dissolve_tuning.dissolve_delay_s)
+	Events.block_dissolve_started.emit(dissolving, args[0], _hole_dissolve_tuning.dissolve_delay_s)
 	return true
 
 
+## SLOT_REPLAY's argument positions (the MatchWireEvents row).
+enum ReplayArg { SLOT, HELD, NEXT, FEED_SEQ, TIME_LEFT, LOCKED, HELD_SPECIAL, NEXT_SPECIAL, AFTER_SPECIAL, AFTER_CARRIER }
+
+
+## Client side of SLOT_REPLAY. The wire is validated in full before any of it is applied (the same
+## "drop, never default" rule as every other event): a malformed slot replay changes nothing. The
+## argument types are already enforced by the MatchWireEvents shape.
+##
+## Gifts are rebuilt through the same replica calls a live claim uses, in the order a seated client
+## would have seen them: the held gift is queued and marked as the next carrier, the feed event
+## activates it, then the queued next gift is queued behind it.
 func _on_slot_replay(args: Array) -> bool:
 	if _session.is_host():
 		return false
-	_net._apply_slot_replay(args)
+	var slot_id: int = args[ReplayArg.SLOT]
+	var held_id: StringName = args[ReplayArg.HELD]
+	var next_id: StringName = args[ReplayArg.NEXT]
+	var feed_seq: int = args[ReplayArg.FEED_SEQ]
+	var time_left: float = float(args[ReplayArg.TIME_LEFT])
+	var locked: bool = args[ReplayArg.LOCKED]
+	var held_special: StringName = args[ReplayArg.HELD_SPECIAL]
+	var next_special: StringName = args[ReplayArg.NEXT_SPECIAL]
+	var after_special: StringName = args[ReplayArg.AFTER_SPECIAL]
+	var after_carrier: StringName = args[ReplayArg.AFTER_CARRIER]
+	if _host.config() == null or not _slot_ok(slot_id):
+		return false
+	if feed_seq < 0 or not is_finite(time_left) or time_left < 0.0 or time_left > MatchConfig.BLOCK_TIMER_MAX:
+		return false
+	if not _host.feed_knows_shape(held_id):
+		return false
+	if next_id != &"" and not _host.feed_knows_shape(next_id):
+		return false
+	if held_special != &"" and not _gifts.special_id_ok(held_special):
+		return false
+	if next_special != &"" and (next_id == &"" or not _gifts.special_id_ok(next_special)):
+		return false
+	if after_special != &"" and (not _gifts.special_id_ok(after_special) or not _host.feed_knows_shape(after_carrier)):
+		return false
+	if held_special != &"":
+		_replica.apply_replicated_gift_claimed(-1, slot_id, held_special)
+		_replica.apply_replicated_next_gift(slot_id, held_id)
+	_replica.apply_replicated_feed(slot_id, held_id, next_id, feed_seq, time_left, locked)
+	if next_special != &"":
+		_replica.apply_replicated_gift_claimed(-1, slot_id, next_special)
+		_replica.apply_replicated_next_gift(slot_id, next_id)
+	if after_special != &"":
+		_replica.apply_replicated_gift_claimed(-1, slot_id, after_special)
+		_replica.apply_replicated_staged_gift(slot_id, after_carrier)
+	Events.feed_block_issued.emit(slot_id, held_id, next_id)
 	return true
 
 
@@ -454,7 +466,7 @@ func _on_cat_started(args: Array) -> bool:
 	if _session.is_host() or not Quantize.is_wire_id(cat_id) or not _slot_ok(cat_slot):
 		return false
 	# A duration the clamp would change (over the cap, or not finite) is not from this build's host.
-	if not position.is_finite() or duration <= 0.0 or WireLimits.cat_duration_clamped(duration, _wire_config()) != duration:
+	if not position.is_finite() or duration <= 0.0 or WireLimits.cat_duration_clamped(duration, _config) != duration:
 		return false
 	_replica.apply_replicated_cat_start(cat_id, cat_slot, position, duration)
 	return true
@@ -475,7 +487,7 @@ func _on_loading_gate(args: Array) -> bool:
 		return false
 	var ready_ids: PackedInt32Array = args[0]
 	var required_ids: PackedInt32Array = args[1]
-	var max_peers: int = _wire_config().max_peers
+	var max_peers: int = _config.max_peers
 	if ready_ids.size() > max_peers or required_ids.size() > max_peers:
 		return false
 	for peer_id: int in ready_ids:

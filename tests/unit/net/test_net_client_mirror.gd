@@ -13,6 +13,8 @@ var _parent: Node3D
 var _fake: FakeMatch
 var _mirror: ClientBlockMirror
 var _removed: Array[String] = []
+## Kept by the test: the mirror's Callable does not own it.
+var _guard: GiftWireGuard
 
 
 ## FakeHostPort answering the three reads the mirror makes from the FakeMatch's world.
@@ -172,3 +174,43 @@ func test_a_malformed_roster_entry_is_skipped_and_reported() -> void:
 	var roster: Array = [42, {}, {LobbySeats.FIELD_SLOT_ID: 77}, {LobbySeats.FIELD_SLOT_ID: 0, LobbySeats.FIELD_PEER_ID: 5}]
 	assert_false(_mirror.apply_roster(roster), "something was skipped")
 	assert_eq((_fake.slots_by_id[0] as PlayerSlot).peer_id, 5, "the good entry still lands")
+
+
+# --- gift visuals gated by GiftWireGuard.special_id_ok --------------------------------------
+
+
+## A mirror whose gift-id check is the guard the game wires in.
+func _guarded_mirror() -> ClientBlockMirror:
+	var host: MirrorHost = MirrorHost.new()
+	host.world = _fake
+	_guard = GiftWireGuard.new()
+	_guard.bind(host, load("res://config/net/net_config.tres") as NetConfig)
+	var session: SessionPort = FakeSessionPort.new(FakeNet.client(LOCAL_SLOT))
+	return ClientBlockMirror.new(session, host, _guard.special_id_ok, preload("res://config/physics/physics_tuning.tres"))
+
+
+func _spawn_with_gift(mirror: ClientBlockMirror, gift_id: StringName) -> Block:
+	assert_true(mirror.on_spawned(NET_ID, SHAPE_ID, 0, ORIGIN, Quaternion.IDENTITY, gift_id), "the spawn itself is never refused for its gift id")
+	return _registry.block_for_net_id(NET_ID)
+
+
+func test_a_roster_gift_id_dresses_the_replica_as_that_gift() -> void:
+	var roster_id: StringName = SpecialDef.load_all_specials()[0].id
+	assert_eq(_spawn_with_gift(_guarded_mirror(), roster_id).gift_id, roster_id)
+
+
+func test_the_pending_placeholder_dresses_the_replica_as_a_gift() -> void:
+	assert_eq(_spawn_with_gift(_guarded_mirror(), SpecialIds.PENDING).gift_id, SpecialIds.PENDING)
+
+
+func test_an_id_outside_the_roster_or_malformed_leaves_the_replica_plain() -> void:
+	var mirror: ClientBlockMirror = _guarded_mirror()
+	var net_id: int = NET_ID
+	for bad: StringName in [&"not_a_real_special", &"bad id", &"a/b"]:
+		assert_true(mirror.on_spawned(net_id, SHAPE_ID, 0, ORIGIN, Quaternion.IDENTITY, bad))
+		assert_eq(_registry.block_for_net_id(net_id).gift_id, &"", "%s must not become a gift visual" % bad)
+		net_id += 1
+
+
+func test_no_gift_id_leaves_the_replica_plain() -> void:
+	assert_eq(_spawn_with_gift(_guarded_mirror(), &"").gift_id, &"")

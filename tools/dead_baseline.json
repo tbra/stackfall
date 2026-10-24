@@ -100,10 +100,7 @@
    "tools/triage_log.py: res://foo.gd",
    "tools/triage_log.py: tools/README.md"
   ],
-  "undated-legacy": [
-   "core/gifts/GiftWirePhase.gd: const WIRE_LEGACY: int = 2",
-   "net/MatchNet.gd: SPAWN_ONLY = _WIRE_PHASE_OWNER.WIRE_LEGACY,"
-  ]
+  "undated-legacy": []
  },
  "allow": [
   {
@@ -115,6 +112,21 @@
    "id": "dead-file",
    "entry": "config/soak/soak_match_load.tres",
    "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/ClientReplayGate.gd",
+   "reason": "MatchNet cut stub: wired by MC-B"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/MatchReplication.gd",
+   "reason": "MatchNet cut stub: wired by MC-C"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/SlotCursors.gd",
+   "reason": "MatchNet cut stub: wired by MC-D"
   },
   {
    "id": "dead-file",
@@ -548,6 +560,31 @@
   },
   {
    "id": "test-only-func",
+   "entry": "net/MatchEventApplier.gd:bind",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:is_match_live",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:pick_open_seat",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:seat_reclaimable",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/ports/SessionPort.gd:roster",
+   "reason": "MatchNet cut stub: wired by MC-C"
+  },
+  {
+   "id": "test-only-func",
    "entry": "ui/menus/LoadingScreen.gd:ready_gate_armed",
    "reason": "tools/shot_targets.gd:518"
   },
@@ -570,81 +607,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "dead-file",
-   "entry": "net/match/ClientReplayGate.gd",
-   "reason": "MatchNet cut stub: wired by MC-B"
-  },
-  {
-   "id": "dead-file",
-   "entry": "net/match/MatchReplication.gd",
-   "reason": "MatchNet cut stub: wired by MC-C"
-  },
-  {
-   "id": "dead-file",
-   "entry": "net/match/SlotCursors.gd",
-   "reason": "MatchNet cut stub: wired by MC-D"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/MatchEventApplier.gd:bind",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:bind",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:special_id_ok",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:begin_flight",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:land",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:note_spawn",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:remove",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/GiftWireGuard.gd:reset",
-   "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:pick_open_seat",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:seat_reclaimable",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:is_match_live",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/ports/SessionPort.gd:roster",
-   "reason": "MatchNet cut stub: wired by MC-C"
   }
  ]
 }

@@ -218,7 +218,7 @@ func test_a_host_refuses_every_client_bound_event() -> void:
 	assert_signal_not_emitted(Events, "placement_relocated")
 
 
-# --- a spy MatchReplicaPort bound through bind_replica ------------------------------------------
+# --- a spy MatchReplicaPort bound through bind ------------------------------------------
 
 
 ## FakeReplicaPort that answers true to the three writes that answer, as the real replica does for
@@ -241,7 +241,10 @@ class SpyReplica extends FakeReplicaPort:
 func _spied_applier(spy: SpyReplica) -> Node:
 	_net.late_activate()
 	var applier: Node = _net.get_node("MatchEventApplier")
-	applier.bind_replica(spy)
+	var host: MatchHostPort = MatchHostPort.new(Match)
+	var guard: GiftWireGuard = GiftWireGuard.new()
+	guard.bind(host, _net.config)
+	applier.bind(FakeSessionPort.new(Match._net_provider), host, spy, _net.config, guard)
 	return applier
 
 

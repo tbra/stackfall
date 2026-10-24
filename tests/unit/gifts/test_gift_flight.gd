@@ -164,12 +164,3 @@ func test_air_touch_rejects_near_miss_outside_visible_box_margin() -> void:
 	Match.set_replicator(provider)
 	assert_false(Match._gifts._held_block_touches(1, crate),
 		"0.6 m crate and 1 m cube have a visible gap past the 0.08 m touch margin")
-
-
-## The wire carries a gift crate's phase as a number: every defined phase is accepted, anything
-## outside the numbering is refused (MatchNet drops a malformed phase instead of trusting it).
-func test_wire_phase_validity_covers_exactly_the_defined_phases() -> void:
-	for phase: int in [GiftWirePhase.FALLING, GiftWirePhase.LANDED, GiftWirePhase.WIRE_LEGACY, GiftWirePhase.WIRE_REMOVED]:
-		assert_true(GiftWirePhase.is_valid_wire_phase(phase), "phase %d is defined" % phase)
-	assert_false(GiftWirePhase.is_valid_wire_phase(-1))
-	assert_false(GiftWirePhase.is_valid_wire_phase(GiftWirePhase.WIRE_REMOVED + 1))

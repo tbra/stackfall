@@ -66,20 +66,6 @@ const EVENT_MATCH_RESULTS: StringName = &"match_results"
 const EVENT_GIFT_FLIGHT: StringName = &"gift_flight_spawned"
 const EVENT_GIFT_LANDED: StringName = &"gift_landed"
 
-# DECISION: reliable channel order plus per-match tombstones prevents a late
-# spawn/flight from resurrecting a claimed gift. A spawn-only gift can upgrade once.
-# DECISION: the enum below shadows the global GiftWirePhase
-# class inside this file, so the pure numbering module is reached through this alias.
-const _WIRE_PHASE_OWNER: GDScript = preload("res://core/gifts/GiftWirePhase.gd")
-enum GiftWirePhase {
-	FALLING = _WIRE_PHASE_OWNER.FALLING,
-	LANDED = _WIRE_PHASE_OWNER.LANDED,
-	SPAWN_ONLY = _WIRE_PHASE_OWNER.WIRE_LEGACY,
-	REMOVED = _WIRE_PHASE_OWNER.WIRE_REMOVED,
-}
-var _gift_wire_phases: Dictionary = {}
-var _gift_spawn_notified: Dictionary = {}
-
 const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
 const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
 const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
@@ -127,6 +113,7 @@ const EVENT_LIVE_SCORES: StringName = &"live_scores"
 		# The gateway and the replay collaborator read the flood limits from this resource.
 		_intent_gateway = null
 		_world_replay_host = null
+		_bind_modules()
 
 ## Clients build their replicated bodies with the same factory and the same
 ## tuning the host built the originals with, so a frozen copy has the same
@@ -135,15 +122,6 @@ var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tunin
 ## Client-side block spawns/despawns and the seat roster (net/match/ClientBlockMirror.gd), built on first use.
 var _block_mirror: ClientBlockMirror = null
 
-## EVENT_SPECIAL_TRIGGERED's chain_depth wire bound
-## (SpecialTuning.max_chain_depth). A separate preload rather than reading
-## through _host_port() -- the config is architecture-fixed for the build,
-## the same reason _physics_tuning above is preloaded rather than read from
-## Match's own running MatchConfig.
-var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
-## the fade length a client reports with a replicated
-## dissolve start (same shipped resource the host's HoleDissolver reads).
-var _hole_dissolve_tuning: HoleDissolveTuning = preload("res://config/blocks/tuning/hole_dissolve_tuning.tres")
 ## the same shipped resources PlayerController reads for the
 ## player's first-block hover, so the AFK auto-drop's no-cursor fallback origin
 ## clears the home beacon by the identical rule (_afk_fallback_origin()).
@@ -156,15 +134,6 @@ var counters: NetCounters = NetCounters.new()
 ## reset or a provider change.
 var _impacts: ImpactReplicator = null
 var _impact_send_accum: float = 0.0
-
-## _known_special_ids()'s cache: String(SpecialDef.id) -> true, built once
-## from SpecialDef.load_all_specials() (a directory scan). This node is
-## recreated per match/session (a fresh autoload on every process start; a
-## fresh instance per test via MatchNetScript.new()), so "once per instance"
-## already means "once per match" in the shipped build and "once per test"
-## in a unit test -- no reset hook of its own is needed.
-var _special_ids_by_id: Dictionary = {}
-var _special_ids_cached: bool = false
 
 ## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
 ## cannot double one (see game/player/PlayerController.gd's DECISION for the whole
@@ -222,6 +191,8 @@ var _replaying_since_ms: int = 0
 
 ## the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: Node = null
+## Client gift wire phases and special-id checks (net/match/GiftWireGuard.gd), built on first use.
+var _gift_guard: GiftWireGuard = null
 ## the client-side event applier child (net/MatchEventApplier.gd).
 ## net_match_event stays the RPC entry point; this child holds the apply bulk.
 var _applier: Node = null
@@ -292,10 +263,32 @@ func _event_applier() -> Node:
 	if _applier == null:
 		_applier = LateScripts.script(LateScripts.MATCH_EVENT_APPLIER).new() as Node
 		_applier.name = "MatchEventApplier"
-		_applier.set("_net", self)
-		_applier.call(&"bind_replica", _replica_port())
+		_bind_applier()
 		add_child(_applier)
 	return _applier
+
+
+## The client gift wire state, bound to the current Match provider and config.
+func _gift_wire() -> GiftWireGuard:
+	if _gift_guard == null:
+		_gift_guard = GiftWireGuard.new()
+		_gift_guard.bind(_host_port(), config)
+	return _gift_guard
+
+
+func _bind_applier() -> void:
+	_applier.call(&"bind", _session_port(), _host_port(), _replica_port(), config, _gift_wire())
+
+
+## Rebinds the modules already built onto the current ports and config (the config setter and
+## bind_ports call it); it never builds one early. Their state survives, see GiftWireGuard.bind.
+func _bind_modules() -> void:
+	if _session_port_cache == null:
+		return
+	if _gift_guard != null:
+		_gift_guard.bind(_host_port(), config)
+	if _applier != null:
+		_bind_applier()
 
 
 func _host_port() -> MatchHostPort:
@@ -345,8 +338,7 @@ func bind_ports(session: SessionPort, host: MatchHostPort, replica: MatchReplica
 		_territory_replicator()
 	if _mirror != null:
 		_mirror.bind_ports(session, host)
-	if _applier != null:
-		_applier.call(&"bind_replica", replica)
+	_bind_modules()
 	_bind_weather_ports()
 	return true
 
@@ -699,8 +691,8 @@ func reset_counters() -> void:
 	_cat_send_accum = 0.0
 	if _intent_gateway != null:
 		_intent_gateway.reset_throttles()
-	_gift_wire_phases.clear()
-	_gift_spawn_notified.clear()
+	if _gift_guard != null:
+		_gift_guard.reset()
 	counters.reset()
 	_cursors.clear()
 	_territory = null
@@ -721,79 +713,6 @@ func submit_use_gift_slot(slot_id: int) -> bool:
 	return _gateway.submit_use_gift_slot(slot_id)
 
 
-## Wire safety for EVENT_GIFT_SPAWNED, following MatchIntentGateway.pose_is_acceptable()'s
-## own pattern: a malformed or out-of-disk position from a bad or ancient build
-## is dropped rather than trusted, since a client only ever uses this position
-## to place a visual and to compute the cell it later frees for.
-## Records a gift's wire phase; refuses an out-of-range value (returns false).
-func _set_gift_wire_phase(gift_id: int, phase: int) -> bool:
-	if gift_id < 0 or not _WIRE_PHASE_OWNER.is_valid_wire_phase(phase):
-		return false
-	_gift_wire_phases[gift_id] = phase
-	return true
-
-
-func _gift_wire_ok(gift_id: int, position: Vector2) -> bool:
-	if gift_id < 0:
-		return false
-	if not (is_finite(position.x) and is_finite(position.y)):
-		return false
-	var running: MatchConfig = _host_port().config()
-	if running == null:
-		return false
-	var radius: float = running.map_def().field_radius
-	return position.length() <= radius + 0.01
-
-
-## Wire safety, reused by EVENT_SPECIAL_TRIGGERED's def_id
-## as well as EVENT_GIFT_CLAIMED's third argument: the id is trusted only if
-## it is shaped like one of ours -- non-empty, at most NetConfig.special_id_max_length
-## characters, [A-Za-z0-9_] only (core/net/WireLimits.gd) -- following _gift_wire_ok's own "a malformed or ancient
-## payload is dropped, not trusted" pattern. This is a syntactic check only;
-## _gift_special_id_wire_ok() below layers real roster membership on top of it
-## for EVENT_GIFT_CLAIMED specifically (a client only ever queues this id and,
-## later, hands it to SpecialBehavior.bind(), so an unchecked string could
-## otherwise reach either unfiltered) -- EVENT_SPECIAL_TRIGGERED does not need
-## the same layer (see _known_special_ids()'s own doc comment for why). No
-## RegEx dependency (none exists elsewhere in this codebase) -- a plain
-## character scan is enough for an id this short.
-func _special_id_wire_ok(special_id: String) -> bool:
-	return WireLimits.special_id_ok(StringName(special_id), config)
-
-
-## String(SpecialDef.id) -> true for every SpecialDef in SpecialDef.
-## load_all_specials(), built once per instance and cached (see
-## _special_ids_by_id's own field comment). Read by _gift_special_id_wire_ok()
-## below; not by EVENT_SPECIAL_TRIGGERED's dispatch, which only re-checks
-## _special_id_wire_ok()'s syntactic shape -- a special already bound and triggered on the host is by
-## construction a real roster id, so nothing here needs to reject one a
-## client's own (possibly stale) roster cache does not recognise.
-func _known_special_ids() -> Dictionary:
-	if not _special_ids_cached:
-		_special_ids_by_id = {}
-		# The typed Array[SpecialDef] result stays in an untyped Array (D8).
-		var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
-		for def: Resource in defs:
-			_special_ids_by_id[String(def.get(&"id"))] = true
-		_special_ids_cached = true
-	return _special_ids_by_id
-
-
-## Tightening of _special_id_wire_ok() for EVENT_GIFT_CLAIMED only: a
-## claimed special id is trusted only if it is shaped like one of ours AND is
-## either MatchGifts.PENDING_SPECIAL_ID (the default drawer's placeholder,
-## always valid regardless of roster -- see MatchPlacement._attach_pending_
-## special()'s own "safe default" handling of it) or actually a member of the
-## running roster. An empty res://config/gifts/specials/ therefore lets only
-## the placeholder through: there is no real special for any other id to name.
-func _gift_special_id_wire_ok(special_id: String) -> bool:
-	if not _special_id_wire_ok(special_id):
-		return false
-	if special_id == String(SpecialIds.PENDING):
-		return true
-	return _known_special_ids().has(special_id)
-
-
 func _store_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	if slot_id < 0:
 		return
@@ -811,7 +730,7 @@ func _now() -> float:
 
 func _client_blocks() -> ClientBlockMirror:
 	if _block_mirror == null:
-		_block_mirror = ClientBlockMirror.new(_session_port(), _host_port(), _gift_special_id_wire_ok, _physics_tuning)
+		_block_mirror = ClientBlockMirror.new(_session_port(), _host_port(), _gift_wire().special_id_ok, _physics_tuning)
 	return _block_mirror
 
 
@@ -1135,61 +1054,6 @@ func _slot_replay_args(slot_id: int) -> Array:
 		StringName(authority.after_next_special(slot_id)),
 		_host_port().feed_staged_gift_shape_id(slot_id),
 	]
-
-
-## Client side of EVENT_SLOT_REPLAY. The wire is validated in full before any
-## of it is applied (the same "drop, never default" rule as every other
-## dispatch case): a malformed slot replay changes nothing.
-##
-## Gifts are rebuilt through the same client mirror calls a live claim uses,
-## in the order a seated client would have seen them: the held gift is queued
-## and marked as the next carrier, the feed event activates it, then the
-## queued next gift is queued behind it.
-func _apply_slot_replay(args: Array) -> void:
-	if args.size() != SLOT_REPLAY_ARGS or not args[0] is int or not args[3] is int or not args[5] is bool:
-		return
-	for index: int in SLOT_REPLAY_ID_ARGS:
-		if not (args[index] is StringName or args[index] is String):
-			return
-	if not (args[4] is float or args[4] is int):
-		return
-	var slot_id: int = args[0]
-	var held_id: StringName = StringName(args[1])
-	var next_id: StringName = StringName(args[2])
-	var feed_seq: int = args[3]
-	var time_left: float = float(args[4])
-	var locked: bool = args[5]
-	var held_special: StringName = StringName(args[6])
-	var next_special: StringName = StringName(args[7])
-	var after_special: StringName = StringName(args[SLOT_REPLAY_AFTER_SPECIAL])
-	var after_carrier: StringName = StringName(args[SLOT_REPLAY_AFTER_CARRIER])
-	var host: MatchHostPort = _host_port()
-	var replica: MatchReplicaPort = _replica_port()
-	if host.config() == null or slot_id < 0 or slot_id >= host.slot_count():
-		return
-	if feed_seq < 0 or not is_finite(time_left) or time_left < 0.0 or time_left > MatchConfig.BLOCK_TIMER_MAX:
-		return
-	if not host.feed_knows_shape(held_id):
-		return
-	if next_id != &"" and not host.feed_knows_shape(next_id):
-		return
-	if held_special != &"" and not _gift_special_id_wire_ok(String(held_special)):
-		return
-	if next_special != &"" and (next_id == &"" or not _gift_special_id_wire_ok(String(next_special))):
-		return
-	if after_special != &"" and (not _gift_special_id_wire_ok(String(after_special)) or not host.feed_knows_shape(after_carrier)):
-		return
-	if held_special != &"":
-		replica.apply_replicated_gift_claimed(-1, slot_id, held_special)
-		replica.apply_replicated_next_gift(slot_id, held_id)
-	replica.apply_replicated_feed(slot_id, held_id, next_id, feed_seq, time_left, locked)
-	if next_special != &"":
-		replica.apply_replicated_gift_claimed(-1, slot_id, next_special)
-		replica.apply_replicated_next_gift(slot_id, next_id)
-	if after_special != &"":
-		replica.apply_replicated_gift_claimed(-1, slot_id, after_special)
-		replica.apply_replicated_staged_gift(slot_id, after_carrier)
-	Events.feed_block_issued.emit(slot_id, held_id, next_id)
 
 
 # --- RPCs -------------------------------------------------------------------

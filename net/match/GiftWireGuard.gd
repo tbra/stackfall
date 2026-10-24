@@ -1,52 +1,85 @@
 class_name GiftWireGuard
 extends RefCounted
-## Client gift wire state and id checks (interface stub: bodies land with the MatchNet cut).
-## Replaces MatchNet's gift wire phases and special-id roster check and the applier's copy.
+## Client gift wire state and id checks: which phase each crate is in on the wire, and whether a
+## special id is one of ours. A refused transition leaves the state unchanged.
+## DECISION: a transition is marked before the replica write instead of after it; the replica
+## port's apply calls return nothing and cannot refuse, so the order is unobservable.
 
-const NOT_IMPLEMENTED: String = "GiftWireGuard: not implemented"
+## A spawn position may sit this far outside the field disc (wire rounding).
+const FIELD_RADIUS_SLACK: float = 0.01
 
-## First build and every rebind: refreshes the refs, KEEPS the phase/notified state.
-@warning_ignore("unused_parameter")
+var _host: MatchHostPort = null
+var _config: NetConfig = null
+## gift_id -> GiftWirePhase value.
+var _phases: Dictionary = {}
+var _spawn_notified: Dictionary = {}
+## Roster ids, built on first use (SpecialDef.load_all_specials is a directory scan).
+var _roster_ids: Dictionary = {}
+var _roster_built: bool = false
+
+
+## First build and every rebind: refreshes the refs, keeps the phase and notified state.
 func bind(host: MatchHostPort, config: NetConfig) -> void:
-	push_error(NOT_IMPLEMENTED)
+	_host = host
+	_config = config
 
 
 ## WireLimits.special_id_ok AND (SpecialIds.PENDING OR a roster member).
-@warning_ignore("unused_parameter")
 func special_id_ok(special_id: StringName) -> bool:
-	push_error(NOT_IMPLEMENTED)
-	return false
+	if not WireLimits.special_id_ok(special_id, _config):
+		return false
+	if special_id == SpecialIds.PENDING:
+		return true
+	if not _roster_built:
+		# The typed Array[SpecialDef] result stays in an untyped Array.
+		var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
+		for def: Resource in defs:
+			_roster_ids[StringName(def.get(&"id"))] = true
+		_roster_built = true
+	return _roster_ids.has(special_id)
 
 
-## Check-and-mark transitions: false = refuse the event, state unchanged.
-## Unknown or SPAWN_ONLY -> FALLING.
-@warning_ignore("unused_parameter")
+## Unknown or spawn-only -> falling.
 func begin_flight(gift_id: int) -> bool:
-	push_error(NOT_IMPLEMENTED)
-	return false
+	if gift_id < 0 or (_phases.has(gift_id) and int(_phases[gift_id]) != GiftWirePhase.WIRE_SPAWN_ONLY):
+		return false
+	_phases[gift_id] = GiftWirePhase.FALLING
+	return true
 
 
-## FALLING -> LANDED.
-@warning_ignore("unused_parameter")
+## Falling -> landed.
 func land(gift_id: int) -> bool:
-	push_error(NOT_IMPLEMENTED)
-	return false
+	if gift_id < 0 or _phases.get(gift_id, -1) != GiftWirePhase.FALLING:
+		return false
+	_phases[gift_id] = GiftWirePhase.LANDED
+	return true
 
 
-## Not yet notified, finite and inside the field, phase not SPAWN_ONLY/LANDED/REMOVED.
-@warning_ignore("unused_parameter")
+## Not yet notified, finite and inside the field, and the phase not spawn-only, landed or removed.
+## An unknown gift becomes spawn-only.
 func note_spawn(gift_id: int, position: Vector2) -> bool:
-	push_error(NOT_IMPLEMENTED)
-	return false
+	if gift_id < 0 or _spawn_notified.has(gift_id) or not position.is_finite():
+		return false
+	var running: MatchConfig = _host.config()
+	if running == null or position.length() > running.map_def().field_radius + FIELD_RADIUS_SLACK:
+		return false
+	if _phases.get(gift_id, -1) in [GiftWirePhase.WIRE_SPAWN_ONLY, GiftWirePhase.LANDED, GiftWirePhase.WIRE_REMOVED]:
+		return false
+	if not _phases.has(gift_id):
+		_phases[gift_id] = GiftWirePhase.WIRE_SPAWN_ONLY
+	_spawn_notified[gift_id] = true
+	return true
 
 
-## gift_id >= 0 and not REMOVED -> REMOVED.
-@warning_ignore("unused_parameter")
+## Any non-removed, non-negative id -> removed.
 func remove(gift_id: int) -> bool:
-	push_error(NOT_IMPLEMENTED)
-	return false
+	if gift_id < 0 or _phases.get(gift_id, -1) == GiftWirePhase.WIRE_REMOVED:
+		return false
+	_phases[gift_id] = GiftWirePhase.WIRE_REMOVED
+	return true
 
 
 ## Match boundary.
 func reset() -> void:
-	push_error(NOT_IMPLEMENTED)
+	_phases.clear()
+	_spawn_notified.clear()
