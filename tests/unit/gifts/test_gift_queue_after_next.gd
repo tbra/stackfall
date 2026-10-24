@@ -124,7 +124,7 @@ func test_client_mirrors_staged_then_next_then_held() -> void:
 	var shape_id: StringName = Match.held_shape(0).id
 	var carrier_id: StringName = Match._feed._bags[0].peek(2)[1].id
 	var seq: int = Match.feed_seq(0)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, carrier_id])
+	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, carrier_id])
 	assert_eq(Match.after_next_special(0), MatchGifts.PENDING_SPECIAL_ID)
 	assert_eq(Match.next_special(0), &"")
 	Match.apply_replicated_feed(0, shape_id, shape_id, seq + 1, Match.feed_time_left(0), false)

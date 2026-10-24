@@ -204,7 +204,7 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 	}
 	var shown: Array[Dictionary] = []
 	Events.mode_state_changed.connect(func(s: Dictionary) -> void: shown.append(s))
-	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [wire])
+	node.net_match_event(MatchWireEvents.MODE_STATE, [wire])
 	assert_almost_eq(objective.scores()[0], 7.5, 0.0001)
 	assert_almost_eq(objective.scores()[1], 2.0, 0.0001)
 	assert_eq(objective.winner(), ModeObjective.NO_TEAM, "a client never decides the outcome")

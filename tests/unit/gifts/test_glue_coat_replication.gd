@@ -74,7 +74,7 @@ func _glue(a: Block, b: Block) -> FusedBody:
 func _glued_events(messages: Array[Array]) -> Array:
 	var found: Array = []
 	for message: Array in messages:
-		if message[0] == &"net_match_event" and StringName((message[1] as Array)[0]) == MatchNetScript.EVENT_BLOCK_GLUED:
+		if message[0] == &"net_match_event" and StringName((message[1] as Array)[0]) == MatchWireEvents.BLOCK_GLUED:
 			found.append((message[1] as Array)[1])
 	return found
 
@@ -103,8 +103,8 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	var b: Block = _block(232)
 	var bond: FusedBody = _glue(a, b)
 	var replay: Array[Array] = [
-		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [231, true]]],
-		[&"net_match_event", [MatchNetScript.EVENT_BLOCK_GLUED, [232, true]]],
+		[&"net_match_event", [MatchWireEvents.BLOCK_GLUED, [231, true]]],
+		[&"net_match_event", [MatchWireEvents.BLOCK_GLUED, [232, true]]],
 	]
 	host.free()
 	# Client view of the same blocks: bare coat state, then the replayed events.
@@ -112,12 +112,12 @@ func test_client_mirror_applies_event_late_join_replay_and_removal() -> void:
 	HoneyCoat.set_coated(b, false)
 	var client: MatchNetScript = _make_net(true)
 	for payload: Array in _glued_events(replay):
-		client.net_match_event(MatchNetScript.EVENT_BLOCK_GLUED, payload)
+		client.net_match_event(MatchWireEvents.BLOCK_GLUED, payload)
 	assert_true(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
 	for bad: Array in [[999, true], [231], [231, 1], [-1, true]]:
-		client.net_match_event(MatchNetScript.EVENT_BLOCK_GLUED, bad)
-	client.net_match_event(MatchNetScript.EVENT_BLOCK_GLUED, [231, false])
+		client.net_match_event(MatchWireEvents.BLOCK_GLUED, bad)
+	client.net_match_event(MatchWireEvents.BLOCK_GLUED, [231, false])
 	assert_false(HoneyCoat.is_coated(a))
 	assert_true(HoneyCoat.is_coated(b))
 	assert_not_null(bond)
