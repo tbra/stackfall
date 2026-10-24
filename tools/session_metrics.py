@@ -217,7 +217,7 @@ def gates(scratch, since):
     return out
 
 
-def handbacks(log_path, since, bead=None):
+def handbacks(log_path, since, bead=None, skip_verdict=None):
     rows = []
     try:
         with open(log_path, encoding="utf-8") as fh:
@@ -227,7 +227,7 @@ def handbacks(log_path, since, bead=None):
                 except ValueError:
                     continue
                 if row.get("ts", "") >= since.isoformat(timespec="seconds") and (
-                        bead is None or bead in row.get("bead", "")):
+                        bead is None or bead in row.get("bead", "")) and row.get("verdict") != skip_verdict:
                     rows.append(row)
     except OSError:
         return {"attempts": 0}

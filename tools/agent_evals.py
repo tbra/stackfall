@@ -35,7 +35,8 @@ MANIFEST_OPTIONAL = ("lint_floor",)
 RUNNERS = ("gut", "unittest")
 LIST_KEYS = ("hidden", "regression", "interface_lines")
 OVERLAY_PATHS = ("CLAUDE.md", ".claude", "tools")
-OVERLAY_KEEP = ("tools/flag_dead_allow.json", "tools/probe_allowlist.txt")
+OVERLAY_KEEP = ("tools/flag_dead_allow.json", "tools/probe_allowlist.txt",
+                "tools/agent_evals.py", "tools/test_agent_evals.py")  # the last two are the harness, not the setup under test
 OVERLAY_CHUNK = 200
 CHECK_TIMEOUT_S = 1800
 VERIFY_TIMEOUT_S = 900
@@ -315,7 +316,9 @@ def score_run(manifest: Dict[str, Dict[str, Any]], name: str, run: int, wt: str,
     # one it opens at the overlay commit.
     start = entry["base"] if bead else base
     since = session_metrics.parse_since(session_metrics.git(wt, "show", "-s", "--format=%cI", start).strip())
-    hb = session_metrics.handbacks(os.path.join(repo_paths.scratch_root(), *HANDBACK_LOG), since, bead)
+    # The eval reviewer hands back on the same bead; its "review" rows are not the worker's attempts.
+    hb = session_metrics.handbacks(os.path.join(repo_paths.scratch_root(), *HANDBACK_LOG), since, bead,
+                                   skip_verdict="review")
     verdicts = sorted(v for v in hb.get("verdicts", {}) if v != "review")
     record = RunRecord(
         eval_name=name, run=run, setup_label=str(usage.get("setup_label", "")), candidate="%s@%s" % (wt, candidate[:10]),
