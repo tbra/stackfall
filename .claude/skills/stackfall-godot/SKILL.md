@@ -41,6 +41,7 @@ description: How Stackfall workers run, test, lint, probe and measure the game i
 - Under Git Bash `tasklist | findstr /i godot` always fails; use `tasklist | grep -i godot` or `wmic process where "name like '%godot%'" get ProcessId,CommandLine`. Other agents run Godot in other worktrees: never kill Godot by image name (`tools/guard_shell.py` refuses it); kill only PIDs you started (`taskkill //F //PID <n>`), after reading their CommandLine.
 - The launchers (`run_gut.ps1`, `full_gate.py`, `bot_h2h.py`, `measure_startup.py`, `new_worktree.py`) queue on `tools/godot_slots.py`; wrap any other launch in `python tools/godot_slots.py run -- godot ...`. `godot_slots.py status` shows holders and waiters.
 - Never hand back while a Godot run you started is still alive: wait for its `Totals`/result line, then report.
+- Never start synthetic CPU load (busy-loop processes, stress tools) to test behaviour under load: it trips the machine guard while the user works. Reproduce load sensitivity from the mechanism instead (physics ticks vs wall-clock, tick phase, body history) and say in the handback that a loaded run was not done.
 
 ## Measurements
 
