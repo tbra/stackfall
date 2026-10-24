@@ -91,16 +91,8 @@ class Recorder:
 	func net_block_despawned(net_id: int, reason: String) -> void:
 		log.append([&"net_block_despawned", [net_id, reason]])
 
-	@warning_ignore("unused_parameter")
 	@rpc("authority", "call_remote", "reliable")
-	func net_territory(
-		payload: PackedByteArray,
-		full: bool,
-		shares: PackedFloat32Array,
-		capture_team: int,
-		capture_progress: float,
-		circle_payload: PackedByteArray = PackedByteArray()
-	) -> void:
+	func net_territory(payload: PackedByteArray) -> void:
 		log.append([&"net_territory", [payload]])
 
 	@rpc("authority", "call_remote", "reliable")
