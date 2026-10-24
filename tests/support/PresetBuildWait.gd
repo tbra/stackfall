@@ -9,8 +9,18 @@ extends RefCounted
 const MAX_BUILD_WAIT_TICKS: int = 300
 
 
-static func wait_for_blocks(tree: SceneTree, expected: int) -> void:
+static func wait_for_blocks(tree: SceneTree, expected: int, replaced: Array[Node] = []) -> void:
 	var waited: int = 0
-	while Match.blocks_parent().get_child_count() < expected and waited < MAX_BUILD_WAIT_TICKS:
+	while live_blocks(replaced).size() < expected and waited < MAX_BUILD_WAIT_TICKS:
 		await tree.physics_frame
 		waited += 1
+
+
+## The blocks standing now that are not in `replaced` (the towers a reset is
+## about to take down) and not queued for deletion.
+static func live_blocks(replaced: Array[Node] = []) -> Array[Node]:
+	var out: Array[Node] = []
+	for child: Node in Match.blocks_parent().get_children():
+		if not replaced.has(child) and not child.is_queued_for_deletion():
+			out.append(child)
+	return out

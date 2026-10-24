@@ -9,6 +9,8 @@ extends GutTest
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const PLACE_ATTEMPTS: int = 80
 const PLACE_STEP_HEIGHT_M: float = 1.2
+## Physics ticks to keep watching after the rebuild, so a late second build would show.
+const HOLD_PAST_BUILD_TICKS: int = 60
 
 var _main: Node3D = null
 
@@ -74,6 +76,7 @@ func test_f5_re_places_the_preset_towers() -> void:
 	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
 	assert_eq(Match.blocks_parent().get_child_count(), expected, "fixture: towers are up before the reset")
 
+	var old_towers: Array[Node] = Match.blocks_parent().get_children()
 	var key: InputEventKey = InputEventKey.new()
 	key.device = -1
 	key.physical_keycode = KEY_F5
@@ -83,11 +86,14 @@ func test_f5_re_places_the_preset_towers() -> void:
 	_run_countdown()
 	await get_tree().process_frame
 	await get_tree().process_frame
-	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
-	await get_tree().physics_frame
+	# only blocks that are not the old towers count, so a rebuild must really happen
+	await PresetBuildWait.wait_for_blocks(get_tree(), expected, old_towers)
+	for _tick: int in range(HOLD_PAST_BUILD_TICKS):
+		await get_tree().physics_frame
 
 	assert_true(Match.config.sandbox)
-	assert_eq(Match.blocks_parent().get_child_count(), expected, "the towers are re-placed, not doubled or missing")
+	assert_eq(PresetBuildWait.live_blocks(old_towers).size(), expected, "the towers are re-placed, not doubled or missing")
+	assert_eq(PresetBuildWait.live_blocks().size(), expected, "the old towers are gone")
 
 
 var _silent_at_placement: Array[bool] = []
