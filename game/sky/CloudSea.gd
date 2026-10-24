@@ -73,6 +73,8 @@ const GROUP: StringName = &"cloud_sea"
 ## Sentinel for sun_ray_cloud_occlusion(): use the live drift offset.
 const OCC_LIVE_DRIFT: Vector2 = Vector2(-1.0e30, -1.0e30)
 const DRIFT_OFFSET_PARAMETER: StringName = &"drift_offset"
+## Capture-only puff clock (set_capture_time); negative animates by the shader's TIME.
+const CAPTURE_TIME_PARAMETER: StringName = &"capture_time"
 const DRIFT_EDGE_FADE_PARAMETER: StringName = &"drift_edge_fade_m"
 const DRIFT_EXCLUSION_FADE_PARAMETER: StringName = &"drift_exclusion_fade_m"
 ## One placement layer: the sea below the disc, or the cloud banks past its
@@ -144,6 +146,8 @@ var _disc_ceiling_m: float = 0.0
 var _bounds: CloudOcclusionBounds = CloudOcclusionBounds.new()
 ## The shared cloud wind integral last pushed by set_drift_offset().
 var _drift_offset: Vector2 = Vector2.ZERO
+## The capture pin's puff clock (s); negative in play, where the puffs animate by TIME.
+var _capture_time_s: float = -1.0
 var drift_config: CloudDriftConfig = CloudDriftState.DEFAULT_CONFIG
 
 
@@ -172,6 +176,14 @@ func set_drift_offset(offset: Vector2) -> void:
 	_drift_offset = offset
 	if _material != null:
 		_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, offset)
+
+
+## Capture-only (Skybox.set_capture_pin): `time_s` >= 0 holds the puffs' boil, billow and far-fade
+## sea at that clock so a parity capture repeats exactly; negative hands them back to TIME.
+func set_capture_time(time_s: float) -> void:
+	_capture_time_s = time_s
+	if _material != null:
+		_material.set_shader_parameter(CAPTURE_TIME_PARAMETER, time_s)
 
 
 ## Writes the puff channel of an evaluated frame (plan 4.1 steps 6-7), the cycle's tick values:
@@ -270,6 +282,9 @@ func configure_cycle(def: SkyCycleDef, frame: SkyFrame, density: float, subdivis
 	_material.set_shader_parameter(DRIFT_EDGE_FADE_PARAMETER, drift_config.edge_fade_m)
 	_material.set_shader_parameter(DRIFT_EXCLUSION_FADE_PARAMETER, drift_config.exclusion_fade_m)
 	_material.set_shader_parameter(DRIFT_OFFSET_PARAMETER, _drift_offset)
+	if _capture_time_s >= 0.0:
+		# A pin survives a rebuild; in play the material never carries it (the shader reads TIME).
+		_material.set_shader_parameter(CAPTURE_TIME_PARAMETER, _capture_time_s)
 	_material.set_shader_parameter(FLAT_BASE_PARAMETER, def.cloud_flat_base)
 	_material.set_shader_parameter(FAR_FADE_CAP_PARAMETER, def.proc_far_fade_cap)
 	# Transparent-pass draw (see the shader's DECISION): first among

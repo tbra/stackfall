@@ -1,7 +1,8 @@
 extends GutTest
 ## Skybox.set_capture_pin (tools/shot_targets.gd parity captures): a pinned running cycle holds the
-## phase set_cycle_phase gave it while the shared clock runs on, and the pin redraws the sky with the
-## fixed default variation seed whatever seed the match rolled.
+## phase set_cycle_phase gave it while the shared clock runs on, the pin redraws the sky with the
+## fixed default variation seed whatever seed the match rolled, and only a pin moves the cloud puffs
+## off engine TIME.
 
 const PIN_SKY_TIME_S: float = 100.0
 const PIN_DRIFT_S: float = 50.0
@@ -76,3 +77,31 @@ func test_a_pin_redraws_the_sky_with_the_default_variation_seed() -> void:
 	skybox.set_capture_pin(PIN_SKY_TIME_S, PIN_DRIFT_S)
 	assert_eq(skybox.variation_seed(), SkyVariation.DEFAULT_SEED)
 	assert_eq(float(material.get_shader_parameter(&"exposure")), default_exposure, "the pin redraws with the default seed")
+
+
+## The live puff material (every puff layer shares it).
+func _puff_material(skybox: Skybox) -> ShaderMaterial:
+	for sea: Node in skybox.find_children("*", "CloudSea", true, false):
+		for child: Node in sea.get_children():
+			if child is MultiMeshInstance3D and not child.is_queued_for_deletion():
+				return (child as MultiMeshInstance3D).material_override as ShaderMaterial
+	return null
+
+
+## In play the puffs animate by TIME, never by the sky clock: that wraps at time_wrap_seconds and
+## would re-roll every puff's lumps and billow at once (an hourly pop). A pin holds them at its clock,
+## also across a cloud-sea rebuild, and the unpin hands them back to TIME.
+func test_puffs_animate_by_engine_time_in_play_and_by_the_pinned_clock_under_a_pin() -> void:
+	var skybox: Skybox = _skybox()
+	var puffs: ShaderMaterial = _puff_material(skybox)
+	assert_not_null(puffs, "the cloud sea built its puffs")
+	if puffs == null:
+		return
+	assert_null(puffs.get_shader_parameter(CloudSea.CAPTURE_TIME_PARAMETER), "in play: no capture clock, so TIME")
+	skybox.set_capture_pin(PIN_SKY_TIME_S, PIN_DRIFT_S)
+	assert_eq(float(puffs.get_shader_parameter(CloudSea.CAPTURE_TIME_PARAMETER)), PIN_SKY_TIME_S, "pinned: the pin's clock")
+	skybox.refresh_sky_def()
+	puffs = _puff_material(skybox)
+	assert_eq(float(puffs.get_shader_parameter(CloudSea.CAPTURE_TIME_PARAMETER)), PIN_SKY_TIME_S, "a rebuilt sea keeps the pin")
+	skybox.set_capture_pin(-1.0, -1.0)
+	assert_lt(float(puffs.get_shader_parameter(CloudSea.CAPTURE_TIME_PARAMETER)), 0.0, "unpinned: back to TIME")

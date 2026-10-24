@@ -328,12 +328,17 @@ func set_cycle_length_seconds(seconds: float) -> void:
 	_clock.advance(_cycle_clock_s, length)
 
 
-## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global (which every sky and
-## cloud shader animates by), holds a running cycle at its evaluated phase and freezes the cloud
-## drift offset, so two shots of one state are identical. A negative value leaves that clock running.
+## Capture-only hook (tools/shot_targets.gd): freezes the `sky_time` global and the cloud puffs'
+## clock at it, holds a running cycle at its evaluated phase and freezes the cloud drift offset,
+## so two shots of one state are identical. A negative value leaves that clock running.
 func set_capture_pin(sky_time_s: float, cloud_drift_s: float) -> void:
 	_pinned_sky_time_s = sky_time_s
 	_pinned_cloud_drift_s = cloud_drift_s
+	if _cloud_sea != null:
+		# DECISION: in play the puffs keep engine TIME (the main-branch look, pause included); only a
+		# pin hands them the pinned sky clock, wrapped as the dome's is so the far fade still matches.
+		var puff_time_s: float = fposmod(sky_time_s, radiance_config.time_wrap_seconds) if sky_time_s >= 0.0 else -1.0
+		_cloud_sea.set_capture_time(puff_time_s)
 	if sky_time_s >= 0.0 or cloud_drift_s >= 0.0:
 		# A pinned capture uses the fixed default seed so two shots of one state agree; the shown
 		# phase is re-evaluated with it (a locked sky is never re-ticked otherwise).
