@@ -200,7 +200,7 @@ func late_activate() -> void:
 	_territory.setup(self)
 	_lifecycle.setup(self)
 	_gifts.setup(self)
-	_stats.setup(self, SessionPort.new(Net, PackedStringArray(["peer_of_slot"])))
+	_stats.setup(self, SessionPort.new(Net))
 	_weather.setup(self)
 	Events.feed_block_issued.connect(_on_feed_block_issued)
 	# One presenter owns every per-gift client visual (Paintball splash,

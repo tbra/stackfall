@@ -34,22 +34,6 @@ extends Node
 ## NetConfig; NetConfig documents the pairing.
 const CURSOR_CHANNEL: int = 2
 
-## The MatchReplicaPort writes MatchNet makes itself (cat state, territory, slot replay).
-const _REPLICA_PORT_METHODS: PackedStringArray = ["apply_replicated_cat_state", "apply_replicated_territory", "apply_replicated_gift_claimed", "apply_replicated_feed"]
-
-## What the default ports (over the Net and Match autoloads) must answer: the union of what MatchNet
-## and its collaborators (intent gateway, world replay, event mirror, event applier, territory
-## replicator) call, so one bound port serves them all.
-const _SESSION_PORT_METHODS: PackedStringArray = ["is_host", "is_offline", "local_slot", "slot_of_peer", "peer_of_slot", "is_local_slot", "peer_ids", "peer_info", "kick_peer"]
-const _HOST_PORT_METHODS: PackedStringArray = [
-	"config", "state", "slot_count", "slot", "request_place", "request_throw", "request_use_gift_slot", "set_cat_target",
-	"is_pose_well_formed", "feed_seq", "feed_time_left", "is_release_locked", "eliminated_by", "on_peer_rejoined",
-	"abort_match", "start_match", "active_cat", "active_slot", "blocks_parent", "registry", "stats", "raster",
-	"circle_render_arrays", "circle_wire_xz_bound", "circle_wire_radius_max", "territory_share", "countdown_remaining",
-	"match_timer_left", "mode_state_snapshot", "qol_backlog_count", "qol_timer_paused", "gift_slot_contents",
-	"gift_states", "gift_state", "gift_slot_enabled", "glue_drops_left", "glue_revision",
-]
-
 ## The territory wire version (net/match/TerritoryReplicator.gd owns the layout); the RPC contract
 ## test reads it here.
 const RASTER_VERSION: int = TerritoryReplicator.VERSION
@@ -334,9 +318,9 @@ func _ensure_ports() -> void:
 	if _session_port_cache != null:
 		return
 	if bind_ports(
-			SessionPort.new(Net, _SESSION_PORT_METHODS),
-			MatchHostPort.new(Match, _HOST_PORT_METHODS),
-			MatchReplicaPort.new(Match, _REPLICA_PORT_METHODS)):
+			SessionPort.new(Net),
+			MatchHostPort.new(Match),
+			MatchReplicaPort.new(Match)):
 		_session_is_autoload = true
 
 
