@@ -94,7 +94,7 @@ func _fast_tuning() -> BreezeTuning:
 # --- Scheduler ------------------------------------------------------------------
 
 func test_no_gust_fires_over_a_long_storm() -> void:
-	_block(Vector3(0.0, HIGH_M, 0.0))
+	var block: Block = _block(Vector3(0.0, HIGH_M, 0.0))
 	_weather_id = STORM_ID
 	var effect: BreezeEffect = _effect()
 	effect.begin(SEED_A)
@@ -102,7 +102,9 @@ func test_no_gust_fires_over_a_long_storm() -> void:
 	assert_true(effect.is_quieted_by_weather())
 	assert_eq(_gusts_seen.size(), 0, "no gust is announced during a storm")
 	assert_eq(effect.gusts().size(), 0, "and none lives on the host")
-	assert_eq(effect.last_pushed, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(block.linear_velocity.length(), 0.0, "and nothing pushes the block")
 
 
 func test_storm_ending_lets_gusts_resume() -> void:

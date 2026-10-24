@@ -157,11 +157,15 @@ func test_blocks_owning_their_physics_are_skipped() -> void:
 	special.add_child(SpecialBehavior.new())
 	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 1.0)
-	assert_eq(effect.last_pushed, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(special.linear_velocity.length(), 0.0, "a block owning its physics is not pushed")
 	special.get_child(special.get_child_count() - 1).queue_free()
 	await get_tree().process_frame
 	effect.tick(DELTA, 1.0)
-	assert_eq(effect.last_pushed, 1, "the ordinary block stays pushable")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_gt(special.linear_velocity.length(), 0.0, "the ordinary block stays pushable")
 
 
 # --- Host effect --------------------------------------------------------------------
@@ -193,9 +197,13 @@ func test_sleeping_blocks_wake_only_above_the_wake_threshold() -> void:
 func test_frozen_blocks_are_never_pushed() -> void:
 	var frozen: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	frozen.request_freeze_static(Block.FREEZE_REASON_STABLE)
+	var control: Block = _floating_block(_tuning.cap_height_m + 2.0)
 	var effect: StormEffect = _effect()
 	effect.tick(DELTA, 1.0)
-	assert_eq(effect.last_pushed, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_gt(control.linear_velocity.length(), 0.0, "fixture: the wind blows on an unfrozen block")
+	assert_eq(frozen.linear_velocity.length(), 0.0, "a frozen block is not pushed")
 
 
 func test_clients_never_apply_physics() -> void:
@@ -208,7 +216,6 @@ func test_clients_never_apply_physics() -> void:
 	effect.bind(context, _tuning)
 	effect.tick(DELTA, 1.0)
 	await get_tree().physics_frame
-	assert_eq(effect.last_pushed, 0)
 	assert_almost_eq(high.linear_velocity.length(), 0.0, 0.0001)
 
 
@@ -223,7 +230,6 @@ func test_stop_leaves_no_force() -> void:
 	for _i: int in range(30):
 		await get_tree().physics_frame
 	assert_almost_eq(high.linear_velocity.length(), speed_after_stop, 0.001, "no force lingers after restore")
-	assert_eq(effect.last_pushed, 0)
 
 
 func test_low_pile_stays_at_full_intensity() -> void:

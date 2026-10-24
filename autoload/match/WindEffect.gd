@@ -1,14 +1,12 @@
 class_name WindEffect
 extends WeatherEffect
 ## Shared base of the two host-side wind effects, StormEffect and BreezeEffect:
-## the block/surface/host lookups, the per-tick push counters and the
+## the block/surface/host lookups, the per-tick wake counter and the
 ## stable-freeze helpers both use to push (and wake) blocks the same way.
 
 ## Six world axes probed by is_exposed().
 const EXPOSURE_AXES: Array[Vector3] = [Vector3.UP, Vector3.RIGHT, Vector3.LEFT, Vector3.FORWARD, Vector3.BACK, Vector3.DOWN]
 
-## Blocks pushed on the most recent tick.
-var last_pushed: int = 0
 ## Stable-frozen blocks woken on the most recent tick (capped by tuning).
 var last_woken: int = 0
 

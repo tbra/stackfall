@@ -9,6 +9,13 @@ const LATE_NET_ID: int = 56
 const FIELD_RADIUS_M: float = 6.0
 const FLUSH_WAIT_FRAMES: int = 120
 const BIG_BUDGET: int = 1000
+const LINK_WAIT_S: float = 10.0
+const HOST_ROOT: String = "SnowHostRoot"
+const CLIENT_ROOT: String = "SnowClientRoot"
+const SNOW_NODE: String = "SnowNet"
+## Wire ints per block record (net_id, face axis, one (cell, level) pair, in SnowGeometry's layout).
+const SINGLE_STATE_WIRE_SIZE: int = 5
+const DOUBLE_STATE_WIRE_SIZE: int = 10
 
 
 ## The host port spy answering the four reads SnowNet makes: field, registry, weather, state.
@@ -148,7 +155,6 @@ func test_client_draws_caps_but_never_colliders() -> void:
 	assert_true(SnowCaps.disc_bodies(_field).is_empty(), "no disc collider body on a client")
 	assert_not_null(_disc_cover(_field), "disc cover drawn from the state")
 	assert_eq(_disc_cover(_field).level(), 2)
-	assert_eq(_snow_net.states_applied, 1)
 
 
 func test_client_refuses_bad_or_out_of_event_states() -> void:
@@ -166,7 +172,6 @@ func test_client_refuses_bad_or_out_of_event_states() -> void:
 	assert_false(_snow_net.apply_state(forged), "level out of range")
 	_snow_net.step_client(BIG_BUDGET)
 	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "nothing drawn")
-	assert_eq(_snow_net.states_refused, 4)
 	_net.is_host_value = true
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the host never applies a replicated state")
 
@@ -196,26 +201,72 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 	_net.is_host_value = true
 	var relay: SnowRelay = SnowRelay.instance()
 	relay.publish(_state([NET_ID], -1))
-	assert_eq(_snow_net.states_sent, 1, "first state goes at once")
+	assert_eq(_sent_blocks(), SINGLE_STATE_WIRE_SIZE, "first state goes at once")
 	relay.publish(_state([NET_ID, LATE_NET_ID], -1))
-	assert_eq(_snow_net.states_sent, 1, "second is held by the throttle")
+	assert_eq(_sent_blocks(), SINGLE_STATE_WIRE_SIZE, "second is held by the throttle")
 	var frames: int = 0
-	while _snow_net.states_sent < 2 and frames < FLUSH_WAIT_FRAMES:
+	while _sent_blocks() != DOUBLE_STATE_WIRE_SIZE and frames < FLUSH_WAIT_FRAMES:
 		await get_tree().process_frame
 		frames += 1
-	assert_eq(_snow_net.states_sent, 2, "held state flushed after the interval")
-	assert_eq((_snow_net.last_sent_state["b"] as PackedInt32Array).size(), 10)
+	assert_eq(_sent_blocks(), DOUBLE_STATE_WIRE_SIZE, "held state flushed after the interval")
 	relay.publish(_state([NET_ID], -1))
 	relay.publish(_empty_state())
-	assert_eq(_snow_net.states_sent, 3, "an empty state bypasses the throttle")
-	assert_true(SnowRelay.is_empty_state(_snow_net.last_sent_state), "and replaces the held one")
+	assert_true(SnowRelay.is_empty_state(_snow_net.last_sent_state), "an empty state bypasses the throttle and replaces the held one")
 	await get_tree().create_timer(_snow.send_min_interval_s * 2.0).timeout
-	assert_eq(_snow_net.states_sent, 3, "nothing stale sent afterwards")
-	relay.publish(_state([NET_ID], -1))
-	var before: int = _snow_net.states_sent
-	Events.net_peer_joined.emit(7, 1, "late")
-	assert_eq(_snow_net.states_sent, before + 1, "late joiner gets the current state")
+	assert_true(SnowRelay.is_empty_state(_snow_net.last_sent_state), "nothing stale sent afterwards")
 	relay.publish(_empty_state())
+
+
+## Wire size of the block records in the last state the host sent (0 when none).
+func _sent_blocks() -> int:
+	if _snow_net.last_sent_state.is_empty():
+		return 0
+	return (_snow_net.last_sent_state["b"] as PackedInt32Array).size()
+
+
+## A peer joining late is sent the relay's current state over a real ENet link and draws it.
+func test_late_joiner_receives_the_current_state_over_the_wire() -> void:
+	var host_root: Node = Node.new()
+	host_root.name = HOST_ROOT
+	var client_root: Node = Node.new()
+	client_root.name = CLIENT_ROOT
+	var host_api: SceneMultiplayer = SceneMultiplayer.new()
+	var client_api: SceneMultiplayer = SceneMultiplayer.new()
+	get_tree().set_multiplayer(host_api, NodePath(String(get_path()) + "/" + HOST_ROOT))
+	get_tree().set_multiplayer(client_api, NodePath(String(get_path()) + "/" + CLIENT_ROOT))
+	add_child_autofree(host_root)
+	add_child_autofree(client_root)
+	var host_net: SnowNet = SnowNet.new()
+	host_net.name = SNOW_NODE
+	var host_session: FakeNet = FakeNet.host({1: 0}, [0])
+	assert_true(host_net.bind(FakeSessionPort.new(host_session), _match))
+	host_root.add_child(host_net)
+	var client_net: SnowNet = SnowNet.new()
+	client_net.name = SNOW_NODE
+	var client_session: FakeNet = FakeNet.client(0)
+	assert_true(client_net.bind(FakeSessionPort.new(client_session), _match))
+	client_root.add_child(client_net)
+	# Published before the link exists, so only the join handler can deliver it.
+	_start_client_snow()
+	var block: Block = _client_block(NET_ID, Vector3.ZERO)
+	SnowRelay.instance().publish(_state([NET_ID], -1))
+	var port: int = AgentProbe.free_udp_port()
+	var server: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
+	assert_eq(server.create_server(port), OK)
+	host_api.multiplayer_peer = server
+	var link: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
+	assert_eq(link.create_client("127.0.0.1", port), OK)
+	client_api.multiplayer_peer = link
+	var connected: bool = await wait_until(func() -> bool: return host_api.get_peers().size() == 1, LINK_WAIT_S)
+	assert_true(connected, "fixture: the client reaches the host")
+	Events.net_peer_joined.emit(host_api.get_peers()[0], 1, "late")
+	var drawn: bool = await wait_until(func() -> bool:
+		client_net.step_client(BIG_BUDGET)
+		return _cap_mesh(block, SnowCaps.CAP_NAME) != null, LINK_WAIT_S)
+	assert_true(drawn, "the late joiner got the current state and drew it")
+	SnowRelay.instance().publish(_empty_state())
+	host_api.multiplayer_peer = null
+	client_api.multiplayer_peer = null
 
 
 func test_bind_refuses_an_invalid_host_port() -> void:
@@ -247,5 +298,8 @@ func test_an_unbound_snow_net_reads_the_real_net() -> void:
 	var bare: SnowNet = SnowNet.new()
 	add_child_autofree(bare)
 	bare.net_snow_state(_empty_state())
-	assert_eq(bare.states_refused, 1, "no bind: the host check goes to the real Net")
-	assert_eq(bare.states_applied, 0)
+	_start_client_snow()
+	var block: Block = _client_block(NET_ID, Vector3.ZERO)
+	bare.net_snow_state(_state([NET_ID], -1))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "no bind: the host check goes to the real Net, so nothing is drawn")
