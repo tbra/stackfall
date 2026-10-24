@@ -125,19 +125,9 @@ func test_raster_shadow_fill_matches_in_place_v2() -> void:
 
 # --- B: job inline vs worker -----------------------------------------------------------
 
-func _make_job(circles: Array[InfluenceCircle], grid: CellGrid, cone: bool, holes: bool) -> TerritorySolveJob:
+func _make_job(circles: Array[InfluenceCircle], grid: CellGrid, holes: bool) -> TerritorySolveJob:
 	var job: TerritorySolveJob = TerritorySolveJob.new()
 	job.circles = circles
-	job.cone_enabled = cone
-	if cone:
-		var heights: PackedFloat32Array = PackedFloat32Array()
-		for i: int in range(circles.size()):
-			heights.append(0.0 if circles[i].is_home else 0.7 + 0.37 * float(i % 9))
-		job.heights = heights
-		job.cone_angle = 55.0
-		job.cone_base_mode = SandboxConeExperiment.BASE_ADDITIVE
-		job.cone_base_radius = _tuning.influence_base
-		job.cone_max_radius = _tuning.influence_max_fraction * GRID_RADIUS
 	job.holes_enabled = holes
 	job.solver_tuning = _tuning.duplicate() as TerritoryTuning
 	job.fill_raster = TerritoryRaster.new(grid, _tuning)
@@ -170,22 +160,21 @@ func test_job_on_a_worker_matches_inline() -> void:
 	rng.seed = 77
 	for round_index: int in range(6):
 		var circles: Array[InfluenceCircle] = _random_circles(rng)
-		var cone: bool = round_index % 2 == 0
 		var holes: bool = round_index % 3 != 0
-		var inline_job: TerritorySolveJob = _make_job(circles, grid, cone, holes)
-		var worker_job: TerritorySolveJob = _make_job(circles, grid, cone, holes)
+		var inline_job: TerritorySolveJob = _make_job(circles, grid, holes)
+		var worker_job: TerritorySolveJob = _make_job(circles, grid, holes)
 		inline_job.run()
 		worker_job.task_id = WorkerThreadPool.add_task(worker_job.run)
 		_wait_for(worker_job)
-		_assert_jobs_equal(inline_job, worker_job, "round %d cone=%s holes=%s" % [round_index, cone, holes])
+		_assert_jobs_equal(inline_job, worker_job, "round %d holes=%s" % [round_index, holes])
 		assert_gt(inline_job.render["xs"].size(), 0, "fixture: the render list is not empty")
 
 		# cache_hit path: groups reused, no render rebuilt, fill still runs.
-		var hit_inline: TerritorySolveJob = _make_job(circles, grid, false, holes)
+		var hit_inline: TerritorySolveJob = _make_job(circles, grid, holes)
 		hit_inline.cache_hit = true
 		hit_inline.cached_groups = inline_job.groups
 		hit_inline.circles = inline_job.out_circles
-		var hit_worker: TerritorySolveJob = _make_job(circles, grid, false, holes)
+		var hit_worker: TerritorySolveJob = _make_job(circles, grid, holes)
 		hit_worker.cache_hit = true
 		hit_worker.cached_groups = inline_job.groups
 		hit_worker.circles = inline_job.out_circles

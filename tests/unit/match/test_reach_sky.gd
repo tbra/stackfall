@@ -54,12 +54,12 @@ func _place(shape_path: String, slot: int, at: Vector3) -> Block:
 func test_a_multi_cube_block_reports_its_full_height_when_it_settles() -> void:
 	_setup_world()
 	_place("res://config/blocks/cube.tres", 0, Vector3(-4.0, 1.0, 0.0))
-	var pillar: Block = _place("res://config/blocks/pillar.tres", 1, Vector3(4.0, 1.0, 0.0))
+	_place("res://config/blocks/pillar.tres", 1, Vector3(4.0, 1.0, 0.0))
 	var heard: Dictionary = {}
 	_registry.block_settled.connect(func(slot: int, height: float) -> void: heard[slot] = height)
 	_registry._physics_process(_tuning.sleep_settle_time + 0.1)
 	assert_true(heard.has(0) and heard.has(1), "both blocks announce once they settle")
-	assert_almost_eq(float(heard[1]), _registry.top_height_for_block(pillar), 0.0001, "same measure as the HUD tower")
+	assert_almost_eq(float(heard[1]), _registry.max_height_for_slot(1), 0.0001, "same measure as the HUD tower")
 	assert_almost_eq(float(heard[0]), _registry.max_height_for_slot(0), 0.0001)
 	assert_gt(float(heard[1]), float(heard[0]), "a multi-cube block reaches higher than one cube from the same centre height")
 

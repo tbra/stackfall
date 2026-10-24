@@ -54,15 +54,7 @@ func test_start_match_runs_lobby_to_playing_with_countdown_ticks() -> void:
 	var collect: Callable = func(seconds_left: int) -> void: ticks.append(seconds_left)
 	Events.countdown_tick.connect(collect)
 
-	Match.set_sandbox_territory_mode(
-		MatchAutoload.SANDBOX_TERRITORY_CONE, 75.0,
-		SandboxConeExperiment.HEIGHT_CENTER, SandboxConeExperiment.BASE_NONE
-	)
 	Match.start_match(_real_time_config())
-	assert_eq(Match._sandbox_territory_mode, MatchAutoload.DEFAULT_TERRITORY_MODE)
-	assert_almost_eq(Match._sandbox_cone_angle, MatchAutoload.DEFAULT_CONE_ANGLE_DEGREES, 0.001)
-	assert_eq(Match._sandbox_cone_height_source, SandboxConeExperiment.HEIGHT_TOP)
-	assert_eq(Match._sandbox_cone_base_mode, SandboxConeExperiment.BASE_ADDITIVE)
 	assert_eq(Match.state(), Match.State.COUNTDOWN)
 	assert_eq(ticks, [3] as Array[int])
 

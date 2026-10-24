@@ -120,7 +120,6 @@ func test_member_circles_equal_the_unfused_equivalents() -> void:
 		assert_almost_eq(now.center.x, was.center.x, CIRCLE_TOLERANCE, "slot %d centre x" % slot)
 		assert_almost_eq(now.center.y, was.center.y, CIRCLE_TOLERANCE, "slot %d centre z" % slot)
 		assert_almost_eq(now.radius, was.radius, CIRCLE_TOLERANCE, "slot %d radius" % slot)
-		assert_almost_eq(now.top_height, was.top_height, CIRCLE_TOLERANCE, "slot %d top" % slot)
 		assert_eq(now.team_id, was.team_id)
 		assert_eq(now.body_id, pair[slot].get_instance_id(), "keyed by the member, not the carrier")
 

@@ -19,7 +19,6 @@
   "game/field/Field.gd",
   "game/gifts/GiftCrate.gd",
   "game/player/GhostPreview.gd",
-  "game/sandbox/SandboxConeAdapter.gd",
   "game/sky/CloudSea.gd",
   "game/sky/CloudSea.gd.uid",
   "game/sky/CloudShadows.gd",

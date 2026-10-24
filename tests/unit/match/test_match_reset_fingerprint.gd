@@ -254,8 +254,7 @@ func _play_dirty_a(main: Node) -> void:
 	await _settle()
 
 
-## Menu sandbox session that leaves slow motion, a paused tree and a non-default territory
-## mode behind, exited through the pause menu's Leave.
+## Menu sandbox session that leaves slow motion and a paused tree behind, exited through the pause menu's Leave.
 func _sandbox_session_and_leave(main: Node) -> void:
 	_seed_main_config(main)
 	main.start_sandbox_from_menu()
@@ -263,7 +262,6 @@ func _sandbox_session_and_leave(main: Node) -> void:
 	assert_not_null(sandbox, "fixture: the sandbox is live")
 	sandbox._toggle_slow_motion()
 	sandbox._toggle_physics_paused()
-	Match.set_sandbox_territory_mode(Match.SANDBOX_TERRITORY_PAUSED)
 	_dirty_camera(main.get("_camera_rig") as CameraRig)
 	main._on_pause_leave_requested()
 	await _settle()

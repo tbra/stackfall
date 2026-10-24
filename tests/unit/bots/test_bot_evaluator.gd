@@ -34,9 +34,9 @@ func _circles() -> Array[InfluenceCircle]:
 		InfluenceCircle.for_home(ENEMY_HOME, 1, 1, _tuning),
 	]
 	for x: float in OWN_X:
-		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 0, 0, false, 1, BLOCK_TOP_M))
+		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 0, 0, false, 1))
 	for x: float in ENEMY_X:
-		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 1, 1, false, 2, BLOCK_TOP_M))
+		out.append(InfluenceCircle.new(Vector2(x, 0.0), InfluenceCircle.radius_for_height(BLOCK_TOP_M, _tuning, MAP_RADIUS), 1, 1, false, 2))
 	return out
 
 

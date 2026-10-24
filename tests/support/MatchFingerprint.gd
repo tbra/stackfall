@@ -407,7 +407,6 @@ static func _capture_rules(out: Dictionary) -> void:
 	out["rules.blocks_parent_children"] = _child_kinds(blocks_parent)
 	out["rules.match_children"] = _child_kinds(Match)
 	out["rules.cat"] = Match.active_cat() != null
-	out["rules.sandbox_territory_mode"] = Match._sandbox_territory_mode
 	out["rules.sandbox_territory_cache"] = _bp(Match, &"_territory_cache_enabled")
 	out["rules.feed_timer_enabled"] = Match.feed_timer_enabled()
 	out["rules.config_present"] = Match.config != null

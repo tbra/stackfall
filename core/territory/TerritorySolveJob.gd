@@ -1,8 +1,8 @@
 class_name TerritorySolveJob
 extends RefCounted
 ## P-ASYNC: one territory solve step as a self-contained job.
-## The main thread fills the inputs (the scene reads: collect, source signature,
-## cone heights), then run() executes either inline (synchronous path) or inside
+## The main thread fills the inputs (the scene reads: collect, source signature),
+## then run() executes either inline (synchronous path) or inside
 ## a WorkerThreadPool task. run() touches only this job, its fill raster and a
 ## solver, never the scene tree, Events or a shared Resource, so the outcome is
 ## the same on any thread. Pure logic (CLAUDE.md): nothing here reads the tree.
@@ -11,12 +11,6 @@ extends RefCounted
 var circles: Array[InfluenceCircle] = []
 var cache_hit: bool = false
 var cached_groups: TerritoryGroups = null
-var cone_enabled: bool = false
-var heights: PackedFloat32Array = PackedFloat32Array()
-var cone_angle: float = 0.0
-var cone_base_mode: int = SandboxConeExperiment.BASE_NONE
-var cone_base_radius: float = 0.0
-var cone_max_radius: float = INF
 var holes_enabled: bool = false
 ## Used when `solver` is null (async path: a fresh solver on a tuning snapshot).
 var solver_tuning: TerritoryTuning = null
@@ -42,17 +36,9 @@ func run() -> void:
 	if cache_hit:
 		groups = cached_groups
 	else:
-		if cone_enabled:
-			var projected: Dictionary = SandboxConeExperiment.build(
-				circles, heights, cone_angle, cone_base_mode, cone_base_radius, cone_max_radius
-			)
-			out_circles = projected["circles"]
-		elif not holes_enabled:
-			# circle mode (HoleMode.OFF) drops same-team circles
-			# fully inside a larger one BEFORE the solver's max_circles budget, so
-			# redundant circles never spend budget. Exact: raster, shader and
-			# connectivity are unchanged (the cone path already culls its own).
-			out_circles = SandboxContainmentExperiment.build(circles)["circles"]
+		# Same-team circles fully inside a larger one go BEFORE the solver's
+		# max_circles budget, so redundant circles never spend budget.
+		out_circles = TerritoryCull.drop_contained(circles)
 		var active_solver: TerritorySolver = solver if solver != null else TerritorySolver.new(solver_tuning)
 		groups = active_solver.solve(out_circles)
 	fill_raster.fill_ownership(out_circles, groups, holes_enabled)

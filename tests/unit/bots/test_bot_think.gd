@@ -36,7 +36,7 @@ func before_each() -> void:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(HOME_A, 0, 0, _territory_tuning),
 		InfluenceCircle.for_home(HOME_B, 1, 1, _territory_tuning),
-		InfluenceCircle.new(BLOCK_CIRCLE_POS, InfluenceCircle.radius_for_height(BLOCK_CIRCLE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7, BLOCK_CIRCLE_TOP_M),
+		InfluenceCircle.new(BLOCK_CIRCLE_POS, InfluenceCircle.radius_for_height(BLOCK_CIRCLE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
 	_raster.fill_ownership(circles, solver.solve(circles), false)
@@ -44,7 +44,7 @@ func before_each() -> void:
 
 
 func _render_arrays() -> Dictionary:
-	var block: InfluenceCircle = InfluenceCircle.new(BLOCK_CIRCLE_POS, InfluenceCircle.radius_for_height(BLOCK_CIRCLE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7, BLOCK_CIRCLE_TOP_M)
+	var block: InfluenceCircle = InfluenceCircle.new(BLOCK_CIRCLE_POS, InfluenceCircle.radius_for_height(BLOCK_CIRCLE_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 7)
 	return {
 		"xs": PackedFloat32Array([HOME_A.x, HOME_B.x, BLOCK_CIRCLE_POS.x]),
 		"zs": PackedFloat32Array([HOME_A.y, HOME_B.y, BLOCK_CIRCLE_POS.y]),

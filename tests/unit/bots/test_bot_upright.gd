@@ -38,7 +38,7 @@ func _view(held: BlockShape, mode: int) -> BotWorldView:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(HOME_A, 0, 0, _territory_tuning),
 		InfluenceCircle.for_home(HOME_B, 1, 1, _territory_tuning),
-		InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 1, TOWER_TOP_M),
+		InfluenceCircle.new(TOWER_POS, InfluenceCircle.radius_for_height(TOWER_TOP_M, _territory_tuning, MAP_RADIUS), 0, 0, false, 1),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
 	raster.fill_ownership(circles, solver.solve(circles), false)

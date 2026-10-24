@@ -31,7 +31,6 @@
  "core/sky/CloudShadowMath.gd": 2,
  "core/sky/SunContrast.gd": 1,
  "core/territory/CellGrid.gd": 2,
- "core/territory/SandboxConeExperiment.gd": 1,
  "core/territory/TerritoryRaster.gd": 1,
  "core/territory/TerritorySolveJob.gd": 3,
  "core/territory/TerritorySolver.gd": 1,

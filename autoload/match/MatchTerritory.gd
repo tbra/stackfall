@@ -103,7 +103,6 @@ func fresh_solve_matches_live() -> bool:
 		return true
 	var job: TerritorySolveJob = TerritorySolveJob.new()
 	job.circles = _collect_circles()
-	_fill_cone_inputs(job)
 	job.holes_enabled = _match.config.hole_mode != MatchConfig.HoleMode.OFF
 	job.solver_tuning = _match._territory_tuning
 	job.fill_raster = TerritoryRaster.new(_cell_grid, _match._territory_tuning)
@@ -584,7 +583,7 @@ func _complete_pending() -> void:
 
 
 ## Main-thread half of a solve step: every scene read (source signature,
-## collect, cone heights) happens here, so the job is pure data.
+## collect) happens here, so the job is pure data.
 func _kickoff(delta: float) -> TerritorySolveJob:
 	if _match._registry != null:
 		_seen_revision = _match._registry.territory_revision()
@@ -602,29 +601,7 @@ func _kickoff(delta: float) -> TerritorySolveJob:
 		job.cached_groups = _cached_groups
 	else:
 		job.circles = _collect_circles()
-		_fill_cone_inputs(job)
 	return job
-
-
-## Sandbox cone projection inputs for `job`: heights measured on the main thread.
-func _fill_cone_inputs(job: TerritorySolveJob) -> void:
-	# a field/registry freed by scene teardown can still be
-	# referenced here for one step; never pass a freed object to the typed call.
-	if _match._sandbox_territory_mode != MatchAutoload.SANDBOX_TERRITORY_CONE \
-			or not is_instance_valid(_match._field) or not is_instance_valid(_match._registry):
-		return
-	var measured: Dictionary = SandboxConeAdapter.measure_heights(
-		job.circles, _match._field, _match._registry, _match._sandbox_cone_height_source
-	)
-	if not measured.has("error"):
-		job.cone_enabled = true
-		job.heights = measured["heights"]
-		job.cone_angle = _match._sandbox_cone_angle
-		job.cone_base_mode = _match._sandbox_cone_base_mode
-		job.cone_base_radius = _match._territory_tuning.influence_base
-		job.cone_max_radius = (
-			_match._territory_tuning.influence_max_fraction * _match.config.map_def().field_radius
-		)
 
 
 ## Main-thread half of a solve step, in this order: cache store, groups, raster, objective, overlay,
@@ -678,10 +655,6 @@ func _apply(job: TerritorySolveJob) -> void:
 func _territory_config_signature() -> Dictionary:
 	var signature: Dictionary = {
 		"field": _match._field.global_transform if _match._field != null else Transform3D.IDENTITY,
-		"mode": _match._sandbox_territory_mode,
-		"angle": _match._sandbox_cone_angle,
-		"height_source": _match._sandbox_cone_height_source,
-		"base_mode": _match._sandbox_cone_base_mode,
 		"hole_mode": _match.config.hole_mode,
 		"influence_base": _match._territory_tuning.influence_base,
 		"influence_cap": _match._territory_tuning.influence_max_fraction,

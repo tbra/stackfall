@@ -83,7 +83,7 @@ func _owned_goal_view() -> BotWorldView:
 	var circles: Array[InfluenceCircle] = [
 		InfluenceCircle.for_home(OWN_HOME, TEAM, 0, _territory_tuning),
 		InfluenceCircle.for_home(ENEMY_HOME, ENEMY, 1, _territory_tuning),
-		InfluenceCircle.new(Vector2(-4.0, 0.0), InfluenceCircle.radius_for_height(TALL_TOP, _territory_tuning, MAP_RADIUS), TEAM, 0, false, 7, TALL_TOP),
+		InfluenceCircle.new(Vector2(-4.0, 0.0), InfluenceCircle.radius_for_height(TALL_TOP, _territory_tuning, MAP_RADIUS), TEAM, 0, false, 7),
 	]
 	var solver: TerritorySolver = TerritorySolver.new(_territory_tuning)
 	raster.fill_ownership(circles, solver.solve(circles), false)
