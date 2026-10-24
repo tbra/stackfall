@@ -2,8 +2,6 @@
  "checks": {
   "dead-file": [],
   "test-only-func": [
-   "autoload/Match.gd:set_cat_target",
-   "autoload/Net.gd:report_stats",
    "autoload/Sfx.gd:set_root_dir_for_test",
    "autoload/match/BreezeEffect.gd:_active_weather_id",
    "autoload/match/BreezeEffect.gd:_age_and_expire",
@@ -15,16 +13,7 @@
    "autoload/match/BreezeEffect.gd:tick",
    "autoload/match/MatchContextLive.gd:qol_claim_radius",
    "autoload/match/MatchLifecycle.gd:active_slot",
-   "autoload/match/MatchLifecycle.gd:apply_replicated_countdown",
-   "autoload/match/MatchLifecycle.gd:apply_replicated_elimination",
-   "autoload/match/MatchLifecycle.gd:apply_replicated_state_change",
-   "autoload/match/MatchLifecycle.gd:apply_replicated_turn",
-   "autoload/match/MatchLifecycle.gd:countdown_remaining",
-   "autoload/match/MatchLifecycle.gd:disconnect_grace_left",
-   "autoload/match/MatchLifecycle.gd:eliminated_by",
-   "autoload/match/MatchLifecycle.gd:mode_state_snapshot",
    "autoload/match/MatchLifecycle.gd:on_peer_left",
-   "autoload/match/MatchLifecycle.gd:on_peer_rejoined",
    "autoload/match/MatchLifecycle.gd:set_loading_gate_forced",
    "autoload/match/MatchLifecycle.gd:setup",
    "autoload/match/MatchLifecycle.gd:slot_count",
@@ -50,10 +39,6 @@
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",
    "core/ai/BotThink.gd:decision",
-   "core/territory/TerritoryRaster.gd:_rebuild_team_counts",
-   "core/territory/TerritoryRaster.gd:_write_replicated_cell",
-   "core/territory/TerritoryRaster.gd:apply_replicated_diff",
-   "core/territory/TerritoryRaster.gd:apply_replicated_state",
    "game/blocks/HoleDissolver.gd:reset",
    "game/blocks/HoleDissolver.gd:set_field",
    "game/bots/BotController.gd:set_match_provider",
@@ -63,7 +48,6 @@
    "game/debug/AgentProbe.gd:parse_render_size",
    "game/debug/DebugMode.gd:clear_override_for_test",
    "game/debug/DebugMode.gd:set_override_for_test",
-   "game/gifts/specials/CatController.gd:set_target",
    "game/player/CameraRig.gd:get_pitch",
    "game/player/PlayerController.gd:set_session_provider",
    "game/weather/SnowClientRenderer.gd:apply",
@@ -147,93 +131,13 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:after_next_special",
-   "reason": "live: net/MatchNet.gd:2317 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_countdown",
-   "reason": "live: net/MatchEventApplier.gd:48 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_elimination",
-   "reason": "live: net/MatchEventApplier.gd:152 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_feed",
-   "reason": "live: net/MatchEventApplier.gd:76 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_gift_slot",
-   "reason": "live: net/MatchEventApplier.gd:103 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_glue_charges",
-   "reason": "live: net/MatchEventApplier.gd:350 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_mode_state",
-   "reason": "live: net/MatchEventApplier.gd:164 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_qol",
-   "reason": "live: net/MatchEventApplier.gd:109 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_special_consumed",
-   "reason": "live: net/MatchEventApplier.gd:336 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_state_change",
-   "reason": "live: net/MatchEventApplier.gd:46 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_territory",
-   "reason": "live: net/MatchNet.gd:2764 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:apply_replicated_turn",
-   "reason": "live: net/MatchEventApplier.gd:73 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:bot_mode_goal",
    "reason": "live: game/bots/BotController.gd:938 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:countdown_remaining",
-   "reason": "live: net/MatchNet.gd:2206 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:disconnect_grace_left",
-   "reason": "live: net/MatchNet.gd:2054 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:eliminated_by",
-   "reason": "live: net/MatchNet.gd:1620 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:feed_progress",
    "reason": "live: ui/hud/HUD.gd:437 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_slot_contents",
-   "reason": "live: net/MatchNet.gd:2250 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -247,51 +151,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_state",
-   "reason": "live: net/MatchEventApplier.gd:206 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_states",
-   "reason": "live: game/bots/BotController.gd:608 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:glue_revision",
-   "reason": "live: net/MatchNet.gd:2412 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:mode_state_snapshot",
-   "reason": "live: net/MatchNet.gd:2222 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:next_shape",
-   "reason": "live: game/bots/BotController.gd:279 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:next_special",
-   "reason": "live: net/MatchNet.gd:2316 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:note_aim",
-   "reason": "live: game/bots/BotController.gd:917 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:on_peer_left",
-   "reason": "live: net/MatchNet.gd:1973 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:on_peer_rejoined",
-   "reason": "live: net/MatchNet.gd:1987 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:pending_special_count",
    "reason": "live: ui/hud/HUD.gd:1393 (untyped or dynamic call)"
   },
@@ -302,33 +161,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:request_throw",
-   "reason": "live: game/bots/BotController.gd:919 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:request_use_gift_slot",
-   "reason": "live: autoload/match/MatchPlacement.gd:90 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:sudden_death_active",
    "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:kick_peer",
-   "reason": "live: SessionPort.kick_peer string call net/ports/SessionPort.gd:125, called by MatchWorldReplay.tick_timeouts net/match/MatchWorldReplay.gd:167"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:apply_replicated_feed",
-   "reason": "live: autoload/Match.gd:1098 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:apply_replicated_qol",
-   "reason": "live: autoload/Match.gd:807 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -347,11 +181,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:issue_gift_now",
-   "reason": "live: autoload/match/MatchGifts.gd:345 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:setup",
    "reason": "Match.gd:216 _feed.setup(self)"
   },
@@ -362,48 +191,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:after_next_special",
-   "reason": "live: autoload/Match.gd:625 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:apply_replicated_gift_slot",
-   "reason": "live: autoload/Match.gd:801 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:apply_replicated_glue_charges",
-   "reason": "live: autoload/Match.gd:675 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:apply_replicated_special_consumed",
-   "reason": "live: autoload/Match.gd:1192 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:gift_slot_count",
    "reason": "live: autoload/Match.gd:778 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:gift_slot_head",
-   "reason": "live: autoload/Match.gd:772 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:gift_state",
-   "reason": "live: autoload/Match.gd:1144 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:gift_states",
-   "reason": "live: autoload/Match.gd:1150 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:next_special",
-   "reason": "live: autoload/Match.gd:633 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -417,11 +206,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:request_use_gift_slot",
-   "reason": "live: autoload/Match.gd:796 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:reset",
    "reason": "MatchLifecycle.gd:321 _match._gifts.reset()"
   },
@@ -429,11 +213,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:setup",
    "reason": "Match.gd _gifts.setup (Match setup chain)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchPlacement.gd:note_aim",
-   "reason": "live: autoload/Match.gd:888 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -474,11 +253,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchTerritory.gd:_fill_domination_goal",
    "reason": "MatchTerritory.gd:357 in bot_mode_goal (Match.gd:985)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchTerritory.gd:apply_replicated_territory",
-   "reason": "live: autoload/Match.gd:1212 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -652,11 +426,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "config/match/QolExperiments.gd:effective_gift_min_window_s",
-   "reason": "MatchGifts calls it on the typed _match.config.qol; dep_graph cannot resolve the chained receiver"
-  },
-  {
-   "id": "test-only-func",
    "entry": "config/weather/SnowTuning.gd:melt_cap_after",
    "reason": "SnowEffect.gd:288 (SnowEffect via effect_script)"
   },
@@ -672,31 +441,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/rules/CaptureFlagObjective.gd:reset",
-   "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:reset",
-   "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/DominationObjective.gd:reset",
-   "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/EliminationObjective.gd:reset",
-   "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ModeObjective.gd:reset",
-   "reason": "ModeObjective.gd:57 in create() (MatchTerritory.gd:130)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/ReachSkyObjective.gd:_team_value",
    "reason": "ReachSkyObjective.gd:100 in record_height"
   },
@@ -707,18 +451,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/rules/ReachSkyObjective.gd:reset",
-   "reason": "MatchTerritory.gd:130 ModeObjective.create -> objective.reset (virtual)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/TeamAssigner.gd:team_count",
    "reason": "TeamAssigner.gd:122 in blocker (LobbySeats.gd:423/457)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:reset",
-   "reason": "ClassicObjective.gd:36 _checker.reset()"
   },
   {
    "id": "test-only-func",
@@ -924,11 +658,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:peer_of_slot",
-   "reason": "live: autoload/match/MatchStats.gd:230 (SessionPort.peer_of_slot forwards by callv)"
   }
  ]
 }
