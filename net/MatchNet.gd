@@ -484,6 +484,7 @@ func cursors_refused(slot_id: int) -> int:
 
 
 ## Drops every counter and cursor. Called when a match starts or ends.
+## Kept here: it sequences the reset of several collaborators, so no single one owns it.
 func reset_counters() -> void:
 	if _intent_gateway != null:
 		_intent_gateway.reset_throttles()
@@ -521,6 +522,7 @@ func _client_blocks() -> ClientBlockMirror:
 
 # --- Events the host mirrors to its clients ---------------------------------
 
+# Kept here: joins MatchReplication, the counters reset, the match-start broadcast and the event mirror.
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	var replication: MatchReplication = _replication()
 	var new_match: bool = replication.on_match_state_changed(to_state)
@@ -544,6 +546,7 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 ## anyway. A slot this instance controls locally (every slot offline, which is
 ## all of local play) is left to its own PlayerController, whose ghost is
 ## exact and costs nothing.
+# Kept here: joins the event mirror, the slot cursors and the intent gateway on one bus signal.
 func _on_feed_timer_expired(slot_id: int) -> void:
 	if not _session_port().is_host():
 		return
@@ -604,6 +607,7 @@ func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	_replication().on_block_impacted_at(speed, position)
 
 
+# Kept here: joins the replay and gateway forget with the host port's seat release.
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
 	_forget_peer(peer_id)
 	if slot_id >= 0:
@@ -726,6 +730,7 @@ func net_match_loading() -> void:
 ## reconnect world replay (see MatchWorldReplay). The replay span is silent for
 ## one-shot feedback: see Events.world_replay_changed.
 @rpc("authority", "call_remote", "reliable")
+# Kept here: the RPC entry sequences the counters reset, the replay gate, Match and the block mirror.
 func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0) -> void:
 	var match_config: MatchConfig = MatchConfig.from_dict(config_data)
 	match_config.sanitize()
@@ -739,6 +744,7 @@ func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0)
 ## the client half of the replay handshake. Lands after every
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
+# Kept here: the gate decides, but the ack is an RPC that only this node can send.
 func net_replay_end(replay_id: int) -> void:
 	# The replay's last message: live events from here on are news again.
 	if not _gate().on_replay_end(replay_id):
@@ -796,6 +802,7 @@ func net_territory(payload: PackedByteArray) -> void:
 
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
+# Kept here: the RPC entry joins the replay gate, the session port, SlotCursors and the Events bus.
 func net_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	if _client_awaiting_world() or bool(_session_port().is_local_slot(slot_id)):
 		return
