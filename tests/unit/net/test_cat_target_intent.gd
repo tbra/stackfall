@@ -56,7 +56,7 @@ func before_each() -> void:
 	seams.now_s = func() -> float: return _now_s
 	seams.is_replay_pending = func(peer_id: int) -> bool: return _unacked.has(peer_id)
 	seams.store_cursor = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: pass
-	_gateway = MatchIntentGateway.new(_fake_net, Match, _net_config, NetCounters.new(), seams)
+	_gateway = MatchIntentGateway.new(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), _net_config, NetCounters.new(), seams)
 	assert_true(_gateway.is_valid(), "fixture: the gateway bound the fake session and the real Match")
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))

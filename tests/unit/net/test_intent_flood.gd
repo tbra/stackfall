@@ -18,9 +18,9 @@ const FRAME_S: float = 1.0 / 60.0
 const EPSILON_S: float = 0.0001
 
 
-## A Match stand-in that answers the gateway's port subset and records every call.
-class SpyMatch extends RefCounted:
-	var config: MatchConfig = null
+## A host port that answers the gateway's calls with scripted results and counts every call.
+class SpyMatch extends FakeHostPort:
+	var match_config: MatchConfig = null
 	var phase: int = MatchPhase.State.PLAYING
 	var place_reason: StringName = PlacementRules.REASON_NO_BLOCK
 	var pose_ok: bool = true
@@ -32,6 +32,9 @@ class SpyMatch extends RefCounted:
 	var abort_calls: int = 0
 	var aim_calls: int = 0
 	var on_place: Callable = Callable()
+
+	func config() -> MatchConfig:
+		return match_config
 
 	func state() -> int:
 		return phase
@@ -83,7 +86,7 @@ class Rig extends RefCounted:
 
 	func _init(session: FakeNet, config: NetConfig) -> void:
 		net = session
-		spy.config = MatchConfig.new()
+		spy.match_config = MatchConfig.new()
 		var seams: MatchIntentGateway.Seams = MatchIntentGateway.Seams.new()
 		seams.can_send = _can_send
 		seams.send_to_host = _send_to_host
@@ -92,7 +95,7 @@ class Rig extends RefCounted:
 		seams.now_s = _now
 		seams.is_replay_pending = _pending
 		seams.store_cursor = _store_cursor
-		gateway = MatchIntentGateway.new(net, spy, config, counters, seams)
+		gateway = MatchIntentGateway.new(FakeSessionPort.new(net), spy, config, counters, seams)
 		Events.remote_cursor_updated.connect(_on_cursor_event)
 
 	func close() -> void:

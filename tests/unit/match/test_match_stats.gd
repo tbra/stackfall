@@ -173,7 +173,7 @@ func _gateway() -> MatchIntentGateway:
 	seams.now_s = func() -> float: return 0.0
 	seams.is_replay_pending = func(_peer: int) -> bool: return false
 	seams.store_cursor = func(_slot: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void: pass
-	return MatchIntentGateway.new(_fake, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+	return MatchIntentGateway.new(FakeSessionPort.new(_fake), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
 
 
 func _make_net(peer_slots: Dictionary) -> MatchNetScript:

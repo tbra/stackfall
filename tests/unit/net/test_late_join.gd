@@ -73,7 +73,7 @@ func _make_net(session: FakeNet) -> MatchNetScript:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	assert_true(node.bind_ports(SessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(node.bind_ports(FakeSessionPort.new(session), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	return node
 
 
@@ -134,7 +134,7 @@ func _make_replay(session: FakeNet) -> MatchWorldReplay:
 			return true,
 		func() -> float: return _now_s
 	)
-	return MatchWorldReplay.new(session, Match, _net_config, seams)
+	return MatchWorldReplay.new(FakeSessionPort.new(session), MatchHostPort.new(Match), _net_config, seams)
 
 
 ## The intent gateway the host binds, with the replay gate wired to `replay` the way MatchNet wires it.
@@ -148,7 +148,7 @@ func _make_gateway(session: FakeNet, replay: MatchWorldReplay, counters: NetCoun
 	seams.is_replay_pending = replay.is_pending
 	seams.store_cursor = func(slot_id: int, _origin: Vector3, _index: int, _quat: Quaternion) -> void:
 		_stored_cursors.append(slot_id)
-	return MatchIntentGateway.new(session, Match, _net_config, counters, seams)
+	return MatchIntentGateway.new(FakeSessionPort.new(session), MatchHostPort.new(Match), _net_config, counters, seams)
 
 
 ## The replay id carried by a replay's opening net_match_start.

@@ -21,13 +21,6 @@ const RPC_REPLAY_END: StringName = &"net_replay_end"
 ## [ready_peer_ids, required_peer_ids, open], the shape of the loading_gate event.
 const LOADING_GATE_ARGS: int = 3
 
-const _SESSION_METHODS: PackedStringArray = ["is_host", "is_offline", "peer_ids", "peer_info", "kick_peer"]
-const _HOST_METHODS: PackedStringArray = [
-	"config", "state", "slot_count", "slot", "on_peer_rejoined", "registry", "active_cat", "active_slot",
-	"countdown_remaining", "match_timer_left", "mode_state_snapshot", "eliminated_by", "qol_backlog_count",
-	"qol_timer_paused", "gift_slot_contents", "gift_states", "glue_drops_left", "glue_revision",
-]
-
 
 ## Everything the replay needs from the facade that is not session or Match state. All Callables are
 ## bound by MatchNet; a test binds spies.
@@ -64,16 +57,15 @@ var _sent_at_s: Dictionary = {}
 var _next_replay_id: int = 1
 
 
-## `session_node` / `match_node` are the ports MatchNet shares, or the Net and Match autoloads (or test
-## doubles), which are bound with exactly the subset of the ports this class calls.
-func _init(session_node: Object, match_node: Object, config: NetConfig, seams: Seams) -> void:
-	_session = session_node as SessionPort if session_node is SessionPort else SessionPort.new(session_node, _SESSION_METHODS)
-	_host = match_node as MatchHostPort if match_node is MatchHostPort else MatchHostPort.new(match_node, _HOST_METHODS)
+## `session` / `host` are the ports MatchNet shares (a test passes spies or ports over real objects).
+func _init(session: SessionPort, host: MatchHostPort, config: NetConfig, seams: Seams) -> void:
+	_session = session
+	_host = host
 	_config = config
 	_seams = seams
 	if config != null:
 		_flood = PeerFloodGate.new(FloodLimits.from_config(config))
-	_valid = _session.is_valid() and _host.is_valid() and config != null and seams != null
+	_valid = _session != null and _host != null and _session.is_valid() and _host.is_valid() and config != null and seams != null
 
 
 ## A peer was seated on `slot_id`. Inside a disconnect grace the slot's feed resumes; mid-match the

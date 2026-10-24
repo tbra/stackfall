@@ -217,7 +217,7 @@ func test_a_replay_timeout_kick_is_followed_by_silent_broadcasts() -> void:
 		func() -> float: return now_s[0]
 	)
 	var net_config: NetConfig = _host.match_net.config
-	var replay: MatchWorldReplay = MatchWorldReplay.new(_host.net, Match, net_config, seams)
+	var replay: MatchWorldReplay = MatchWorldReplay.new(SessionPort.new(_host.net), MatchHostPort.new(Match), net_config, seams)
 	replay.on_peer_joined(kicked_id, _host.net.slot_of_peer(kicked_id), JOINER_NAME)
 	assert_true(replay.is_pending(kicked_id), "the joiner owes its replay ack")
 	replay.tick_timeouts(now_s[0] + net_config.replay_ack_timeout * 0.5)

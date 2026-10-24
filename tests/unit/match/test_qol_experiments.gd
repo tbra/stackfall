@@ -179,7 +179,7 @@ func test_late_join_replay_carries_qol_feed_state_only_when_set() -> void:
 	var fake: FakeNet = FakeNet.host({}, [0, 1])
 	Match._net_provider = fake
 	var replay: MatchWorldReplay = MatchWorldReplay.new(
-		fake, Match, preload("res://config/net/net_config.tres"),
+		FakeSessionPort.new(fake), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"),
 		WorldReplaySeams.make(func(_peer: int, _method: StringName, _args: Array) -> bool: return true, func() -> float: return 0.0)
 	)
 	var on: QolExperiments = QolExperiments.new()
