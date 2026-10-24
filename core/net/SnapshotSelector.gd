@@ -33,6 +33,12 @@ func begin_tick(disc: Transform3D) -> void:
 	_has_disc = true
 
 
+## True when the disc moved this tick (or nothing was sent yet): every sleeper is then
+## drift-tested, otherwise only awake, unsent and just-flipped bodies can need a send.
+func disc_changed() -> bool:
+	return _disc_changed
+
+
 ## True when this body must be drift-tested this tick: never sent, its sleeping
 ## flag differs from the last sent one, or the disc moved this tick.
 func needs_check(net_id: int, sleeping: bool) -> bool:

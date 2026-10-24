@@ -482,6 +482,168 @@ func test_fused_carrier_is_never_selected_only_its_followers() -> void:
 	assert_true(ids.has(500) and ids.has(501), "followers are")
 
 
+# --- Only awake or changed bodies are looked at, and the keyframe still reaches every sleeper ---
+
+## Union of the net_ids over `count` consecutive snapshots.
+func _ids_over_snapshots(stub: PeerStubSync, count: int) -> Array[int]:
+	var seen: Dictionary = {}
+	for _i: int in range(count):
+		for id: int in _next_snapshot_ids(stub):
+			seen[id] = true
+	var ids: Array[int] = []
+	for id: Variant in seen.keys():
+		ids.append(int(id))
+	ids.sort()
+	return ids
+
+
+func test_a_script_woken_sleeper_is_sent_every_snapshot_until_it_sleeps_again() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	var woken: Block = _host_bodies[3]
+	woken.wake()
+	for _i: int in range(3):
+		assert_true(_next_snapshot_ids(stub).has(woken.net_id), "a woken body is in every snapshot")
+	woken.sleeping = true
+	var flags: Dictionary = _next_snapshot_sleeping(stub)
+	assert_true(flags.get(woken.net_id, false), "falling asleep is resent carrying sleeping=true")
+	assert_false(_next_snapshot_sleeping(stub).has(woken.net_id), "and once sent it is not resent")
+
+
+func test_an_engine_woken_sleeper_is_sent_after_its_sleeping_state_changed_signal() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	var body: BlockBody = BlockBody.new()
+	body.net_id = FIRST_NET_ID + BODY_COUNT
+	add_child_autofree(body)
+	body.sleeping = true
+	_track_block_body(body)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+	assert_false(_next_snapshot_ids(stub).has(body.net_id) and _next_snapshot_ids(stub).has(body.net_id), "fixture: a sleeper is not sent every snapshot")
+
+	body.sleeping = false
+	body.sleeping_state_changed.emit()
+	assert_true(_next_snapshot_ids(stub).has(body.net_id), "the signal puts the woken body back in the snapshot")
+	assert_true(_next_snapshot_ids(stub).has(body.net_id), "and it stays in while awake")
+
+
+func _track_block_body(body: BlockBody) -> void:
+	Events.block_replicated.emit(body, body.net_id)
+
+
+func test_the_keyframe_slice_reaches_every_sleeper_within_the_keyframe_interval() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	var snapshots: int = int(ceil(_config.keyframe_interval * _config.snapshot_hz))
+	assert_eq(_ids_over_snapshots(stub, snapshots), _all_ids(), "every sleeper is refreshed once per keyframe_interval")
+
+
+func test_the_keyframe_slice_skips_a_sleeper_removed_or_freed_and_still_covers_the_rest() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	var removed: Block = _host_bodies[2]
+	Events.block_removed.emit(removed, "test")
+	var freed: Block = _host_bodies[5]
+	var expected: Array[int] = _all_ids()
+	expected.erase(removed.net_id)
+	expected.erase(freed.net_id)
+	freed.free() # gone with no block_removed
+	var snapshots: int = int(ceil(_config.keyframe_interval * _config.snapshot_hz))
+	assert_eq(_ids_over_snapshots(stub, snapshots), expected, "the others are all still refreshed")
+
+
+func test_a_body_without_a_net_id_yet_is_sent_once_it_gets_one() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	var late: Block = _make_block(-1, true, Vector3(0.0, 1.0, 6.0))
+	_track_block(late)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+
+	late.net_id = FIRST_NET_ID + BODY_COUNT
+	assert_true(_next_snapshot_ids(stub).has(late.net_id), "a sleeper that was never sent goes out as soon as it has an id")
+
+
+func test_the_followers_of_a_woken_carrier_are_sent() -> void:
+	var tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+	var stub: PeerStubSync = _host_stub()
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var blocks: Array[Block] = []
+	for index: int in range(2):
+		var block: Block = BlockFactory.build(shape, physics, 0)
+		block.net_id = 500 + index
+		root.add_child(block)
+		block.global_position = _host_field.to_global(Vector3(float(index) * 1.2, 4.0, 0.0))
+		blocks.append(block)
+		_track_block(block)
+	var carrier: FusedBody = GlueFusion.fuse(blocks[0], blocks[1], tuning)
+	carrier.sleeping = true
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_next_snapshot_ids(stub)
+	assert_true(blocks[0].net_sleeping() and blocks[1].net_sleeping(), "fixture: the group sleeps")
+	for _i: int in range(3):
+		_next_snapshot_ids(stub)
+
+	carrier.wake()
+	var ids: Array[int] = _next_snapshot_ids(stub)
+	assert_true(ids.has(500) and ids.has(501), "both followers follow their carrier awake")
+
+
+func test_followers_of_a_disc_anchored_group_are_sent_when_the_group_wakes_without_the_snapshot_disc_moving() -> void:
+	var tuning: GlueDropTuning = load("res://config/gifts/glue_drop_tuning.tres")
+	var shape: BlockShape = load("res://config/blocks/cube.tres")
+	var physics: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+	var stub: PeerStubSync = _host_stub() # its disc is a fixed node, not _host_field
+	_sleepers()
+	var root: Node3D = autofree(Node3D.new())
+	add_child_autofree(root)
+	var blocks: Array[Block] = []
+	for index: int in range(2):
+		var block: Block = BlockFactory.build(shape, physics, 0)
+		block.net_id = 500 + index
+		root.add_child(block)
+		var rest_y: float = _host_field.surface_y() + 0.5 + float(index)
+		block.global_position = _host_field.to_global(Vector3(0.0, rest_y, 0.0))
+		blocks.append(block)
+		_track_block(block)
+	GlueFusion.fuse(blocks[0], blocks[1], tuning)
+	GlueFusion.fuse(blocks[0], _host_field, tuning)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	for _i: int in range(tuning.anchor_rest_ticks + 4):
+		await get_tree().physics_frame
+		stub.host_tick(TICK)
+	assert_true(blocks[1].net_sleeping(), "fixture: the anchored group rests")
+	for _i: int in range(4):
+		_next_snapshot_ids(stub)
+
+	_host_field.apply_tilt_impulse(Vector2(1.0, 0.0), 1.0)
+	for _i: int in range(3):
+		await get_tree().physics_frame
+	assert_false(blocks[1].net_sleeping(), "fixture: the tilt woke the group")
+	var flags: Dictionary = _next_snapshot_sleeping(stub)
+	assert_false(bool(flags.get(500, true)), "the first follower goes out awake in the very next snapshot")
+	assert_false(bool(flags.get(501, true)), "and so does the second")
+
+
 # --- A replicated spawn is the start of the body's track --------------------
 
 func test_a_new_replicated_body_stays_at_its_spawn_pose_until_render_time_reaches_its_first_sample() -> void:
