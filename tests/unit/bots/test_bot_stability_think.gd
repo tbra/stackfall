@@ -1,5 +1,5 @@
 extends GutTest
-## P2a: BotThink's PROBE phase fills BotCandidate.stability_slack / stability_binding with
+## P2a: BotThink's PROBE phase fills BotCandidate.stability_slack with
 ## BotStability.evaluate.
 
 const CUBE: float = 1.0

@@ -47,7 +47,7 @@ extends Resource
 @export var special_throw_loft_ratio: float = 0.6
 
 ## How close (meters) a BotThink cube probe's own hit height must land to that candidate's own `support_height` to count
-## as "in contact" for BotCandidate.corner_support_hits -- a small slack
+## as "in contact" for the stability model -- a small slack
 ## rather than an exact float match, since a footprint corner one cube over
 ## from the origin's own support raycast can legitimately sit on the same
 ## flat surface without both raycasts reporting bit-identical heights.

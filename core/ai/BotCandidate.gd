@@ -20,11 +20,6 @@ var orientation_index: int = 0
 var support_height: float = 0.0
 var footprint_cells: PackedInt32Array = PackedInt32Array()
 
-## How many of the footprint's BotThink cube probes landed at essentially the same height as
-## `support_height` -- i.e. how much of `footprint_cells` is in flush contact, not hovering over a gap
-## or a lower stack. -1 ("not measured") is the default; BotThink fills it from its cube probes.
-var corner_support_hits: int = -1
-
 ## Append-only: the oriented shape's own height, in cube units, above its own pivot
 ## (a pillar lying flat is 1, standing on end is 3); 0.0 until the producer fills it.
 ## BotEvaluator adds this to `support_height` (top_height) since a block's influence radius
@@ -54,7 +49,3 @@ var top_area: float = 0.0
 ## append-only: BotStability.evaluate's slack (min margin - required over the piece cut and
 ## every lower cut; stable iff > 0). INF = not evaluated.
 var stability_slack: float = INF
-## The cut that binds the slack (BotStability.BINDING_PIECE, a lower cut's body index, or BINDING_NONE = -2).
-var stability_binding: int = BotStability.BINDING_NONE
-## Where BotStability says the piece comes to rest (disc-local); read by nothing until the evaluator switches.
-var stability_plane_y: float = 0.0

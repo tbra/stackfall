@@ -488,9 +488,8 @@ func _probe_one(probe: Callable) -> void:
 		_phase = Phase.RANK
 
 
-## BotStability.evaluate of a probed site fills `stability_slack` / `stability_binding`;
+## BotStability.evaluate of a probed site fills `stability_slack`;
 ## the evaluator's TIP term reads the slack (BotEvaluator.stability_risk).
-## DECISION: the model's resting plane goes to `stability_plane_y` only; support_height / top_height stay as probed.
 func _judge_stability(candidate: BotCandidate) -> void:
 	var info: BotStatics.OrientationInfo = _orientation_info(candidate.orientation_index)
 	if info == null:
@@ -501,8 +500,6 @@ func _judge_stability(candidate: BotCandidate) -> void:
 		)
 	var result: BotStability.Result = BotStability.evaluate(candidate, info, _view, _stability_req)
 	candidate.stability_slack = result.slack
-	candidate.stability_binding = result.binding
-	candidate.stability_plane_y = result.plane_y
 
 
 ## The held piece's orientation description (built once per think); null with no held shape.
@@ -520,8 +517,7 @@ func _orientation_info(orientation_index: int) -> BotStatics.OrientationInfo:
 ## One ray under each real bottom cube (BotStatics.contact_probe_points, outermost
 ## cubes first), capped at the tier's stability_raycast_count. `cell_support` / `support_bodies` are
 ## parallel to `probe_points` (NO_SUPPORT / -1 for a hole or a miss). The resting plane
-## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece; a
-## cube is in contact when it is within stability_contact_tolerance_m of that plane. With no hit
+## (`support_height`) becomes the highest probed hit, which is where the host lift puts the piece. With no hit
 ## at all the pivot ray's height stays. DECISION: holes are read off the raster's
 ## hole state.
 ## DECISION: a cube beyond the cap is not probed and counts as supported.
@@ -553,11 +549,6 @@ func _fire_cell_probes(candidate: BotCandidate, probe: Callable) -> void:
 			any_hit = true
 	if any_hit:
 		candidate.support_height = highest
-	var hits: int = 0
-	for i: int in range(count):
-		if candidate.cell_support[i] != NO_SUPPORT and absf(candidate.cell_support[i] - candidate.support_height) <= tuning.stability_contact_tolerance_m:
-			hits += 1
-	candidate.corner_support_hits = hits
 
 
 func _is_hole_at(point: Vector2) -> bool:
