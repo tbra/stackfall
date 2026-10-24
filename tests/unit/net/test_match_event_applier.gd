@@ -209,7 +209,7 @@ func test_a_cat_longer_than_the_limit_is_refused_and_a_valid_one_is_not() -> voi
 
 
 func test_a_host_refuses_every_client_bound_event() -> void:
-	assert_true(_net.bind_ports(SessionPort.new(FakeNet.host({}, [0])), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
+	assert_true(_net.bind_ports(FakeSessionPort.new(FakeNet.host({}, [0])), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	for event: StringName in [MatchWireEvents.QOL_FEED, MatchWireEvents.PLACEMENT_REJECTED, MatchWireEvents.PLACEMENT_RELOCATED]:
 		var case: Dictionary = _valid_cases()[event]
 		_net.net_match_event(event, case["args"])
@@ -221,46 +221,27 @@ func test_a_host_refuses_every_client_bound_event() -> void:
 # --- a spy MatchReplicaPort bound through bind_replica ------------------------------------------
 
 
-## Records every write the applier makes; answers true to the writes that answer.
-class SpyReplica extends RefCounted:
-	var calls: Array[Array] = []
+## FakeReplicaPort that answers true to the three writes that answer, as the real replica does for
+## an accepted write.
+class SpyReplica extends FakeReplicaPort:
+	func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
+		super(slot_id, count, revision)
+		return true
 
-	func _note(method: StringName, args: Array) -> void:
-		calls.append([method, args])
+	func apply_replicated_block_owner(net_id: int, new_slot: int) -> bool:
+		super(net_id, new_slot)
+		return true
 
-	func apply_replicated_state_change(a: int) -> void: _note(&"apply_replicated_state_change", [a])
-	func apply_replicated_countdown(a: int) -> void: _note(&"apply_replicated_countdown", [a])
-	func apply_replicated_feed(a: int, b: StringName, c: StringName, d: int, e: float = -1.0, f: bool = false) -> void: _note(&"apply_replicated_feed", [a, b, c, d, e, f])
-	func apply_replicated_turn(a: int) -> void: _note(&"apply_replicated_turn", [a])
-	func apply_replicated_elimination(a: int, b: int = -1) -> void: _note(&"apply_replicated_elimination", [a, b])
-	func apply_replicated_mode_state(a: Dictionary) -> void: _note(&"apply_replicated_mode_state", [a])
-	func apply_replicated_gift_spawned(a: int, b: Vector2) -> void: _note(&"apply_replicated_gift_spawned", [a, b])
-	func apply_replicated_gift_flight(a: int, b: Vector3, c: Vector3) -> void: _note(&"apply_replicated_gift_flight", [a, b, c])
-	func apply_replicated_gift_landed(a: int, b: Vector3) -> void: _note(&"apply_replicated_gift_landed", [a, b])
-	func apply_replicated_gift_claimed(a: int, b: int, c: StringName) -> void: _note(&"apply_replicated_gift_claimed", [a, b, c])
-	func apply_replicated_gift_expired(a: int) -> void: _note(&"apply_replicated_gift_expired", [a])
-	func apply_replicated_gift_slot(a: int, b: Array, c: StringName, d: StringName) -> void: _note(&"apply_replicated_gift_slot", [a, b, c, d])
-	func apply_replicated_qol(a: int, b: int, c: bool) -> void: _note(&"apply_replicated_qol", [a, b, c])
-	func apply_replicated_special_consumed(a: int, b: StringName) -> void: _note(&"apply_replicated_special_consumed", [a, b])
-	func apply_replicated_territory(a: PackedInt32Array, _b: PackedByteArray, _c: PackedByteArray, _d: bool, _e: PackedFloat32Array = PackedFloat32Array(), _f: PackedFloat32Array = PackedFloat32Array(), _g: PackedFloat32Array = PackedFloat32Array(), _h: PackedInt32Array = PackedInt32Array(), _i: PackedVector2Array = PackedVector2Array(), _j: PackedFloat32Array = PackedFloat32Array(), _k: bool = false) -> void: _note(&"apply_replicated_territory", [a])
-	func apply_replicated_glue_charges(a: int, b: int, c: int) -> bool:
-		_note(&"apply_replicated_glue_charges", [a, b, c])
+	func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
+		super(id, slot_id, position, duration)
 		return true
-	func apply_replicated_block_owner(a: int, b: int) -> bool:
-		_note(&"apply_replicated_block_owner", [a, b])
-		return true
-	func apply_replicated_cat_start(a: int, b: int, c: Vector3, d: float) -> bool:
-		_note(&"apply_replicated_cat_start", [a, b, c, d])
-		return true
-	func apply_replicated_cat_state(a: int, b: Vector3, c: Vector3, d: Vector3, e: float) -> void: _note(&"apply_replicated_cat_state", [a, b, c, d, e])
-	func end_cat(a: int) -> void: _note(&"end_cat", [a])
 
 
 ## The applier the game uses (a child of MatchNet), with the spy bound as its write port.
 func _spied_applier(spy: SpyReplica) -> Node:
 	_net.late_activate()
 	var applier: Node = _net.get_node("MatchEventApplier")
-	applier.bind_replica(MatchReplicaPort.new(spy))
+	applier.bind_replica(spy)
 	return applier
 
 
@@ -292,7 +273,7 @@ func test_valid_args_reach_the_bound_port_and_are_accepted() -> void:
 		assert_true(applier.apply_event(event, case["args"]), "%s is accepted" % event)
 		assert_eq(spy.calls.size(), 1, "%s makes one write" % event)
 		if spy.calls.size() == 1:
-			assert_eq(spy.calls[0], [case["call"], case["params"]], "%s reaches %s" % [event, case["call"]])
+			assert_eq([spy.calls[0]["method"], spy.calls[0]["args"]], [case["call"], case["params"]], "%s reaches %s" % [event, case["call"]])
 
 
 func test_malformed_args_are_refused_and_never_reach_the_port() -> void:
@@ -367,7 +348,7 @@ func _mirror(host: bool) -> MatchEventMirror:
 	fake.slots_by_peer = {1: 0, 2: 1}
 	var mirror: MatchEventMirror = MatchEventMirror.new(seams)
 	mirror.bind_ports(
-		SessionPort.new(fake, PackedStringArray(["is_host", "is_local_slot", "peer_of_slot"])),
+		FakeSessionPort.new(fake),
 		MatchHostPort.new(Match)
 	)
 	return mirror

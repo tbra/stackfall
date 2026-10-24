@@ -28,7 +28,7 @@ func _mirror(host: bool) -> MatchEventMirror:
 	seams.broadcast = func(method: StringName, args: Array) -> void: _broadcast.append([method, args])
 	var fake: FakeNet = FakeNet.host({}, [0]) if host else FakeNet.client(1)
 	var mirror: MatchEventMirror = MatchEventMirror.new(seams)
-	mirror.bind_ports(SessionPort.new(fake, PackedStringArray(["is_host"])), MatchHostPort.new(Match))
+	mirror.bind_ports(FakeSessionPort.new(fake), MatchHostPort.new(Match))
 	return mirror
 
 
