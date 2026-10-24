@@ -229,6 +229,39 @@ func test_a_stale_epoch_is_ignored() -> void:
 	assert_eq(int(client_weather.state_dict()["epoch"]), int(newer["epoch"]), "an older match's late packet is dropped")
 
 
+# --- Second-line guards ---------------------------------------------------------------------
+
+const FORGED_PEER: int = 7
+
+
+func test_a_client_awaiting_its_world_refuses_a_weather_state() -> void:
+	var payload: Dictionary = _host_payload(6.0)
+	var client_weather: MatchWeather = _weather(false)
+	var client_net: WeatherNet = _net_for(client_weather, false)
+	var awaiting: Array[bool] = [true]
+	client_net.awaiting_world = func() -> bool: return awaiting[0]
+	client_net.net_weather_state(payload)
+	assert_eq(client_weather.active_id(), &"", "state not applied while awaiting the world")
+	assert_false(client_weather.is_running())
+	assert_eq(_events.size(), 0, "no presentation signal while awaiting")
+	awaiting[0] = false
+	client_net.net_weather_state(payload)
+	assert_eq(String(client_weather.active_id()), String(payload["id"]), "the same payload applies once the world is here")
+
+
+func test_a_client_refuses_a_weather_state_from_a_peer_other_than_the_server() -> void:
+	var payload: Dictionary = _host_payload(6.0)
+	var client_weather: MatchWeather = _weather(false)
+	var client_net: WeatherNet = _net_for(client_weather, false)
+	var api: ForgedSenderApi = ForgedSenderApi.install(get_tree(), client_net, FORGED_PEER)
+	client_net.net_weather_state(payload)
+	assert_eq(client_weather.active_id(), &"", "a non-server sender is not applied")
+	assert_eq(_events.size(), 0, "no presentation signal from a non-server sender")
+	api.sender_id = MultiplayerPeer.TARGET_PEER_SERVER
+	client_net.net_weather_state(payload)
+	assert_eq(String(client_weather.active_id()), String(payload["id"]), "the server's own message applies")
+
+
 # --- Typed binding -----------------------------------------------------------------------
 
 func test_bind_refuses_invalid_ports_and_keeps_the_previous_binding() -> void:

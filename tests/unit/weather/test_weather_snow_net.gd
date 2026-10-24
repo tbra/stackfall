@@ -176,6 +176,34 @@ func test_client_refuses_bad_or_out_of_event_states() -> void:
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the host never applies a replicated state")
 
 
+func test_a_client_awaiting_its_world_refuses_a_snow_state() -> void:
+	var block: Block = _client_block(NET_ID, Vector3.ZERO)
+	_start_client_snow()
+	var awaiting: Array[bool] = [true]
+	_snow_net.awaiting_world = func() -> bool: return awaiting[0]
+	_snow_net.net_snow_state(_state([NET_ID], -1))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "nothing drawn while awaiting")
+	awaiting[0] = false
+	_snow_net.net_snow_state(_state([NET_ID], -1))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME), "the same state draws once the world is here")
+
+
+func test_a_client_refuses_a_snow_state_from_a_peer_other_than_the_server() -> void:
+	var block: Block = _client_block(NET_ID, Vector3.ZERO)
+	_start_client_snow()
+	var api: ForgedSenderApi = ForgedSenderApi.install(get_tree(), _snow_net, 7)
+	_snow_net.net_snow_state(_state([NET_ID], -1))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "a non-server sender draws nothing")
+	api.sender_id = MultiplayerPeer.TARGET_PEER_SERVER
+	_snow_net.net_snow_state(_state([NET_ID], -1))
+	_snow_net.step_client(BIG_BUDGET)
+	assert_not_null(_cap_mesh(block, SnowCaps.CAP_NAME), "the server's own message draws")
+
+
+
 func test_empty_state_weather_stop_and_match_end_clear_the_client() -> void:
 	_start_client_snow()
 	var block: Block = _client_block(NET_ID, Vector3.ZERO)
