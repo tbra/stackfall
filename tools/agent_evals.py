@@ -4,7 +4,7 @@ Usage: python tools/agent_evals.py verify|prep|score|card ... (see --help of eac
 
 The eval base commit is the overlay commit that prep makes, with the subject `eval base <name> r<N>`;
 score finds it with `git log --grep` in the worktree. Hidden unittest entries are repo-relative file
-paths, regression entries are module names (run from tools/).
+paths, regression entries are module names.
 
 Each eval in the evals manifest names a base commit, the accepted commit that
 carries the hidden checks, and a brief. `prep` makes a worktree at the base with the setup
@@ -189,7 +189,8 @@ def apply_hidden(wt: str, manifest_entry: Dict[str, Any]) -> List[str]:
 
 def _run(cmd: List[str], cwd: str, timeout_s: int) -> Tuple[Optional[int], str]:
     """(exit code or None on timeout, output); a timeout kills the whole process tree."""
-    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join([cwd, os.path.join(cwd, "tools")]))  # module names resolve
+    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                          encoding="utf-8", errors="replace")
     try:
         out, _ = p.communicate(timeout=timeout_s)
@@ -237,8 +238,7 @@ def run_checks(wt: str, manifest_entry: Dict[str, Any], timeout_s: int) -> Check
             else:
                 label = script
                 cmd = [sys.executable, "-m", "unittest", script]
-            is_module = runner == "unittest" and "/" not in script and not script.endswith(".py")
-            code, out = _run(cmd, os.path.join(wt, "tools") if is_module else wt, timeout_s)
+            code, out = _run(cmd, wt, timeout_s)
             passing, total = _count(code, out, runner)
             per_script["%s/%s" % (kind, label)] = ("TIMEOUT" if code is None else
                                                    "%s %d/%d" % ("PASS" if passing == total else "FAIL", passing, total))
@@ -311,7 +311,10 @@ def score_run(manifest: Dict[str, Dict[str, Any]], name: str, run: int, wt: str,
     lint_new = max(0, _lint_red(wt) - int(entry.get("lint_floor") or 0))
     apply_hidden(wt, entry)  # only now: the worker's tree never held the hidden checks
     checks = run_checks(wt, entry, int(usage.get("check_timeout", CHECK_TIMEOUT_S)))
-    since = session_metrics.parse_since(session_metrics.git(wt, "show", "-s", "--format=%cI", base).strip())
+    # With a bead the filter isolates the run, so the window may open at the eval's original base; without
+    # one it opens at the overlay commit.
+    start = entry["base"] if bead else base
+    since = session_metrics.parse_since(session_metrics.git(wt, "show", "-s", "--format=%cI", start).strip())
     hb = session_metrics.handbacks(os.path.join(repo_paths.scratch_root(), *HANDBACK_LOG), since, bead)
     verdicts = sorted(v for v in hb.get("verdicts", {}) if v != "review")
     record = RunRecord(
@@ -438,7 +441,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("eval")
     p.add_argument("--run", type=int, default=1)
     p.add_argument("--worktree", required=True)
-    p.add_argument("--bead", required=True, help="the eval run's bead (handback rows are filtered by it)")
+    p.add_argument("--bead", default="", help="the eval run's bead (handback rows are filtered by it)")
     p.add_argument("--setup-label", required=True)
     p.add_argument("--review-high", type=int, default=0)
     p.add_argument("--review-med", type=int, default=0)
