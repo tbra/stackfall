@@ -31,7 +31,7 @@ func set_replicator(replicator: Variant) -> void:
 
 ## Uninstalls `replicator`, but only while it is still the installed one.
 func release_replicator(replicator: Variant) -> void:
-	if _match._replicator == replicator:
+	if _match.replicator() == replicator:
 		_match.set_replicator(null)
 
 
