@@ -413,33 +413,56 @@ func _preplace_preset_blocks() -> void:
 		if generation != _preplace_generation or not is_inside_tree():
 			return
 		await get_tree().process_frame
+	# DECISION: a tilting disc is an active kinematic body that wakes every sleeping
+	# block resting on it, so build only once the spring has rested (match start and
+	# every field reset re-arm it for about rest_hold_s).
+	while _field != null and _field.sync_to_physics:
+		if generation != _preplace_generation or not is_inside_tree():
+			return
+		await get_tree().physics_frame
 	if generation != _preplace_generation or _field == null:
 		return
 	# pre-placed scene blocks are state, not drops: the build below is
 	# synchronous, so bracket it with the same silence the late-join replay uses (Sfx
 	# ignores block_placed meanwhile). Real drops after this still sound.
 	Events.world_replay_changed.emit(true)
-	_build_preset_towers(row)
+	var built: Array[RigidBody3D] = _build_preset_towers(row)
 	Events.world_replay_changed.emit(false)
+	if not _preset.preplaced_start_asleep:
+		return
+	# DECISION: Jolt wakes a body whose shapes were committed at its first step, so
+	# `sleeping = true` set in the build frame is undone by the first tick and the
+	# stack starts as a live transient (a 40-cube column then leans or topples
+	# depending on solver history). Sleep them once that step has run.
+	await get_tree().physics_frame
+	if generation != _preplace_generation:
+		return
+	for block: RigidBody3D in built:
+		if is_instance_valid(block):
+			block.linear_velocity = Vector3.ZERO
+			block.angular_velocity = Vector3.ZERO
+			block.sleeping = true
 
 
-func _build_preset_towers(row: bool) -> void:
+func _build_preset_towers(row: bool) -> Array[RigidBody3D]:
+	var built: Array[RigidBody3D] = []
 	if row:
 		var count: int = _preset.row_tower_heights.size()
 		for i: int in range(count):
 			var x: float = (float(i) - float(count - 1) * 0.5) * _preset.row_tower_spacing
-			_build_tower(i % maxi(Match.slot_count(), 1), _preset.row_center + Vector2(x, 0.0), _preset.row_tower_heights[i])
-		return
+			_build_tower(i % maxi(Match.slot_count(), 1), _preset.row_center + Vector2(x, 0.0), _preset.row_tower_heights[i], built)
+		return built
 	for slot_id: int in range(1, Match.slot_count()):
 		var home: Vector2 = Match.slot(slot_id).home_position
 		var inward: Vector2 = -home.normalized() * _preset.preplaced_home_offset if home.length() > 0.0 else Vector2.ZERO
-		_build_tower(slot_id, home + inward, _preset.preplaced_tower_blocks)
+		_build_tower(slot_id, home + inward, _preset.preplaced_tower_blocks, built)
+	return built
 
 
 ## One tower of `height` blocks at disk-local `at`. Block i's collision box
 ## rests on block i-1's (bench_tower's pivot maths: the body origin is the
 ## bottom of the nominal cell, the box sits cube_margin / 2 above it).
-func _build_tower(slot_id: int, at: Vector2, height: int) -> void:
+func _build_tower(slot_id: int, at: Vector2, height: int, built: Array[RigidBody3D]) -> void:
 	var tuning: PhysicsTuning = _controller.tuning
 	var edge: float = tuning.cube_size - tuning.cube_margin
 	var base_y: float = -tuning.cube_margin * 0.5
@@ -453,9 +476,7 @@ func _build_tower(slot_id: int, at: Vector2, height: int) -> void:
 		var parent: Node = Match.blocks_parent()
 		var block: RigidBody3D = parent.get_child(parent.get_child_count() - 1) as RigidBody3D
 		if block != null:
-			block.linear_velocity = Vector3.ZERO
-			block.angular_velocity = Vector3.ZERO
-			block.sleeping = _preset.preplaced_start_asleep
+			built.append(block)
 
 
 ## sandbox_spawn_tower (F7): drops sandbox_config.tower_block_count blocks,

@@ -53,6 +53,7 @@ func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	await get_tree().process_frame
 	var preset: SandboxConfig = load("res://config/match/sandbox_gift_demo.tres") as SandboxConfig
 	var expected: int = (Match.slot_count() - 1) * preset.preplaced_tower_blocks
+	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
 	assert_eq(Match.blocks_parent().get_child_count(), expected, "opponent towers are pre-placed")
 	var home: Vector2 = Match.slot(0).home_position
 	for i: int in PLACE_ATTEMPTS:
@@ -70,6 +71,7 @@ func test_f5_re_places_the_preset_towers() -> void:
 	await get_tree().process_frame
 	var preset: SandboxConfig = load("res://config/match/sandbox_gift_demo.tres") as SandboxConfig
 	var expected: int = (Match.slot_count() - 1) * preset.preplaced_tower_blocks
+	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
 	assert_eq(Match.blocks_parent().get_child_count(), expected, "fixture: towers are up before the reset")
 
 	var key: InputEventKey = InputEventKey.new()
@@ -81,6 +83,8 @@ func test_f5_re_places_the_preset_towers() -> void:
 	_run_countdown()
 	await get_tree().process_frame
 	await get_tree().process_frame
+	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
+	await get_tree().physics_frame
 
 	assert_true(Match.config.sandbox)
 	assert_eq(Match.blocks_parent().get_child_count(), expected, "the towers are re-placed, not doubled or missing")
@@ -101,6 +105,7 @@ func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
 	_main.start_gift_demo_from_menu()
 	_run_countdown()
 	await get_tree().process_frame
+	await PresetBuildWait.wait_for_blocks(get_tree(), 1)
 	Events.block_placed.disconnect(_record_silence)
 	assert_gt(_silent_at_placement.size(), 0, "towers were pre-placed")
 	assert_false(_silent_at_placement.has(false), "every pre-placed block was placed under Sfx silence")
