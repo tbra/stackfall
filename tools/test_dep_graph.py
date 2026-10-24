@@ -608,6 +608,12 @@ FIXTURE_RECV = {
 }
 
 
+class GuardedLineTest(unittest.TestCase):
+    def test_remove_guard_matches_whole_word_only(self):
+        self.assertTrue(dep_graph.GUARDED_LINE_RE.search('DirAccess.remove("res://out/a.png")'))
+        self.assertIsNone(dep_graph.GUARDED_LINE_RE.search('load("res://removed_x.tscn")'))
+
+
 class ReceiverTypeTest(unittest.TestCase):
     """A receiver with a static type resolves before the name fallback; an untyped one stays ambiguous."""
 
