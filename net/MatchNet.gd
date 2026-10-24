@@ -6,27 +6,13 @@ extends Node
 ## /root/MatchNet on every instance. **No `class_name`** — it would collide
 ## with the singleton name.
 ##
-## **Why a separate node from Match.** autoload/Match.gd stays the authority
-## and keeps every rule; it gains only host gates. MatchNet is the membrane:
-## it turns a local action into either a direct Match call (host) or an RPC
-## (client), and turns the host's outcomes into replication. Nothing in
-## core/ or Match may call rpc() directly, and nothing here may decide a rule.
-## Swapping the transport changes nothing in this file.
-##
-## **The host's local player is latency-free.** submit_place() on the host
-## calls Match.request_place() inline, in the same frame as the click. Only a
-## client pays a round trip, and it pays it once — there is no client-side
-## prediction of a placement, because a mispredicted block in a physics stack
-## is worse than a 50 ms wait.
-##
-## **How the host's outcomes get out.** Match emits on the Events bus and
-## never knows this file exists beyond a replicate_spawn() hook it installs
-## here in _ready(). Everything else — state changes, the countdown, feed
-## issues, rejections, eliminations, the win, kill-plane despawns — this node
-## mirrors by listening to the same bus the rest of the game listens to
-## (CLAUDE.md's "use a global signal bus to decouple systems"). A client
-## re-emits them locally, so every consumer (the HUD, the ghost, Field)
-## works on a client with no idea it is networked.
+## The RPC membrane: every RPC stub lives here and forwards to a collaborator in net/match/.
+## Registered as the `MatchNet` autoload, so the RPC node path is /root/MatchNet on every
+## instance. **No `class_name`** -- it would collide with the singleton name. Match keeps every
+## rule; nothing here decides one and nothing in core/ or Match calls rpc() directly. The host's
+## outcomes reach clients by mirroring the Events bus (MatchEventMirror); a client re-emits them
+## so every consumer works with no idea it is networked. The host's own local intents run inline;
+## there is no client-side placement prediction.
 
 ## Reliable gameplay traffic uses channel 0 (the MultiplayerAPI default).
 ## Cursors get their own so a 15 Hz stream cannot delay a spawn. The number
@@ -37,75 +23,6 @@ const CURSOR_CHANNEL: int = 2
 ## The territory wire version (net/match/TerritoryReplicator.gd owns the layout); the RPC contract
 ## test reads it here.
 const RASTER_VERSION: int = TerritoryReplicator.VERSION
-
-## Names for the match-flow events mirrored over net_match_event. StringNames
-## rather than an enum so a packet capture reads as itself.
-const EVENT_STATE_CHANGED: StringName = &"state_changed"
-const EVENT_COUNTDOWN: StringName = &"countdown"
-const EVENT_TURN_CHANGED: StringName = &"turn_changed"
-const EVENT_FEED_ISSUED: StringName = &"feed_issued"
-const EVENT_FEED_EXPIRED: StringName = &"feed_expired"
-## [slot_id, backlog_count, timer_paused] for the QoL experiments.
-const EVENT_QOL_FEED: StringName = &"qol_feed"
-## [slot_id, contents, activated_special, carrier_shape_id] for the QoL gift slot.
-const EVENT_GIFT_SLOT: StringName = &"gift_slot"
-const EVENT_PLACEMENT_REJECTED: StringName = &"placement_rejected"
-## longest refusal reason a client will show. The real ones
-## (PlacementRules/ThrowRules REASON_*) are all well under this; a longer one is
-## not from this build's host.
-const REJECT_REASON_MAX_LENGTH: int = 48
-const EVENT_PLACEMENT_RELOCATED: StringName = &"placement_relocated"
-const EVENT_PLAYER_ELIMINATED: StringName = &"player_eliminated"
-const EVENT_MATCH_WON: StringName = &"match_won"
-## the active mode objective's score/state, host -> clients.
-const EVENT_MODE_STATE: StringName = &"mode_state"
-## mirrors Events.match_results_ready (autoload/match/
-## MatchStats.gd's own header documents the payload shape). See
-## _on_match_results_ready() below and net_match_event's own dispatch case.
-const EVENT_MATCH_RESULTS: StringName = &"match_results"
-const EVENT_GIFT_FLIGHT: StringName = &"gift_flight_spawned"
-const EVENT_GIFT_LANDED: StringName = &"gift_landed"
-
-const EVENT_GIFT_SPAWNED: StringName = &"gift_spawned"
-const EVENT_GIFT_CLAIMED: StringName = &"gift_claimed"
-const EVENT_GIFT_EXPIRED: StringName = &"gift_expired"
-## mirrors game/gifts/specials/SpecialBehavior.gd's own trigger, via
-## autoload/match/MatchPlacement._on_special_behavior_triggered() ->
-## Events.special_triggered (host only). See _on_special_triggered() below.
-const EVENT_SPECIAL_TRIGGERED: StringName = &"special_triggered"
-## mirrors autoload/match/MatchGifts.gd's pop_pending_special()
-## own emit (Events.special_consumed, host-only) -- see _on_special_consumed()
-## below.
-const EVENT_SPECIAL_CONSUMED: StringName = &"special_consumed"
-const EVENT_GLUE_CHARGES: StringName = &"glue_charges_changed"
-## [net_id, glued] -- a placed block gained its first / lost its last glue bond.
-const EVENT_BLOCK_GLUED: StringName = &"block_glued_changed"
-const EVENT_BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
-const EVENT_BLOCK_FROZEN: StringName = &"block_frozen_changed"
-const EVENT_CAT_STARTED: StringName = &"cat_started"
-const EVENT_CAT_ENDED: StringName = &"cat_ended"
-## [net_id] of a block the host started dissolving on a
-## hole. Its removal follows through the ordinary net_block_despawned.
-const EVENT_BLOCK_DISSOLVE_STARTED: StringName = &"block_dissolve_started"
-## mid-match join replay only: one slot's absolute feed and
-## gift state -- [slot_id, held_shape_id, next_shape_id, feed_seq, time_left,
-## release_locked, held_special_id, next_special_id, after_next_special_id, after_next_carrier_id]. See
-## _apply_slot_replay().
-const EVENT_SLOT_REPLAY: StringName = &"slot_replay"
-## EVENT_SLOT_REPLAY arity, and the indices of its id-typed args (after-next gift and carrier last).
-const SLOT_REPLAY_AFTER_SPECIAL: int = 8
-const SLOT_REPLAY_AFTER_CARRIER: int = SLOT_REPLAY_AFTER_SPECIAL + 1
-const SLOT_REPLAY_ARGS: int = SLOT_REPLAY_AFTER_CARRIER + 1
-const SLOT_REPLAY_ID_ARGS: Array[int] = [1, 2, 6, 7, SLOT_REPLAY_AFTER_SPECIAL, SLOT_REPLAY_AFTER_CARRIER]
-## mid-match join replay only: [match_timer_left].
-const EVENT_MATCH_CLOCK: StringName = &"match_clock"
-## mid-match join replay only, COUNTDOWN: the loading-screen ready
-## gate as the host sees it now -- [ready_peer_ids, required_peer_ids, open].
-const EVENT_LOADING_GATE: StringName = &"loading_gate"
-## the live scoreboard snapshot (MatchStats.build_live_payload()),
-## sent at NetConfig.scoreboard_hz while the round is live; clients show it in the
-## hold-to-show scoreboard (ui/hud/ScoreboardOverlay.gd). Display only.
-const EVENT_LIVE_SCORES: StringName = &"live_scores"
 
 @export var config: NetConfig = preload("res://config/net/net_config.tres"):
 	set(value):
@@ -125,11 +42,9 @@ var _block_mirror: ClientBlockMirror = null
 ## Every instrumentation counter (the per-slot intent identities and the match-start
 ## records); net/NetCounters.gd.
 var counters: NetCounters = NetCounters.new()
-## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
-## cannot double one (see game/player/PlayerController.gd's DECISION for the whole
-## story), so the two collaborators this node cannot work without are reached
-## through the three ports (bind_ports). Unbound, the ports are built over the autoloads on first
-## use, which is what every shipped build uses; tests bind ports over doubles.
+## DECISION (net/MatchNet.gd): GUT cannot double the Net and Match autoloads, so this node reaches
+## them through the three ports (bind_ports). Unbound, they are built over the autoloads on first
+## use (every shipped build); tests bind ports over doubles.
 
 ## True while the session port is the real Net autoload (the snapshot stream only exists there).
 var _session_is_autoload: bool = true
@@ -154,14 +69,13 @@ var _world_replay: MatchWorldReplay:
 ## Client-side world gate and replay span (net/match/ClientReplayGate.gd), built on first use.
 var _replay_gate: ClientReplayGate = null
 
-## the weather RPC surface (net/WeatherNet.gd), a child node.
+## The weather RPC child (net/WeatherNet.gd).
 var _weather_net: Node = null
 ## Client gift wire phases and special-id checks (net/match/GiftWireGuard.gd), built on first use.
 var _gift_guard: GiftWireGuard = null
 ## Last ghost per slot and the host auto-drop pose (net/match/SlotCursors.gd), built on first use.
 var _slot_cursors: SlotCursors = null
-## the client-side event applier child (net/MatchEventApplier.gd).
-## net_match_event stays the RPC entry point; this child holds the apply bulk.
+## The client-side event applier child (net/MatchEventApplier.gd); net_match_event stays the RPC entry point.
 var _applier: Node = null
 ## The typed Match reads the mirror and the state handler make; rebuilt when the providers change.
 var _host_port_cache: MatchHostPort = null
@@ -278,8 +192,8 @@ func _gate() -> ClientReplayGate:
 	return _replay_gate
 
 
-## The replication module, built on first use over the current ports; a rebind keeps it (the
-## start-sent flag and the queued impacts survive, see MatchReplication.bind).
+## The replication module, built on first use over the current ports; a rebind keeps it (state
+## that survives a rebind is listed on MatchReplication.bind).
 func _replication() -> MatchReplication:
 	if _replication_module == null:
 		var seams: MatchReplication.Seams = MatchReplication.Seams.new()
@@ -486,31 +400,13 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 	_gateway.submit_cat_target(slot_id, point)
 
 
-## results screen "Play again": restarts the match that just
-## ended with the same MatchConfig, for every peer. Mirrors submit_place()'s
-## own single-door shape: **the host's own local call acts inline, with no
-## sender check** (exactly submit_place()'s host branch calling
-## apply_place() directly, never through handle_place()'s
-## sender-owns-slot gate) -- a call arriving offline (local play, sandbox) would
-## otherwise be refused, since the roster's peer map (slot_of_peer()'s backing
-## store) is only ever populated by host_game()/join_game(), never in pure
-## offline play. A **remote** request goes through the reliable RPC below,
-## which _is_ validated (spec 2.6 "the host checks every intent before acting
-## on it") -- a global restart/return affects every connected peer, so unlike
-## a placement there is no per-sender outcome to report back, only "the host
-## did it or it didn't".
+## Results screen "Play again": restarts the match that just ended with the same MatchConfig, for
+## every peer. The host's own call acts inline (a call offline has no roster peer map to check
+## against); a remote one goes through the reliable RPC below and is validated.
 ##
-## DECISION (net/MatchNet.gd): any seated slot (not only the
-## host's own player) may request a replay/return over the wire -- spec 2.6
-## does not name a narrower "only the host's own local player" rule the way
-## it names "the host checks ... that the slot matches" for a placement, and
-## the results screen's own Replay/Return buttons are a natural thing for any
-## player to click. MatchIntentGateway's remote gate is what actually
-## authorizes a remote sender: unseated (no slot) and mid-match (not
-## State.END) requests are both dropped on the host's floor. The host's own
-## local call skips only the sender-slot check -- it is validated on State.END exactly like
-## a remote request, since a stray local call mid-match must not restart or
-## abandon every other player's match either.
+## DECISION (net/MatchNet.gd): any seated slot may request a replay/return, not only the host's
+## player (spec 2.6 names no narrower rule). MatchIntentGateway authorizes a remote sender and
+## drops unseated and non-State.END requests; the host's local call is also State.END-gated.
 func request_replay() -> void:
 	_gateway.request_replay()
 
@@ -534,8 +430,6 @@ func net_request_return_to_lobby() -> void:
 ## The last cursor the host received for `slot_id`, or an empty Dictionary.
 ## {"origin": Vector3, "orientation_index": int, "free_quat": Quaternion,
 ## "age": float}. Match reads this for auto-drop; RemoteCursors draws it.
-
-
 func cursor_for_slot(slot_id: int) -> Dictionary:
 	return _cursors().for_slot(slot_id)
 
@@ -572,16 +466,10 @@ func replicate_match_loading() -> void:
 
 # --- Counters the acceptance harness asserts on -----------------------------
 
-## Deliberate placement intents this instance sent (as a client, for its own
-## slot) or received (as the host, for any slot, including its own local
-## player's). Auto-drops are not intents and are counted separately, because
-## they never cross the wire.
-##
-## The harness proves "placements are never duplicated or lost" with two
-## identities: on the host, for every slot, intents_accepted + intents_refused
-## == intents_sent and blocks_spawned == sum(intents_accepted) + sum
-## (auto_drops); and across instances, a client's intents_sent for its own
-## slot equals the host's.
+## Deliberate placement intents this instance sent (as a client, for its own slot) or received
+## (as the host, for any slot); auto-drops never cross the wire and are counted separately. The
+## harness asserts accepted + refused == sent per slot on the host, and a client's sent equals
+## the host's.
 func intents_sent(slot_id: int) -> int:
 	return counters.sent_count(slot_id)
 

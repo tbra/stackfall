@@ -32,7 +32,8 @@ class Seams extends RefCounted:
 	var view_delay_ms: Callable = Callable()
 
 
-## Seams are bound by MatchNet; the module touches no autoload.
+## Seams are bound by MatchNet; the only autoload this module touches is the Events bus
+## (a client replays impacts through it, see _emit_impact).
 var _seams: Seams
 var _mirror: MatchEventMirror
 var _session: SessionPort

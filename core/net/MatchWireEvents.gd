@@ -1,8 +1,7 @@
 class_name MatchWireEvents
 extends RefCounted
-## Names of the match-flow events mirrored over net_match_event, copied byte-for-byte
-## from the EVENT_* consts of net/MatchNet.gd (StringNames, so a packet capture reads as
-## itself), and the argument shape of each.
+## Names of the match-flow events mirrored over net_match_event (StringNames, so a packet
+## capture reads as itself), and the argument shape of each.
 
 const STATE_CHANGED: StringName = &"state_changed"
 const COUNTDOWN: StringName = &"countdown"

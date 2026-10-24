@@ -121,7 +121,7 @@ signal mode_state_changed(state: Dictionary)
 ## The full results-screen payload is ready -- fired once per
 ## match end, on the host directly from MatchLifecycle._finish_match() (right
 ## after match_won above) and on every client after net/MatchNet.gd's single
-## EVENT_MATCH_RESULTS RPC has validated the wire payload
+## MatchWireEvents.MATCH_RESULTS RPC has validated the wire payload
 ## (ResultsValidation.validate_results_payload()). `results` is always the typed
 ## Dictionary shape MatchStats.gd's own header comment documents (winner_kind/
 ## winner_id/winner_name/match_duration/rows).
@@ -230,7 +230,7 @@ signal special_triggered(net_id: int, def_id: StringName, position: Vector3, cha
 ## pop_pending_special() is the one host-side emit site; a burned auto-drop
 ## deliberately never reaches it, see MatchPlacement._attach_pending_special()'s
 ## own doc comment). `special_id` is the id that was popped. Host-authored;
-## net/MatchNet.gd replicates it (EVENT_SPECIAL_CONSUMED) and a client's mirror
+## net/MatchNet.gd replicates it (MatchWireEvents.SPECIAL_CONSUMED) and a client's mirror
 ## (MatchGifts.apply_replicated_special_consumed()) re-emits this same signal
 ## after popping its own queue, so a client's pending_special_count()/
 ## held_special() shrink in step with the host's, the spend-side counterpart of

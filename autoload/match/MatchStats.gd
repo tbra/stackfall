@@ -13,7 +13,7 @@ extends RefCounted
 ## local Match runs the same start_match()/_build_slots() calls the host's
 ## does) but never accumulates: it receives the host's authoritative numbers
 ## as one payload over Events.match_results_ready, replicated by
-## net/MatchNet.gd's single EVENT_MATCH_RESULTS RPC and re-validated by
+## net/MatchNet.gd's single MatchWireEvents.MATCH_RESULTS RPC and re-validated by
 ## ResultsValidation.validate_results_payload() before that signal ever reaches a
 ## client's game code.
 ##
@@ -33,7 +33,7 @@ extends RefCounted
 ## --- Results payload contract (for the results-screen UI worker) ----------
 ## Events.match_results_ready(results: Dictionary) fires once per match end,
 ## on the host directly from MatchLifecycle._finish_match() and on every
-## client after net/MatchNet.gd's EVENT_MATCH_RESULTS dispatch has validated
+## client after net/MatchNet.gd's MatchWireEvents.MATCH_RESULTS dispatch has validated
 ## the wire payload with ResultsValidation.validate_results_payload(). `results` is
 ## always shaped:
 ## ```
@@ -81,9 +81,9 @@ extends RefCounted
 ## (ResultsPayload owns the key names and the validator.)
 ## ResultsValidation.validate_results_payload(raw: Variant) -> Dictionary rebuilds and
 ## strictly re-types a wire Dictionary into exactly this shape, or returns an
-## empty Dictionary for anything malformed (net/MatchNet.gd's dispatch treats
-## an empty return as "drop the packet", the same convention
-## _gift_wire_ok()/_pose_is_acceptable() already use there).
+## empty Dictionary for anything malformed (net/MatchEventApplier.gd treats
+## an empty return as "drop the packet", the same convention the
+## net/match wire guards use).
 
 const NOT_ELIMINATED: float = ResultsPayload.NOT_ELIMINATED
 const WINNER_KIND_SLOT: String = ResultsPayload.WINNER_KIND_SLOT

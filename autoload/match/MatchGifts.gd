@@ -1145,7 +1145,7 @@ func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 ## `special_id`.
 ##
 ## The crate visual is freed unconditionally: a well-behaved host only sends
-## EVENT_GIFT_CLAIMED for a claim it actually accepted, so the host really did
+## MatchWireEvents.GIFT_CLAIMED for a claim it actually accepted, so the host really did
 ## free that crate.
 func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_free_crate_visual(gift_id)
@@ -1168,7 +1168,7 @@ func apply_replicated_expire(gift_id: int) -> void:
 
 
 ## The client mirror of pop_pending_special(), called by net/MatchNet.gd's
-## EVENT_SPECIAL_CONSUMED dispatch (after its own wire check) right before it
+## MatchWireEvents.SPECIAL_CONSUMED dispatch (after its own wire check) right before it
 ## re-emits Events.special_consumed. Keeps a client's held_special() in step
 ## with the host, the spend-side counterpart of apply_replicated_claim().
 ##

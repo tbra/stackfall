@@ -749,7 +749,7 @@ func _refresh_ghost_pose() -> void:
 ## The highest manual_hover_offset the held ghost may reach right now. The
 ## binding limit is the wire band -- the ghost's own origin may rise to
 ## NetConfig.pos_max_y minus GhostTuning.hover_ceiling_margin, the band
-## core/net/Quantize.gd can replicate and net/MatchNet.gd's _pose_is_acceptable()
+## core/net/Quantize.gd can replicate and MatchIntentGateway.pose_is_acceptable()
 ## accepts from a client -- with GhostTuning.hover_manual_max only an optional
 ## extra cap on top (its default, 200 m, sits above anything the band allows).
 ## DECISION (game/player/PlayerController.gd): derived from the ghost's *current*

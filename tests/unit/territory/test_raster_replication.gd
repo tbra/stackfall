@@ -115,7 +115,7 @@ func test_an_out_of_range_diff_cell_is_skipped_not_fatal() -> void:
 
 
 ## The host skips solves on a clean board, so its raster bytes do not change
-## and MatchNet.replicate_territory() finds no changed cells. The mirror must
+## and MatchReplication.send_territory() finds no changed cells. The mirror must
 ## still pick up the next real change as a diff.
 func test_mirror_still_receives_updates_after_host_clean_ticks_skip() -> void:
 	var host: TerritoryRaster = _solved_host_raster()

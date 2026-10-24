@@ -260,7 +260,7 @@ func _on_body_entered(_body: Node3D) -> void:
 # --- Claim feedback --------------------------------------------
 
 ## Every live GiftCrate listens for its own claim. MatchGifts._claim_gift()
-## (host) and MatchNet.gd's EVENT_GIFT_CLAIMED dispatch (client) both call
+## (host) and MatchEventApplier's MatchWireEvents.GIFT_CLAIMED dispatch (client) both call
 ## _free_crate_visual() — which queue_free()s the matching node — strictly
 ## before they emit Events.gift_claimed (see MatchGifts._claim_gift()'s own
 ## call order and net/MatchNet.gd's _authority().apply_replicated_gift_claimed()

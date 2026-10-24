@@ -20,7 +20,7 @@ extends RefCounted
 ## **One event record** (EVENT_BYTES = 9): x, y, z as s16 in POSITION_QUANTUM_M
 ## steps (+-327 m, 1 cm), speed as u16 in SPEED_QUANTUM steps (m/s), age_ms as
 ## u8 -- how long before the send the host detected it, so the client can line
-## the sound up with its interpolated view (MatchNet.receive_impacts()).
+## the sound up with its interpolated view (MatchReplication.play_due_impacts()).
 ##
 ## DECISION (core/net/ImpactWire.gd): events carry a world position, not a
 ## block net_id. Every consumer only needs speed and position, and a
