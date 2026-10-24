@@ -14,7 +14,7 @@ var _fake: FakeNet = null
 
 
 func _init(fake: FakeNet = null) -> void:
-	super(null, PackedStringArray(), false)
+	super(null, false)
 	_fake = fake if fake != null else FakeNet.offline()
 
 

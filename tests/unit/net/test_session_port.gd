@@ -109,7 +109,7 @@ func test_mode_changed_is_forwarded_from_the_net_to_the_port() -> void:
 
 func test_a_port_without_follow_net_does_not_hear_the_net() -> void:
 	var net: Node = _make_net("M")
-	var port: SessionPort = SessionPort.new(net, PackedStringArray(), false)
+	var port: SessionPort = SessionPort.new(net, false)
 	watch_signals(port)
 	net.host_game(AgentProbe.free_udp_port(), _HOST_NAME, false)
 	assert_signal_not_emitted(port, "mode_changed")
@@ -208,27 +208,13 @@ func test_two_net_instances_wrap_independently() -> void:
 
 # --- invalid and unspied ports -------------------------------------------------
 
-func test_null_session_is_an_invalid_port_with_one_push_error() -> void:
+func test_null_session_is_an_invalid_and_quiet_port() -> void:
 	var port: SessionPort = SessionPort.new(null)
-	assert_push_error("SessionPort: the adapted session object is null")
 	assert_false(port.is_valid())
 
 func test_null_session_with_follow_net_false_is_invalid_and_quiet() -> void:
-	var port: SessionPort = SessionPort.new(null, PackedStringArray(), false)
+	var port: SessionPort = SessionPort.new(null, false)
 	assert_false(port.is_valid())
-
-class _BarePort:
-	extends SessionPort
-
-	func _init() -> void:
-		super(null, PackedStringArray(), false)
-
-
-func test_an_unspied_method_on_a_null_adapter_is_loud() -> void:
-	var port: SessionPort = _BarePort.new()
-	assert_false(port.is_valid())
-	assert_false(port.is_host(), "answers the documented default")
-	assert_push_error("has no is_host")
 
 
 # --- FakeSessionPort contract --------------------------------------------------
