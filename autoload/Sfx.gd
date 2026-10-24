@@ -65,8 +65,6 @@ const FOCUS_NAV_ACTIONS: Array[StringName] = [
 ]
 var _focus_nav_frame: int = -1
 var _focus_hover_frame: int = -1
-## Number of hover cues requested by focus moves (test seam; counts even with no assets).
-var focus_hover_count: int = 0
 var _next_sfx_player_index: int = 0
 var _music_player: AudioStreamPlayer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -250,7 +248,6 @@ func _on_gui_focus_changed(_control: Control) -> void:
 	if _focus_nav_frame != frame or _focus_hover_frame == frame:
 		return
 	_focus_hover_frame = frame
-	focus_hover_count += 1
 	play(AudioConfig.EVENT_HOVER)
 
 

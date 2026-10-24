@@ -21,6 +21,7 @@ func before_each() -> void:
 	_b.focus_neighbor_right = _b.get_path_to(_a)
 	_a.grab_focus()
 	await get_tree().process_frame
+	_sfx.release_audio()
 
 
 func _press(action: StringName) -> void:
@@ -32,18 +33,26 @@ func _press(action: StringName) -> void:
 	await get_tree().process_frame
 
 
+## Pooled players still holding a stream after release_audio() are the ones a cue played on.
+func _hover_voices(sfx: Node) -> int:
+	var count: int = 0
+	for child: Node in sfx.get_children():
+		var player: AudioStreamPlayer = child as AudioStreamPlayer
+		if player != null and player.stream != null:
+			count += 1
+	return count
+
+
 func test_programmatic_focus_is_silent() -> void:
-	var before: int = _sfx.focus_hover_count
 	_b.grab_focus()
 	await get_tree().process_frame
-	assert_eq(_sfx.focus_hover_count, before)
+	assert_eq(_hover_voices(_sfx), 0)
 
 
 func test_ui_down_focus_move_plays_one_hover() -> void:
-	var before: int = _sfx.focus_hover_count
 	await _press(&"ui_down")
 	assert_true(_b.has_focus(), "ui_down moved focus")
-	assert_eq(_sfx.focus_hover_count, before + 1)
+	assert_eq(_hover_voices(_sfx), 1)
 
 
 func test_held_stick_repeat_in_scroll_container_plays_one_hover_per_move() -> void:
@@ -61,12 +70,12 @@ func test_held_stick_repeat_in_scroll_container_plays_one_hover_per_move() -> vo
 	await get_tree().process_frame
 	rows[0].grab_focus()
 	await get_tree().process_frame
-	var before: int = Sfx.focus_hover_count
+	Sfx.release_audio()
 	scroll._move_selection(1)
 	await get_tree().process_frame
 	assert_true(rows[1].has_focus())
-	assert_eq(Sfx.focus_hover_count, before + 1, "first repeat move")
+	assert_eq(_hover_voices(Sfx), 1, "first repeat move")
 	scroll._move_selection(1)
 	await get_tree().process_frame
 	assert_true(rows[2].has_focus())
-	assert_eq(Sfx.focus_hover_count, before + 2, "second repeat move")
+	assert_eq(_hover_voices(Sfx), 2, "second repeat move")
