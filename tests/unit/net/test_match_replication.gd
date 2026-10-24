@@ -661,3 +661,77 @@ func test_reset_rebuilds_the_territory_baseline() -> void:
 	rig.module.reset()
 	rig.module.send_territory()
 	assert_eq(rig.spy.broadcasts_of(&"net_territory").size(), 2, "a fresh baseline sends a keyframe")
+
+
+# --- Rebinding and match-state transitions ------------------------------------------------
+
+## Impacts at well-separated cells, so none coalesce into another.
+func _collect_spread(rig: Rig, count: int) -> void:
+	for i: int in range(count):
+		rig.module.on_block_impacted_at(6.0 + float(i), Vector3(10.0 * float(i), 1.0, 0.0))
+
+
+## How many impact events the host's net_block_impacts batches carry to PEER_A, counted by playing
+## them into a client module.
+func _impacts_sent_to_peer_a(rig: Rig) -> int:
+	var client: Rig = _rig(FakeNet.client(1))
+	for batch: Dictionary in rig.spy.sends_of(&"net_block_impacts"):
+		if int(batch["peer"]) == PEER_A:
+			client.module.receive_impacts((batch["args"] as Array)[0] as PackedByteArray)
+	return _at_events.size()
+
+
+func test_binding_a_different_config_applies_its_batch_limit() -> void:
+	var rig: Rig = _rig()
+	_collect_spread(rig, 1)
+	rig.module.tick_host_feeds(1.0)
+	rig.spy.sent.clear()
+	var tight: NetConfig = NetConfig.new()
+	tight.impact_batch_hz = HZ
+	tight.impact_max_per_batch = 1
+	rig.module.bind(rig.session, rig.host, rig.replica, tight)
+	_collect_spread(rig, 3)
+	rig.module.tick_host_feeds(1.0)
+	assert_eq(_impacts_sent_to_peer_a(rig), 1, "the new config caps a batch at one event")
+
+
+func test_binding_a_different_config_drops_impacts_queued_under_the_old_one() -> void:
+	var rig: Rig = _rig()
+	_collect_spread(rig, 2)
+	var other: NetConfig = NetConfig.new()
+	other.impact_batch_hz = HZ
+	rig.module.bind(rig.session, rig.host, rig.replica, other)
+	rig.module.tick_host_feeds(1.0)
+	assert_eq(rig.spy.sends_of(&"net_block_impacts").size(), 0, "nothing queued survives a new config")
+
+
+func test_binding_the_same_config_keeps_queued_impacts() -> void:
+	var rig: Rig = _rig()
+	_collect_spread(rig, 2)
+	rig.module.bind(rig.session, rig.host, rig.replica, rig.config)
+	rig.module.tick_host_feeds(1.0)
+	assert_eq(_impacts_sent_to_peer_a(rig), 2, "both impacts queued before the rebind go out")
+
+
+func test_end_keeps_queued_impacts_and_lobby_or_loading_clear_them() -> void:
+	for state: int in [
+		MatchPhase.State.COUNTDOWN, MatchPhase.State.PLAYING,
+		MatchPhase.State.SUDDEN_DEATH, MatchPhase.State.END,
+	]:
+		_at_events.clear()
+		var kept: Rig = _rig(FakeNet.client(1))
+		kept.spy.delay = VIEW_DELAY_MS
+		kept.module.receive_impacts(_impact_packet(6.5, Vector3.ONE))
+		kept.module.on_match_state_changed(state)
+		kept.spy.now = NOW_MS + VIEW_DELAY_MS
+		kept.module.play_due_impacts()
+		assert_eq(_at_events.size(), 1, "state %d keeps the queue" % state)
+	for state: int in [MatchPhase.State.LOBBY, MatchPhase.State.LOADING]:
+		_at_events.clear()
+		var cleared: Rig = _rig(FakeNet.client(1))
+		cleared.spy.delay = VIEW_DELAY_MS
+		cleared.module.receive_impacts(_impact_packet(6.5, Vector3.ONE))
+		cleared.module.on_match_state_changed(state)
+		cleared.spy.now = NOW_MS + 10 * VIEW_DELAY_MS
+		cleared.module.play_due_impacts()
+		assert_eq(_at_events.size(), 0, "state %d clears the queue" % state)
