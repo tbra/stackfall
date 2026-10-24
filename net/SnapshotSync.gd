@@ -26,6 +26,9 @@ extends Node
 ## constant on this script.
 const SNAPSHOT_CHANNEL: int = SnapshotWire.SNAPSHOT_CHANNEL
 
+## Block's script, for its awake registry (see `_block_script`).
+const BLOCK_SCRIPT_PATH: String = "res://game/blocks/Block.gd"
+
 @export var config: NetConfig = preload("res://config/net/net_config.tres")
 
 # --- Shared state -----------------------------------------------------------
@@ -48,6 +51,21 @@ var _session_port: SessionPort = null
 ## snapshot time, not at signal time, so the two handlers' order does not
 ## matter.
 var _bodies: Dictionary = {}
+
+## The same bodies in the order they were first seen (the keyframe cursor walks it).
+var _order: Array = []
+
+## instance id (int) -> BlockBody, the bodies _select_bodies has to look at when the
+## disc did not move: awake, not yet sent, a fused follower, or woken since they were
+## last seen settled. Every other body is a settled sleeper whose only way into a
+## snapshot is the keyframe slice, so an all-asleep field costs nothing per snapshot.
+## A body leaves it only after a visit found it asleep and already sent as asleep.
+var _dirty: Dictionary = {}
+
+## The Block script, loaded on first use: its awake registry reports script wakes
+## (Block.wake()), which raise no sleeping_state_changed. Held as a script so this
+## autoload keeps its compile closure free of game/blocks.
+var _block_script: GDScript = null
 
 ## The resend decision for sleeping bodies: what each body looked like the last
 ## time it went out, and whether the disc moved. Rebuilt per match with the live config.
@@ -125,6 +143,8 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 	_last_snapshot_bytes = 0
 	_keyframe_cursor = 0
 	_known_peer_count = 0
+	_order.clear()
+	_dirty.clear()
 	_disk_smoother = DiskPoseSmoother.new(config)
 
 	_interpolator = Interpolator.new(config)
@@ -137,6 +157,8 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 		Events.block_removed.connect(_on_block_removed)
 	if not Events.block_replicated.is_connected(_on_block_replicated):
 		Events.block_replicated.connect(_on_block_replicated)
+	if not Events.blocks_fused.is_connected(_on_blocks_fused):
+		Events.blocks_fused.connect(_on_blocks_fused)
 
 
 ## Stops sending and drops every buffer. Called when a match ends or the
@@ -148,10 +170,17 @@ func end_match() -> void:
 		Events.block_removed.disconnect(_on_block_removed)
 	if Events.block_replicated.is_connected(_on_block_replicated):
 		Events.block_replicated.disconnect(_on_block_replicated)
+	if Events.blocks_fused.is_connected(_on_blocks_fused):
+		Events.blocks_fused.disconnect(_on_blocks_fused)
 	_running = false
 	_snapshot_bytes_total = 0
 	_registry = null
+	for held: Variant in _bodies.values():
+		if is_instance_valid(held):
+			_unwatch(held as BlockBody)
 	_bodies.clear()
+	_order.clear()
+	_dirty.clear()
 	_selector.reset()
 	if _disk_smoother != null:
 		_disk_smoother.reset()
@@ -478,27 +507,32 @@ func _remote_peers() -> PackedInt32Array:
 
 
 ## {"bodies": Array, "keyframe": bool} for this tick.
+##
+## While the disc stands still only `_dirty` is visited: every other body is a
+## settled sleeper (asleep, already sent as asleep) that this rule would skip anyway.
+## A disc that moved drift-tests every sleeper, so that tick visits all of `_order`.
 func _select_bodies() -> Dictionary:
-	var awake_or_moved: Array = []
-	var sleepers: Array[BlockBody] = []
-	var saw_freed: bool = false
 	_selector.begin_tick(_disk_transform())
+	_mark_registered_awake()
+	var awake_or_moved: Array = []
+	var recorded_ids: Dictionary = {}
+	var unassigned: int = 0
+	var saw_freed: bool = false
+	var candidates: Array = _order if _selector.disc_changed() else _dirty.values()
 
-	# This loop visits every body every snapshot, so an unchanged sleeper costs
-	# only its sleep flag and one needs_check: its pose is read (and its carrier
-	# re-posed) only when it is awake, drift-tested or recorded.
-	for held: Variant in _bodies.values():
+	for held: Variant in candidates:
 		if not is_instance_valid(held):
 			saw_freed = true
 			continue
 		var block: BlockBody = held as BlockBody
 		var net_id: int = block.net_id
 		if net_id <= 0:
+			unassigned += 1
 			continue
 		var sleeping: bool = block.net_sleeping()
 		# SHORTCUT: a sleeping body that moved with no disc change and no sleep flip (a teleport or anchored-group pose edit that leaves it asleep) is resent only by its keyframe slice, upgrade when a playtest or the session-close soak shows a stale sleeper
 		if sleeping and not _selector.needs_check(net_id, sleeping):
-			sleepers.append(block)
+			_settle(block)
 			continue
 		_refresh_carrier_pose(block)
 		if (
@@ -509,21 +543,70 @@ func _select_bodies() -> Dictionary:
 			)
 		):
 			awake_or_moved.append(_record(block))
+			recorded_ids[net_id] = true
+		if sleeping:
+			_settle(block)
 		else:
-			sleepers.append(block)
+			_dirty[block.get_instance_id()] = block
 	if saw_freed:
 		_drop_freed_bodies()
 
-	var slice: int = mini(keyframe_slice_for(sleepers.size(), config), sleepers.size())
+	# Every tracked body with an id that was not sent above is a sleeper, however
+	# many of them this tick never looked at.
+	var sleepers: int = _bodies.size() - unassigned - awake_or_moved.size()
+	var slice: int = mini(keyframe_slice_for(sleepers, config), sleepers)
 	var keyframe: bool = slice > 0
-	for step: int in range(slice):
-		var block: BlockBody = sleepers[(_keyframe_cursor + step) % sleepers.size()]
-		_refresh_carrier_pose(block)
-		awake_or_moved.append(_record(block))
-	if not sleepers.is_empty():
-		_keyframe_cursor = (_keyframe_cursor + slice) % sleepers.size()
+	if keyframe and _append_keyframe_slice(awake_or_moved, recorded_ids, slice):
+		_drop_freed_bodies()
 
 	return {"bodies": awake_or_moved, "keyframe": keyframe}
+
+
+## Walks `_order` from the keyframe cursor and records the next `slice` bodies that this
+## tick did not already send, so every sleeper is refreshed once per keyframe_interval.
+## True when it met a freed body.
+func _append_keyframe_slice(out: Array, recorded_ids: Dictionary, slice: int) -> bool:
+	var total: int = _order.size()
+	var saw_freed: bool = false
+	var cursor: int = _keyframe_cursor % maxi(total, 1)
+	var picked: int = 0
+	for _step: int in range(total):
+		if picked >= slice:
+			break
+		var held: Variant = _order[cursor]
+		cursor = (cursor + 1) % total
+		if not is_instance_valid(held):
+			saw_freed = true
+			continue
+		var block: BlockBody = held as BlockBody
+		if block.net_id <= 0 or recorded_ids.has(block.net_id):
+			continue
+		if not block.net_sleeping():
+			# Woke without any notice reaching _dirty: look at it from the next tick on.
+			_dirty[block.get_instance_id()] = block
+		_refresh_carrier_pose(block)
+		out.append(_record(block))
+		picked += 1
+	_keyframe_cursor = cursor
+	return saw_freed
+
+
+## A body found asleep and already sent as asleep leaves `_dirty`, unless it is a fused
+## follower: its sleep flag is its carrier's, which can change without any signal of its own.
+func _settle(block: BlockBody) -> void:
+	if block.fused_carrier() == null:
+		_dirty.erase(block.get_instance_id())
+
+
+## Script wakes (Block.wake(), release_freeze_static()) raise no sleeping_state_changed
+## but do enter Block's awake registry, which is what the rest of the game trusts.
+func _mark_registered_awake() -> void:
+	if _block_script == null:
+		_block_script = load(BLOCK_SCRIPT_PATH) as GDScript
+	for held: Variant in _block_script.call(&"awake_blocks") as Array:
+		var id: int = (held as Object).get_instance_id()
+		if _bodies.has(id):
+			_dirty[id] = held
 
 
 ## An anchored group's followers must be posed from the disc of THIS tick before
@@ -539,6 +622,9 @@ func _drop_freed_bodies() -> void:
 	for key: Variant in _bodies.keys():
 		if not is_instance_valid(_bodies[key]):
 			_bodies.erase(key)
+			_dirty.erase(key)
+	_order = _bodies.values()
+	_keyframe_cursor = _keyframe_cursor % maxi(_order.size(), 1)
 
 
 func _record(block: BlockBody) -> Dictionary:
@@ -584,14 +670,49 @@ func _track(block: RigidBody3D) -> void:
 	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
-	_bodies[typed.get_instance_id()] = typed
+	var id: int = typed.get_instance_id()
+	if not _bodies.has(id):
+		_bodies[id] = typed
+		_order.append(typed)
+	if not typed.sleeping_state_changed.is_connected(_on_body_sleep_changed.bind(id)):
+		typed.sleeping_state_changed.connect(_on_body_sleep_changed.bind(id))
+	_dirty[id] = typed
+
+
+func _unwatch(body: BlockBody) -> void:
+	var callback: Callable = _on_body_sleep_changed.bind(body.get_instance_id())
+	if body.sleeping_state_changed.is_connected(callback):
+		body.sleeping_state_changed.disconnect(callback)
+
+
+## The engine woke or slept the body: look at it at the next snapshot.
+func _on_body_sleep_changed(id: int) -> void:
+	var body: Variant = _bodies.get(id)
+	if body != null:
+		_dirty[id] = body
+
+
+## Followers take their carrier's sleep flag, so they are looked at from now on.
+func _on_blocks_fused(_carrier: Node, members: Array) -> void:
+	for member: Variant in members:
+		var id: int = (member as Object).get_instance_id()
+		if _bodies.has(id):
+			_dirty[id] = member
 
 
 func _on_block_removed(block: RigidBody3D, _reason: String) -> void:
-	_bodies.erase(block.get_instance_id())
+	var id: int = block.get_instance_id()
+	_bodies.erase(id)
+	_dirty.erase(id)
 	var typed: BlockBody = block as BlockBody
 	if typed == null:
 		return
+	_unwatch(typed)
+	var position: int = _order.find(typed)
+	if position >= 0:
+		_order.remove_at(position)
+		if position < _keyframe_cursor:
+			_keyframe_cursor -= 1
 	_selector.forget(typed.net_id)
 	if _interpolator != null:
 		_interpolator.forget(typed.net_id)
