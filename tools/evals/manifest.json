@@ -24,7 +24,7 @@
       "static func legality_point(pivot: Vector3, shape: BlockShape, basis: Basis, cube_size: float) -> Vector3"
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 4
   },
   "bot_legality_centre": {
     "area": "core/ai bugfix, follows placement_centre",
@@ -41,10 +41,11 @@
       "test_placement_point"
     ],
     "interface_lines": [
-      "Bots must judge the same point the host does; BotStatics.OrientationInfo.center_shift already exists."
+      "Bots must judge the same point the host does; BotStatics.OrientationInfo.center_shift already exists.",
+      "PlacementPoint.centre_offset(shape, basis, cube_size) -> Vector3 and legality_point(pivot: Vector3, shape, basis, cube_size) -> Vector3 already exist in core/rules; the hidden test calls them with BlockOrientations.get_basis(candidate.orientation_index) and checks PlacementRules.validate_point at that point."
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 4
   },
   "elimination_batch": {
     "area": "core/ rules + autoload/match",
@@ -66,10 +67,12 @@
       "test_late_join_silence"
     ],
     "interface_lines": [
-      "No new names: MatchLifecycle.eliminate_slots, MatchTerritory.objective() and the objective hooks already exist at the base as typed stubs."
+      "No new names: MatchLifecycle.eliminate_slots, MatchTerritory.objective() and the objective hooks already exist at the base as typed stubs.",
+      "The tests call Match._lifecycle.eliminate_slots(slot_ids: PackedInt32Array, attackers: Dictionary = {}) and Match._territory._check_home_flags(opened: PackedInt32Array), and assign Match._territory._objective directly: keep those names and read the objective through MatchTerritory.objective() so an injected objective is honoured.",
+      "ModeObjective.resolve_eliminations(batch_teams, alive_teams, shares: PackedFloat32Array) -> int, reports_mode_results() -> bool and _declare_winner(team) already exist at the base; EliminationObjective.resolve_eliminations must latch winner() like resolve() and use its own batch, not the caller's arrays."
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 1
   },
   "glue_send_seam": {
     "area": "net/ host authority sends",
@@ -85,7 +88,8 @@
       "test_glue_drops",
       "test_glue_effect",
       "test_glue_fusion",
-      "test_net_client_mirror"
+      "test_match_net",
+      "test_rpc_contract"
     ],
     "interface_lines": [
       "MatchEventMirror.on_blocks_fused(carrier: Node, members: Array)",
@@ -93,10 +97,11 @@
       "MatchEventMirror.on_glue_drop_charged(body: Node)",
       "MatchEventMirror.forget_glued(net_id: int)",
       "MatchEventMirror.glued_ids() -> Array",
-      "MatchEventMirror.reset_glue()"
+      "MatchEventMirror.reset_glue()",
+      "The seam is the mirror's existing broadcast seam: a send is broadcast(&\"net_match_event\", [MatchWireEvents.BLOCK_GLUED, [net_id, glued: bool]]) built via MatchEventMirror(seams: MatchIntentGateway.Seams) and bind_ports(session, host); glued_ids() returns net ids in first-glued order; on_blocks_fused/on_glue_drop_charged also apply HoneyCoat to the body, and a non-host mirror sends and tracks nothing."
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 1
   },
   "client_spawn_reuse": {
     "area": "net/ client mirror bugfix",
@@ -108,13 +113,14 @@
     ],
     "regression": [
       "test_late_join",
-      "test_late_join_silence"
+      "test_match_net",
+      "test_snapshot_sync"
     ],
     "interface_lines": [
       "ClientBlockMirror.has_spawned(net_id) already exists; behaviour only."
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 2
   },
   "reject_sentences": {
     "area": "UI + config",
@@ -127,17 +133,19 @@
       "tests/unit/ui/test_hud.gd"
     ],
     "regression": [
-      "test_placement_refusal"
+      "test_placement_refusal",
+      "test_refusal_feedback_local"
     ],
     "interface_lines": [
       "class_name RejectMessageTable in config/ui/RejectMessageTable.gd",
       "resource config/ui/reject_message_table.tres",
       "has_message(reason: StringName) -> bool",
       "message_for(reason: StringName) -> String",
-      "fallback_message: String"
+      "fallback_message: String",
+      "HUD.reject_messages: RejectMessageTable (exported) is the table show_reject() reads; the hidden test_hud calls hud.reject_messages.message_for(reason) and expects the outside_territory sentence to contain \"inside your territory\" (brief example: \"You can only build inside your territory.\"). Every PlacementRules.REASON_* except REASON_OK and ThrowRules.REASON_NOT_A_SPECIAL need an entry; no em dash and no underscore in any sentence."
     ],
     "runner": "gut",
-    "lint_floor": null
+    "lint_floor": 4
   },
   "slot_set_atomic": {
     "area": "tooling bugfix",
@@ -151,9 +159,11 @@
     "regression": [],
     "interface_lines": [
       "godot_slots.acquire_many(label, count, pid=None, wait_s=None) -> list",
-      "context manager godot_slots(label, count, wait_s=None)"
+      "context manager godot_slots(label, count, wait_s=None)",
+      "run_enet_set.hold_capacity(name, processes, slots=None): within the cap it makes one call slots.godot_slots(\"enet:<name>\", processes) and nothing else; over the cap it makes one slots.godot_exclusive(label, wait_s=EXCLUSIVE_WAIT_S). The hidden test injects a fake exposing only cap(), godot_slots(label, count, wait_s) and godot_exclusive(label, wait_s).",
+      "Existing private helpers godot_slots._take_gate(dir, pid, label, token), _gate_path(dir), busy_count(), acquire_exclusive/release_exclusive and release(index) are called by the hidden test with STACKFALL_GODOT_SLOTS=2: keep them. Behaviour: a multi-slot acquire_many holds no slot while an exclusive gate waits, and a timed-out acquire_many releases its partial set."
     ],
     "runner": "unittest",
-    "lint_floor": null
+    "lint_floor": 1
   }
 }
