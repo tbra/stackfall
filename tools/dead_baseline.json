@@ -565,21 +565,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:is_match_live",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:pick_open_seat",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/match/MatchWorldReplay.gd:seat_reclaimable",
-   "reason": "MatchNet cut stub: wired by MC-E"
-  },
-  {
-   "id": "test-only-func",
    "entry": "net/ports/SessionPort.gd:roster",
    "reason": "MatchNet cut stub: wired by MC-C"
   },

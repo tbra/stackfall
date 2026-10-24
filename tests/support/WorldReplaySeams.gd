@@ -1,7 +1,7 @@
 class_name WorldReplaySeams
 extends RefCounted
 ## Spy Seams for a MatchWorldReplay built through its public constructor: the host's sends land on
-## `send` and the clock is `now`. The MatchNet-bound parts (raster keyframe, per-slot feed) stay
+## `send` and the clock is `now`. The MatchNet-bound parts (raster keyframe) stay
 ## empty; the spawn rows use the public six-argument net_block_spawned wire shape.
 
 
@@ -17,6 +17,5 @@ static func make(send: Callable, now: Callable) -> MatchWorldReplay.Seams:
 		]
 	seams.glued_ids = func() -> Array: return []
 	seams.territory_args = func() -> Array: return []
-	seams.slot_replay_args = func(_slot_id: int) -> Array: return []
 	seams.replay_acknowledged = func() -> void: pass
 	return seams

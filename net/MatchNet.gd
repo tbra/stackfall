@@ -398,7 +398,6 @@ func _replays() -> MatchWorldReplay:
 		seams.spawn_args = _spawn_args
 		seams.glued_ids = func() -> Array: return _event_mirror().glued_ids()
 		seams.territory_args = _territory_replay_args
-		seams.slot_replay_args = _slot_replay_args
 		seams.replay_acknowledged = _on_replay_acknowledged
 		_world_replay_host = MatchWorldReplay.new(_session_port(), _host_port(), config, seams)
 	return _world_replay_host
@@ -974,52 +973,14 @@ func _on_net_mode_changed(mode: int) -> void:
 	_reset_impacts()
 
 
-## True while a match is past its start and not over: the states a mid-match
-## joiner is admitted into and gets a replay for (spec 2.4).
-func is_match_live() -> bool:
-	var state: int = int(_host_port().state())
-	return MatchPhase.is_replicating(state)
-
-
-# --- Mid-match join and reconnect (spec 2.6) -----------------
-
-## Host only, installed into Net's seat policy by game/main/Main.gd: the lowest open
-## human seat for a new mid-match joiner, or -1 (spectate). Open means a human
-## (not bot) slot that is still alive, held by no peer, and not reserved by a
-## departed peer inside its disconnect grace.
-##
-## DECISION: a joiner never takes over a bot seat -- the bot
-## would have to be torn down mid-match and spec 1.8 does not ask for it;
-## with every human seat filled or reserved the joiner spectates.
+## Host only, installed into Net's seat policy by game/main/Main.gd (MatchWorldReplay.pick_open_seat).
 func pick_open_seat() -> int:
-	if not _session_port().is_host() or not is_match_live():
-		return -1
-	var authority: MatchHostPort = _host_port()
-	for slot_id: int in range(int(authority.slot_count())):
-		var seat: PlayerSlot = authority.slot(slot_id)
-		if seat == null or seat.is_bot or not seat.home_flag_alive:
-			continue
-		if int(_session_port().peer_of_slot(slot_id)) != -1:
-			continue
-		if float(authority.disconnect_grace_left(slot_id)) >= 0.0:
-			continue
-		return slot_id
-	return -1
+	return _world_replay.pick_open_seat()
 
 
-## Host only, installed into Net's seat policy by game/main/Main.gd: whether a
-## returning peer may have `slot_id` back -- the match is live, the slot is
-## alive and its disconnect grace is still running.
+## Host only, installed into Net's seat policy by game/main/Main.gd (MatchWorldReplay.seat_reclaimable).
 func seat_reclaimable(slot_id: int) -> bool:
-	if not _session_port().is_host() or not is_match_live():
-		return false
-	var authority: MatchHostPort = _host_port()
-	if slot_id < 0 or slot_id >= int(authority.slot_count()):
-		return false
-	var seat: PlayerSlot = authority.slot(slot_id)
-	if seat == null or not seat.home_flag_alive:
-		return false
-	return float(authority.disconnect_grace_left(slot_id)) >= 0.0
+	return _world_replay.seat_reclaimable(slot_id)
 
 
 ## net_territory's arguments for one full keyframe, or [] with no raster.
@@ -1032,28 +993,6 @@ func _territory_replay_args() -> Array:
 ## net_territory's arguments: the packet, then neutral values for the slots the packet now carries.
 func _territory_rpc_args(packet: PackedByteArray) -> Array:
 	return [packet, false, PackedFloat32Array(), -1, 0.0]
-
-
-## EVENT_SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing
-## held (eliminated, or between blocks).
-func _slot_replay_args(slot_id: int) -> Array:
-	var authority: MatchHostPort = _host_port()
-	var held: BlockShape = authority.held_shape(slot_id)
-	if held == null:
-		return []
-	var next: BlockShape = authority.next_shape(slot_id)
-	return [
-		slot_id,
-		held.id,
-		next.id if next != null else &"",
-		int(authority.feed_seq(slot_id)),
-		float(authority.feed_time_left(slot_id)),
-		bool(authority.is_release_locked(slot_id)),
-		StringName(authority.held_special(slot_id)),
-		StringName(authority.next_special(slot_id)),
-		StringName(authority.after_next_special(slot_id)),
-		_host_port().feed_staged_gift_shape_id(slot_id),
-	]
 
 
 # --- RPCs -------------------------------------------------------------------
