@@ -13,6 +13,8 @@ var _parent: Node3D
 var _fake: FakeMatch
 var _mirror: ClientBlockMirror
 var _removed: Array[String] = []
+## Kept by the test: the mirror's Callable does not own it.
+var _guard: GiftWireGuard
 
 
 ## FakeHostPort answering the three reads the mirror makes from the FakeMatch's world.
@@ -181,10 +183,10 @@ func test_a_malformed_roster_entry_is_skipped_and_reported() -> void:
 func _guarded_mirror() -> ClientBlockMirror:
 	var host: MirrorHost = MirrorHost.new()
 	host.world = _fake
-	var guard: GiftWireGuard = GiftWireGuard.new()
-	guard.bind(host, load("res://config/net/net_config.tres") as NetConfig)
+	_guard = GiftWireGuard.new()
+	_guard.bind(host, load("res://config/net/net_config.tres") as NetConfig)
 	var session: SessionPort = FakeSessionPort.new(FakeNet.client(LOCAL_SLOT))
-	return ClientBlockMirror.new(session, host, guard.special_id_ok, preload("res://config/physics/physics_tuning.tres"))
+	return ClientBlockMirror.new(session, host, _guard.special_id_ok, preload("res://config/physics/physics_tuning.tres"))
 
 
 func _spawn_with_gift(mirror: ClientBlockMirror, gift_id: StringName) -> Block:

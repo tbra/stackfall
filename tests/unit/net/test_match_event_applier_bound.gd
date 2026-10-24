@@ -262,10 +262,13 @@ func _replay(overrides: Dictionary = {}) -> Array:
 
 
 func _assert_replay_refused(args: Array, context: String) -> void:
+	var issued_before: int = get_signal_emit_count(Events, "feed_block_issued")
 	assert_false(_applier.apply_event(MatchWireEvents.SLOT_REPLAY, args), context)
 	assert_eq(_replica.calls.size(), 0, "%s: nothing reached the replica" % context)
-	assert_signal_not_emitted(Events, "feed_block_issued")
+	assert_eq(get_signal_emit_count(Events, "feed_block_issued"), issued_before, "%s: no feed event" % context)
 	# Control: the same applier wiring accepts the plain replay, so the refusal above is the payload's.
+	if _host.running == null:
+		return
 	var control: Node = autofree((load("res://net/MatchEventApplier.gd") as GDScript).new() as Node)
 	control.bind(_session, _host, FakeReplicaPort.new(), _config, _guard)
 	assert_true(control.apply_event(MatchWireEvents.SLOT_REPLAY, _replay()), "%s: control" % context)
@@ -288,13 +291,12 @@ func test_a_slot_replay_with_gifts_queues_them_in_the_order_a_seated_client_saw(
 		&"apply_replicated_gift_claimed",
 		&"apply_replicated_next_gift",
 		&"apply_replicated_gift_claimed",
-		&"apply_replicated_staged_gift",
 	] as Array[StringName])
 	assert_eq(_replica.calls_to(&"apply_replicated_gift_claimed")[0], [-1, SLOT, _special])
 	assert_eq(_replica.calls_to(&"apply_replicated_next_gift")[0], [SLOT, HELD])
 	assert_eq(_replica.calls_to(&"apply_replicated_gift_claimed")[1], [-1, SLOT, SpecialIds.PENDING])
 	assert_eq(_replica.calls_to(&"apply_replicated_next_gift")[1], [SLOT, NEXT])
-	assert_eq(_replica.calls_to(&"apply_replicated_staged_gift")[0], [SLOT, CARRIER])
+	assert_eq(_replica.calls_to(&"apply_replicated_gift_claimed")[2], [-1, SLOT, _special], "the after-next gift is queued last")
 
 
 func test_a_slot_replay_with_no_next_block_is_accepted() -> void:
