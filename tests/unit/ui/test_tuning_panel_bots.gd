@@ -13,6 +13,7 @@ func before_each() -> void:
 	_panel = autofree(load("res://ui/debug/TuningPanel.tscn").instantiate())
 	add_child_autofree(_panel)
 	_panel.rebuild()
+	_panel._tab_container.current_tab = _panel._tab_container.get_tab_idx_from_control(_panel._tab_container.get_node("Bots"))
 
 
 func after_each() -> void:

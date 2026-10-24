@@ -16,6 +16,7 @@ func before_each() -> void:
 	add_child_autofree(_panel)
 	_panel.net_provider = FakeNet.offline()
 	_panel.rebuild()
+	_panel._tab_container.current_tab = _panel._tab_container.get_tab_idx_from_control(_panel._tab_container.get_node(TuningSfxTab.TAB_NAME))
 
 
 func after_each() -> void:

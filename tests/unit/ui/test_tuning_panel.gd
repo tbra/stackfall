@@ -50,7 +50,7 @@ var _shared_sky_cycle: SkyCycleDef = null
 func before_all() -> void:
 	_shared = load("res://ui/debug/TuningPanel.tscn").instantiate()
 	add_child(_shared)
-	_shared.rebuild()
+	_rebuild_all(_shared)
 	_shared_sky_cycle = _shared.sky_cycle
 
 
@@ -60,13 +60,29 @@ func after_all() -> void:
 		_shared = null
 
 
+## Tabs build their rows when first shown, so a test that reads any row shows every tab once.
+func _show_all_tabs(panel: TuningPanel) -> void:
+	for index: int in panel._tab_container.get_tab_count():
+		panel._tab_container.current_tab = index
+
+
+func _show_tab(panel: TuningPanel, tab_name: String) -> void:
+	var tabs: TabContainer = panel._tab_container
+	tabs.current_tab = tabs.get_tab_idx_from_control(tabs.get_node(tab_name))
+
+
+func _rebuild_all(panel: TuningPanel) -> void:
+	panel.rebuild()
+	_show_all_tabs(panel)
+
+
 ## A fresh panel for a test that mutates panel-level state. prebuild = false
 ## leaves the UI unbuilt for a test that rebuilds/opens it itself (half the cost).
 func _own_panel(prebuild: bool) -> TuningPanel:
 	var own: TuningPanel = autofree(load("res://ui/debug/TuningPanel.tscn").instantiate())
 	add_child_autofree(own)
 	if prebuild:
-		own.rebuild()
+		_rebuild_all(own)
 	_panel = own
 	return own
 
@@ -160,7 +176,7 @@ func after_each() -> void:
 		_shared.visible = false
 		_shared.net_provider = Net
 		_shared.sky_cycle = _shared_sky_cycle
-		_shared.rebuild()
+		_rebuild_all(_shared)
 
 
 # --- Reflection: one control per exported field ------------------------------
@@ -258,6 +274,7 @@ func test_weather_row_selection_forces_swaps_and_releases_on_the_host() -> void:
 	var weather: MatchWeather = _fake_weather(true)
 	_panel.weather_provider = weather
 	_panel.rebuild()
+	_show_tab(_panel, "Sky")
 	var option: OptionButton = _weather_option()
 	option.select(2)
 	option.item_selected.emit(2)
@@ -323,6 +340,51 @@ func test_f4_toggles_visibility_both_ways() -> void:
 	assert_false(_panel.visible)
 
 
+## Number of tab pages that hold built rows.
+func _built_tab_count(panel: TuningPanel) -> int:
+	var built: int = 0
+	for page: Node in panel._tab_container.get_children():
+		if page.get_child_count() > 0:
+			built += 1
+	return built
+
+
+func test_only_the_shown_tab_builds_its_rows_and_keeps_them() -> void:
+	_own_panel(false)
+	_panel.rebuild()
+	assert_eq(_built_tab_count(_panel), 1, "only the shown tab is built")
+	var tabs: TabContainer = _panel._tab_container
+	var other: int = (tabs.current_tab + 1) % tabs.get_tab_count()
+	assert_eq(tabs.get_tab_control(other).get_child_count(), 0, "a hidden tab has no rows yet")
+	tabs.current_tab = other
+	assert_eq(_built_tab_count(_panel), 2, "showing a tab builds it")
+	var page_rows: Node = tabs.get_tab_control(other).get_child(0)
+	tabs.current_tab = (other + 1) % tabs.get_tab_count()
+	tabs.current_tab = other
+	assert_same(tabs.get_tab_control(other).get_child(0), page_rows, "a built tab is kept, not rebuilt")
+
+
+func test_gamepad_dpad_tab_switch_builds_the_new_tab_with_focusable_rows() -> void:
+	_own_panel(false)
+	_panel.rebuild()
+	var tabs: TabContainer = _panel._tab_container
+	_panel.visible = true
+	tabs.current_tab = 0
+	var bar: TabBar = tabs.get_tab_bar()
+	var event: InputEventJoypadButton = _pad_press(JOY_BUTTON_DPAD_RIGHT)
+	assert_true(event.is_action_pressed(&"ui_right"), "fixture: d-pad right is ui_right")
+	bar.grab_focus()
+	Input.parse_input_event(event)
+	await wait_physics_frames(2)
+	assert_eq(tabs.current_tab, 1, "d-pad right moves to the next tab")
+	var page: Node = tabs.get_tab_control(1)
+	assert_gt(page.get_child_count(), 0, "the new tab is built when shown")
+	var focusable: Array[Node] = page.find_children("*", "Control", true, false).filter(
+		func(node: Node) -> bool: return (node as Control).focus_mode == Control.FOCUS_ALL
+	)
+	assert_gt(focusable.size(), 0, "the new tab's rows can take focus")
+
+
 func test_gamepad_start_plus_x_toggles() -> void:
 	_own_panel(false)
 	Input.action_press(&"pause_menu")
@@ -366,6 +428,7 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 	key.fog_density = key_fog + 0.1
 	night.fog_density = night_fog + 0.1
 	_panel.reset_all()
+	_show_all_tabs(_panel)
 	assert_eq(_panel.sky_cycle.day_keyframes[1], key, "reset keeps the live keyframe objects")
 	assert_almost_eq(key.fog_density, key_fog, 0.00001)
 	assert_almost_eq(night.fog_density, night_fog, 0.00001)
@@ -461,6 +524,7 @@ func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void
 	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.rebuild()
+	_show_tab(_panel, "Sky")
 	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
 	var slider: HSlider = _find_control_named(_panel, "TimeOfDaySlider") as HSlider
 	assert_not_null(option, "expected a Time of day OptionButton on the Sky tab")

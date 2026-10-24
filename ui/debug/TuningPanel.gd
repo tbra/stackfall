@@ -235,6 +235,10 @@ var _selected_tab_index: int = 0
 ## explicit restore ran.
 var _rebuilding_tabs: bool = false
 
+## Tab pages not yet filled: scroll page -> {"name", "resources"}. A page's rows are built the first
+## time its tab is shown (_build_tab_if_pending), then kept until the next rebuild().
+var _pending_tabs: Dictionary = {}
+
 ## The Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
 ## entry, and the phase the Custom slider holds). Session-local: only
 ## skybox_config.theme_name = "cycle" persists.
@@ -248,7 +252,7 @@ var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
 func _ready() -> void:
 	visible = false
 	net_provider = Net
-	# DECISION: the ~2900-node tab UI is built on first open by rebuild() (or an explicit call, which
+	# DECISION: the tab UI (each tab's rows on its first show) is built on first open by rebuild() (or an explicit call, which
 	# tests use) and freed on close by _free_ui(), so a hidden panel costs no nodes. Saved overrides
 	# apply via the static TuningOverrides.apply_saved() at boot and never needed this UI.
 	_selected_tab_index = _load_selected_tab_index()
@@ -328,6 +332,7 @@ func _on_tab_changed(index: int) -> void:
 	if _rebuilding_tabs:
 		return
 	_selected_tab_index = index
+	_build_tab_if_pending(index)
 
 
 ## TabContainer.tab_clicked fires only for a user click on the tab bar, never for programmatic
@@ -448,6 +453,7 @@ func _free_ui() -> void:
 	_status_label = null
 	_rows.clear()
 	_group_titles.clear()
+	_pending_tabs.clear()
 
 
 ## Public so a test can force a rebuild after swapping camera_tuning/etc.
@@ -465,6 +471,7 @@ func rebuild() -> void:
 		child.queue_free()
 	_rows.clear()
 	_group_titles.clear()
+	_pending_tabs.clear()
 	_fresh_sky_cycle = null
 
 	var plan: Array[Dictionary] = _tab_plan()
@@ -478,6 +485,7 @@ func rebuild() -> void:
 	# hidden-tab availability changed the count).
 	if _tab_container.get_tab_count() > 0:
 		_tab_container.current_tab = clampi(_selected_tab_index, 0, _tab_container.get_tab_count() - 1)
+		_build_tab_if_pending(_tab_container.current_tab)
 	_rebuilding_tabs = false
 
 
@@ -522,13 +530,27 @@ func _default_tab_for(resource: Resource) -> String:
 	return ""
 
 
+## Adds an empty page; its rows are built when the tab is first shown (_build_tab_if_pending).
 func _add_tab(tab_name: String, resources: Array) -> void:
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.name = tab_name
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_pending_tabs[scroll] = {"name": tab_name, "resources": resources}
+	_tab_container.add_child(scroll)
 
+
+func _build_tab_if_pending(index: int) -> void:
+	var scroll: ScrollContainer = _tab_container.get_tab_control(index) as ScrollContainer
+	if scroll == null or not _pending_tabs.has(scroll):
+		return
+	var pending: Dictionary = _pending_tabs[scroll]
+	_pending_tabs.erase(scroll)
+	_fill_tab(scroll, String(pending["name"]), pending["resources"] as Array)
+
+
+func _fill_tab(scroll: ScrollContainer, tab_name: String, resources: Array) -> void:
 	var list: VBoxContainer = VBoxContainer.new()
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 2)
@@ -561,7 +583,6 @@ func _add_tab(tab_name: String, resources: Array) -> void:
 		list.add_child(built)
 
 	scroll.add_child(list)
-	_tab_container.add_child(scroll)
 
 
 func _apply_availability() -> void:
