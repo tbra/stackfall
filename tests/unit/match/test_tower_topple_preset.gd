@@ -4,23 +4,14 @@ extends GutTest
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const TOPPLE_PRESET_PATH: String = "res://config/match/sandbox_tower_topple.tres"
 const TEST_FIELD_RADIUS_M: float = 20.0
-const SETTLE_TICKS: int = 120
-## Pre-placed blocks start asleep and exactly touching: the first ticks are a solver
-## transient (the stack compresses, overshoots and re-sleeps, ~30 ticks) whose size
-## varies a little run to run and under CPU load. The "stands" window starts after it.
-const WARMUP_TICKS: int = 60
-## The transient's length is not fixed, so the window opens only after every block
-## has moved less than QUIET_STEP_M per tick for QUIET_TICKS in a row (counted in
-## physics ticks, never wall-clock), waiting at most MAX_QUIET_WAIT_TICKS. A tower
-## that never goes quiet is a collapse and fails the "stands" window below.
-const QUIET_STEP_M: float = 0.002
-const QUIET_TICKS: int = 20
-const MAX_QUIET_WAIT_TICKS: int = 600
-## Once quiet, a standing tower does not move at all beyond a hair.
+const SETTLE_TICKS: int = 240
+## The preset builds its towers asleep and exactly touching, and they must stay put:
+## a standing tower does not move at all beyond a hair.
 const MAX_MOVE_M: float = 0.05
-## The transient may compress a tall stack by a couple of centimetres but never by
-## anything near a cube (edge ~1 m): that would be a collapse, not a settle.
-const MAX_SAG_FROM_BUILT_M: float = 0.25
+## Frozen dummy bodies added before the build change the physics server's body-id
+## history, which used to decide whether the tallest towers leaned.
+const DUMMY_BODY_COUNTS: Array[int] = [0, 7, 35, 63, 91]
+const DUMMY_PARK_Y_M: float = -200.0
 ## Boxes closer than (edge - this) on every axis count as interpenetrating.
 const OVERLAP_EPSILON_M: float = 0.02
 ## Clearance a block centre must keep from a beacon axis beyond the beacon's
@@ -28,9 +19,6 @@ const OVERLAP_EPSILON_M: float = 0.02
 const BEACON_CLEARANCE_M: float = 0.5
 
 var _main: Node3D = null
-## Diagnostics for a future flake: the physics space's active body count when the
-## test started (a leftover from an earlier test in the same process shows here).
-var _bodies_at_start: int = 0
 
 
 func before_each() -> void:
@@ -93,79 +81,49 @@ func _assert_clear_of_beacons_and_each_other(blocks: Array[RigidBody3D]) -> void
 func _assert_towers_stand(blocks: Array[RigidBody3D]) -> void:
 	var built: Array[Vector3] = []
 	for block: RigidBody3D in blocks:
+		assert_true(block.sleeping, "a pre-placed block starts asleep")
 		built.append(block.global_position)
-	for _tick: int in range(WARMUP_TICKS):
-		await get_tree().physics_frame
-	var last: Array[Vector3] = []
-	for block: RigidBody3D in blocks:
-		last.append(block.global_position)
-	var quiet_run: int = 0
-	var waited: int = 0
-	var step_tick: Array[int] = []
-	var step_max: Array[float] = []
-	for _i: int in range(blocks.size()):
-		step_tick.append(-1)
-		step_max.append(0.0)
-	while quiet_run < QUIET_TICKS and waited < MAX_QUIET_WAIT_TICKS:
-		await get_tree().physics_frame
-		waited += 1
-		var step: float = 0.0
-		for i: int in range(blocks.size()):
-			var moved: float = blocks[i].global_position.distance_to(last[i])
-			if moved > step_max[i]:
-				step_max[i] = moved
-				step_tick[i] = waited
-			step = maxf(step, moved)
-			last[i] = blocks[i].global_position
-		quiet_run = quiet_run + 1 if step < QUIET_STEP_M else 0
-	var before: Array[Vector3] = []
-	var worst_sag: float = 0.0
-	for i: int in range(blocks.size()):
-		assert_true(is_instance_valid(blocks[i]), "block %d survives the settle" % i)
-		before.append(blocks[i].global_position)
-		worst_sag = maxf(worst_sag, blocks[i].global_position.distance_to(built[i]))
-	assert_lt(worst_sag, MAX_SAG_FROM_BUILT_M, "no block left its built spot by anything near a cube (no collapse)")
 	for _tick: int in range(SETTLE_TICKS):
 		await get_tree().physics_frame
 	var worst: float = 0.0
-	var worst_index: int = 0
+	var awake: int = 0
 	for i: int in range(blocks.size()):
 		assert_true(is_instance_valid(blocks[i]), "block %d still exists" % i)
-		var drift: float = blocks[i].global_position.distance_to(before[i])
-		if drift > worst:
-			worst = drift
-			worst_index = i
-	var diagnostics: String = ""
-	if worst >= MAX_MOVE_M:
-		diagnostics = _stand_diagnostics(blocks[worst_index], worst_index, step_tick[worst_index], waited, quiet_run)
-	assert_lt(worst, MAX_MOVE_M, "no block moved more than the tolerance (towers stand)" + diagnostics)
+		worst = maxf(worst, blocks[i].global_position.distance_to(built[i]))
+		if not blocks[i].sleeping:
+			awake += 1
+	assert_lt(worst, MAX_MOVE_M, "no block moved more than the tolerance (towers stand)")
+	assert_eq(awake, 0, "every tower is still asleep")
 
 
-## Failure-only context: the worst block, the quiescence wait, and process-global
-## state an earlier test in the same process could have left changed.
-func _stand_diagnostics(block: RigidBody3D, index: int, max_step_tick: int, waited: int, quiet_run: int) -> String:
-	var gravity_vector: Variant = ProjectSettings.get_setting("physics/3d/default_gravity_vector")
-	var gravity: Variant = ProjectSettings.get_setting("physics/3d/default_gravity")
-	return " | worst block %d shape=%s max_step_tick=%d quiet_wait=%d quiet_run=%d cap_hit=%s | ticks/s=%d time_scale=%s max_steps=%d gravity=%s x %s bodies_at_start=%d bodies_now=%d" % [
-		index, str(block.get("shape_id")), max_step_tick, waited, quiet_run, str(quiet_run < QUIET_TICKS),
-		Engine.physics_ticks_per_second, str(Engine.time_scale), Engine.max_physics_steps_per_frame,
-		str(gravity), str(gravity_vector), _bodies_at_start,
-		PhysicsServer3D.get_process_info(PhysicsServer3D.INFO_ACTIVE_OBJECTS)]
+func _park_dummy_bodies(count: int) -> void:
+	for _i: int in range(count):
+		var dummy: RigidBody3D = RigidBody3D.new()
+		var shape: CollisionShape3D = CollisionShape3D.new()
+		shape.shape = BoxShape3D.new()
+		dummy.add_child(shape)
+		dummy.freeze = true
+		dummy.collision_layer = 0
+		dummy.collision_mask = 0
+		dummy.position = Vector3(0.0, DUMMY_PARK_Y_M, 0.0)
+		add_child_autofree(dummy)
 
 
-func test_tower_topple_preset_builds_the_row_and_it_stands() -> void:
+func test_tower_topple_preset_builds_the_row_and_it_stands(dummy_bodies: int = use_parameters(DUMMY_BODY_COUNTS)) -> void:
 	var preset: SandboxConfig = load(TOPPLE_PRESET_PATH) as SandboxConfig
 	assert_not_null(preset)
 	assert_false(preset.row_tower_heights.is_empty())
 	var expected: int = 0
 	for height: int in preset.row_tower_heights:
 		expected += height
-	_bodies_at_start = PhysicsServer3D.get_process_info(PhysicsServer3D.INFO_ACTIVE_OBJECTS)
+	_park_dummy_bodies(dummy_bodies)
+	await get_tree().physics_frame
 	_main.start_tower_topple_from_menu()
 	assert_eq(_main._mode_extras.sandbox_preset, preset)
 	assert_true(Match.config.gifts_enabled)
 	_run_countdown()
-	await get_tree().process_frame
+	await PresetBuildWait.wait_for_blocks(get_tree(), expected)
+	await get_tree().physics_frame
 	var blocks: Array[RigidBody3D] = _blocks()
 	assert_eq(blocks.size(), expected, "every tower is fully built")
 	_assert_clear_of_beacons_and_each_other(blocks)
