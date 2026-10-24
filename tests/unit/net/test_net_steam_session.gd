@@ -15,7 +15,6 @@ const _HOST_NAME: String = "Hostie"
 
 var _fake: FakeSteam
 var _transport: NetTransport
-var _roster: NetRoster
 var _session: NetSteamSession
 var _host_peer_builds: int = 0
 ## What Net tells the session through its seams: whether it has no session yet.
@@ -30,14 +29,13 @@ var _discovered: Array = []
 func before_each() -> void:
 	_fake = FakeSteam.new()
 	_transport = NetTransport.new()
-	_roster = NetRoster.new(NetConfig.new())
 	_host_peer_builds = 0
 	_offline = true
 	_hosted.clear()
 	_failed.clear()
 	_refused.clear()
 	_discovered.clear()
-	_session = NetSteamSession.new(_fake, _transport, _roster)
+	_session = NetSteamSession.new(_fake, _transport)
 	_session.seams.is_offline = func() -> bool: return _offline
 	_session.seams.is_host = func() -> bool: return true
 	_session.seams.leave_session = func() -> void:
