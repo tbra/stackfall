@@ -344,7 +344,5 @@ static func build_swoosh_ribbon(wind_tuning: StormTuning, curled: bool = true) -
 func _push_cloud_wind(direction: Vector2) -> void:
 	if not is_inside_tree():
 		return
-	for node: Node in get_tree().get_nodes_in_group(Skybox.OVERCAST_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
-			skybox.set_cloud_storm_wind(direction)
+	for skybox: Skybox in skyboxes():
+		skybox.set_cloud_storm_wind(direction)
