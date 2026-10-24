@@ -51,9 +51,6 @@ var _required_mirror: PackedInt32Array = PackedInt32Array()
 var _published_ready: PackedInt32Array = PackedInt32Array()
 var _published_required: PackedInt32Array = PackedInt32Array()
 var _published_any: bool = false
-## Test-only: ready intents refused since the match started (wrong phase, a peer
-## that is not required). Repeats of an accepted intent are not counted.
-var loading_ready_refused: int = 0
 
 var _slots: Array[PlayerSlot] = []
 var _active_slot: int = -1
@@ -521,7 +518,6 @@ func _reset_loading_gate() -> void:
 	_published_ready = PackedInt32Array()
 	_published_required = PackedInt32Array()
 	_published_any = false
-	loading_ready_refused = 0
 	_ready_gate.begin()
 
 
@@ -532,12 +528,10 @@ func _on_loading_ready_intent(peer_id: int) -> void:
 	if not _match._is_host():
 		return
 	if not loading_gate_blocking():
-		loading_ready_refused += 1
 		return
 	if _ready_gate.is_ready(peer_id):
 		return
 	if not _ready_gate.mark_ready(peer_id, loading_required_peers()):
-		loading_ready_refused += 1
 		return
 	_publish_loading_ready()
 
