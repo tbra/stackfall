@@ -128,7 +128,12 @@ func _puff_for(intensity: float) -> Dictionary:
 	var manager: BlockEffectsManager = _make_manager()
 	_impact(manager, intensity)
 	var puff: ImpactPuff = _all_puffs(manager)[0]
-	var result: Dictionary = {"hard": puff.hard, "size": puff.quad_size_m, "alpha": puff.alpha}
+	var material: ShaderMaterial = puff.material_override as ShaderMaterial
+	var result: Dictionary = {
+		"hard": material.get_shader_parameter(&"atlas") == ImpactPuff.ATLAS_HARD,
+		"size": material.get_shader_parameter(&"quad_size"),
+		"alpha": material.get_shader_parameter(&"alpha_scale"),
+	}
 	manager.free()
 	return result
 

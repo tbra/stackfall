@@ -26,10 +26,10 @@ func test_missing_main_scene_fails_instead_of_hanging() -> void:
 	boot.quit_on_failure = false
 	add_child(boot)
 	await get_tree().process_frame
-	assert_true(boot.load_failed, "the failed load is reported")
 	await get_tree().process_frame
 	assert_push_error_count(1, "Boot reports the failure exactly once (no _process re-poll)")
 	assert_engine_error_count(2, "the engine reports the failed sync load (open + condition)")
+	assert_null(get_tree().root.get_node_or_null(NodePath(Boot.MAIN_NODE_NAME)), "a failed load starts no Main")
 	boot.queue_free()
 
 
