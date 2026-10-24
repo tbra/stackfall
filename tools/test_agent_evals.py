@@ -187,7 +187,7 @@ class AgentEvalsTest(unittest.TestCase):
 
     # (d) one bead's handback rows, another bead's rows ignored
     def test_handback_numbers_come_from_this_runs_bead_only(self):
-        now = datetime.datetime.now().isoformat(timespec="seconds")
+        now = (datetime.datetime.now() + datetime.timedelta(seconds=2)).isoformat(timespec="seconds")  # past the base second
         rows = [{"ts": now, "bead": BEAD, "accepted": False, "verdict": "", "finding": ""},
                 {"ts": now, "bead": OTHER_BEAD, "accepted": False, "verdict": "", "finding": ""},
                 {"ts": now, "bead": OTHER_BEAD, "accepted": False, "verdict": "", "finding": ""},
@@ -202,6 +202,29 @@ class AgentEvalsTest(unittest.TestCase):
         other = self.score(wt, 1, bead=OTHER_BEAD)
         self.assertEqual((other["handback_attempts"], other["first_try_denials"], other["verdict"]),
                          (3, 2, "partial"))
+
+    def test_review_rows_on_the_same_bead_are_not_the_workers_attempts(self):
+        now = (datetime.datetime.now() + datetime.timedelta(seconds=2)).isoformat(timespec="seconds")  # past the base second
+        self.write_handbacks([
+            {"ts": now, "bead": BEAD, "accepted": True, "verdict": "done", "finding": ""},
+            {"ts": now, "bead": BEAD, "accepted": False, "verdict": "review", "finding": ""},
+            {"ts": now, "bead": BEAD, "accepted": True, "verdict": "review", "finding": "APPROVE"}])
+        wt = self.prep(1)
+        self.fix(wt)
+        record = self.score(wt, 1, bead=BEAD)
+        self.assertEqual((record["handback_attempts"], record["first_try_denials"], record["verdict"]),
+                         (1, 0, "done"))
+
+    def test_overlay_never_copies_the_eval_harness_into_the_base(self):
+        write(self.repo, "tools/agent_evals.py", "harness\n")
+        write(self.repo, "tools/test_agent_evals.py", "harness test\n")
+        write(self.repo, "tools/other.py", "setup\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "setup with harness")
+        wt = ev.prep_run(self.manifest, EVAL, 1, git(self.repo, "rev-parse", "HEAD"), self.repo, self.worktrees)
+        self.assertEqual(read(wt, "tools/other.py"), "setup\n")
+        for name in ("agent_evals.py", "test_agent_evals.py"):
+            self.assertFalse(os.path.exists(os.path.join(wt, "tools", name)))
 
     # verify: hidden RED on the overlaid base, GREEN on the accepted commit
     def test_verify_accepts_an_eval_whose_hidden_checks_flip(self):
