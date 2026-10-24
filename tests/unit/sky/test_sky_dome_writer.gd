@@ -111,16 +111,22 @@ func test_forget_rewrites_everything() -> void:
 	assert_eq(writer.flush(), first)
 
 
-func test_publish_globals_sets_sun_and_opposite_moon() -> void:
+## The global values themselves are unobservable at runtime (global_shader_parameter_get is
+## editor-only in 4.7.2); what a caller sees is that publishing never touches the material,
+## so the radiance is not dirtied. The sun heading maths is pinned in test_sky_evaluator.
+func test_publish_globals_leaves_the_bound_material_untouched() -> void:
 	var writer: SkyDomeWriter = SkyDomeWriter.new()
-	var sun: Vector3 = Vector3(0.0, 1.0, 0.0)
-	writer.publish_globals(sun, 12.5)
-	if RenderingServer.global_shader_parameter_get(SkyDomeWriter.SKY_TIME_GLOBAL) == null:
-		pending("the dummy renderer does not store shader globals")
-		return
-	assert_eq(RenderingServer.global_shader_parameter_get(SkyDomeWriter.SKY_SUN_DIR_GLOBAL), sun)
-	assert_eq(RenderingServer.global_shader_parameter_get(SkyDomeWriter.SKY_MOON_DIR_GLOBAL), -sun)
-	assert_eq(RenderingServer.global_shader_parameter_get(SkyDomeWriter.SKY_TIME_GLOBAL), 12.5)
+	var bound: ShaderMaterial = writer.bind(null, _template())
+	writer.stage(_frame())
+	writer.flush()
+	var before: Dictionary = _snapshot(bound)
+	writer.publish_globals(Vector3(0.0, 1.0, 0.0), 12.5)
+	writer.publish_globals(Vector3(1.0, 0.0, 0.0), 13.5)
+	assert_eq(writer.flush(), 0, "publishing globals stages nothing")
+	assert_gt(before.size(), 0)
+	var after: Dictionary = _snapshot(bound)
+	for key: Variant in before:
+		assert_eq(after[key], before[key], "uniform %s unchanged by publish_globals" % str(key))
 
 
 func test_bind_writes_the_constant_uniforms_on_the_duplicate_only() -> void:
