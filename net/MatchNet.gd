@@ -484,7 +484,7 @@ func cursors_refused(slot_id: int) -> int:
 
 
 ## Drops every counter and cursor. Called when a match starts or ends.
-## Kept here: it sequences the reset of five collaborators, so no single one owns it.
+## Kept here: it sequences the reset of several collaborators, so no single one owns it.
 func reset_counters() -> void:
 	if _intent_gateway != null:
 		_intent_gateway.reset_throttles()
