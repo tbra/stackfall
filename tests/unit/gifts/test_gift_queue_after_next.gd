@@ -144,7 +144,10 @@ func test_slot_replay_carries_the_staged_gift() -> void:
 	add_child_autofree(net)
 	var fake: FakeNet = FakeNet.client(0)
 	net.bind_ports(FakeSessionPort.new(fake), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
-	var args: Array = net._slot_replay_args(0)
+	var replay: MatchWorldReplay = MatchWorldReplay.new(
+		FakeSessionPort.new(fake), MatchHostPort.new(Match), net.config, WorldReplaySeams.make(Callable(), Callable())
+	)
+	var args: Array = replay.slot_replay_args(0)
 	assert_eq(args.size(), 10)
 	assert_eq(args[8], &"anvil")
 	assert_eq(args[9], Match._feed.staged_gift_shape_id(0))

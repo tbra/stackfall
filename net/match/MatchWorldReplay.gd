@@ -37,8 +37,6 @@ class Seams extends RefCounted:
 	var glued_ids: Callable = Callable()
 	## () -> Array : net_territory arguments for one full keyframe, or [].
 	var territory_args: Callable = Callable()
-	## (slot_id: int) -> Array : the slot_replay payload, or [].
-	var slot_replay_args: Callable = Callable()
 	## () -> void : the world is replayed, so the snapshot stream owes this peer a full snapshot.
 	var replay_acknowledged: Callable = Callable()
 
@@ -177,27 +175,65 @@ func _finish_replay(peer_id: int, replay_id: int) -> void:
 	_seams.send_to_peer.call(peer_id, RPC_REPLAY_END, [replay_id])
 
 
-## Interface stubs of the MatchNet cut: join/reconnect policy and the slot-replay row.
-@warning_ignore("unused_parameter")
-func slot_replay_args(slot_id: int) -> Array:
-	push_error("MatchWorldReplay.slot_replay_args: not implemented")
-	return []
+## True while a match is past its start and not over: the states a mid-match joiner is admitted into
+## and gets a replay for (spec 2.4).
+func is_match_live() -> bool:
+	return MatchPhase.is_replicating(_host.state())
 
 
+## Host only, installed into Net's seat policy by game/main/Main.gd: the lowest open human seat for a
+## new mid-match joiner, or -1 (spectate). Open means a human (not bot) slot that is still alive,
+## held by no peer, and not reserved by a departed peer inside its disconnect grace.
+##
+## DECISION: a joiner never takes over a bot seat -- the bot would have to be torn down mid-match and
+## spec 1.8 does not ask for it; with every human seat filled or reserved the joiner spectates.
 func pick_open_seat() -> int:
-	push_error("MatchWorldReplay.pick_open_seat: not implemented")
+	if not _session.is_host() or not is_match_live():
+		return -1
+	for slot_id: int in range(_host.slot_count()):
+		var seat: PlayerSlot = _host.slot(slot_id)
+		if seat == null or seat.is_bot or not seat.home_flag_alive:
+			continue
+		if _session.peer_of_slot(slot_id) != -1:
+			continue
+		if _host.disconnect_grace_left(slot_id) >= 0.0:
+			continue
+		return slot_id
 	return -1
 
 
-@warning_ignore("unused_parameter")
+## Host only, installed into Net's seat policy by game/main/Main.gd: whether a returning peer may have
+## `slot_id` back -- the match is live, the slot is alive and its disconnect grace is still running.
 func seat_reclaimable(slot_id: int) -> bool:
-	push_error("MatchWorldReplay.seat_reclaimable: not implemented")
-	return false
+	if not _session.is_host() or not is_match_live():
+		return false
+	if slot_id < 0 or slot_id >= _host.slot_count():
+		return false
+	var seat: PlayerSlot = _host.slot(slot_id)
+	if seat == null or not seat.home_flag_alive:
+		return false
+	return _host.disconnect_grace_left(slot_id) >= 0.0
 
 
-func is_match_live() -> bool:
-	push_error("MatchWorldReplay.is_match_live: not implemented")
-	return false
+## EVENT_SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing held (eliminated, or
+## between blocks).
+func slot_replay_args(slot_id: int) -> Array:
+	var held: BlockShape = _host.held_shape(slot_id)
+	if held == null:
+		return []
+	var next: BlockShape = _host.next_shape(slot_id)
+	return [
+		slot_id,
+		held.id,
+		next.id if next != null else &"",
+		_host.feed_seq(slot_id),
+		_host.feed_time_left(slot_id),
+		_host.is_release_locked(slot_id),
+		StringName(_host.held_special(slot_id)),
+		StringName(_host.next_special(slot_id)),
+		StringName(_host.after_next_special(slot_id)),
+		_host.feed_staged_gift_shape_id(slot_id),
+	]
 
 
 func _roster() -> Array:
@@ -268,7 +304,7 @@ func _append_derived_state(rows: Array[Array]) -> void:
 	if _host.active_slot() >= 0:
 		rows.append(_event(MatchWireEvents.TURN_CHANGED, [_host.active_slot()]))
 	for slot_id: int in range(slot_count):
-		var slot_args: Array = _seams.slot_replay_args.call(slot_id) as Array
+		var slot_args: Array = slot_replay_args(slot_id)
 		if not slot_args.is_empty():
 			rows.append(_event(MatchWireEvents.SLOT_REPLAY, slot_args))
 	for slot_id: int in range(slot_count):
