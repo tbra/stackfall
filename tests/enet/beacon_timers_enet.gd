@@ -68,7 +68,7 @@ func _run_host() -> void:
 		# Ship the faked state in the same frame: the live solver rewrites the capture
 		# values and goal cells between frames, and the periodic territory tick could
 		# otherwise broadcast the solver's empty state instead of the fake.
-		_match_net.call(&"replicate_territory")
+		(_match_net.call(&"_replication") as MatchReplication).send_territory()
 		if _i < HOST_FORCE_STEPS - 1:
 			await _wait(HOST_FORCE_STEP_S)
 	print("BTENET host mode=%s timer=%s chip=%s" % [

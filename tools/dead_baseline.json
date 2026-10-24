@@ -115,11 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "net/match/MatchReplication.gd",
-   "reason": "MatchNet cut stub: wired by MC-C"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },
@@ -552,11 +547,6 @@
    "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "MatchNet cut stub: wired by MC-A"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/ports/SessionPort.gd:roster",
-   "reason": "MatchNet cut stub: wired by MC-C"
   },
   {
    "id": "test-only-func",
