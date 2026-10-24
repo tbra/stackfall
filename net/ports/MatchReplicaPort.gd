@@ -1,103 +1,42 @@
 class_name MatchReplicaPort
 extends RefCounted
-## Typed adapter over the Match autoload (or a test double): the client-side
+## Typed adapter over the Match autoload: the client-side
 ## mirror writes (`apply_replicated_*`) that net/MatchEventApplier and
 ## net/MatchNet make when the host's answers arrive. Reads and the host-side
 ## rule entry points live on MatchHostPort; this port only mirrors.
 ##
-## DECISION: see SessionPort for why this is an adapter holding the autoload
-## (one dynamic call per method) with a runtime is_valid() instead of an assert.
-## Signatures are copied from autoload/Match.gd, which is not edited. The
-## TRANSITIONAL entries forward to Match's private `_feed` / `_lifecycle`
-## collaborators and are no-ops when the adapted object has none (the doubles).
-
-## TRANSITIONAL (removed by NP-F-R): the dynamic bind check for non-Match doubles.
-## Every mirror write a real Match answers.
-const REQUIRED_METHODS: Array[StringName] = [
-	&"apply_replicated_state_change",
-	&"apply_replicated_countdown",
-	&"apply_replicated_feed",
-	&"apply_replicated_turn",
-	&"apply_replicated_elimination",
-	&"apply_replicated_mode_state",
-	&"apply_replicated_gift_spawned",
-	&"apply_replicated_gift_flight",
-	&"apply_replicated_gift_landed",
-	&"apply_replicated_gift_claimed",
-	&"apply_replicated_gift_expired",
-	&"apply_replicated_gift_slot",
-	&"apply_replicated_qol",
-	&"apply_replicated_special_consumed",
-	&"apply_replicated_territory",
-	&"apply_replicated_glue_charges",
-	&"apply_replicated_block_owner",
-	&"apply_replicated_cat_start",
-	&"apply_replicated_cat_state",
-	&"end_cat",
-]
+## DECISION: see SessionPort for why this is an adapter holding the autoload with a
+## runtime is_valid() instead of an assert. Signatures are copied from autoload/Match.gd,
+## which is not edited. The TRANSITIONAL entries forward to Match's private `_feed` /
+## `_lifecycle` collaborators and are no-ops when the port adapts nothing (the spies,
+## which override every mirror write).
 
 const FEED_PROPERTY: StringName = &"_feed"
 const LIFECYCLE_PROPERTY: StringName = &"_lifecycle"
 const MATCH_TIMER_PROPERTY: StringName = &"_match_timer_left"
 
-var _match: Object = null
-## The real autoload when `_match` is one (every forwarder's typed path), else null.
-var _real: MatchAutoload = null
+var _match: MatchAutoload = null
 var _valid: bool = false
-var _bound: Dictionary = {}
-var _reported: Dictionary = {}
 
 
-## `required` is the subset of REQUIRED_METHODS the consumer actually calls
-## (empty = all of them); a name that is not a REQUIRED_METHODS entry makes the
-## port invalid. See SessionPort.
-## A real Match (the autoload or any MatchAutoload instance) takes the typed path and
-## needs no subset; null leaves the port invalid (spies and the invalid-port case).
-## TRANSITIONAL (removed by NP-F-R): the `required` argument and the `Object` type.
-func _init(match_node: Object = null, required: PackedStringArray = PackedStringArray()) -> void:
+## A real Match (the autoload or any MatchAutoload instance); null leaves the port
+## invalid (spies and the invalid-port case).
+func _init(match_node: MatchAutoload = null) -> void:
 	_match = match_node
-	if match_node == null:
-		return
-	_real = match_node as MatchAutoload
-	if _real != null:
-		_valid = true
-		return
-	var wanted: Array[StringName] = _wanted(required)
-	var unknown: Array[StringName] = []
-	var missing: Array[StringName] = []
-	for method_name: StringName in wanted:
-		if not REQUIRED_METHODS.has(method_name):
-			unknown.append(method_name)
-		elif not match_node.has_method(method_name):
-			missing.append(method_name)
-	if not unknown.is_empty():
-		push_error("MatchReplicaPort: %s is not a port method: %s" % [_describe(match_node), unknown])
-		return
-	if not missing.is_empty():
-		push_error("MatchReplicaPort: %s lacks %s" % [_describe(match_node), missing])
-		return
-	for method_name: StringName in wanted:
-		_bound[method_name] = true
-	_valid = true
+	_valid = match_node != null
 
 
-## True when the adapted object has every method the port was bound to.
+## True when the port adapts a Match.
 func is_valid() -> bool:
 	return _valid
 
 
 func apply_replicated_state_change(new_state: int) -> void:
-	if _real != null:
-		_real.apply_replicated_state_change(new_state)
-		return
-	_call(&"apply_replicated_state_change", [new_state], null)
+	_match.apply_replicated_state_change(new_state)
 
 
 func apply_replicated_countdown(seconds_left: int) -> void:
-	if _real != null:
-		_real.apply_replicated_countdown(seconds_left)
-		return
-	_call(&"apply_replicated_countdown", [seconds_left], null)
+	_match.apply_replicated_countdown(seconds_left)
 
 
 func apply_replicated_feed(
@@ -108,87 +47,51 @@ func apply_replicated_feed(
 	host_feed_time_left: float = -1.0,
 	host_is_locked: bool = false
 ) -> void:
-	if _real != null:
-		_real.apply_replicated_feed(slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked)
-		return
-	_call(&"apply_replicated_feed", [slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked], null)
+	_match.apply_replicated_feed(slot_id, shape_id, next_shape_id, host_feed_seq, host_feed_time_left, host_is_locked)
 
 
 func apply_replicated_turn(slot_id: int) -> void:
-	if _real != null:
-		_real.apply_replicated_turn(slot_id)
-		return
-	_call(&"apply_replicated_turn", [slot_id], null)
+	_match.apply_replicated_turn(slot_id)
 
 
 func apply_replicated_elimination(slot_id: int, by_slot: int = -1) -> void:
-	if _real != null:
-		_real.apply_replicated_elimination(slot_id, by_slot)
-		return
-	_call(&"apply_replicated_elimination", [slot_id, by_slot], null)
+	_match.apply_replicated_elimination(slot_id, by_slot)
 
 
 func apply_replicated_mode_state(mode_state: Dictionary) -> void:
-	if _real != null:
-		_real.apply_replicated_mode_state(mode_state)
-		return
-	_call(&"apply_replicated_mode_state", [mode_state], null)
+	_match.apply_replicated_mode_state(mode_state)
 
 
 func apply_replicated_gift_spawned(gift_id: int, position: Vector2) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_spawned(gift_id, position)
-		return
-	_call(&"apply_replicated_gift_spawned", [gift_id, position], null)
+	_match.apply_replicated_gift_spawned(gift_id, position)
 
 
 func apply_replicated_gift_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_flight(gift_id, origin, landing)
-		return
-	_call(&"apply_replicated_gift_flight", [gift_id, origin, landing], null)
+	_match.apply_replicated_gift_flight(gift_id, origin, landing)
 
 
 func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_landed(gift_id, landing)
-		return
-	_call(&"apply_replicated_gift_landed", [gift_id, landing], null)
+	_match.apply_replicated_gift_landed(gift_id, landing)
 
 
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_claimed(gift_id, slot_id, special_id)
-		return
-	_call(&"apply_replicated_gift_claimed", [gift_id, slot_id, special_id], null)
+	_match.apply_replicated_gift_claimed(gift_id, slot_id, special_id)
 
 
 func apply_replicated_gift_expired(gift_id: int) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_expired(gift_id)
-		return
-	_call(&"apply_replicated_gift_expired", [gift_id], null)
+	_match.apply_replicated_gift_expired(gift_id)
 
 
 func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: StringName, carrier_id: StringName) -> void:
-	if _real != null:
-		_real.apply_replicated_gift_slot(slot_id, contents, activated, carrier_id)
-		return
-	_call(&"apply_replicated_gift_slot", [slot_id, contents, activated, carrier_id], null)
+	_match.apply_replicated_gift_slot(slot_id, contents, activated, carrier_id)
 
 
 func apply_replicated_qol(slot_id: int, backlog: int, paused: bool) -> void:
-	if _real != null:
-		_real.apply_replicated_qol(slot_id, backlog, paused)
-		return
-	_call(&"apply_replicated_qol", [slot_id, backlog, paused], null)
+	_match.apply_replicated_qol(slot_id, backlog, paused)
 
 
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:
-	if _real != null:
-		_real.apply_replicated_special_consumed(slot_id, special_id)
-		return
-	_call(&"apply_replicated_special_consumed", [slot_id, special_id], null)
+	_match.apply_replicated_special_consumed(slot_id, special_id)
 
 
 func apply_replicated_territory(
@@ -204,47 +107,28 @@ func apply_replicated_territory(
 	goal_radii: PackedFloat32Array = PackedFloat32Array(),
 	argmax_mode: bool = false
 ) -> void:
-	if _real != null:
-		_real.apply_replicated_territory(cells, owners, states, full, circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode)
-		return
-	_call(&"apply_replicated_territory", [
-		cells, owners, states, full,
-		circle_xs, circle_zs, circle_radii, circle_teams,
-		goal_positions, goal_radii, argmax_mode,
-	], null)
+	_match.apply_replicated_territory(cells, owners, states, full, circle_xs, circle_zs, circle_radii, circle_teams, goal_positions, goal_radii, argmax_mode)
 
 
 func apply_replicated_glue_charges(slot_id: int, count: int, revision: int) -> bool:
-	if _real != null:
-		return _real.apply_replicated_glue_charges(slot_id, count, revision)
-	return bool(_call(&"apply_replicated_glue_charges", [slot_id, count, revision], false))
+	return _match.apply_replicated_glue_charges(slot_id, count, revision)
 
 
 func apply_replicated_block_owner(net_id: int, new_slot: int) -> bool:
-	if _real != null:
-		return _real.apply_replicated_block_owner(net_id, new_slot)
-	return bool(_call(&"apply_replicated_block_owner", [net_id, new_slot], false))
+	return _match.apply_replicated_block_owner(net_id, new_slot)
 
 
 func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
-	if _real != null:
-		return _real.apply_replicated_cat_start(id, slot_id, position, duration)
-	return bool(_call(&"apply_replicated_cat_start", [id, slot_id, position, duration], false))
+	return _match.apply_replicated_cat_start(id, slot_id, position, duration)
 
 
 func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3, remaining: float) -> void:
-	if _real != null:
-		_real.apply_replicated_cat_state(id, position, velocity, point, remaining)
-		return
-	_call(&"apply_replicated_cat_state", [id, position, velocity, point, remaining], null)
+	_match.apply_replicated_cat_state(id, position, velocity, point, remaining)
 
 
 ## The host ended cat `id` (EVENT_CAT_ENDED); Match ignores a stale id.
 func end_cat(id: int) -> void:
-	if _real != null:
-		_real.end_cat(id)
-		return
-	_call(&"end_cat", [id], null)
+	_match.end_cat(id)
 
 
 # --- TRANSITIONAL: Match's private feed / lifecycle collaborators -----------------
@@ -277,38 +161,3 @@ func _collaborator(property_name: StringName) -> Object:
 	if _match == null:
 		return null
 	return _match.get(property_name) as Object
-
-
-## TRANSITIONAL (removed by NP-F-R): the dynamic path for non-Match doubles.
-## Forwards to the adapted object. A method the bind verified goes straight
-## through; any other one is checked, and a missing one logs once and answers
-## `fallback` (the documented default) instead of crashing.
-func _call(method_name: StringName, args: Array, fallback: Variant) -> Variant:
-	if _bound.has(method_name):
-		return _match.callv(method_name, args)
-	if _match == null or not _match.has_method(method_name):
-		if not _reported.has(method_name):
-			_reported[method_name] = true
-			push_error("MatchReplicaPort: %s has no %s (outside the bound subset); answering the default" % [_describe(_match), method_name])
-		return fallback
-	_bound[method_name] = true
-	return _match.callv(method_name, args)
-
-
-static func _wanted(required: PackedStringArray) -> Array[StringName]:
-	var names: Array[StringName] = []
-	if required.is_empty():
-		names.assign(REQUIRED_METHODS)
-		return names
-	for entry: String in required:
-		names.append(StringName(entry))
-	return names
-
-
-static func _describe(node: Object) -> String:
-	if node == null:
-		return "null"
-	var script: Script = node.get_script() as Script
-	if script != null and not script.resource_path.is_empty():
-		return script.resource_path
-	return node.get_class()
