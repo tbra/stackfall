@@ -174,20 +174,8 @@ var _world_replay_host: MatchWorldReplay = null
 var _world_replay: MatchWorldReplay:
 	get:
 		return _replays()
-## Client only: true from the moment this instance becomes a CLIENT until the
-## first net_match_start lands. Every host -> client gameplay RPC that arrives
-## in that window was broadcast before this peer's replay was built, so the
-## replay already contains its effect; applying it to a world that does not
-## exist yet could only corrupt the mirror (a stray LOBBY -> PLAYING emit, a
-## feed event for slots that are not built).
-var _awaiting_match_start: bool = false
-## Client only: the id of the late-join world replay being
-## applied right now (0 = none). Set by the net_match_start that carries it,
-## cleared by the matching net_replay_end -- or by anything that ends the replay
-## early (a new match start, leaving the session, teardown, the ack timeout), so
-## a replay that never completes cannot mute live feedback for the rest of a match.
-var _replaying_id: int = 0
-var _replaying_since_ms: int = 0
+## Client-side world gate and replay span (net/match/ClientReplayGate.gd), built on first use.
+var _replay_gate: ClientReplayGate = null
 
 ## the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: Node = null
@@ -253,7 +241,7 @@ func late_activate() -> void:
 	_bind_weather_ports()
 	# weather/snow/breeze broadcasts before net_match_start
 	# are dropped on the same gate as match events.
-	_weather_net.awaiting_world = _client_awaiting_world
+	_weather_net.awaiting_world = _gate().awaiting_world
 	_event_applier()
 
 
@@ -287,8 +275,18 @@ func _bind_modules() -> void:
 		return
 	if _gift_guard != null:
 		_gift_guard.bind(_host_port(), config)
+	if _replay_gate != null:
+		_replay_gate.bind(_session_port(), config)
 	if _applier != null:
 		_bind_applier()
+
+
+## The client gate, bound to the current session and config on first use; its state survives a rebind.
+func _gate() -> ClientReplayGate:
+	if _replay_gate == null:
+		_replay_gate = ClientReplayGate.new()
+		_replay_gate.bind(_session_port(), config)
+	return _replay_gate
 
 
 func _host_port() -> MatchHostPort:
@@ -365,7 +363,7 @@ func _event_mirror() -> MatchEventMirror:
 
 
 func _exit_tree() -> void:
-	_end_world_replay()
+	_gate().end_replay()
 	_host_port().release_replicator(self)
 
 
@@ -419,7 +417,7 @@ func _broadcast(method: StringName, args: Array = []) -> void:
 
 func _process(delta: float) -> void:
 	if not _session_port().is_host():
-		_tick_world_replay_expiry()
+		_gate().tick(Time.get_ticks_msec())
 		_play_due_impacts()
 		return
 	_world_replay.tick_timeouts(_now())
@@ -942,34 +940,8 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, player_name: String) -> voi
 	_world_replay.on_peer_joined(peer_id, slot_id, player_name)
 
 
-func _begin_world_replay(replay_id: int) -> void:
-	_replaying_id = replay_id
-	_replaying_since_ms = Time.get_ticks_msec()
-	Events.world_replay_changed.emit(true)
-
-
-## Idempotent; emits only on a real true -> false transition.
-func _end_world_replay() -> void:
-	if _replaying_id == 0:
-		return
-	_replaying_id = 0
-	Events.world_replay_changed.emit(false)
-
-
-## A replay's messages all land in one network poll, so one that has not
-## finished by the host's own ack timeout never will (the host drops the peer at
-## that point): stop muting.
-func _tick_world_replay_expiry() -> void:
-	if _replaying_id == 0:
-		return
-	var elapsed_s: float = float(Time.get_ticks_msec() - _replaying_since_ms) / 1000.0
-	if elapsed_s >= config.replay_ack_timeout:
-		_end_world_replay()
-
-
 func _on_net_mode_changed(mode: int) -> void:
-	_awaiting_match_start = mode == Net.Mode.CLIENT
-	_end_world_replay()
+	_gate().on_mode_changed(mode == Net.Mode.CLIENT)
 	_reset_impacts()
 
 
@@ -1084,14 +1056,11 @@ func net_match_loading() -> void:
 ## one-shot feedback: see Events.world_replay_changed.
 @rpc("authority", "call_remote", "reliable")
 func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0) -> void:
-	_awaiting_match_start = false
 	var match_config: MatchConfig = MatchConfig.from_dict(config_data)
 	match_config.sanitize()
 	reset_counters()
 	# Before start_match(): its own state events belong to the replay too.
-	_end_world_replay()
-	if replay_id > 0 and not _session_port().is_host():
-		_begin_world_replay(replay_id)
+	_gate().on_match_start(replay_id, Time.get_ticks_msec())
 	_host_port().start_match(match_config)
 	_client_blocks().apply_roster(roster)
 
@@ -1100,11 +1069,9 @@ func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0)
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
 func net_replay_end(replay_id: int) -> void:
-	if _session_port().is_host() or _client_awaiting_world() or replay_id <= 0:
-		return
 	# The replay's last message: live events from here on are news again.
-	if replay_id == _replaying_id:
-		_end_world_replay()
+	if not _gate().on_replay_end(replay_id):
+		return
 	if NetFanout.can_send(multiplayer, _session_port()):
 		rpc_id(Net.HOST_PEER_ID, &"net_replay_ack", replay_id)
 
@@ -1114,10 +1081,9 @@ func net_replay_ack(replay_id: int) -> void:
 	_world_replay.handle_replay_ack(multiplayer.get_remote_sender_id(), replay_id)
 
 
-## True on a client that has not received net_match_start since it joined
-## (see _awaiting_match_start).
+## True on a client that has not received net_match_start since it joined (ClientReplayGate).
 func _client_awaiting_world() -> bool:
-	return _awaiting_match_start and not _session_port().is_host()
+	return _gate().awaiting_world()
 
 
 @rpc("authority", "call_remote", "reliable")

@@ -115,11 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "net/match/ClientReplayGate.gd",
-   "reason": "MatchNet cut stub: wired by MC-B"
-  },
-  {
-   "id": "dead-file",
    "entry": "net/match/MatchReplication.gd",
    "reason": "MatchNet cut stub: wired by MC-C"
   },
