@@ -36,8 +36,6 @@ var _bounds: AABB = AABB()
 var _running: bool = false
 ## The session seam: bind_session() sets it (Main binds the Net autoload); null until then; see _session().
 var _session_port: SessionPort = null
-## The SessionPort methods this node calls (and NetFanout through it).
-const SESSION_METHODS: PackedStringArray = ["is_host", "is_client", "is_offline", "report_stats"]
 
 # --- Host state -------------------------------------------------------------
 

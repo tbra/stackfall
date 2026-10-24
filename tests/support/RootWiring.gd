@@ -7,4 +7,4 @@ extends RefCounted
 
 static func attach() -> void:
 	Net.attach_global_wiring()
-	SnapshotSync.bind_session(SessionPort.new(Net, SnapshotSync.SESSION_METHODS))
+	SnapshotSync.bind_session(SessionPort.new(Net))
