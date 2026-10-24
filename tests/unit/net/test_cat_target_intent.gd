@@ -12,8 +12,9 @@ const TARGET_RANGE_M: float = 3.0
 const FAR_M: float = 60.0
 const NEAR_M: float = 1.0
 const RANGE_TOLERANCE_M: float = 0.05
-const FLOOD_FACTOR: int = 3
-const FLOOD_TIME_S: float = 5.0
+const HALF: float = 0.5
+## HALF + this is just over one refill interval.
+const REFILL_OVERSHOOT: float = 0.75
 
 var _blocks_root: Node3D
 var _field: Field
@@ -145,16 +146,25 @@ func test_a_far_point_is_clamped_to_the_cats_range() -> void:
 
 func test_a_flooding_peer_is_bounded_and_the_cat_stays_controllable_by_its_owner_alone() -> void:
 	var burst: int = _net_config.flood_cat_target_burst
-	_now_s = FLOOD_TIME_S
-	for _i: int in range(FLOOD_FACTOR * burst):
-		_send(REMOTE_PEER, REMOTE_SLOT, _point_near(Vector3.RIGHT * NEAR_M))
-	var before: Vector3 = _cat.target
-	var flooded_point: Vector3 = _point_near(Vector3.LEFT * NEAR_M)
-	_send(REMOTE_PEER, REMOTE_SLOT, flooded_point)
-	assert_eq(_cat.target, before, "a call past the burst, in the same instant, does not steer the cat")
+	var interval_s: float = 1.0 / _net_config.flood_cat_target_refill_per_s
+	var right: Vector3 = _point_near(Vector3.RIGHT * NEAR_M)
+	var left: Vector3 = _point_near(Vector3.LEFT * NEAR_M)
+	for _i: int in range(burst - 1):
+		_send(REMOTE_PEER, REMOTE_SLOT, right)
+	_send(REMOTE_PEER, REMOTE_SLOT, left)
+	var last_admitted: Vector3 = _cat.target
+	assert_gt(_cat.target.distance_to(right), 0.0, "fixture: the last call of the burst steered the cat")
+	_send(REMOTE_PEER, REMOTE_SLOT, right)
+	assert_eq(_cat.target, last_admitted, "the call just past the burst, in the same instant, does not steer the cat")
 	assert_eq(_sent_to_peers, 0, "a dropped target is not answered")
 	assert_eq(_broadcasts, 0, "nor rebroadcast")
 	assert_eq(_fake_net.kick_peer_calls.size(), 0, "a flooder is never kicked")
-	_now_s += 1.0
-	_send(REMOTE_PEER, REMOTE_SLOT, flooded_point)
-	assert_ne(_cat.target, before, "a refilled bucket lets the owner steer again")
+	_now_s += interval_s * HALF
+	_send(REMOTE_PEER, REMOTE_SLOT, right)
+	assert_eq(_cat.target, last_admitted, "half a refill interval has not earned a token")
+	_now_s += interval_s * REFILL_OVERSHOOT
+	_send(REMOTE_PEER, REMOTE_SLOT, right)
+	assert_ne(_cat.target, last_admitted, "a refilled bucket lets the owner steer again")
+	var after_refill: Vector3 = _cat.target
+	_send(REMOTE_PEER, REMOTE_SLOT, left)
+	assert_eq(_cat.target, after_refill, "exactly one token was earned, so the next call is refused")
