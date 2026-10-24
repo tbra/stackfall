@@ -96,6 +96,12 @@ const THROW_MAX_DEG: float = 15.0
 ## against the launch vector with the same slack as the whole-flight heading, not the rocket's straight-line 5 deg.
 const MAGNET_FIRST_POSE_MAX_DEG: float = THROW_MAX_DEG
 const THROW_SPEED_TOLERANCE: float = 0.2
+## A thrown carrier follows the host track from the moment it first moves: the client may hold it still for a
+## tick or two (snapshot jitter), never for the interpolation delay (a spawn pose that is not seeded draws the
+## first sample at once and then holds it there until the render clock arrives, ~6 ticks).
+const THROW_STALL_MAX_TICKS: int = 2
+const THROW_STALL_STEP_EPS_M: float = 0.01
+const THROW_STALL_CHECK_TICKS: int = 20
 const FLIGHT_COLLECT_S: float = 0.8
 const FLIGHT_MOVING_FRACTION: float = 0.5
 const THROW_VELOCITY_EPS: float = 0.05
@@ -653,6 +659,8 @@ func _watch_rocket() -> void:
 	# the pose the client holds the moment the carrier first exists.
 	var first_off_deg: float = rad_to_deg((gift.global_basis * nose).normalized().angle_to(ROCKET_AIM.normalized()))
 	_ack(&"rocket", "first_pose_faced", first_off_deg <= FIRST_POSE_MAX_DEG, "first_nose_off_aim_deg=%.1f" % first_off_deg)
+	var flight: Dictionary = {"t": [] as Array[float], "pos": [] as Array[Vector3]}
+	_record_flight_into(gift, flight)
 	var points: Array[Vector3] = []
 	var noses: Array[Vector3] = []
 	var rocket_left_bounds: bool = false
@@ -693,6 +701,8 @@ func _watch_rocket() -> void:
 	_ack(&"rocket", "nose_along_velocity", enough and checked > 0 and fraction >= ROCKET_NOSE_MIN_FRACTION, "aligned=%d/%d (%.2f) within %.0f deg" % [aligned, checked, fraction, ROCKET_NOSE_MAX_DEG])
 	_ack(&"rocket", "aim_heading", enough and heading_deg <= ROCKET_AIM_MAX_DEG, "heading_off_aim_deg=%.1f" % heading_deg)
 	var gone: bool = await _until(func() -> bool: return Match.registry().block_for_net_id(net_id) == null, CARRIER_GONE_TIMEOUT)
+	var rocket_stall: Dictionary = _flight_stall(flight)
+	_ack(&"rocket", "no_stall", bool(rocket_stall["moved"]) and int(rocket_stall["stall"]) <= THROW_STALL_MAX_TICKS, "longest_hold_ticks=%d moved=%s ticks=%d" % [int(rocket_stall["stall"]), rocket_stall["moved"], (flight["pos"] as Array).size()])
 	_ack(&"rocket", "despawn", gone, "carrier_gone=%s" % gone)
 	_ack(&"rocket", "done", true)
 
@@ -702,8 +712,15 @@ func _watch_rocket() -> void:
 ## after client_tick() wrote the pose, so a machine that runs the host (or this client) slower than real time cannot
 ## skew a speed computed from it. Collects FLIGHT_COLLECT_S of that clock, or until the carrier is gone.
 func _record_replicated_flight(gift: Block) -> Dictionary:
-	var times: Array[float] = []
-	var positions: Array[Vector3] = []
+	var flight: Dictionary = {"t": [] as Array[float], "pos": [] as Array[Vector3]}
+	await _record_flight_into(gift, flight)
+	return flight
+
+
+## _record_replicated_flight into `flight`, so a watcher can start it and read it later without awaiting it.
+func _record_flight_into(gift: Block, flight: Dictionary) -> void:
+	var times: Array[float] = flight["t"] as Array[float]
+	var positions: Array[Vector3] = flight["pos"] as Array[Vector3]
 	var deadline: int = Time.get_ticks_msec() + int(THROW_SAMPLE_TIMEOUT * MSEC_PER_S)
 	while Time.get_ticks_msec() < deadline and is_instance_valid(gift):
 		await get_tree().physics_frame
@@ -713,7 +730,30 @@ func _record_replicated_flight(gift: Block) -> Dictionary:
 		positions.append(gift.global_position)
 		if times[times.size() - 1] - times[0] >= FLIGHT_COLLECT_S:
 			break
-	return {"t": times, "pos": positions}
+
+
+## The longest run of client ticks the recorded carrier holds still after it first moves, over the first
+## THROW_STALL_CHECK_TICKS ticks after that: {"stall": int, "moved": bool}. The carrier stands at its spawn pose
+## until the render clock reaches it, which is not a stall; moving and then freezing is.
+func _flight_stall(flight: Dictionary) -> Dictionary:
+	var positions: Array = flight["pos"] as Array
+	var moved: bool = false
+	var run: int = 0
+	var longest: int = 0
+	var checked: int = 0
+	for i: int in range(1, positions.size()):
+		var step: float = (positions[i] as Vector3).distance_to(positions[i - 1] as Vector3)
+		if step > THROW_STALL_STEP_EPS_M:
+			moved = true
+			run = 0
+		elif moved:
+			run += 1
+			longest = maxi(longest, run)
+		if moved:
+			checked += 1
+			if checked > THROW_STALL_CHECK_TICKS:
+				break
+	return {"stall": longest, "moved": moved}
 
 
 ## How far the recorded carrier moves over THROW_MIN_SPAN_S of host time once it is on the host track:
@@ -778,6 +818,8 @@ func _watch_magnet() -> void:
 	_ack(&"magnet", "first_pose_faced", first_off_deg <= MAGNET_FIRST_POSE_MAX_DEG, "first_nose_off_velocity_deg=%.1f" % first_off_deg)
 	_ack(&"magnet", "velocity", ok, "expected=%s angle_deg=%.1f speed_ratio=%.2f span_s=%.2f" % [expected, angle_deg, speed_ratio, span_s])
 	var gone: bool = await _until(func() -> bool: return Match.registry().block_for_net_id(net_id) == null, CARRIER_GONE_TIMEOUT)
+	var magnet_stall: Dictionary = _flight_stall(flight)
+	_ack(&"magnet", "no_stall", bool(magnet_stall["moved"]) and int(magnet_stall["stall"]) <= THROW_STALL_MAX_TICKS, "longest_hold_ticks=%d moved=%s ticks=%d" % [int(magnet_stall["stall"]), magnet_stall["moved"], (flight["pos"] as Array).size()])
 	_ack(&"magnet", "despawn", gone, "carrier_gone=%s" % gone)
 	_ack(&"magnet", "done", true)
 

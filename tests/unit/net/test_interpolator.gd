@@ -251,3 +251,81 @@ func test_an_unknown_net_id_is_counted_and_changes_nothing() -> void:
 	)
 	assert_eq(_interp.dropped_unknown_count(), 1, "the counter does not keep climbing")
 
+
+
+# --- A newly spawned body ----------------------------------------------------
+
+## One physics tick, in milliseconds: the host spawns a body in a tick and the first snapshot that names
+## it can be sent one tick later (30 Hz snapshots from a 60 Hz tick).
+func _tick_ms() -> float:
+	return 1000.0 / float(Engine.physics_ticks_per_second)
+
+
+## A thrown carrier spawned at x = 0 and travelling one metre per physics tick, whose first snapshot sample
+## is one tick after the spawn (the unlucky tick phase). Returns the drawn x of every client tick from the
+## spawn RPC on, with the host-time the interpolator rendered at (ms after the spawn) beside it.
+func _throw_one_tick_before_first_sample(seeded: bool) -> Array[Array]:
+	var spawn_ms: float = HOST_EPOCH_MS
+	_host_time = spawn_ms + _tick_ms()
+	var drawn: Array[Array] = []
+	if seeded:
+		_interp.seed_spawn(NET_ID, Vector3.ZERO, Quaternion.IDENTITY)
+	for snapshot: int in range(14):
+		# The sample at host time t carries the x the body had after (t - spawn) ticks.
+		var x: float = (_host_time - spawn_ms) / _tick_ms()
+		_deliver({NET_ID: [Vector3(x, 0.0, 0.0), Quaternion.IDENTITY]})
+		for _tick: int in range(2):
+			_render(RENDER_STEP)
+			drawn.append([_drawn_x() if _pose()["ok"] else 0.0, _interp.render_time_ms() - spawn_ms])
+	return drawn
+
+
+func test_a_new_body_does_not_jump_to_its_first_sample_and_hold_there() -> void:
+	var drawn: Array[Array] = _throw_one_tick_before_first_sample(true)
+	var stalled_ticks: int = 0
+	var longest_stall: int = 0
+	var moved: bool = false
+	var previous_x: float = 0.0
+	for row: Array in drawn:
+		var x: float = float(row[0])
+		var step: float = absf(x - previous_x)
+		previous_x = x
+		if step > 0.01:
+			moved = true
+			stalled_ticks = 0
+		elif moved:
+			stalled_ticks += 1
+			longest_stall = maxi(longest_stall, stalled_ticks)
+	assert_true(moved, "the carrier moves")
+	assert_lte(longest_stall, 2, "once it moves it never holds still for more than a tick or two")
+
+
+func test_a_new_body_follows_the_host_track_at_render_time() -> void:
+	var drawn: Array[Array] = _throw_one_tick_before_first_sample(true)
+	for row: Array in drawn:
+		var host_x: float = maxf(float(row[1]), 0.0) / _tick_ms()
+		assert_almost_eq(float(row[0]), host_x, 0.1, "at render time %.0f ms after the spawn" % float(row[1]))
+
+
+func test_a_body_never_seeded_still_draws_its_first_sample() -> void:
+	# A body whose spawn pose was never reported (a join replay racing a snapshot) keeps the old path.
+	var drawn: Array[Array] = _throw_one_tick_before_first_sample(false)
+	assert_almost_eq(float(drawn[0][0]), 1.0, 0.01, "the first sample is drawn as is")
+
+
+func test_a_seed_gives_no_velocity_to_extrapolate_from() -> void:
+	_interp.seed_spawn(NET_ID, Vector3.ZERO, Quaternion.IDENTITY)
+	_host_time = HOST_EPOCH_MS + _tick_ms()
+	_deliver({NET_ID: [Vector3(1.0, 0.0, 0.0), Quaternion.IDENTITY]})
+	# No further snapshot: the render clock runs past the only real sample.
+	_render(0.5)
+	assert_almost_eq(_drawn_x(), 1.0, 0.001, "held at the sample, not thrown off the spawn-to-sample step")
+
+
+func test_a_forgotten_body_drops_its_pending_spawn_pose() -> void:
+	_interp.seed_spawn(NET_ID, Vector3(5.0, 0.0, 0.0), Quaternion.IDENTITY)
+	_interp.forget(NET_ID)
+	_host_time = HOST_EPOCH_MS
+	_deliver({NET_ID: [Vector3(1.0, 0.0, 0.0), Quaternion.IDENTITY]})
+	_render(0.5)
+	assert_almost_eq(_drawn_x(), 1.0, 0.001, "the stale spawn pose is not part of the new track")

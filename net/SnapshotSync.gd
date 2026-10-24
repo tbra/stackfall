@@ -571,11 +571,13 @@ func _on_block_placed(block: RigidBody3D, _shape_id: StringName) -> void:
 	_track(block)
 
 
-func _on_block_replicated(block: RigidBody3D, _net_id: int) -> void:
+func _on_block_replicated(block: RigidBody3D, net_id: int) -> void:
 	_track(block)
 	var session: SessionPort = _session()
 	if session.is_client():
 		freeze_body(block)
+		if _interpolator != null:
+			_interpolator.seed_spawn(net_id, block.global_position, block.global_basis.get_rotation_quaternion())
 
 
 func _track(block: RigidBody3D) -> void:

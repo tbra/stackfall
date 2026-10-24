@@ -480,3 +480,22 @@ func test_fused_carrier_is_never_selected_only_its_followers() -> void:
 	var ids: Array[int] = _next_snapshot_ids(stub)
 	assert_false(ids.has(carrier.net_id) or ids.has(-1) or ids.has(0), "carrier is not replicated as its own body")
 	assert_true(ids.has(500) and ids.has(501), "followers are")
+
+
+# --- A replicated spawn is the start of the body's track --------------------
+
+func test_a_new_replicated_body_stays_at_its_spawn_pose_until_render_time_reaches_its_first_sample() -> void:
+	var spawn_pose: Vector3 = Vector3(0.0, 1.0, 0.0)
+	var first_sample: Vector3 = Vector3(1.0, 1.0, 0.0)
+	var block: Block = _make_block(FIRST_NET_ID, false, spawn_pose)
+	_client_registry.bind_net_id(block, FIRST_NET_ID)
+	Events.block_replicated.emit(block, FIRST_NET_ID)
+
+	# The first snapshot naming the body, one physics tick after the spawn, already has it a step on.
+	var body: Dictionary = {"net_id": FIRST_NET_ID, "position": first_sample, "rotation": Quaternion.IDENTITY, "sleeping": false}
+	var packets: Array[PackedByteArray] = SnapshotWire.build_snapshot(
+		1, 1017, SnapshotWire.FLAG_DISK_STATE, [body], Transform3D.IDENTITY, _bounds(), _config
+	)
+	await _deliver_to_client(packets[0])
+
+	assert_almost_eq(block.global_position.x, spawn_pose.x, 0.02, "the render clock is still before the first sample")

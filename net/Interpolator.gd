@@ -44,6 +44,9 @@ class Sample:
 	var position: Vector3 = Vector3.ZERO
 	var rotation: Quaternion = Quaternion.IDENTITY
 	var sleeping: bool = false
+	## True for the spawn pose seed_spawn() turns into a first sample: it is a guess at when the
+	## body was there, so nothing extrapolates a velocity from it.
+	var seeded: bool = false
 
 
 ## A reusable pose written by pose_into(), so a tick allocates no Dictionary.
@@ -77,6 +80,7 @@ const SEQUENCE_MODULUS: int = 65536
 ## A sequence delta above this many steps is read as an old packet arriving
 ## late rather than a colossal gap.
 const SEQUENCE_HALF_RANGE: int = 32768
+const MS_PER_S: float = 1000.0
 
 var _config: NetConfig = null
 
@@ -104,11 +108,20 @@ var _arrivals: Array[Array] = []
 
 var _dropped_unknown: int = 0
 var _known_id_filter: Callable = Callable()
+## net_id -> Sample: the pose a replicated body spawned at, waiting for its first snapshot sample
+## (see seed_spawn()). Consumed by push_sample(), dropped by forget() and clear().
+var _spawn_poses: Dictionary = {}
+## How long before a body's first snapshot sample its spawn pose is taken to have been: the longest the
+## host can take to send a new body, one snapshot interval less the physics tick it spawned in.
+var _spawn_lead_ms: float = 0.0
 
 
 func _init(net_config: NetConfig = null) -> void:
 	_config = net_config if net_config != null else NetConfig.new()
 	_delay_ms = _config.base_interp_delay_ms
+	_spawn_lead_ms = maxf(
+		MS_PER_S / maxf(_config.snapshot_hz, 1.0) - MS_PER_S / float(maxi(Engine.physics_ticks_per_second, 1)), 0.0
+	)
 
 
 ## SnapshotSync injects the predicate that answers "has this net_id's reliable
@@ -116,6 +129,22 @@ func _init(net_config: NetConfig = null) -> void:
 ## treats every id as known, which is what the wire-level tests want.
 func set_known_id_filter(filter: Callable) -> void:
 	_known_id_filter = filter
+
+
+## Remembers the pose a replicated body spawned at (the reliable spawn RPC), before any snapshot names it.
+## The first sample then arrives up to one physics tick after the spawn, and without this the body would
+## be drawn at that sample the instant it arrives and then held there until the render clock reaches it:
+## a jump of a tick's travel, then a stall of the whole interpolation delay. With it the body stays at its
+## spawn pose and the first sample is reached by interpolating from it.
+func seed_spawn(net_id: int, position: Vector3, rotation: Quaternion) -> void:
+	var track: Track = _buffers.get(net_id) as Track
+	if track != null and not track.samples.is_empty():
+		return
+	var seed_sample: Sample = Sample.new()
+	seed_sample.position = position
+	seed_sample.rotation = rotation
+	seed_sample.seeded = true
+	_spawn_poses[net_id] = seed_sample
 
 
 ## Adds a sample for `net_id`, keeping at most NetConfig.interp_buffer_samples
@@ -132,6 +161,12 @@ func push_sample(
 	if track == null:
 		track = Track.new()
 		_buffers[net_id] = track
+	var spawn_seed: Sample = _spawn_poses.get(net_id) as Sample
+	if spawn_seed != null:
+		_spawn_poses.erase(net_id)
+		if track.samples.is_empty() and _spawn_lead_ms > 0.0:
+			spawn_seed.host_time_ms = host_time_ms - int(round(_spawn_lead_ms))
+			track.samples.append(spawn_seed)
 	if not track.samples.is_empty():
 		var newest: Sample = track.samples[track.samples.size() - 1]
 		# Equal timestamps are the same body appearing twice in one snapshot's
@@ -318,10 +353,12 @@ func active_ids() -> PackedInt32Array:
 func forget(net_id: int) -> void:
 	_buffers.erase(net_id)
 	_active.erase(net_id)
+	_spawn_poses.erase(net_id)
 
 
 func clear() -> void:
 	_buffers.clear()
+	_spawn_poses.clear()
 	_active.clear()
 	_arrivals.clear()
 	_newest_host_time_ms = 0
@@ -416,7 +453,7 @@ func _extrapolate(buffer: Array[Sample], newest: Sample, out: Pose) -> void:
 	var ahead_ms: float = clampf(
 		_render_time_ms - float(newest.host_time_ms), 0.0, _config.max_extrapolation_ms
 	)
-	if buffer.size() < 2 or newest.sleeping or ahead_ms <= 0.0:
+	if buffer.size() < 2 or newest.sleeping or ahead_ms <= 0.0 or buffer[buffer.size() - 2].seeded:
 		out.position = newest.position
 		out.rotation = newest.rotation
 		return
