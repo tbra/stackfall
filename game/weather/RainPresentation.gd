@@ -160,8 +160,8 @@ func _apply_mood(amount: float) -> void:
 	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
 	if tree == null:
 		return
-	for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
-		(node as Skybox).set_overcast(amount, _tuning.overcast_light_scale, _tuning.overcast_ambient_scale,
+	for skybox: Skybox in skyboxes():
+		skybox.set_overcast(amount, _tuning.overcast_light_scale, _tuning.overcast_ambient_scale,
 			_tuning.overcast_sky_exposure_scale, _tuning.overcast_fog_color, _tuning.overcast_fog_strength)
 	for node: Node in tree.get_nodes_in_group(TerritoryOverlay.WET_GROUP):
 		(node as TerritoryOverlay).set_wet(amount, _tuning.wet_sheen_add, _tuning.wet_roughness_scale, _tuning.wet_darken)

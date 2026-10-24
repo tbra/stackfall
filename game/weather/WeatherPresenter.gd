@@ -16,6 +16,7 @@ var _ceiling: CloudCeiling = null
 func _ready() -> void:
 	_ceiling = CloudCeiling.new()
 	_ceiling.name = "CloudCeiling"
+	_ceiling.skybox_source = _find_skyboxes
 	add_child(_ceiling)
 	for def: WeatherTuning in WeatherTuning.load_all():
 		_defs[def.id] = def
@@ -28,6 +29,21 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if Events.match_scope_reset.is_connected(clear_now):
 		Events.match_scope_reset.disconnect(clear_now)
+
+
+## The one place weather crosses from this autoload-built node into the scene
+## that owns the sky.
+# DECISION: a group lookup, not a node path: this presenter is built under the
+# MatchNet autoload while the Skybox lives in Main and is replaced when Main
+# reloads, so a held reference would go stale. Children get this as a Callable.
+func _find_skyboxes() -> Array[Skybox]:
+	var found: Array[Skybox] = []
+	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
+	if tree == null:
+		return found
+	for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
+		found.append(node as Skybox)
+	return found
 
 
 func presentation_for(weather_id: StringName) -> WeatherPresentation:
@@ -50,9 +66,11 @@ func _on_started(weather_id: StringName) -> void:
 	if scene == null:
 		return
 	var node: Node = scene.instantiate()
+	var presentation: WeatherPresentation = node as WeatherPresentation
+	if presentation != null:
+		presentation.skybox_source = _find_skyboxes
 	add_child(node)
 	_instances[weather_id] = node
-	var presentation: WeatherPresentation = node as WeatherPresentation
 	if presentation != null:
 		presentation.set_intensity(0.0)
 

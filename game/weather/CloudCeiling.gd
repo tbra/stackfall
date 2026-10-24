@@ -23,6 +23,8 @@ var _brighten: float = 0.0
 var _pushed_brighten: float = -1.0
 ## Cached Skybox lookups (refreshed whenever the storm value changes).
 var _skyboxes: Array[Skybox] = []
+## Returns the live Array[Skybox]; set by WeatherPresenter before add_child.
+var skybox_source: Callable = Callable()
 var _pushed_storm: float = -1.0
 
 
@@ -127,13 +129,10 @@ func _push_storm(value: float) -> void:
 			and _brighten == _pushed_brighten
 	if settled and not _skyboxes.is_empty():
 		return
-	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
-	if tree == null:
+	if not skybox_source.is_valid():
 		return
 	if _skyboxes.is_empty() or not is_equal_approx(value, _pushed_storm):
-		_skyboxes.clear()
-		for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
-			_skyboxes.append(node as Skybox)
+		_skyboxes = skybox_source.call()
 	_pushed_storm = value
 	var cloud_changed: bool = _overcast != _pushed_overcast
 	_pushed_overcast = _overcast

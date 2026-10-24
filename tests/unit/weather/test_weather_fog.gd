@@ -30,8 +30,17 @@ func _rig() -> Array:
 
 func _presentation() -> FogPresentation:
 	var presentation: FogPresentation = load("res://game/weather/fog_presentation.tscn").instantiate() as FogPresentation
+	presentation.skybox_source = _live_skyboxes
 	add_child_autofree(presentation)
 	return presentation
+
+
+## Stands in for WeatherPresenter's lookup: every Skybox the test rigs added.
+func _live_skyboxes() -> Array[Skybox]:
+	var found: Array[Skybox] = []
+	for node: Node in get_tree().get_nodes_in_group(Skybox.OVERCAST_GROUP):
+		found.append(node as Skybox)
+	return found
 
 
 func test_fog_is_registered_as_data_and_has_no_physics_effect() -> void:

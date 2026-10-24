@@ -37,8 +37,7 @@ func _apply_fog(amount: float) -> void:
 		return
 	var opacity: float = TUNING.max_opacity * (TUNING.low_preset_opacity if is_reduced() else 1.0)
 	var color: Color = TUNING.fog_color
-	for node: Node in tree.get_nodes_in_group(Skybox.OVERCAST_GROUP):
-		var skybox: Skybox = node as Skybox
+	for skybox: Skybox in skyboxes():
 		skybox.set_weather_fog(amount, opacity, TUNING.depth_begin_m, TUNING.depth_end_m,
 			TUNING.fog_color, TUNING.fog_tint_strength, TUNING.sky_affect)
 		color = skybox.weather_fog_color()
