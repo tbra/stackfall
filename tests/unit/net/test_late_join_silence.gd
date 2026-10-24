@@ -144,7 +144,7 @@ func _build_host_replay(joiner_peer: int = 3, joiner_slot: int = 3) -> Array[Arr
 		func(_peer_id: int, _method: StringName, _args: Array) -> bool: return true,
 		func() -> float: return 0.0
 	)
-	var replay: MatchWorldReplay = MatchWorldReplay.new(host_session, Match, preload("res://config/net/net_config.tres"), seams)
+	var replay: MatchWorldReplay = MatchWorldReplay.new(FakeSessionPort.new(host_session), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"), seams)
 	_start_playing(_config(4))
 	assert_eq(Match.request_place(0, _home(0), 0, Quaternion.IDENTITY, false, Match.feed_seq(0)), PlacementRules.REASON_OK)
 	assert_eq(Match.request_place(1, _home(1), 0, Quaternion.IDENTITY, false, Match.feed_seq(1)), PlacementRules.REASON_OK)

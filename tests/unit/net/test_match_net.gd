@@ -87,7 +87,7 @@ func _make_gateway(peer_slots: Dictionary, local: Array[int], client_mode: bool 
 	seams.now_s = func() -> float: return 0.0
 	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
 	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
-	var gateway: MatchIntentGateway = MatchIntentGateway.new(_fake_net, Match, preload("res://config/net/net_config.tres"), _gateway_counters, seams)
+	var gateway: MatchIntentGateway = MatchIntentGateway.new(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"), _gateway_counters, seams)
 	assert_true(gateway.is_valid(), "fixture: the gateway bound the faked session and the real Match")
 	return gateway
 
@@ -371,7 +371,7 @@ func test_a_spawn_refused_by_the_allocator_never_reaches_the_wire() -> void:
 	assert_eq((_blocks_root.get_child(1) as Block).net_id, -1, "the second body keeps living, host-only, with no id")
 	# A late joiner's replay is the other place bodies go out: the id-less body must not be in it.
 	var replay: MatchWorldReplay = MatchWorldReplay.new(
-		_fake_net, Match, net.config,
+		FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), net.config,
 		WorldReplaySeams.make(func(_peer: int, _method: StringName, _args: Array) -> bool: return true, func() -> float: return 0.0)
 	)
 	var spawned_ids: Array[int] = []

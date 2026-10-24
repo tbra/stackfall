@@ -103,7 +103,7 @@ func _make_gateway(config: NetConfig = _net_config) -> MatchIntentGateway:
 		_stored_cursors.append({
 			"slot_id": slot_id, "origin": origin, "orientation_index": orientation_index, "free_quat": free_quat,
 		})
-	_gateway = MatchIntentGateway.new(_fake_net, Match, config, _counters, seams)
+	_gateway = MatchIntentGateway.new(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), config, _counters, seams)
 	assert_true(_gateway.is_valid(), "fixture: the gateway bound the fake session and the real Match")
 	Events.remote_cursor_updated.connect(_on_ghost_update)
 	return _gateway

@@ -152,7 +152,7 @@ func _make_host_gateway() -> MatchIntentGateway:
 	seams.now_s = func() -> float: return 0.0
 	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
 	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
-	var gateway: MatchIntentGateway = MatchIntentGateway.new(_fake_net, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+	var gateway: MatchIntentGateway = MatchIntentGateway.new(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
 	assert_true(gateway.is_valid(), "fixture: the gateway bound the faked session and the real Match")
 	# Sfx/Rumble read the real Net: a host drives slot 0 only.
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "", false), OK)

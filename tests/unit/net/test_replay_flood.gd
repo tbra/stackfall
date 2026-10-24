@@ -45,7 +45,7 @@ func before_each() -> void:
 			return true,
 		func() -> float: return _now_s
 	)
-	_replay = MatchWorldReplay.new(_session, Match, _config, seams)
+	_replay = MatchWorldReplay.new(FakeSessionPort.new(_session), MatchHostPort.new(Match), _config, seams)
 	var match_config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	match_config.disc_size_step = 1
 	match_config.player_count = 4

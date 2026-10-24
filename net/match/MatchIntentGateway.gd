@@ -16,11 +16,6 @@ extends RefCounted
 ## through `Seams` callables the facade binds), and reaches the session and Match only through
 ## SessionPort / MatchHostPort.
 
-const _SESSION_METHODS: PackedStringArray = ["is_host", "slot_of_peer"]
-const _HOST_METHODS: PackedStringArray = [
-	"state", "request_place", "request_throw", "request_use_gift_slot", "set_cat_target", "is_pose_well_formed",
-]
-
 ## Floor for cursor_hz so a zeroed config cannot divide by zero (the same guard MatchNet used).
 const MIN_SEND_HZ: float = 0.001
 const RPC_PLACE: StringName = &"net_request_place"
@@ -68,18 +63,17 @@ var _cat_target_last_send_s: float = -1.0
 var _reject_replied_slot: int = -1
 
 
-## `session_node` / `match_node` are the ports MatchNet shares, or the Net and Match autoloads (or test
-## doubles), which are bound with exactly the subset of the ports this class calls.
+## `session` / `host` are the ports MatchNet shares (a test passes spies or ports over real objects).
 func _init(
-	session_node: Object, match_node: Object, config: NetConfig, counters: NetCounters, seams: Seams
+	session: SessionPort, host: MatchHostPort, config: NetConfig, counters: NetCounters, seams: Seams
 ) -> void:
-	_session = session_node as SessionPort if session_node is SessionPort else SessionPort.new(session_node, _SESSION_METHODS)
-	_host = match_node as MatchHostPort if match_node is MatchHostPort else MatchHostPort.new(match_node, _HOST_METHODS)
+	_session = session
+	_host = host
 	_config = config
 	_counters = counters
 	_seams = seams
 	_flood = PeerFloodGate.new(FloodLimits.from_config(config))
-	_valid = _session.is_valid() and _host.is_valid() and config != null and counters != null and seams != null
+	_valid = _session != null and _host != null and _session.is_valid() and _host.is_valid() and config != null and counters != null and seams != null
 
 
 func is_valid() -> bool:

@@ -123,7 +123,7 @@ func _make_host() -> MatchIntentGateway:
 	seams.now_s = func() -> float: return 0.0
 	seams.is_replay_pending = func(_peer_id: int) -> bool: return false
 	seams.store_cursor = func(_slot_id: int, _origin: Vector3, _orientation_index: int, _free_quat: Quaternion) -> void: pass
-	return MatchIntentGateway.new(roster, Match, preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
+	return MatchIntentGateway.new(FakeSessionPort.new(roster), MatchHostPort.new(Match), preload("res://config/net/net_config.tres"), NetCounters.new(), seams)
 
 
 ## The feed timers run out on Match's own clock; the host's MatchNet answers the expiry.
