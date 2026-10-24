@@ -3,23 +3,20 @@ extends GutTest
 ## (or a hostile one) through the same net_weather_state() entry.
 
 const DELTA: float = 0.25
-## What the narrow doubles answer: the calls WeatherNet makes on its two ports.
-const SESSION_CALLS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_CALLS: PackedStringArray = ["weather", "state"]
 
-## Stands in for the Match autoload: WeatherNet needs weather() and state().
-class StubMatch:
-	extends RefCounted
+## The host port spy answering the two reads WeatherNet makes: weather() and state().
+class StubHost:
+	extends FakeHostPort
 	var weather_ref: MatchWeather
 	var match_state: int = MatchAutoload.State.PLAYING
 
-	func weather() -> MatchWeather:
+	func weather() -> RefCounted:
 		return weather_ref
 
 	func state() -> int:
 		return match_state
 
-var _stubs: Array[StubMatch] = []
+var _stubs: Array[StubHost] = []
 var _nodes: Array[WeatherNet] = []
 var _events: Array = []
 
@@ -71,13 +68,13 @@ func _weather(host: bool) -> MatchWeather:
 
 func _net_for(weather: MatchWeather, host: bool, match_state: int = MatchAutoload.State.PLAYING) -> WeatherNet:
 	var fake: FakeNet = FakeNet.host({1: 0}, [0]) if host else FakeNet.client(0)
-	var stub: StubMatch = StubMatch.new()
+	var stub: StubHost = StubHost.new()
 	stub.weather_ref = weather
 	stub.match_state = match_state
 	_stubs.append(stub)
 	var node: WeatherNet = WeatherNet.new()
 	add_child(node)
-	assert_true(node.bind(SessionPort.new(fake, SESSION_CALLS), MatchHostPort.new(stub, AUTHORITY_CALLS)), "narrow doubles bind")
+	assert_true(node.bind(FakeSessionPort.new(fake), stub), "spy ports bind")
 	_nodes.append(node)
 	return node
 
@@ -245,9 +242,9 @@ func test_bind_refuses_invalid_ports_and_keeps_the_previous_binding() -> void:
 	var node: WeatherNet = _net_for(w, true)
 	assert_false(node.bind(null, null))
 	var bare: RefCounted = RefCounted.new()
-	var broken: MatchHostPort = MatchHostPort.new(bare, AUTHORITY_CALLS)
+	var broken: MatchHostPort = MatchHostPort.new(bare)
 	assert_false(broken.is_valid())
-	assert_false(node.bind(SessionPort.new(FakeNet.host(), SESSION_CALLS), broken))
+	assert_false(node.bind(FakeSessionPort.new(FakeNet.host()), broken))
 	assert_push_error_count(1, "one conformance error from the broken port")
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
 	assert_eq(node.states_sent, 1, "the earlier binding still answers")
@@ -257,9 +254,9 @@ func test_weather_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> 
 	var w: MatchWeather = _weather(true)
 	var node: WeatherNet = _net_for(w, true)
 	assert_true(is_instance_of(node, PortBoundNode))
-	var stub: StubMatch = StubMatch.new()
+	var stub: StubHost = StubHost.new()
 	stub.weather_ref = w
-	assert_true(node.bind(SessionPort.new(FakeNet.client(0), SESSION_CALLS), MatchHostPort.new(stub, AUTHORITY_CALLS)))
+	assert_true(node.bind(FakeSessionPort.new(FakeNet.client(0)), stub))
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
 	assert_eq(node.states_sent, 0, "rebound as a client: the host announcement is gone")
 

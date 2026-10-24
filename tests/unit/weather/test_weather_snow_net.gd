@@ -9,50 +9,44 @@ const LATE_NET_ID: int = 56
 const FIELD_RADIUS_M: float = 6.0
 const FLUSH_WAIT_FRAMES: int = 120
 const BIG_BUDGET: int = 1000
-## What the narrow doubles answer: the calls SnowNet makes on its two ports.
-const SESSION_CALLS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_CALLS: PackedStringArray = ["field", "registry", "weather", "state"]
 
 
-class SnowFakeNet:
-	extends RefCounted
-	var host: bool = false
-
-	func is_host() -> bool:
-		return host
-
-	func is_offline() -> bool:
-		return true
-
-
-class SnowFakeMatch:
-	extends RefCounted
+## The host port spy answering the four reads SnowNet makes: field, registry, weather, state.
+class SnowHost:
+	extends FakeHostPort
 	var field_ref: Field = null
 	var registry_ref: BlockRegistry = null
 	var weather_ref: MatchWeather = null
 	var state_value: int = MatchAutoload.State.PLAYING
 
-	func field() -> Field:
+	func field() -> FieldBody:
 		return field_ref
 
-	func registry() -> BlockRegistry:
+	func registry() -> Node:
 		return registry_ref
 
-	func weather() -> MatchWeather:
+	func weather() -> RefCounted:
 		return weather_ref
 
 	func state() -> int:
 		return state_value
 
 
-var _net: SnowFakeNet = null
-var _match: SnowFakeMatch = null
+var _net: FakeNet = null
+var _match: SnowHost = null
 var _snow_net: SnowNet = null
 var _snow: SnowTuning = null
 var _field: Field = null
 var _registry: BlockRegistry = null
 var _weather: MatchWeather = null
 var _physics: PhysicsTuning = null
+
+
+## An offline session (nothing is sent) that is, or is not, its own host.
+func _fake_net(host: bool) -> FakeNet:
+	var fake: FakeNet = FakeNet.offline()
+	fake.is_host_value = host
+	return fake
 
 
 func before_each() -> void:
@@ -67,13 +61,13 @@ func before_each() -> void:
 	WeatherTestHost.bind_host(self, _weather, false)
 	var defs: Array[WeatherTuning] = [_snow]
 	_weather.set_defs(defs)
-	_net = SnowFakeNet.new()
-	_match = SnowFakeMatch.new()
+	_net = _fake_net(false)
+	_match = SnowHost.new()
 	_match.field_ref = _field
 	_match.registry_ref = _registry
 	_match.weather_ref = _weather
 	_snow_net = SnowNet.new()
-	assert_true(_snow_net.bind(SessionPort.new(_net, SESSION_CALLS), MatchHostPort.new(_match, AUTHORITY_CALLS)), "narrow doubles bind")
+	assert_true(_snow_net.bind(FakeSessionPort.new(_net), _match), "spy ports bind")
 	_snow_net._tuning = _snow
 	add_child_autofree(_snow_net)
 
@@ -173,7 +167,7 @@ func test_client_refuses_bad_or_out_of_event_states() -> void:
 	_snow_net.step_client(BIG_BUDGET)
 	assert_null(_cap_mesh(block, SnowCaps.CAP_NAME), "nothing drawn")
 	assert_eq(_snow_net.states_refused, 4)
-	_net.host = true
+	_net.is_host_value = true
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the host never applies a replicated state")
 
 
@@ -199,7 +193,7 @@ func test_empty_state_weather_stop_and_match_end_clear_the_client() -> void:
 
 
 func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
-	_net.host = true
+	_net.is_host_value = true
 	var relay: SnowRelay = SnowRelay.instance()
 	relay.publish(_state([NET_ID], -1))
 	assert_eq(_snow_net.states_sent, 1, "first state goes at once")
@@ -227,8 +221,8 @@ func test_host_throttles_flushes_empty_states_and_serves_late_joiners() -> void:
 func test_bind_refuses_a_double_missing_a_called_method() -> void:
 	var bare: SnowNet = autofree(SnowNet.new()) as SnowNet
 	var lacking: RefCounted = RefCounted.new()
-	var session: SessionPort = SessionPort.new(_net, SESSION_CALLS)
-	var authority: MatchHostPort = MatchHostPort.new(lacking, AUTHORITY_CALLS)
+	var session: SessionPort = FakeSessionPort.new(_net)
+	var authority: MatchHostPort = MatchHostPort.new(lacking)
 	assert_false(authority.is_valid())
 	assert_false(bare.bind(session, authority), "an invalid port is refused")
 	assert_false(bare.bind(null, null), "null ports are refused")
@@ -239,15 +233,13 @@ func test_snow_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> voi
 	assert_true(is_instance_of(_snow_net, PortBoundNode))
 	_start_client_snow()
 	assert_true(_snow_net.apply_state(_state([NET_ID], -1)), "bound as a client")
-	var host_net: SnowFakeNet = SnowFakeNet.new()
-	host_net.host = true
-	assert_true(_snow_net.bind(SessionPort.new(host_net, SESSION_CALLS), MatchHostPort.new(_match, AUTHORITY_CALLS)))
+	assert_true(_snow_net.bind(FakeSessionPort.new(_fake_net(true)), _match))
 	assert_false(_snow_net.apply_state(_state([NET_ID], -1)), "the new session is the host: it never applies a replicated state")
 
 
 func test_a_refused_bind_keeps_the_previous_binding() -> void:
-	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new(), AUTHORITY_CALLS)
-	assert_false(_snow_net.bind(SessionPort.new(SnowFakeNet.new(), SESSION_CALLS), broken))
+	var broken: MatchHostPort = MatchHostPort.new(RefCounted.new())
+	assert_false(_snow_net.bind(FakeSessionPort.new(_fake_net(false)), broken))
 	assert_push_error_count(1, "one conformance error from the broken port")
 	_start_client_snow()
 	assert_true(_snow_net.apply_state(_state([NET_ID], -1)), "the earlier binding still answers")

@@ -26,11 +26,6 @@ var last_sent_state: Dictionary = {}
 ## (net_match_start); weather, snow and breeze traffic is dropped until then.
 var awaiting_world: Callable = Callable()
 
-## The session methods and the Match reads this node calls; a port is bound with
-## exactly this subset, so a narrow test double stays valid.
-const SESSION_METHODS: PackedStringArray = ["is_host", "is_offline"]
-const AUTHORITY_METHODS: PackedStringArray = ["weather", "state"]
-
 
 func _ready() -> void:
 	# DECISION: the presenter lives here so weather visuals exist on the host
@@ -60,14 +55,6 @@ func _ready() -> void:
 
 func _is_awaiting_world() -> bool:
 	return awaiting_world.is_valid() and bool(awaiting_world.call())
-
-
-func _session_methods() -> PackedStringArray:
-	return SESSION_METHODS
-
-
-func _authority_methods() -> PackedStringArray:
-	return AUTHORITY_METHODS
 
 
 # --- Host -> clients ----------------------------------------------------------------
