@@ -2,7 +2,7 @@ extends GutTest
 ## Follow-up to "Start the first block higher up, it loads inside the home beacon".
 ##
 ## An earlier change raised the *player's* first-block hover above the home beacon, but the
-## host's AFK auto-drop (net/MatchNet.gd _on_feed_timer_expired) still fell back
+## host's AFK auto-drop (MatchNet's feed-timer-expired handler, via SlotCursors.auto_drop_pose) still fell back
 ## to Match.default_ghost_origin() -- the home flag at disc level -- for a remote
 ## slot that never sent a cursor, so that block spawned inside the beacon's
 ## socket and crystal. The fallback origin now rises to the same clearance the
@@ -121,7 +121,7 @@ func test_afk_auto_drop_with_no_cursor_clears_the_home_beacon_on_every_disc_size
 
 
 func test_the_fallback_lands_on_the_same_clearance_the_players_first_block_gets() -> void:
-	# Drift guard: PlayerController and MatchNet both derive their height from
+	# Drift guard: PlayerController and SlotCursors both derive their height from
 	# GhostTuning.home_spawn_clear_hover(), so the two lowest points must agree.
 	_start_host_match(MapDef.base().scaled(0.75))
 	var controller: PlayerController = autofree(PlayerController.new())

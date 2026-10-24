@@ -122,11 +122,6 @@ var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tunin
 ## Client-side block spawns/despawns and the seat roster (net/match/ClientBlockMirror.gd), built on first use.
 var _block_mirror: ClientBlockMirror = null
 
-## the same shipped resources PlayerController reads for the
-## player's first-block hover, so the AFK auto-drop's no-cursor fallback origin
-## clears the home beacon by the identical rule (_afk_fallback_origin()).
-var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
-var _beacon_visuals: BeaconVisualTuning = preload("res://config/territory/beacon_visual_tuning.tres")
 ## Every instrumentation counter (the per-slot intent identities and the match-start
 ## records); net/NetCounters.gd.
 var counters: NetCounters = NetCounters.new()
@@ -143,12 +138,6 @@ var _impact_send_accum: float = 0.0
 
 ## True while the session port is the real Net autoload (the snapshot stream only exists there).
 var _session_is_autoload: bool = true
-
-## slot_id -> {"origin": Vector3, "orientation_index": int,
-## "free_quat": Quaternion, "time": float}. On the host this is what spec
-## 2.5's auto-drop [ORIGINAL] fires from; on every instance it is what
-## game/player/RemoteCursors.gd draws.
-var _cursors: Dictionary = {}
 
 ## The intent door (net/match/MatchIntentGateway.gd): local submit_*, host handle_* with the
 ## per-peer flood gate. Built on first use so bind_ports() can rebind it.
@@ -174,25 +163,15 @@ var _world_replay_host: MatchWorldReplay = null
 var _world_replay: MatchWorldReplay:
 	get:
 		return _replays()
-## Client only: true from the moment this instance becomes a CLIENT until the
-## first net_match_start lands. Every host -> client gameplay RPC that arrives
-## in that window was broadcast before this peer's replay was built, so the
-## replay already contains its effect; applying it to a world that does not
-## exist yet could only corrupt the mirror (a stray LOBBY -> PLAYING emit, a
-## feed event for slots that are not built).
-var _awaiting_match_start: bool = false
-## Client only: the id of the late-join world replay being
-## applied right now (0 = none). Set by the net_match_start that carries it,
-## cleared by the matching net_replay_end -- or by anything that ends the replay
-## early (a new match start, leaving the session, teardown, the ack timeout), so
-## a replay that never completes cannot mute live feedback for the rest of a match.
-var _replaying_id: int = 0
-var _replaying_since_ms: int = 0
+## Client-side world gate and replay span (net/match/ClientReplayGate.gd), built on first use.
+var _replay_gate: ClientReplayGate = null
 
 ## the weather RPC surface (net/WeatherNet.gd), a child node.
 var _weather_net: Node = null
 ## Client gift wire phases and special-id checks (net/match/GiftWireGuard.gd), built on first use.
 var _gift_guard: GiftWireGuard = null
+## Last ghost per slot and the host auto-drop pose (net/match/SlotCursors.gd), built on first use.
+var _slot_cursors: SlotCursors = null
 ## the client-side event applier child (net/MatchEventApplier.gd).
 ## net_match_event stays the RPC entry point; this child holds the apply bulk.
 var _applier: Node = null
@@ -253,7 +232,7 @@ func late_activate() -> void:
 	_bind_weather_ports()
 	# weather/snow/breeze broadcasts before net_match_start
 	# are dropped on the same gate as match events.
-	_weather_net.awaiting_world = _client_awaiting_world
+	_weather_net.awaiting_world = _gate().awaiting_world
 	_event_applier()
 
 
@@ -276,6 +255,14 @@ func _gift_wire() -> GiftWireGuard:
 	return _gift_guard
 
 
+## The cursor store; its cursors survive a rebind.
+func _cursors() -> SlotCursors:
+	if _slot_cursors == null:
+		_slot_cursors = SlotCursors.new(_now, preload("res://config/blocks/tuning/ghost_tuning.tres"), preload("res://config/territory/beacon_visual_tuning.tres"), _physics_tuning)
+		_slot_cursors.bind(_host_port())
+	return _slot_cursors
+
+
 func _bind_applier() -> void:
 	_applier.call(&"bind", _session_port(), _host_port(), _replica_port(), config, _gift_wire())
 
@@ -287,8 +274,20 @@ func _bind_modules() -> void:
 		return
 	if _gift_guard != null:
 		_gift_guard.bind(_host_port(), config)
+	if _replay_gate != null:
+		_replay_gate.bind(_session_port(), config)
+	if _slot_cursors != null:
+		_slot_cursors.bind(_host_port())
 	if _applier != null:
 		_bind_applier()
+
+
+## The client gate, bound to the current session and config on first use; its state survives a rebind.
+func _gate() -> ClientReplayGate:
+	if _replay_gate == null:
+		_replay_gate = ClientReplayGate.new()
+		_replay_gate.bind(_session_port(), config)
+	return _replay_gate
 
 
 func _host_port() -> MatchHostPort:
@@ -365,7 +364,8 @@ func _event_mirror() -> MatchEventMirror:
 
 
 func _exit_tree() -> void:
-	_end_world_replay()
+	if _replay_gate != null:
+		_replay_gate.end_replay()
 	_host_port().release_replicator(self)
 
 
@@ -381,7 +381,7 @@ func _intents() -> MatchIntentGateway:
 		seams.broadcast = func(method: StringName, args: Array) -> void: _broadcast(method, args)
 		seams.now_s = _now
 		seams.is_replay_pending = _world_replay.is_pending
-		seams.store_cursor = _store_cursor
+		seams.store_cursor = _cursors().store
 		_intent_gateway = MatchIntentGateway.new(_session_port(), _host_port(), config, counters, seams)
 	return _intent_gateway
 
@@ -394,7 +394,7 @@ func _replays() -> MatchWorldReplay:
 		seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
 			return NetFanout.send_to(self, _session_port(), peer_id, method, args)
 		seams.now_s = _now
-		seams.clear_cursor = func(slot_id: int) -> void: _cursors.erase(slot_id)
+		seams.clear_cursor = func(slot_id: int) -> void: _cursors().clear(slot_id)
 		seams.spawn_args = _spawn_args
 		seams.glued_ids = func() -> Array: return _event_mirror().glued_ids()
 		seams.territory_args = _territory_replay_args
@@ -419,7 +419,7 @@ func _broadcast(method: StringName, args: Array = []) -> void:
 
 func _process(delta: float) -> void:
 	if not _session_port().is_host():
-		_tick_world_replay_expiry()
+		_gate().tick(Time.get_ticks_msec())
 		_play_due_impacts()
 		return
 	_world_replay.tick_timeouts(_now())
@@ -548,16 +548,10 @@ func net_request_return_to_lobby() -> void:
 ## The last cursor the host received for `slot_id`, or an empty Dictionary.
 ## {"origin": Vector3, "orientation_index": int, "free_quat": Quaternion,
 ## "age": float}. Match reads this for auto-drop; RemoteCursors draws it.
+
+
 func cursor_for_slot(slot_id: int) -> Dictionary:
-	var stored: Dictionary = _cursors.get(slot_id, {})
-	if stored.is_empty():
-		return {}
-	return {
-		"origin": stored["origin"],
-		"orientation_index": stored["orientation_index"],
-		"free_quat": stored["free_quat"],
-		"age": _now() - float(stored["time"]),
-	}
+	return _cursors().for_slot(slot_id)
 
 
 # --- Host -> clients: replication hooks Match calls -------------------------
@@ -693,7 +687,8 @@ func reset_counters() -> void:
 	if _gift_guard != null:
 		_gift_guard.reset()
 	counters.reset()
-	_cursors.clear()
+	if _slot_cursors != null:
+		_slot_cursors.reset()
 	_territory = null
 	_territory_replicator()
 	# a (re)start is itself a full sync for every peer (the
@@ -710,17 +705,6 @@ func reset_counters() -> void:
 ## feed event. Returns whether the request was applied (host) or sent (client).
 func submit_use_gift_slot(slot_id: int) -> bool:
 	return _gateway.submit_use_gift_slot(slot_id)
-
-
-func _store_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
-	if slot_id < 0:
-		return
-	_cursors[slot_id] = {
-		"origin": origin,
-		"orientation_index": orientation_index,
-		"free_quat": free_quat,
-		"time": _now(),
-	}
 
 
 func _now() -> float:
@@ -779,33 +763,8 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	_event_mirror().on_feed_expired(slot_id)
 	if bool(_session_port().is_local_slot(slot_id)):
 		return
-	var cursor: Dictionary = cursor_for_slot(slot_id)
-	var origin: Vector3 = cursor["origin"] if cursor.has("origin") else _afk_fallback_origin(slot_id)
-	var orientation_index: int = int(cursor.get("orientation_index", 0))
-	var free_quat: Quaternion = cursor.get("free_quat", Quaternion.IDENTITY)
-	_gateway.apply_place(slot_id, origin, orientation_index, free_quat, true, _host_port().feed_seq(slot_id))
-
-
-## The origin the host auto-drops from for a slot it has never heard a cursor
-## from, so the first block does not load inside the home beacon.
-## Match.default_ghost_origin() is the home flag
-## at disc level, which is inside the beacon's socket and crystal (the beacon is
-## invisible to the placement ray and the spawn-clearance query), so the origin
-## is raised until the unrotated block's lowest point clears the beacon top by
-## GhostTuning.home_spawn_beacon_margin -- GhostTuning.home_spawn_pivot_height(),
-## built on the same home_spawn_clear_hover() PlayerController raises the
-## player's first block with. Only this no-cursor fallback is raised: a stored
-## cursor is already a pose the peer's own ghost produced, and a client intent
-## is never touched. Orientation 0 / identity (the fallback's) is what the
-## pivot height assumes.
-## DECISION: world UP, not field-local up, matching PlayerController's own
-## hover and Match.default_ghost_origin()'s own world-space result. Tilt modes
-## rotate the Field by at most a few degrees, which still leaves the block well
-## clear of the beacon.
-func _afk_fallback_origin(slot_id: int) -> Vector3:
-	var host: MatchHostPort = _host_port()
-	var home: Vector3 = host.default_ghost_origin(slot_id)
-	return home + Vector3.UP * _ghost_tuning.home_spawn_pivot_height(_beacon_visuals, _physics_tuning)
+	var pose: Dictionary = _cursors().auto_drop_pose(slot_id)
+	_gateway.apply_place(slot_id, pose["origin"], pose["orientation_index"], pose["free_quat"], true, _host_port().feed_seq(slot_id))
 
 
 ## A refusal is feedback for the refused player alone, so it goes only to the
@@ -942,34 +901,8 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, player_name: String) -> voi
 	_world_replay.on_peer_joined(peer_id, slot_id, player_name)
 
 
-func _begin_world_replay(replay_id: int) -> void:
-	_replaying_id = replay_id
-	_replaying_since_ms = Time.get_ticks_msec()
-	Events.world_replay_changed.emit(true)
-
-
-## Idempotent; emits only on a real true -> false transition.
-func _end_world_replay() -> void:
-	if _replaying_id == 0:
-		return
-	_replaying_id = 0
-	Events.world_replay_changed.emit(false)
-
-
-## A replay's messages all land in one network poll, so one that has not
-## finished by the host's own ack timeout never will (the host drops the peer at
-## that point): stop muting.
-func _tick_world_replay_expiry() -> void:
-	if _replaying_id == 0:
-		return
-	var elapsed_s: float = float(Time.get_ticks_msec() - _replaying_since_ms) / 1000.0
-	if elapsed_s >= config.replay_ack_timeout:
-		_end_world_replay()
-
-
 func _on_net_mode_changed(mode: int) -> void:
-	_awaiting_match_start = mode == Net.Mode.CLIENT
-	_end_world_replay()
+	_gate().on_mode_changed(mode == Net.Mode.CLIENT)
 	_reset_impacts()
 
 
@@ -1084,14 +1017,11 @@ func net_match_loading() -> void:
 ## one-shot feedback: see Events.world_replay_changed.
 @rpc("authority", "call_remote", "reliable")
 func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0) -> void:
-	_awaiting_match_start = false
 	var match_config: MatchConfig = MatchConfig.from_dict(config_data)
 	match_config.sanitize()
 	reset_counters()
 	# Before start_match(): its own state events belong to the replay too.
-	_end_world_replay()
-	if replay_id > 0 and not _session_port().is_host():
-		_begin_world_replay(replay_id)
+	_gate().on_match_start(replay_id, Time.get_ticks_msec())
 	_host_port().start_match(match_config)
 	_client_blocks().apply_roster(roster)
 
@@ -1100,11 +1030,9 @@ func net_match_start(config_data: Dictionary, roster: Array, replay_id: int = 0)
 ## replay message (reliable, ordered), so the world is built by now.
 @rpc("authority", "call_remote", "reliable")
 func net_replay_end(replay_id: int) -> void:
-	if _session_port().is_host() or _client_awaiting_world() or replay_id <= 0:
-		return
 	# The replay's last message: live events from here on are news again.
-	if replay_id == _replaying_id:
-		_end_world_replay()
+	if not _gate().on_replay_end(replay_id):
+		return
 	if NetFanout.can_send(multiplayer, _session_port()):
 		rpc_id(Net.HOST_PEER_ID, &"net_replay_ack", replay_id)
 
@@ -1114,10 +1042,9 @@ func net_replay_ack(replay_id: int) -> void:
 	_world_replay.handle_replay_ack(multiplayer.get_remote_sender_id(), replay_id)
 
 
-## True on a client that has not received net_match_start since it joined
-## (see _awaiting_match_start).
+## True on a client that has not received net_match_start since it joined (ClientReplayGate).
 func _client_awaiting_world() -> bool:
-	return _awaiting_match_start and not _session_port().is_host()
+	return _gate().awaiting_world()
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1173,5 +1100,5 @@ func net_territory(
 func net_cursor(slot_id: int, origin: Vector3, orientation_index: int, free_quat: Quaternion) -> void:
 	if _client_awaiting_world() or bool(_session_port().is_local_slot(slot_id)):
 		return
-	_store_cursor(slot_id, origin, orientation_index, free_quat)
+	_cursors().store(slot_id, origin, orientation_index, free_quat)
 	Events.remote_cursor_updated.emit(slot_id, origin, orientation_index, free_quat)
