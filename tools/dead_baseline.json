@@ -546,7 +546,7 @@
   {
    "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
-   "reason": "MatchNet cut stub: wired by MC-A"
+   "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
   },
   {
    "id": "test-only-func",

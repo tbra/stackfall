@@ -995,7 +995,7 @@ func max_height_for_slot(slot_id: int) -> float:
 
 
 ## The analytic circle list the last territory step built (host only),
-## cached so net/MatchNet.gd's replicate_territory() can ship the identical
+## cached so net/match/MatchReplication.send_territory() can ship the identical
 ## list to clients. See MatchTerritory.circle_render_arrays().
 func circle_render_arrays() -> Dictionary:
 	if not _late_active:
@@ -1004,8 +1004,8 @@ func circle_render_arrays() -> Dictionary:
 
 
 ## core/net/CircleWire.gd's quantization bounds for this match's map. Host
-## (encoding, net/MatchNet.gd's replicate_territory()) and client (decoding,
-## the same file's net_territory()) must use the identical numbers, so this
+## (encoding, net/match/MatchReplication.send_territory()) and client (decoding,
+## net/match/MatchReplication.receive_territory()) must use the identical numbers, so this
 ## is the one place both read them from — the same MatchConfig/NetConfig/
 ## TerritoryTuning resources a version-matched build already shares.
 func circle_wire_xz_bound() -> float:
@@ -1125,7 +1125,7 @@ func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
 	_gifts.apply_replicated_landing(gift_id, landing)
 
 
-## `special_id` is the third EVENT_GIFT_CLAIMED wire argument; net/MatchNet.gd's
+## `special_id` is the third MatchWireEvents.GIFT_CLAIMED wire argument; GiftWireGuard's
 ## wire check has already rejected a malformed one.
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_ensure_active()
@@ -1137,12 +1137,12 @@ func apply_replicated_gift_expired(gift_id: int) -> void:
 	_gifts.apply_replicated_expire(gift_id)
 
 
-## net/MatchNet.gd's EVENT_SPECIAL_CONSUMED dispatch calls this before
+## net/MatchEventApplier.gd's special_consumed handler calls this before
 ## re-emitting Events.special_consumed -- the spend-side counterpart of
 ## apply_replicated_gift_claimed(). `special_id` is the wire argument
-## net/MatchNet.gd's _special_id_wire_ok() has already checked.
+## GiftWireGuard.special_id_ok() has already checked.
 ##
-## DECISION (autoload/Match.gd): forwarded here so net/MatchNet.gd keeps using
+## DECISION (autoload/Match.gd): forwarded here so net/ keeps using
 ## the same _authority() surface as every other apply_replicated_* call rather
 ## than reaching into Match._gifts.
 func apply_replicated_special_consumed(slot_id: int, special_id: StringName) -> void:

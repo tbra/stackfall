@@ -2,7 +2,7 @@ class_name ResultsPayload
 extends RefCounted
 ## The one owner of the match-results payload schema. The payload is
 ## built by MatchStats.build_results_payload()/build_live_payload(), shipped as
-## EVENT_MATCH_RESULTS / the live snapshot (net/MatchNet.gd), re-typed here on
+## MatchWireEvents.MATCH_RESULTS / the live snapshot (net/MatchNet.gd), re-typed here on
 ## receipt and read by ResultsScreen, ScoreTable and ScoreboardOverlay.
 ##
 ## DECISION (minor): a small core/ class rather than MatchStats, because the
@@ -117,9 +117,9 @@ static func mode_winner_texts(results: Dictionary) -> PackedStringArray:
 ## Strictly re-types a wire payload into this schema, or returns an empty
 ## Dictionary for anything malformed -- a short/renamed key, a wrong-shaped
 ## row, a winner_kind outside the two known values, or a negative/non-finite
-## duration. Follows net/MatchNet.gd's `_gift_wire_ok()`/`_pose_is_acceptable()`
-## precedent: reject rather than default, because a client only shows this
-## payload on a results screen (never feeds it back into a rule).
+## duration. Follows the host-side wire checks (net/match/GiftWireGuard.gd,
+## MatchIntentGateway.pose_is_acceptable()) precedent: reject rather than
+## default, because a client only shows this payload on a results screen (never feeds it back into a rule).
 static func validate(raw: Variant) -> Dictionary:
 	if not (raw is Dictionary):
 		return {}

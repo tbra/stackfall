@@ -50,7 +50,7 @@ var _shadow_raster: TerritoryRaster = null
 
 ## goal no-build discs, cached at _build_territory() (goal
 ## flags never move) so _run_territory_step() does not rebuild them every
-## solve, and so net/MatchNet.gd's replicate_territory() can ship the exact
+## solve, and so net/match/MatchReplication.send_territory() can ship the exact
 ## same list a client's overlay draws. Parallel arrays: goal_radii is
 ## currently uniform (TerritoryTuning.goal_zone_radius) but kept per-goal
 ## because core/net/CircleWire.gd's wire format is already per-goal.
@@ -59,7 +59,7 @@ var _goal_radii: PackedFloat32Array = PackedFloat32Array()
 
 ## The analytic circle list the last _run_territory_step() built for
 ## game/field/TerritoryOverlay.gd (see _apply_circle_render()), cached so
-## net/MatchNet.gd's replicate_territory() can ship the identical list to
+## net/match/MatchReplication.send_territory() can ship the identical list to
 ## clients without re-deriving it from raw circles a client never has (every
 ## body is frozen there). Host only; a client's copy lives only in the
 ## overlay it was handed via apply_replicated_territory().
@@ -136,7 +136,7 @@ func winner_team() -> int:
 func _build_territory() -> void:
 	cancel_pending()
 	# The previous match's influence circles must not be encoded to
-	# clients (net/MatchNet.gd _encode_circles) while this one loads and counts down.
+	# clients (net/match/MatchReplication.gd) while this one loads and counts down.
 	clear_circles()
 	var map_def: MapDef = _match.config.map_def()
 	_cell_grid = CellGrid.new(map_def.field_radius, map_def.cell_size, map_def.shape_test())
@@ -778,7 +778,7 @@ func clear_circles() -> void:
 
 
 ## The analytic circle list the last _run_territory_step() built (host
-## only), cached so net/MatchNet.gd's replicate_territory() can ship the
+## only), cached so net/match/MatchReplication.send_territory() can ship the
 ## identical list to clients rather than re-deriving it from raw circles a
 ## client never has (every body there is frozen). See _apply_circle_render().
 func circle_render_arrays() -> Dictionary:

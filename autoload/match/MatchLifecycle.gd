@@ -63,7 +63,7 @@ var _active_slot: int = -1
 ## PLAYING/END, then LOBBY->LOADING, then LOADING->COUNTDOWN -- is already
 ## fully reproduced the moment a client runs this same start_match() locally
 ## from net_match_start (see that RPC's own doc). Replicating them again as
-## separate EVENT_STATE_CHANGED events would land on a client after its own
+## separate MatchWireEvents.STATE_CHANGED events would land on a client after its own
 ## _state has already moved past them (this function runs synchronously
 ## start-to-finish, with no yield in between), so apply_replicated_state_
 ## change() would read them as new backward transitions instead of the no-ops
@@ -1107,8 +1107,8 @@ func _finish_match(winning_team: int) -> void:
 	# (ui/hud/HUD.gd's show_winner()) and one that wants the fuller payload both
 	# see events in the same order every match. _finish_match() only runs on
 	# the host (its callers are reached from host-gated ticks); a client
-	# reaches State.END and its results payload through EVENT_STATE_CHANGED and
-	# EVENT_MATCH_RESULTS (net/MatchNet.gd).
+	# reaches State.END and its results payload through MatchWireEvents.STATE_CHANGED and
+	# MatchWireEvents.MATCH_RESULTS (net/MatchNet.gd).
 	var objective: ModeObjective = _match._territory.objective()
 	var mode_fields: Dictionary = {}
 	if objective != null and objective.reports_mode_results():

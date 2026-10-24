@@ -6,7 +6,7 @@ extends RefCounted
 ## union of the *home-anchored* circles TerritorySolver/TerritoryGroups kept
 ## (an upscaled 1 m cell grid cannot recover a curved border). Clients need
 ## the same circle list, which a client's raster mirror does
-## not otherwise carry, so net/MatchNet.gd's replicate_territory()/
+## not otherwise carry, so net/match/MatchReplication.send_territory()/
 ## net_territory() ship it alongside the existing raster diff, on the same
 ## NetConfig.raster_diff_hz cadence. Pure functions over PackedByteArray, no
 ## nodes, no signals, no engine state beyond a Vector2 (CLAUDE.md: core/
@@ -120,7 +120,7 @@ static func encode(
 ## "goal_positions": PackedVector2Array, "goal_radii": PackedFloat32Array,
 ## "argmax_mode": bool} or an empty Dictionary for a truncated, foreign or
 ## wrong-version payload — the same "ignore rather than half-apply" contract
-## MatchNet.decode_raster_payload() uses, so a corrupt packet leaves the
+## TerritoryReplicator's decoder uses, so a corrupt packet leaves the
 ## client's last-known circle list alone instead of drawing garbage.
 static func decode(packet: PackedByteArray, xz_bound: float, radius_max: float) -> Dictionary:
 	if packet.size() < HEADER_BYTES:

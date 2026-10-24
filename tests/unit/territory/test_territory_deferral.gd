@@ -102,7 +102,7 @@ func test_forced_solve_applies_deferred_time_exactly_once() -> void:
 
 
 ## real host Match. Clean ticks skip the solve and leave the
-## raster bytes untouched (so replicate_territory() would send nothing), and the
+## raster bytes untouched (so send_territory() would send nothing), and the
 ## next real solve's changed cells, sent as a diff, bring a mirror level again.
 func test_clean_skips_send_nothing_then_a_real_solve_reaches_the_mirror() -> void:
 	_start_match()

@@ -335,7 +335,7 @@ func _host_pause_topple(mask: int) -> Array:
 func _host_pause_event(mask: int) -> Array:
 	var on: bool = mask & BIT_PAUSE != 0
 	_refill_timers()
-	# The real path: MatchNet._on_special_triggered pauses the feed and replicates the event.
+	# The real path: MatchEventMirror pauses the feed and replicates the event.
 	Events.special_triggered.emit(0, SPECIAL_ID, Vector3.ZERO, 0)
 	var both: bool = false
 	if on:
