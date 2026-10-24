@@ -22,16 +22,11 @@ func _job_raster(circles: Array[InfluenceCircle], max_circles: int, cull: bool) 
 	var tuning: TerritoryTuning = TerritoryTuning.new()
 	tuning.max_circles = max_circles
 	var job: TerritorySolveJob = TerritorySolveJob.new()
-	var used: Array[InfluenceCircle] = circles
-	if cull:
-		used = SandboxContainmentExperiment.build(circles)["circles"]
-	job.circles = used
+	job.circles = circles
 	job.solver_tuning = tuning
 	job.holes_enabled = false
 	job.fill_raster = TerritoryRaster.new(CellGrid.new(FIELD_RADIUS, 1.0), tuning)
-	if cull:
-		job.circles = circles
-	else:
+	if not cull:
 		# Bypass the job's own cull: solve the uncut list directly.
 		var solver: TerritorySolver = TerritorySolver.new(tuning)
 		var groups: TerritoryGroups = solver.solve(circles)
@@ -47,7 +42,7 @@ func test_containment_cull_raster_equivalence_random_sets() -> void:
 	var culled_total: int = 0
 	for round_index: int in range(12):
 		var circles: Array[InfluenceCircle] = _random_circles(rng, rng.randi_range(20, 70))
-		culled_total += int(SandboxContainmentExperiment.build(circles)["culled_count"])
+		culled_total += circles.size() - TerritoryCull.drop_contained(circles).size()
 		var plain: TerritoryRaster = _job_raster(circles, 0, false)
 		var culled: TerritoryRaster = _job_raster(circles, 0, true)
 		assert_eq(culled.owner_bytes(), plain.owner_bytes(), "owner bytes, round %d" % round_index)
@@ -126,7 +121,7 @@ func test_cull_preserves_groups_with_cut_off_circles() -> void:
 		InfluenceCircle.new(Vector2(0.0, -12.0), 2.5, 1, 1, false, 4),
 		InfluenceCircle.new(Vector2(0.0, -12.0), 0.8, 1, 1, false, 5),
 	]
-	var culled_list: Array[InfluenceCircle] = SandboxContainmentExperiment.build(circles)["circles"]
+	var culled_list: Array[InfluenceCircle] = TerritoryCull.drop_contained(circles)
 	assert_eq(culled_list.size(), circles.size() - 3, "three contained circles removed")
 	var keep: Dictionary = {}
 	for c: InfluenceCircle in culled_list:
