@@ -108,3 +108,15 @@ func test_tiny_or_nonpositive_step_is_floored() -> void:
 	for step: float in [0.0005, 0.0, -1.0]:
 		var got: float = ClearanceRaise.first_clear_raise(_floor(0.0036), step, 1.0, 4, 0.002)
 		assert_almost_eq(got, 0.005625, TOL, "step %s" % step)
+
+
+func test_step_landing_exactly_on_cap_plus_slack_is_still_tried() -> void:
+	# step .5001 = cap + slack (.5 + .0001): the one try is allowed, clamped to the cap, clears.
+	var got: float = ClearanceRaise.first_clear_raise(_floor(0.3), 0.5001, 0.5, 0, 0.0)
+	assert_almost_eq(got, 0.5, TOL)
+
+
+func test_every_bisection_step_runs() -> void:
+	# floor .26, low .25, high .5: four bisections each clear, ending at .265625; three would end at .28125.
+	var got: float = ClearanceRaise.first_clear_raise(_floor(0.26), 0.25, 2.0, 4, 0.0)
+	assert_almost_eq(got, 0.265625, TOL)
