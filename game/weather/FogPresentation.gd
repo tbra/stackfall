@@ -45,6 +45,5 @@ func _apply_fog(amount: float) -> void:
 	# birds, fireflies) fade by the same distance rule, so farther means foggier.
 	WeatherFogShader.set_state(amount, opacity, TUNING.depth_begin_m, TUNING.depth_end_m, color, tree)
 	# The disc opts out of Environment fog; it fogs itself the same way.
-	for node: Node in tree.get_nodes_in_group(TerritoryOverlay.WET_GROUP):
-		var overlay: TerritoryOverlay = node as TerritoryOverlay
+	for overlay: TerritoryOverlay in wet_targets():
 		overlay.set_weather_fog(amount, opacity, TUNING.depth_begin_m, TUNING.depth_end_m, color)
