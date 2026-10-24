@@ -99,7 +99,6 @@ func _exit_tree() -> void:
 		Events.pause_menu_closed.disconnect(_on_pause_menu_closed)
 	_set_block_physics_frozen(false)
 	Match._territory_cache_enabled = true
-	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	# Only undo what this instance set: after an F5 rebuild the old node leaves at
 	# frame end, after the new one may already have toggled its own tools.
 	if _slow_motion_active:
@@ -339,7 +338,6 @@ func _set_active_slot(slot_id: int) -> void:
 func _reset_field() -> void:
 	_set_block_physics_frozen(false)
 	Match._territory_cache_enabled = true
-	Match.set_sandbox_territory_mode(MatchAutoload.DEFAULT_TERRITORY_MODE)
 	if Match.config == null:
 		return
 	Match.start_match(Match.config)

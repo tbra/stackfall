@@ -34,10 +34,6 @@ var is_home: bool = false
 ## Physics id of the block this came from, or -1 for a home circle. Lets the
 ## field wake exactly the right bodies when a cell under them opens.
 var body_id: int = -1
-## Cached at circle collection time so experimental projections do not walk
-## every block mesh a second time in the same territory step. -1 means a
-## caller constructed the circle without a source block height.
-var top_height: float = -1.0
 
 
 func _init(
@@ -46,8 +42,7 @@ func _init(
 	p_team_id: int = -1,
 	p_slot_id: int = -1,
 	p_is_home: bool = false,
-	p_body_id: int = -1,
-	p_top_height: float = -1.0
+	p_body_id: int = -1
 ) -> void:
 	center = p_center
 	radius = p_radius
@@ -55,7 +50,6 @@ func _init(
 	slot_id = p_slot_id
 	is_home = p_is_home
 	body_id = p_body_id
-	top_height = p_top_height
 
 
 ## Metres of radius per metre of height: tan(CONE_HALF_ANGLE_DEGREES).

@@ -30,7 +30,6 @@ class _Entry:
 	var geom_child_count: int = -1
 	var geom_com_xz: Vector2 = Vector2.ZERO
 	var geom_top: float = 0.0
-	var geom_com_y: float = 0.0
 	## The last circle handed out. Circles are never mutated
 	## after creation, so an identical one is reused (same object) instead of
 	## allocating; any changed field allocates a fresh circle.
@@ -409,10 +408,10 @@ func influence_circles(
 		if (
 			circle == null or circle.center != entry.geom_com_xz or circle.radius != radius
 			or circle.team_id != team_id or circle.slot_id != entry.owner_slot
-			or circle.top_height != entry.geom_top or circle.body_id != id
+			or circle.body_id != id
 		):
 			circle = InfluenceCircle.new(
-				entry.geom_com_xz, radius, team_id, entry.owner_slot, false, id, entry.geom_top
+				entry.geom_com_xz, radius, team_id, entry.owner_slot, false, id
 			)
 			entry.circle = circle
 		circles.append(circle)
@@ -589,22 +588,6 @@ func settled_torque_samples() -> PackedVector3Array:
 	return samples
 
 
-## True when `node` is the field this registry projects into.
-func uses_field(node: Node3D) -> bool:
-	return node != null and node == _field
-
-
-## Field-local center-of-mass height (>= 0) of the live block with `body_id`,
-## or -1.0 when the registry does not track it. Bit-identical to
-## `maxf(field.to_local(b.global_transform * b.center_of_mass).y, 0.0)`.
-func center_height_for_body_id(body_id: int, field_xform: Transform3D) -> float:
-	var entry: _Entry = _entries.get(body_id) as _Entry
-	if entry == null or not is_instance_valid(entry.block):
-		return -1.0
-	_refresh_geometry(entry, field_xform)
-	return maxf(entry.geom_com_y, 0.0)
-
-
 ## Recomputes entry.geom_* unless the exact inputs (block transform, field
 ## transform, child count) are unchanged; Transform3D == is componentwise, so a
 ## hit is bit-identical to a recompute.
@@ -621,7 +604,6 @@ func _refresh_geometry(entry: _Entry, field_xform: Transform3D) -> void:
 		return
 	var local_com: Vector3 = _local_center_of_mass(block)
 	entry.geom_com_xz = Vector2(local_com.x, local_com.z)
-	entry.geom_com_y = local_com.y
 	entry.geom_top = _top_height_local(block)
 	entry.geom_block_xform = block_xform
 	entry.geom_field_xform = field_xform
@@ -632,12 +614,6 @@ func _refresh_geometry(entry: _Entry, field_xform: Transform3D) -> void:
 func _local_center_of_mass(block: Block) -> Vector3:
 	var world_com: Vector3 = block.global_transform * block.center_of_mass
 	return _to_local(world_com)
-
-
-## Exposes the same visual top height used by influence_circles() to sandbox
-## comparisons without duplicating the mesh-bound calculation there.
-func top_height_for_block(block: Block) -> float:
-	return _top_height_local(block)
 
 
 ## Highest point of `block`'s visual meshes above the disk surface, along the
