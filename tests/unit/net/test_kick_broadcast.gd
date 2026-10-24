@@ -54,11 +54,11 @@ func _make_rig(node_name: String) -> Rig:
 	assert_true(match_net.bind_ports(SessionPort.new(net), MatchHostPort.new(Match), MatchReplicaPort.new(Match)))
 	side.match_net = match_net
 	side.weather = match_net.get("_weather_net") as WeatherNet
-	assert_true(side.weather.bind(SessionPort.new(net), MatchHostPort.new(Match, WeatherNet.AUTHORITY_METHODS)))
+	assert_true(side.weather.bind(SessionPort.new(net), MatchHostPort.new(Match)))
 	side.snow = side.weather.get_node("SnowNet") as SnowNet
-	assert_true(side.snow.bind(SessionPort.new(net), MatchHostPort.new(Match, SnowNet.AUTHORITY_METHODS)))
+	assert_true(side.snow.bind(SessionPort.new(net), MatchHostPort.new(Match)))
 	side.breeze = side.weather.get_node("BreezeNet") as BreezeNet
-	assert_true(side.breeze.bind(SessionPort.new(net), MatchHostPort.new(Match, BreezeNet.AUTHORITY_METHODS)))
+	assert_true(side.breeze.bind(SessionPort.new(net), MatchHostPort.new(Match)))
 	var snapshot: Node = _SNAPSHOT_SCRIPT.new()
 	snapshot.name = "SnapshotSync"
 	net.add_child(snapshot)
