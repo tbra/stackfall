@@ -12,6 +12,13 @@ dead" and "no dead weight left behind". Four checks, one finding per line as `pa
   test-only-func  a func in a game .gd not reachable (strict call graph, from engine virtuals, rpc, signal
                   handlers and top-level code of reachable files) except through tests, or only through
                   name-ambiguous calls (those need an allow-list line with a reason).
+  test-only-var   a top-level `var`/`static var` of a reached game .gd (not @export/@onready, not `_private`, no
+                  set/get block, no `lint-dead: ignore`) that no game code reads: a read is a word-bounded
+                  occurrence in a reached game .gd or tools/*.gd that is neither the declaration nor an assignment
+                  target (`x = v`, `x += v`; `x[i] = v` and `x.append(v)` are reads), a string use is the name in a
+                  string literal there (`get("x")`, `&"x"`). Own-script reads count. Matching is by name and blind
+                  to the receiver's type (a same-named read in any class keeps it live); tests, docs, comments and
+                  scene property lines never count. Delete the var and assert the public effect instead.
   stale-path      a res:// or repo-relative path in a comment/string of a tracked text file that does not exist.
                   A line containing `lint-dead: ignore` is skipped.
   undated-legacy  legacy | kept for one release | compat(ibility) | deprecated in a game .gd comment or
@@ -40,7 +47,13 @@ import dep_graph  # noqa: E402
 
 BASELINE_NAME = "dead_baseline.json"
 NON_GAME_PREFIXES = ("tests/", "tools/", "addons/", "docs/", ".claude/", "source_art/")
-CHECKS = ("dead-file", "test-only-func", "stale-path", "undated-legacy")
+TEST_ONLY_VAR = "test-only-var"
+CHECKS = ("dead-file", "test-only-func", TEST_ONLY_VAR, "stale-path", "undated-legacy")
+VAR_DECL_RE = re.compile(r"^(?:static\s+)?var\s+(\w+)")
+VAR_PROPERTY_RE = re.compile(r"^(?:static\s+)?var\s+\w+\s*(?::\s*[\w.\[\], ]+)?:\s*(?:set|get)\b|:\s*$")
+VAR_ANNOTATION_RE = re.compile(r"^\s*@(?:export\w*|onready)\b")
+VAR_WRITE_RE = re.compile(r"\s*(?:=(?!=)|<<=|>>=|[-+*/%|&^]=)")
+VAR_BEFORE_DECL_RE = re.compile(r"\bvar\s+$")
 ROOT_FILES = ("project.godot", "export_presets.cfg")
 
 # Folder scans the game really performs at runtime (DirAccess listing or a "<dir>/%s.ext" build): the scanning
@@ -284,6 +297,40 @@ def check_funcs(g, reached):
     return out
 
 
+def check_vars(g, reached, lines):
+    """(path, line, "test-only-var", msg, "<path>:<var>") per candidate var (rules in the module docstring)."""
+    cands = []
+    for rel in sorted(reached):
+        if not rel.endswith(".gd") or not game_candidate(rel):
+            continue
+        lines.get(rel)
+        code = lines.code[rel]
+        for i, ln in enumerate(code):
+            m = VAR_DECL_RE.match(ln)
+            if not m or m.group(1).startswith("_") or IGNORE_MARK in lines.raw[rel][i]:
+                continue
+            if VAR_PROPERTY_RE.search(ln.rstrip()) or (i and VAR_ANNOTATION_RE.match(code[i - 1])):
+                continue
+            cands.append((rel, i + 1, m.group(1)))
+    if not cands:
+        return []
+    names = {c[2] for c in cands}
+    word = re.compile(r"\b(%s)\b" % "|".join(sorted(re.escape(n) for n in names)))
+    live = set()
+    readers = [f for f in g["files"] if f.endswith(".gd") and (f in reached and game_candidate(f) or f.startswith("tools/"))]
+    for rel in readers:
+        lines.get(rel)
+        for ln in lines.code[rel]:
+            for m in word.finditer(ln):
+                if not VAR_BEFORE_DECL_RE.search(ln[:m.start()]) and not VAR_WRITE_RE.match(ln, m.end()):
+                    live.add(m.group(1))
+        for vals in lines.strs[rel].values():
+            for v in vals:
+                live.update(m.group(1) for m in word.finditer(v))
+    msg = "%s: written in its own script, read only by tests (or by nothing); delete it and assert the public effect"
+    return [(rel, n, TEST_ONLY_VAR, msg % name, "%s:%s" % (rel, name)) for rel, n, name in cands if name not in live]
+
+
 # ---- stale paths --------------------------------------------------------
 
 def text_files(root, files):
@@ -371,6 +418,7 @@ def collect(root, today):
     for p, n, cid, msg in check_dead_files(g, reached):
         out.append((p, n, cid, msg, p))
     out += check_funcs(g, reached)
+    out += check_vars(g, reached, lines)
     out += check_stale_paths(root, g["files"])
     out += check_legacy(root, g["files"], today)
     return out
