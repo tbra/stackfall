@@ -285,6 +285,14 @@ func test_faced_throw_agrees() -> void:
 	_assert_parity(result, "faced rocket", true)
 
 
+func test_faced_throw_at_ground_level_agrees() -> void:
+	# rocket hovering on the floor: its 2x box dips below the disc, whose trimesh returns
+	# several hits per query. The floor's hits must not displace the placed block from the
+	# capped result on either side (measured: Jolt reports the block before the floor).
+	var result: Dictionary = await _lifts_for(1, 0.0, &"rocket")
+	_assert_parity(result, "ground-level rocket", true)
+
+
 func test_enlarged_gift_beside_a_tower_agrees() -> void:
 	# 1.75 cells aside: a 1x cube clears the tower, the 3x bomb cube reaches it
 	var result: Dictionary = await _lifts_for(3, 0.0, &"bomb", 1.75)
