@@ -3,8 +3,8 @@ extends MatchHostPort
 ## Spy for MatchHostPort: answers every rule entry point and read a consumer (MatchNet, WeatherNet,
 ## SnowNet, BreezeNet, MatchEventApplier) makes, records it in `calls` and returns the neutral
 ## answer (accepted intents, empty reads, no Match), so a test asserts what the consumer asked the
-## host to do without a Match. It adapts a bare FakeMatch (see _init), so a port method added without an
-## override here falls through to the dynamic path, which reports it as an error, and fails the test loudly instead of reaching
+## host to do without a Match. It adapts no Match (null), so a port method added without an
+## override here hits the null adapter, which errors and fails the test loudly instead of reaching
 ## the real autoload; test_host_port.gd's conformance test fails first. A test needing another
 ## answer extends this class and overrides that one method.
 ## loading_gate_replay_args is deliberately not overridden: an override makes lint_dead read the real
@@ -14,11 +14,8 @@ extends MatchHostPort
 var calls: Array[Dictionary] = []
 
 
-# TRANSITIONAL (removed by NP-F-H): the port's constructor still reports a null adapter and validates a
-# non-null one, so the spy adapts a FakeMatch (it has the `config` property) with that one name required;
-# NP-F-H makes the ctor `super(null)`.
 func _init() -> void:
-	super(FakeMatch.new(), PackedStringArray(["config"]))
+	super(null)
 
 
 func is_valid() -> bool:
