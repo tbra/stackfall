@@ -288,6 +288,21 @@ func _next_snapshot_ids(stub: PeerStubSync) -> Array[int]:
 	return ids
 
 
+## Ticks until a snapshot goes out and returns net_id -> sleeping for its bodies.
+func _next_snapshot_sleeping(stub: PeerStubSync) -> Dictionary:
+	stub.sent.clear()
+	for _i: int in range(TICKS_PER_SNAPSHOT + 1):
+		stub.host_tick(TICK)
+		if not stub.sent.is_empty():
+			break
+	var flags: Dictionary = {}
+	for packet: PackedByteArray in stub.sent:
+		var fragment: Dictionary = SnapshotWire.decode_fragment(packet, _bounds())
+		for entry: Variant in fragment["bodies"] as Array:
+			flags[int((entry as Dictionary)["net_id"])] = bool((entry as Dictionary)["sleeping"])
+	return flags
+
+
 func _all_ids() -> Array[int]:
 	var ids: Array[int] = []
 	for block: Block in _host_bodies:
@@ -396,6 +411,24 @@ func test_a_moving_disc_resends_a_sleeper_that_drifted() -> void:
 	var ids: Array[int] = _next_snapshot_ids(stub)
 	assert_true(ids.has(drifted.net_id), "the disc moved, so the drifted sleeper is drift-tested and resent")
 	assert_lt(ids.size(), BODY_COUNT, "bodies that did not move past the epsilon stay out")
+
+
+func test_a_body_that_falls_asleep_in_place_is_resent_with_its_sleep_flag() -> void:
+	var stub: PeerStubSync = _host_stub()
+	_sleepers()
+	var settling: Block = _make_block(FIRST_NET_ID + BODY_COUNT, false, Vector3(0.0, 1.0, 5.0))
+	_host_bodies.append(settling)
+	_track_block(settling)
+	stub.peers = PackedInt32Array([HOST_PEER])
+	_next_snapshot_ids(stub)
+	_settle_to_quiet(stub)
+	assert_true(_next_snapshot_ids(stub).has(settling.net_id), "fixture: the awake body is sent every snapshot")
+
+	settling.sleeping = true # no movement at all: well inside the resend epsilon
+	assert_true(settling.net_sleeping(), "fixture: it now sleeps")
+	var flags: Dictionary = _next_snapshot_sleeping(stub)
+	assert_true(flags.get(settling.net_id, false), "the flip is resent carrying sleeping=true")
+	assert_false(_next_snapshot_sleeping(stub).has(settling.net_id), "and once sent it is not resent the next snapshot")
 
 
 func test_an_awake_body_goes_out_every_snapshot() -> void:
