@@ -123,6 +123,132 @@ class FuncTest(unittest.TestCase):
         self.assertEqual(keys({"game/Dead.gd": dead}, "test-only-func"), [])
 
 
+class VarTest(unittest.TestCase):
+    """test-only-var: a top-level var written in its own script and read only by tests (or nothing)."""
+    WRITE = "var hits: int = 0\nfunc _ready() -> void:\n\thits += 1\n"
+    TEST_READ = ('extends GutTest\nfunc test_a() -> void:\n\tvar n: Node = load("res://game/Main.gd").new()\n'
+                 '\tassert_eq(n.hits, 1)\n')
+
+    def main_with(self, body):
+        return "extends Node\n" + body
+
+    def var_keys(self, body, extra=None):
+        files = {"game/Main.gd": self.main_with(body), "tests/unit/test_a.gd": self.TEST_READ}
+        files.update(extra or {})
+        return keys(files, "test-only-var")
+
+    def test_written_in_own_script_and_read_only_by_tests_is_flagged(self):
+        self.assertEqual(self.var_keys(self.WRITE), ["game/Main.gd:hits"])
+
+    def test_var_nobody_reads_is_flagged_with_the_message(self):
+        got = findings({"game/Main.gd": self.main_with(self.WRITE)}, "test-only-var")
+        self.assertEqual([(f[0], f[1]) for f in got], [("game/Main.gd", 2)])
+        self.assertIn("read only by tests", got[0][3])
+
+    def test_plain_assignment_and_compound_assignment_are_writes(self):
+        body = ("var a: int = 0\nvar b: int = 0\nvar c: int = 0\nfunc _ready() -> void:\n"
+                "\ta = 1\n\tself.b = 2\n\tc <<= 1\n")
+        self.assertEqual(self.var_keys(body), ["game/Main.gd:a", "game/Main.gd:b", "game/Main.gd:c"])
+
+    def test_read_in_own_script_keeps_it_live(self):
+        for read in ("\tprint(hits)\n", "\tif hits >= 3:\n\t\tpass\n", "\thits[0] = 1\n", "\thits.append(1)\n"):
+            self.assertEqual(self.var_keys(self.WRITE + read), [], read)
+
+    def test_equality_comparison_is_a_read_not_a_write(self):
+        self.assertEqual(self.var_keys(self.WRITE + "\tif hits == 2:\n\t\tpass\n"), [])
+
+    def test_read_by_another_game_file_keeps_it_live(self):
+        main = self.WRITE + 'func go() -> void:\n\tload("res://game/Other.gd").new().peek(self)\n'
+        other = "extends Node\nfunc peek(m: Node) -> int:\n\treturn m.hits\n"
+        self.assertEqual(self.var_keys(main, {"game/Other.gd": other}), [])
+
+    def test_read_by_unreached_file_or_in_comment_does_not_count(self):
+        stray = "extends Node\nfunc peek(m: Node) -> int:\n\treturn m.hits\n"
+        self.assertEqual(self.var_keys(self.WRITE + "\t# hits is read elsewhere\n", {"game/Stray.gd": stray}),
+                         ["game/Main.gd:hits"])
+
+    def test_read_by_a_tools_script_keeps_it_live(self):
+        tool = "extends SceneTree\nfunc _init() -> void:\n\tprint(load('res://game/Main.gd').new().hits)\n"
+        self.assertEqual(self.var_keys(self.WRITE, {"tools/probe.gd": tool}), [])
+
+    def test_name_inside_a_string_keeps_it_live(self):
+        for use in ('\tprint(get("hits"))\n', '\tprint(&"hits")\n', '\tprint(get_node("N:hits"))\n'):
+            self.assertEqual(self.var_keys(self.WRITE + use), [], use)
+
+    def test_word_boundary_longer_names_do_not_keep_it_live(self):
+        self.assertEqual(self.var_keys(self.WRITE + '\tprint(hits_total, get("hitsx"))\n'), ["game/Main.gd:hits"])
+
+    def test_export_onready_private_and_inline_variants_are_not_candidates(self):
+        body = ("@export var a: int = 0\n@export_range(0, 1) var b: float = 0.0\n@onready var c: Node = null\n"
+                "@export\nvar d: int = 0\nvar _e: int = 0\nvar f: int = 0 # lint-dead: ignore\n"
+                "func _ready() -> void:\n\ta = 1\n\tb = 1.0\n\tc = null\n\td = 1\n\t_e = 1\n\tf = 1\n")
+        self.assertEqual(self.var_keys(body), [])
+
+    def test_var_with_setter_or_getter_block_is_not_a_candidate(self):
+        body = ("var s: int = 0:\n\tset(v):\n\t\ts = v\n"
+                "var g: int = 0:\n\tget:\n\t\treturn 1\n"
+                "func _ready() -> void:\n\ts = 1\n\tg = 1\n")
+        self.assertEqual(self.var_keys(body), [])
+
+    def test_inner_class_and_local_vars_are_not_candidates(self):
+        body = ("class Inner:\n\tvar inner_hits: int = 0\n\tfunc bump() -> void:\n\t\tinner_hits += 1\n"
+                "func _ready() -> void:\n\tvar local_hits: int = 0\n\tlocal_hits += 1\n")
+        self.assertEqual(self.var_keys(body), [])
+
+    def test_static_var_is_flagged(self):
+        body = "static var scans: int = 0\nfunc _ready() -> void:\n\tscans += 1\n"
+        self.assertEqual(self.var_keys(body), ["game/Main.gd:scans"])
+
+    def test_unreached_script_vars_are_not_reported(self):
+        self.assertEqual(keys({"game/Dead.gd": "extends Node\n" + self.WRITE}, "test-only-var"), [])
+
+    def run_main(self, root, *extra):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = lint_dead.main(["--path", root, "--today", TODAY, *extra])
+        return code, buf.getvalue()
+
+    def write_baseline(self, root, data):
+        os.makedirs(os.path.join(root, "tools"), exist_ok=True)
+        with open(os.path.join(root, "tools", "dead_baseline.json"), "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+    def test_baseline_suppresses_and_stale_entry_is_reported(self):
+        with make_repo({"game/Main.gd": self.main_with(self.WRITE)}) as root:
+            code, out = self.run_main(root)
+            self.assertEqual(code, 1)
+            self.assertIn("game/Main.gd:2: test-only-var: hits", out)
+            self.write_baseline(root, {"checks": {"test-only-var": ["game/Main.gd:hits", "game/Main.gd:gone"]}})
+            code, out = self.run_main(root)
+            self.assertEqual(code, 0)
+            self.assertIn("stale baseline entry", out)
+            self.assertIn("game/Main.gd:gone", out)
+
+    def test_update_baseline_refuses_a_new_var_and_drops_a_gone_one(self):
+        with make_repo({"game/Main.gd": self.main_with(self.WRITE)}) as root:
+            self.write_baseline(root, {"checks": {"test-only-var": ["game/Main.gd:gone"]}})
+            code, out = self.run_main(root, "--update-baseline")
+            self.assertEqual(code, 1)
+            self.assertIn("test-only-var game/Main.gd:hits", out)
+            with open(os.path.join(root, "tools", "dead_baseline.json"), encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh)["checks"]["test-only-var"], [])
+
+    def test_allow_entry_with_a_live_reason_suppresses_and_a_test_reason_does_not(self):
+        with make_repo({"game/Main.gd": self.main_with(self.WRITE)}) as root:
+            entry = {"id": "test-only-var", "entry": "game/Main.gd:hits", "reason": "read by a scene script via get()"}
+            self.write_baseline(root, {"checks": {}, "allow": [entry]})
+            self.assertEqual(self.run_main(root)[0], 0)
+            entry["reason"] = "used by tests/unit/test_a.gd"
+            self.write_baseline(root, {"checks": {}, "allow": [entry]})
+            code, out = self.run_main(root)
+            self.assertEqual(code, 1)
+            self.assertIn("allow entry exempts nothing", out)
+
+    def test_report_lists_the_check(self):
+        with make_repo({"game/Main.gd": self.main_with(self.WRITE)}) as root:
+            self.assertIn("test-only-var", self.run_main(root, "--report")[1])
+
+
 class StalePathTest(unittest.TestCase):
     def test_missing_res_path_in_comment_and_string_is_flagged(self):
         main = 'extends Node\n# see res://game/gone.gd\nvar p: String = "res://game/also_gone.tscn"\n'
