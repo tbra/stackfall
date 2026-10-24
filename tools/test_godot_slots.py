@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 
@@ -93,6 +94,34 @@ class ExclusiveTest(unittest.TestCase):
         p = subprocess.Popen([sys.executable, "-c", "import time;time.sleep(60)"])
         self.addCleanup(lambda: (p.kill(), p.wait()))
         return p
+
+    def test_multi_slot_set_holds_nothing_while_an_exclusive_waits(self):
+        # The deadlock shape: set A needs 2 slots, another run holds 1, set B's exclusive gate is
+        # waiting for that holder. A must not sit on a slot the gate is waiting for.
+        holder, excl, setter = self._sleeper(), self._sleeper(), self._sleeper()
+        godot_slots.acquire("holder", pid=holder.pid)
+        self.assertTrue(godot_slots._take_gate(self.tmp.name, excl.pid, "gift_fx x4", "tok"))
+        got = []
+        t = threading.Thread(target=lambda: got.extend(godot_slots.acquire_many("set", 2, pid=setter.pid, wait_s=30)))
+        t.start()
+        time.sleep(1.5)
+        self.assertEqual(godot_slots.busy_count(), 1)  # only the holder: A took nothing
+        os.remove(godot_slots._gate_path(self.tmp.name))  # exclusive finished
+        godot_slots.release(0)  # the holder finishes too
+        t.join(timeout=20)
+        self.assertFalse(t.is_alive())
+        self.assertEqual(len(got), 2)
+        self.assertEqual(godot_slots.busy_count(), 2)
+
+    def test_acquire_many_timeout_releases_partial_set(self):
+        holder = self._sleeper()
+        godot_slots.acquire("holder", pid=holder.pid)  # CAP 2: only one slot left, set needs 2
+        with self.assertRaises(TimeoutError):
+            godot_slots.acquire_many("set", 2, wait_s=1)
+        self.assertEqual(godot_slots.busy_count(), 1)
+        with godot_slots.godot_slots("set", 1):
+            self.assertEqual(godot_slots.busy_count(), 2)
+        self.assertEqual(godot_slots.busy_count(), 1)
 
     def test_exclusive_waits_for_holder_then_runs(self):
         held = godot_slots.acquire("a")
