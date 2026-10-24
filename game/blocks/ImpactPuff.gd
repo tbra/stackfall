@@ -11,9 +11,6 @@ const ATLAS_HARD: Texture2D = preload("res://assets/textures/fx/impact_puff/impa
 const ATLAS_SOFT: Texture2D = preload("res://assets/textures/fx/impact_puff/impact_soft.png")
 
 var active: bool = false
-var hard: bool = true
-var quad_size_m: float = 1.0
-var alpha: float = 1.0
 var _elapsed_s: float = 0.0
 var _fps: float = 0.0
 var _frame_count: int = 16
@@ -36,9 +33,6 @@ func _init() -> void:
 
 ## Starts the flipbook at `world_position` (the contact point).
 func play(world_position: Vector3, use_hard: bool, size_m: float, tint: Color, alpha_value: float, fps: float, frames: int) -> void:
-	hard = use_hard
-	quad_size_m = size_m
-	alpha = alpha_value
 	_fps = maxf(fps, 0.001)
 	_frame_count = maxi(frames, 1)
 	_elapsed_s = 0.0

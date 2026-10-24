@@ -17,14 +17,9 @@ const LOAD_FAILURE_TITLE: String = "Stackfall"
 ## Test seams: the scene to load, and whether a load failure quits the process.
 var main_scene_path: String = MAIN_SCENE_PATH
 var quit_on_failure: bool = true
-## Set when loading failed (read by tests).
-var load_failed: bool = false
 ## Test seams: take the threaded path even headless; how a deferred close request quits.
 var force_threaded: bool = false
 var quit_callable: Callable = Callable()
-## Set (force_threaded only) to the last collected resource so tests can observe that the
-## load completed; the resource cache itself only holds weak references.
-var collected_resource: Resource = null
 
 var _threaded: bool = false
 ## Threaded path: Main.tscn once loaded.
@@ -77,10 +72,7 @@ func _collect_pending() -> Object:
 		return null
 	var path: String = _pending_path
 	_pending_path = ""
-	var resource: Resource = ResourceLoader.load_threaded_get(path)
-	if force_threaded:
-		collected_resource = resource
-	return resource
+	return ResourceLoader.load_threaded_get(path)
 
 
 var _quit_done: bool = false
@@ -137,7 +129,6 @@ func _start_main(scene: PackedScene, activate_late: bool = true) -> void:
 
 
 func _fail(message: String) -> void:
-	load_failed = true
 	get_tree().auto_accept_quit = true
 	push_error("Boot: " + message)
 	if not quit_on_failure:
