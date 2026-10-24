@@ -207,8 +207,8 @@ func request_place(
 	if reason != PlacementRules.REASON_OK and not auto_drop:
 		# DECISION: a manual out-of-zone release is refused outright, not burned: nothing is spawned
 		# or consumed, feed_seq does not move and the release lock is untouched, so the caller may
-		# simply try again. The burn/clamp path below (and net/MatchNet.gd's matching
-		# _consumed_a_block()) is therefore reachable only for auto_drop == true, where spec 1.4's
+		# simply try again. The burn/clamp path below is therefore reachable only for
+		# auto_drop == true, where spec 1.4's
 		# forced release still has to land somewhere. See Events.placement_rejected.
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
