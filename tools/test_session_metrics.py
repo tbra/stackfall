@@ -102,6 +102,26 @@ class SessionMetricsTest(unittest.TestCase):
         self.assertEqual(h["verdicts"], {"done": 1, "review": 2})
 
 
+    def test_handbacks_filter_to_one_bead(self):
+        start = datetime.datetime.now().astimezone() - datetime.timedelta(minutes=5)
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        rows = [{"ts": now, "bead": "task-a", "accepted": False, "verdict": "", "finding": ""},
+                {"ts": now, "bead": "task-a", "accepted": True, "verdict": "done", "finding": ""},
+                {"ts": now, "bead": "task-b", "accepted": True, "verdict": "review", "finding": "APPROVE"},
+                {"ts": now, "bead": "task-b", "accepted": False, "verdict": "", "finding": ""},
+                {"ts": now, "bead": "task-b", "accepted": False, "verdict": "", "finding": ""}]
+        log = os.path.join(self.root, "scratch", "handbacks.jsonl")
+        write(self.root, "scratch/handbacks.jsonl", "".join(json.dumps(r) + chr(10) for r in rows))
+        one = sm.handbacks(log, start, bead="task-a")
+        self.assertEqual((one["attempts"], one["denied"], one["verdicts"]), (2, 1, {"done": 1}))
+        self.assertEqual((one["review_approve"], one["review_changes"]), (0, 0))
+        other = sm.handbacks(log, start, bead="task-b")
+        self.assertEqual((other["attempts"], other["denied"], other["verdicts"], other["review_approve"]),
+                         (3, 2, {"review": 1}, 1))
+        self.assertEqual(sm.handbacks(log, start)["attempts"], 5)
+        self.assertEqual(sm.handbacks(log, start, bead="task-zz").get("attempts"), 0)
+
+
     def test_since_time_accepts_a_trailing_z(self):
         utc = datetime.timezone.utc
         self.assertEqual(sm.parse_since("2026-10-20T20:59:55Z"), datetime.datetime(2026, 10, 20, 20, 59, 55, tzinfo=utc))
