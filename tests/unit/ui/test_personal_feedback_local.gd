@@ -316,6 +316,6 @@ func test_a_client_drops_a_malformed_relocation_payload() -> void:
 	]
 
 	for payload: Array in payloads:
-		net.net_match_event(MatchNetScript.EVENT_PLACEMENT_RELOCATED, payload)
+		net.net_match_event(MatchWireEvents.PLACEMENT_RELOCATED, payload)
 
 	assert_signal_not_emitted(Events, "placement_relocated")

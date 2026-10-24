@@ -465,7 +465,7 @@ func test_a_replicated_feed_event_sets_the_held_shape_and_resets_the_timer() -> 
 		Match._process(1.0 / 60.0)
 	assert_lt(Match.feed_time_left(1), 6.0)
 
-	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9, 6.0, false])
+	net.net_match_event(MatchWireEvents.FEED_ISSUED, [1, &"cube", &"domino", 9, 6.0, false])
 
 	assert_eq(Match.held_shape(1).id, &"cube")
 	assert_almost_eq(Match.feed_time_left(1), 6.0, 0.001, "The host's feed is the client's clock.")
@@ -480,7 +480,7 @@ func test_a_feed_event_missing_its_timer_and_lock_is_refused() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	var seq_before: int = Match.feed_seq(1)
 
-	net.net_match_event(MatchNetScript.EVENT_FEED_ISSUED, [1, &"cube", &"domino", 9])
+	net.net_match_event(MatchWireEvents.FEED_ISSUED, [1, &"cube", &"domino", 9])
 
 	assert_eq(Match.feed_seq(1), seq_before, "a 4-argument feed event is not the wire form")
 
@@ -492,7 +492,7 @@ func test_a_replicated_turn_points_a_client_at_its_own_slot() -> void:
 	watch_signals(Events)
 
 	# The host emits turn_changed(0) for its own player when play begins.
-	net.net_match_event(MatchNetScript.EVENT_TURN_CHANGED, [0])
+	net.net_match_event(MatchWireEvents.TURN_CHANGED, [0])
 
 	# On this instance the signal points at the controls that are live here,
 	# not at whoever the host named.
@@ -560,16 +560,16 @@ func test_a_malformed_special_id_is_dropped_not_applied() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [4, 1, &"", &"cube"])
+	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [4, 1, &"", &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "an empty special_id must be dropped")
 	assert_eq(Match.held_special(1), &"", "and never queued")
 
 	var too_long: String = "a".repeat(40)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [5, 1, StringName(too_long), &"cube"])
+	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [5, 1, StringName(too_long), &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "a 40-character special_id must be dropped")
 	assert_eq(Match.held_special(1), &"")
 
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [6, 1, &"has space", &"cube"])
+	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [6, 1, &"has space", &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed", "a special_id with a space must be dropped")
 	assert_eq(Match.held_special(1), &"")
 
@@ -620,24 +620,24 @@ func test_a_malformed_special_trigger_is_dropped_not_applied() -> void:
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [-1, &"volcano", Vector3.ZERO, 0])
+	net.net_match_event(MatchWireEvents.SPECIAL_TRIGGERED, [-1, &"volcano", Vector3.ZERO, 0])
 	assert_signal_not_emitted(Events, "special_triggered", "a negative net_id must be dropped")
 
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"has space", Vector3.ZERO, 0])
+	net.net_match_event(MatchWireEvents.SPECIAL_TRIGGERED, [31, &"has space", Vector3.ZERO, 0])
 	assert_signal_not_emitted(Events, "special_triggered", "a malformed def_id must be dropped")
 
 	net.net_match_event(
-		MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3(NAN, 0.0, 0.0), 0]
+		MatchWireEvents.SPECIAL_TRIGGERED, [31, &"volcano", Vector3(NAN, 0.0, 0.0), 0]
 	)
 	assert_signal_not_emitted(Events, "special_triggered", "a non-finite position must be dropped")
 
 	var over_cap: int = int((load("res://config/gifts/special_tuning.tres") as SpecialTuning).max_chain_depth) + 1
 	net.net_match_event(
-		MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, over_cap]
+		MatchWireEvents.SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, over_cap]
 	)
 	assert_signal_not_emitted(Events, "special_triggered", "chain_depth over the cap must be dropped")
 
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, -1])
+	net.net_match_event(MatchWireEvents.SPECIAL_TRIGGERED, [31, &"volcano", Vector3.ZERO, -1])
 	assert_signal_not_emitted(Events, "special_triggered", "a negative chain_depth must be dropped")
 
 
@@ -649,18 +649,18 @@ func test_glue_charge_mirror_accepts_only_new_valid_absolute_updates() -> void:
 	_start_playing()
 	var net: MatchNetScript = _make_net({}, [1], true)
 	watch_signals(Events)
-	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 3, 1])
+	net.net_match_event(MatchWireEvents.GLUE_CHARGES, [1, 3, 1])
 	assert_eq(Match.glue_drops_left(1), 3)
 	assert_eq(Match.glue_revision(1), 1)
 	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 1)
-	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 2, 1])
-	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 2, 0])
+	net.net_match_event(MatchWireEvents.GLUE_CHARGES, [1, 2, 1])
+	net.net_match_event(MatchWireEvents.GLUE_CHARGES, [1, 2, 0])
 	assert_eq(Match.glue_drops_left(1), 3, "duplicate or stale revisions cannot restore charges")
-	net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, [1, 0, 2])
+	net.net_match_event(MatchWireEvents.GLUE_CHARGES, [1, 0, 2])
 	assert_eq(Match.glue_drops_left(1), 0)
 	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 2)
 	for payload: Array in [[1], [1, "3", 3], [1, 101, 3], [99, 2, 3], [1, 2, -1]]:
-		net.net_match_event(MatchNetScript.EVENT_GLUE_CHARGES, payload)
+		net.net_match_event(MatchWireEvents.GLUE_CHARGES, payload)
 	assert_eq(Match.glue_drops_left(1), 0)
 	assert_eq(get_signal_emit_count(Events, "glue_charges_changed"), 2)
 
@@ -679,7 +679,7 @@ func test_host_ignores_a_spoofed_special_consumed_event() -> void:
 	assert_eq(Match.pending_special_count(slot_id), 1, "setup")
 	watch_signals(Events)
 
-	net.net_match_event(MatchNetScript.EVENT_SPECIAL_CONSUMED, [slot_id, &"test_special"])
+	net.net_match_event(MatchWireEvents.SPECIAL_CONSUMED, [slot_id, &"test_special"])
 
 	assert_signal_not_emitted(Events, "special_consumed", "the host must never apply this event to itself")
 	assert_eq(Match.pending_special_count(slot_id), 1, "a spoofed event must never pop the host's own queue")
@@ -696,25 +696,25 @@ func test_gift_flight_interpolates_but_waits_for_authoritative_landing() -> void
 	var net: MatchNetScript = _gift_client_fixture()
 	var origin: Vector3 = Vector3(0, 10, 0)
 	var landing: Vector3 = Vector3(0, 1, 0)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
+	net.net_match_event(MatchWireEvents.GIFT_FLIGHT, [101, origin, landing])
 	var node: GiftCrate = Match._gifts._crates[101]["node"]
 	Match._physics_process(0.5)
 	assert_lt(node.global_position.y, origin.y)
 	assert_gt(node.global_position.y, landing.y)
 	var elapsed: float = Match.gift_state(101)["elapsed"]
-	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
-	net.net_match_event(MatchNetScript.EVENT_GIFT_SPAWNED, [101, Vector2.ZERO])
+	net.net_match_event(MatchWireEvents.GIFT_FLIGHT, [101, origin, landing])
+	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [101, Vector2.ZERO])
 	assert_eq(Match.gift_state(101)["elapsed"], elapsed, "duplicate must not rewind")
 	assert_same(Match._gifts._crates[101]["node"], node, "legacy event reuses the visual")
 	Match._physics_process(100.0)
 	assert_eq(node.global_position, landing)
 	assert_eq(Match.gift_state(101)["phase"], MatchGifts.FALLING)
 	assert_eq(Match.pending_special_count(0), 0, "interpolation cannot claim")
-	net.net_match_event(MatchNetScript.EVENT_GIFT_LANDED, [101, landing])
+	net.net_match_event(MatchWireEvents.GIFT_LANDED, [101, landing])
 	assert_eq(Match.gift_state(101)["phase"], MatchGifts.LANDED)
 	Match._physics_process(100.0)
 	assert_false(Match.gift_state(101).is_empty(), "client cannot expire")
-	net.net_match_event(MatchNetScript.EVENT_GIFT_FLIGHT, [101, origin, landing])
+	net.net_match_event(MatchWireEvents.GIFT_FLIGHT, [101, origin, landing])
 	assert_eq(Match.gift_state(101)["phase"], MatchGifts.LANDED)
 
 

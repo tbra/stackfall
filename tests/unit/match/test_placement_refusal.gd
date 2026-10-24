@@ -172,7 +172,7 @@ func test_client_preview_waives_territory_for_replicated_gift_then_refuses_again
 		Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY),
 		PlacementRules.Result.OUTSIDE_TERRITORY, "control: plain block on a client."
 	)
-	net.net_match_event(MatchNetScript.EVENT_GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, shape_id])
+	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [11, 0, MatchGifts.PENDING_SPECIAL_ID, shape_id])
 	Match.apply_replicated_feed(0, shape_id, shape_id, seq + 1, Match.feed_time_left(0), false)
 	assert_ne(Match.held_special(0), &"", "fixture: client mirrors the held gift.")
 	assert_eq(Match.preview_placement(0, foreign, 0, Quaternion.IDENTITY), PlacementRules.Result.VALID)

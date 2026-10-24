@@ -306,7 +306,7 @@ func test_a_client_ignores_a_refusal_for_someone_elses_slot() -> void:
 	var net: MatchNetScript = await _make_client_net(REMOTE_SLOT)
 
 	# What an older build's host broadcast for the host's own refusal looks like.
-	net.net_match_event(MatchNetScript.EVENT_PLACEMENT_REJECTED, [HOST_SLOT, PlacementRules.REASON_CONTESTED])
+	net.net_match_event(MatchWireEvents.PLACEMENT_REJECTED, [HOST_SLOT, PlacementRules.REASON_CONTESTED])
 
 	assert_eq(_rejected_events.size(), 0, "another seat's refusal never reaches this client's Events bus")
 	_assert_no_feedback_here("client, host's refusal")
@@ -321,11 +321,11 @@ func test_a_client_drops_a_malformed_refusal_payload() -> void:
 		[REMOTE_SLOT, 7],
 		[-1, PlacementRules.REASON_CONTESTED],
 		[Match.slot_count(), PlacementRules.REASON_CONTESTED],
-		[REMOTE_SLOT, "x".repeat(MatchNetScript.REJECT_REASON_MAX_LENGTH + 1)],
+		[REMOTE_SLOT, "x".repeat(net.config.reject_reason_max_length + 1)],
 	]
 
 	for payload: Array in payloads:
-		net.net_match_event(MatchNetScript.EVENT_PLACEMENT_REJECTED, payload)
+		net.net_match_event(MatchWireEvents.PLACEMENT_REJECTED, payload)
 
 	assert_eq(_rejected_events.size(), 0, "no malformed refusal may reach the client's feedback")
 	_assert_no_feedback_here("client, malformed refusals")

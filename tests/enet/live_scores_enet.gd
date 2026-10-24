@@ -1,6 +1,6 @@
 extends Node
 ## host + client over real ENet. The host records a height for
-## slot 1; the client's live scoreboard payload (MatchNet EVENT_LIVE_SCORES) must
+## slot 1; the client's live scoreboard payload (MatchWireEvents.LIVE_SCORES) must
 ## show the same stats. Run via tools/run_live_scores_enet.ps1. Host: --headless-host --expect-peers=2.
 
 ## Net.peer_ids() counts the host too: one host + one client.

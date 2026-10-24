@@ -186,7 +186,7 @@ func test_a_rejection_naming_another_seat_is_not_sounded() -> void:
 
 
 func test_a_rejection_reason_past_the_limit_is_refused() -> void:
-	var too_long: StringName = StringName("r".repeat(MatchNetScript.REJECT_REASON_MAX_LENGTH + 1))
+	var too_long: StringName = StringName("r".repeat(_net.config.reject_reason_max_length + 1))
 	_net.net_match_event(MatchWireEvents.PLACEMENT_REJECTED, [LOCAL_SLOT, too_long])
 	assert_signal_not_emitted(Events, "placement_rejected")
 

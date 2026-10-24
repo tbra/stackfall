@@ -122,7 +122,7 @@ func _connect(client_count: int) -> Array[Rig]:
 ## One broadcast site per entry; the group name is the first word of each helper.
 func _fire_match_net(rig: Rig) -> void:
 	rig.match_net.replicate_match_loading()
-	rig.match_net.replicate_match_event(_MATCH_NET_SCRIPT.EVENT_COUNTDOWN, [3])
+	rig.match_net.replicate_match_event(MatchWireEvents.COUNTDOWN, [3])
 	rig.match_net.replicate_despawn(7, "kick_test")
 	rig.match_net.submit_cursor(0, Vector3.ZERO, 0, Quaternion.IDENTITY)
 

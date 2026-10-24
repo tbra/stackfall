@@ -290,7 +290,7 @@ func test_a_client_drops_gameplay_broadcasts_until_its_replay_starts() -> void:
 	watch_signals(Events)
 
 	client_net.net_block_spawned(31, &"cube", 1, Vector3(2.0, 3.0, 4.0), Quaternion.IDENTITY)
-	client_net.net_match_event(MatchNetScript.EVENT_STATE_CHANGED, [Match.State.END])
+	client_net.net_match_event(MatchWireEvents.STATE_CHANGED, [Match.State.END])
 
 	assert_null(Match.registry().block_for_net_id(31), "a spawn broadcast before the replay is not applied")
 	assert_signal_not_emitted(Events, "match_state_changed", "nor is a state change")
