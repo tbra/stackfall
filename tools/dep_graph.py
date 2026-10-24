@@ -93,7 +93,7 @@ CALLISH = ("call", "callable", "connect", "rpc", "has_method", "deferred", "grou
 # literals, output dirs, and optional per-machine config files.
 NEGATIVE_NAME_RE = re.compile(r"__missing|missing_|no_such|does_not_exist|nonexistent|not_a_real", re.I)
 GUARDED_LINE_RE = re.compile(
-    r"file_exists|dir_exists|ResourceLoader\s*\.\s*exists|make_dir|save_png|\.save\s*\(|OUTPUT|remove")
+    r"file_exists|dir_exists|ResourceLoader\s*\.\s*exists|make_dir|save_png|\.save\s*\(|OUTPUT|\bremove\b")
 # Engine value types: a variable declared with one of these can never hold a project class, so
 # `x.name()` on it must not fall back to a same-named project function (pattern 7).
 VALUE_TYPES = frozenset([
