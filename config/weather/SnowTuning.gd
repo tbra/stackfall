@@ -253,7 +253,6 @@ const MAX_STOP: float = 0.99
 @export var cover_tone_shade_color: Color = Color(0.6, 0.63, 0.82, 1.0)
 ## Ambient (sky) light kept on disc snow, as a fraction of the disc's own.
 @export_range(0.0, 1.0, 0.01) var cover_ambient_factor: float = 0.6
-@export var snow_mid_color: Color = Color(0.8, 0.82, 0.93, 1.0)
 @export var snow_shade_color: Color = Color(0.55, 0.58, 0.82, 1.0)
 @export var snow_rim_color: Color = Color(0.8, 0.9, 1.0, 1.0)
 @export_range(0.0, 2.0, 0.01) var snow_rim_strength: float = 0.2

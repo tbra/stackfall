@@ -34,11 +34,12 @@ func test_locked_sky_is_never_written_after_its_first_frame() -> void:
 func test_quality_sky_is_never_ticked() -> void:
 	var skybox: Skybox = _make_skybox(false)
 	var material: ShaderMaterial = ShaderMaterial.new()
+	material.set_shader_parameter(SENTINEL_UNIFORM, SENTINEL)
 	skybox.environment.sky.sky_material = material
 	skybox.environment.sky.process_mode = Sky.PROCESS_MODE_QUALITY
 	for i: int in 20:
 		skybox._process(1.0)
-	assert_null(material.get_shader_parameter(&"radiance_tick"))
+	assert_eq(material.get_shader_parameter(SENTINEL_UNIFORM), SENTINEL, "a quality-mode sky is never written")
 
 
 func test_cycle_writes_sun_only_at_cadence() -> void:

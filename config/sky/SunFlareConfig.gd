@@ -83,10 +83,8 @@ extends Resource
 @export_group("Occlusion")
 ## The disc collider is a single-sided trimesh (game/field/Field.gd: faces only up and out of the
 ## rim), so the one camera-to-sun ray of game/sky/SunFlare.gd passes unhit through the disc seen
-## from below or edge-on. With this on, a second ray from the sun back to the camera is cast
-## too (it meets the faces from outside) and either hit hides the flare. Off uses only the
-## forward ray.
-@export var reverse_ray_enabled: bool = true
+## from below or edge-on, so a second ray from the sun back to the camera is cast too (it meets
+## the faces from outside) and either hit hides the flare.
 ## How far from the camera (m, along the sun direction) the reverse ray starts: past the arena and the
 ## whole play volume, but short enough that a long float-precision ray does not leak between the disc
 ## quads. Never longer than the forward ray.

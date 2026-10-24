@@ -2,15 +2,15 @@
  "allow": [
   {
    "entry": "config/audio/AudioConfig.gd:claim_tension_enabled",
-   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+   "reason": "Deliberate kill switch for the beacon-claim tension layer, read by the Sfx autoload; a designer turns the layer off in audio_config.tres without a code edit."
   },
   {
    "entry": "config/audio/AudioConfig.gd:contextual_music_enabled",
-   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+   "reason": "Deliberate mode switch read by the Sfx autoload: false selects the single-stream bundled theme and the legacy disk stems, which the audio tests drive."
   },
   {
    "entry": "config/audio/AudioConfig.gd:impacts_enabled",
-   "reason": "Kill switch read by the Sfx autoload; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+   "reason": "Deliberate performance kill switch for impact-thud detection (see its AudioConfig doc comment), pushed to BlockBody.impacts_enabled by the Sfx autoload."
   },
   {
    "entry": "config/blocks/tuning/BlockEffectsConfig.gd:puff_enabled",
@@ -33,14 +33,6 @@
    "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
   },
   {
-   "entry": "config/gifts/GiftModelTable.gd:toon_enabled",
-   "reason": "Kill switch read by GiftModelTable when it builds a model; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
-  },
-  {
-   "entry": "config/gifts/specials/fx/GiftExplosionFxTuning.gd:dust_enabled",
-   "reason": "Kill switch read by the gift explosion effect; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
-  },
-  {
    "entry": "config/graphics/GraphicsPreset.gd:vsync_enabled",
    "reason": "Player setting in the graphics tab of the settings menu; every shipped preset enables it and the player flips it at runtime."
   },
@@ -50,7 +42,7 @@
   },
   {
    "entry": "config/match/DebugConfig.gd:log_enabled",
-   "reason": "Kill switch read by PerfLogger; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
+   "reason": "Deliberate kill switch for the PerfLogger session log (disk writes); set it off in the DebugConfig resource without a code edit."
   },
   {
    "entry": "config/match/MatchConfig.gd:experiments_enabled",
@@ -95,10 +87,6 @@
   {
    "entry": "config/sky/SkyCycleDef.gd:variation_enabled",
    "reason": "Switch in the F4 tuning panel; the shipped resource keeps the default and the panel flips it at runtime."
-  },
-  {
-   "entry": "config/sky/SunFlareConfig.gd:reverse_ray_enabled",
-   "reason": "Kill switch read by SunFlare; no shipped resource turns it off and nothing flips it at runtime, so it is a removal candidate."
   },
   {
    "entry": "config/territory/BeaconVisualTuning.gd:timer_enabled",

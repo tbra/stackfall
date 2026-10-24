@@ -53,7 +53,6 @@ extends Resource
 @export var ready_prompt_glyph_count: int = 1
 
 @export var ready_prompt_font_size: int = 20
-@export var ready_row_font_size: int = 18
 
 ## Opacity of the prompt once the local player has pressed it (it stays visible but
 ## disabled while the others catch up).

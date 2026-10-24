@@ -12,9 +12,6 @@ extends Resource
 
 # --- Dust flipbook layer ---------------------------------
 
-## Draw the impact flipbook under the cartoon blast.
-@export var dust_enabled: bool = true
-
 ## Puff quad size as a multiple of the blast radius (the quad spans this many radii).
 @export var size_per_blast_radius: float = 0.7
 

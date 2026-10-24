@@ -7,14 +7,13 @@ shader_type sky;
 // GLOBAL uniform (project.godot [shader_globals]): game/sky/Skybox.gd writes it each frame
 // into the shared global buffer, which neither flag sees, so the visible background
 // animates smoothly while the radiance only re-renders at SkyRadianceConfig.radiance_hz
-// (a `radiance_tick` write + the cycle's palette/sun writes).
+// (the cycle's palette/sun writes).
 global uniform float sky_time;
 // per-frame disc directions (game/sky/Skybox.gd); a global write does not dirty
 // the material, so the discs move smoothly while the material (light, palette) steps.
 global uniform vec3 sky_sun_dir;
 global uniform vec3 sky_moon_dir;
 uniform float use_global_dirs = 0.0;
-uniform float radiance_tick = 0.0;
 
 
 uniform float exposure = 0.8;

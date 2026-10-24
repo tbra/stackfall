@@ -6,7 +6,6 @@
 [resource]
 shader = ExtResource("1_a8qjg")
 shader_parameter/use_global_dirs = null
-shader_parameter/radiance_tick = null
 shader_parameter/exposure = 0.8
 shader_parameter/sun_direction = Vector3(0.963087, 0.069011, -0.260192)
 shader_parameter/cycle_night_mix = null

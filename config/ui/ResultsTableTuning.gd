@@ -19,12 +19,8 @@ extends Resource
 @export var marker_gap_px: int = 8
 ## Edge length of the diamond marker in a table row.
 @export var marker_size_px: float = 20.0
-## Font size of the results banner (Bungee).
-@export var banner_font_size_px: int = 48
 ## Font size of the mode kicker above the banner.
 @export var kicker_font_size_px: int = 16
-## Letter spacing of the kicker in px.
-@export var kicker_spacing_px: int = 2
 ## Font size of the mode score line under the banner.
 @export var outcome_font_size_px: int = 16
 ## Font size of Bungee numbers inside table rows.
