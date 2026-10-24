@@ -29,6 +29,13 @@ func bind_replica(replica: MatchReplicaPort) -> void:
 	_replica = replica
 
 
+## Interface stub of the MatchNet cut: replaces bind_replica and the _net reach-in. Nothing calls
+## it yet.
+@warning_ignore("unused_parameter")
+func bind(session: SessionPort, host: MatchHostPort, replica: MatchReplicaPort, config: NetConfig, gifts: GiftWireGuard) -> void:
+	push_error("MatchEventApplier.bind: not implemented")
+
+
 ## Validates and applies one host-authored match event. False when the event is unknown, its
 ## arguments do not have the wire shape, or its handler refused the values.
 func apply_event(event: StringName, args: Array) -> bool:

@@ -657,6 +657,81 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/ClientReplayGate.gd",
+   "reason": "MatchNet cut stub: wired by MC-B"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/MatchReplication.gd",
+   "reason": "MatchNet cut stub: wired by MC-C"
+  },
+  {
+   "id": "dead-file",
+   "entry": "net/match/SlotCursors.gd",
+   "reason": "MatchNet cut stub: wired by MC-D"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/MatchEventApplier.gd:bind",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:bind",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:special_id_ok",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:begin_flight",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:land",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:note_spawn",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:remove",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/GiftWireGuard.gd:reset",
+   "reason": "MatchNet cut stub: wired by MC-A"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:pick_open_seat",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:seat_reclaimable",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/match/MatchWorldReplay.gd:is_match_live",
+   "reason": "MatchNet cut stub: wired by MC-E"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/ports/SessionPort.gd:roster",
+   "reason": "MatchNet cut stub: wired by MC-C"
   }
  ]
 }
