@@ -165,26 +165,40 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 	controller._ghost.set_shape(Match.held_shape(slot_id))
 	controller._update_ghost_transform()
 	var phys: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+	# Blocks are tracked by reference: one that tumbles off the field or fuses is
+	# freed and shifts the child indices, so get_child(i) is not stable.
+	var placed_blocks: Array[Block] = []
 	var placed_shapes: Array[BlockShape] = []
 	for i: int in range(10):
 		_advance_past_one_release_interval()
-		placed_shapes.append(controller._ghost.get_shape())
+		var shape: BlockShape = controller._ghost.get_shape()
+		var children_before: Array[Node] = _blocks_root.get_children()
 		controller._cursor = cursor
 		controller._update_ghost_transform()
 		controller._place_ghost_block()
+		var spawned: Block = null
+		for child: Node in _blocks_root.get_children():
+			if not children_before.has(child):
+				spawned = child as Block
+		assert_not_null(spawned, "drop %d: the placement must spawn a block." % i)
+		if spawned == null:
+			return
+		placed_blocks.append(spawned)
+		placed_shapes.append(shape)
 		await _resolve_pending_spawn_clearance(controller)
 		assert_false(controller._ghost_overlaps_a_placed_block(), "drop %d: fresh spawn must be clear." % i)
 		var rested_frames: int = 0
 		for _t: int in range(SETTLE_MAX_FRAMES):
 			await wait_physics_frames(1)
-			rested_frames = rested_frames + 1 if (_blocks_root.get_child(i) as Block).sleeping else 0
+			var rested: bool = not is_instance_valid(spawned) or spawned.sleeping
+			rested_frames = rested_frames + 1 if rested else 0
 			if rested_frames >= SETTLE_REST_FRAMES:
 				break
 			controller._update_ghost_transform()
 			controller._decay_clearance_raise(1.0 / 60.0)
 		var top_y: float = 0.0
-		for index: int in range(mini(_blocks_root.get_child_count(), placed_shapes.size())):
-			var body: Node3D = _blocks_root.get_child(index) as Node3D
+		for index: int in range(placed_blocks.size()):
+			var body: Node3D = placed_blocks[index] if is_instance_valid(placed_blocks[index]) else null
 			if body != null:
 				top_y = maxf(top_y, _shape_world_aabb(placed_shapes[index], body.global_transform).end.y)
 		var bottom_y: float = controller._ghost.global_position.y
