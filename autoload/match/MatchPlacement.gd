@@ -25,10 +25,6 @@ var _match: MatchAutoload = null
 var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 var _glue_drop_tuning: GlueDropTuning = preload("res://config/gifts/glue_drop_tuning.tres")
 var _ghost_tuning: GhostTuning = preload("res://config/blocks/tuning/ghost_tuning.tres")
-# DECISION: numeric guards, not gameplay tunables -- a floor so a zero/negative step cannot loop
-# forever, and float slack so the final step landing on the cap is still tried.
-const MIN_CLEARANCE_STEP: float = 0.001
-const CLEARANCE_CAP_EPSILON: float = 0.0001
 
 ## SpecialDef-by-id cache, rebuilt once per match. `_special_defs_config` is compared by identity
 ## against `_match.config`: start_match() replaces that field with a fresh duplicate every match, so
@@ -601,27 +597,14 @@ func _lift_pose_clear(shape: BlockShape, origin: Vector3, basis: Basis, auto_dro
 		return origin
 	if not _pose_overlaps(world.direct_space_state, shape, origin, basis, tuning, gift_id):
 		return origin
-	var step: float = maxf(tuning.spawn_clearance_step, MIN_CLEARANCE_STEP)
+	var space: PhysicsDirectSpaceState3D = world.direct_space_state
 	var cap: float = tuning.spawn_clearance_max_raise
-	var low: float = 0.0
-	var high: float = -1.0
-	var raise_try: float = step
-	while raise_try <= cap + CLEARANCE_CAP_EPSILON:
-		var r: float = minf(raise_try, cap)
-		if not _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * r, basis, tuning, gift_id):
-			high = r
-			break
-		low = raise_try
-		raise_try += step
-	if high < 0.0:
+	var raise: float = ClearanceRaise.first_clear_raise(
+			func(r: float) -> bool: return _pose_overlaps(space, shape, origin + Vector3.UP * r, basis, tuning, gift_id),
+			tuning.spawn_clearance_step, cap, tuning.spawn_clearance_bisect_steps, tuning.spawn_clearance)
+	if raise == ClearanceRaise.NOT_CLEARED:
 		return origin + Vector3.UP * cap if auto_drop else null
-	for _i: int in range(tuning.spawn_clearance_bisect_steps):
-		var mid: float = (low + high) * 0.5
-		if _pose_overlaps(world.direct_space_state, shape, origin + Vector3.UP * mid, basis, tuning, gift_id):
-			low = mid
-		else:
-			high = mid
-	return origin + Vector3.UP * minf(high + tuning.spawn_clearance, cap)
+	return origin + Vector3.UP * raise
 
 
 func _pose_overlaps(space: PhysicsDirectSpaceState3D, shape: BlockShape, origin: Vector3, basis: Basis, tuning: GhostTuning, gift_id: StringName = &"") -> bool:
