@@ -215,7 +215,7 @@ func seat_reclaimable(slot_id: int) -> bool:
 	return _host.disconnect_grace_left(slot_id) >= 0.0
 
 
-## EVENT_SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing held (eliminated, or
+## MatchWireEvents.SLOT_REPLAY's payload for `slot_id`, or [] for a slot with nothing held (eliminated, or
 ## between blocks).
 func slot_replay_args(slot_id: int) -> Array:
 	var held: BlockShape = _host.held_shape(slot_id)

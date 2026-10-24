@@ -11,7 +11,7 @@ extends Node
 ## validates the values the shape cannot (ranges, ids, ownership, match state) and then makes
 ## its writes through the typed MatchReplicaPort. Every handler answers whether it applied.
 
-## EVENT_SPECIAL_TRIGGERED's chain_depth wire bound (SpecialTuning.max_chain_depth): the config is
+## MatchWireEvents.SPECIAL_TRIGGERED's chain_depth wire bound (SpecialTuning.max_chain_depth): the config is
 ## architecture-fixed for the build, so it is preloaded rather than read from the running match.
 var _special_tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 ## The fade length a client reports with a replicated dissolve start (the shipped resource the
@@ -292,7 +292,7 @@ func _on_gift_claimed(args: Array) -> bool:
 	if not _gifts.remove(gift_id):
 		return false
 	if _host.gift_slot_enabled():
-		# The gift went to the slot (EVENT_GIFT_SLOT), not the block queue; only the crate
+		# The gift went to the slot (MatchWireEvents.GIFT_SLOT), not the block queue; only the crate
 		# visual is retired here.
 		_replica.apply_replicated_gift_expired(gift_id)
 	else:
@@ -420,7 +420,7 @@ func _on_slot_replay(args: Array) -> bool:
 
 
 ## The client's read model of the match timer is written directly; a client never ticks it.
-## Timed modes keep it current through EVENT_MODE_STATE.
+## Timed modes keep it current through MatchWireEvents.MODE_STATE.
 func _on_match_clock(args: Array) -> bool:
 	var clock: float = args[0]
 	if _session.is_host() or not is_finite(clock) or clock < 0.0:

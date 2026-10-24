@@ -263,7 +263,7 @@ func _on_body_entered(_body: Node3D) -> void:
 ## (host) and MatchEventApplier's MatchWireEvents.GIFT_CLAIMED dispatch (client) both call
 ## _free_crate_visual() — which queue_free()s the matching node — strictly
 ## before they emit Events.gift_claimed (see MatchGifts._claim_gift()'s own
-## call order and net/MatchNet.gd's _authority().apply_replicated_gift_claimed()
+## call order and net/MatchEventApplier.gd's apply_replicated_gift_claimed()
 ## / Events.gift_claimed.emit() pair), so this handler still reads a fully
 ## valid node: queue_free() only defers the actual deletion, it doesn't
 ## invalidate the node the same frame it's called.

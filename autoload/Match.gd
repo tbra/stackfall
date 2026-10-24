@@ -1125,7 +1125,7 @@ func apply_replicated_gift_landed(gift_id: int, landing: Vector3) -> void:
 	_gifts.apply_replicated_landing(gift_id, landing)
 
 
-## `special_id` is the third MatchWireEvents.GIFT_CLAIMED wire argument; net/MatchNet.gd's
+## `special_id` is the third MatchWireEvents.GIFT_CLAIMED wire argument; GiftWireGuard's
 ## wire check has already rejected a malformed one.
 func apply_replicated_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_ensure_active()

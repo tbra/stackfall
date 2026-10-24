@@ -19,8 +19,8 @@ extends Node
 ## additional phase after the placement phase above, proving
 ## MatchNet.submit_throw()/net_request_throw() over a real ENet transport --
 ## an accepted throw for slot THROW_SLOT_ID (clamped speed, continuous_cd,
-## pending count back to zero on both the host AND, since's
-## EVENT_SPECIAL_CONSUMED replication, the throwing client itself) and a
+## pending count back to zero on both the host AND, since
+## MatchWireEvents.SPECIAL_CONSUMED replication, the throwing client itself) and a
 ## refused one outside that slot's own territory. Off by default, so the
 ## existing placement-only regression's
 ## command line and behavior are unchanged. Reports a second, independent

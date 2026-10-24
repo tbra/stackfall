@@ -642,7 +642,7 @@ func show_gift_toast(special_id: StringName) -> void:
 
 # --- Events reactions --------------------------------------------------------
 
-## net/MatchNet.gd's EVENT_TURN_CHANGED handler substitutes this instance's local slot
+## net/MatchEventApplier.gd's MatchWireEvents.TURN_CHANGED handler substitutes this instance's local slot
 ## before re-emitting, so `slot_id` is the slot this HUD should read.
 func _on_turn_changed(slot_id: int) -> void:
 	set_local_slot(slot_id)

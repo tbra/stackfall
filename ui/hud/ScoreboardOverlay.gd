@@ -7,7 +7,7 @@ extends CanvasLayer
 ## release, focus loss, pause, a non-live state or a sandbox. It draws the same
 ## table as the results screen (ui/menus/ScoreTable.gd) from MatchStats.live_payload():
 ## the host's own counters, or on a client the snapshot the host replicates
-## (net/MatchNet.gd EVENT_LIVE_SCORES). Display only; no input is consumed.
+## (MatchWireEvents.LIVE_SCORES via net/MatchEventApplier.gd). Display only; no input is consumed.
 
 ## Above the HUD, below the pause menu / loading screen.
 const SCOREBOARD_LAYER: int = 20

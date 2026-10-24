@@ -2,10 +2,6 @@ extends Node
 ## Every gameplay RPC in the game (spec 2.6 "Client -> host intents" and the
 ## reliable channel's list), and nothing else.
 ##
-## Registered as the `MatchNet` autoload, so the RPC node path is
-## /root/MatchNet on every instance. **No `class_name`** — it would collide
-## with the singleton name.
-##
 ## The RPC membrane: every RPC stub lives here and forwards to a collaborator in net/match/.
 ## Registered as the `MatchNet` autoload, so the RPC node path is /root/MatchNet on every
 ## instance. **No `class_name`** -- it would collide with the singleton name. Match keeps every

@@ -126,7 +126,7 @@ func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3, p
 	_match.apply_replicated_cat_state(id, position, velocity, point, remaining)
 
 
-## The host ended cat `id` (EVENT_CAT_ENDED); Match ignores a stale id.
+## The host ended cat `id` (MatchWireEvents.CAT_ENDED); Match ignores a stale id.
 func end_cat(id: int) -> void:
 	_match.end_cat(id)
 
@@ -149,7 +149,7 @@ func apply_replicated_staged_gift(slot_id: int, shape_id: StringName) -> void:
 		feed.call(&"apply_replicated_staged_gift", slot_id, shape_id)
 
 
-## Writes the host's match clock into MatchLifecycle (EVENT_MATCH_CLOCK).
+## Writes the host's match clock into MatchLifecycle (MatchWireEvents.MATCH_CLOCK).
 ## No-op without a lifecycle.
 func apply_replicated_match_timer(seconds_left: float) -> void:
 	var lifecycle: Object = _collaborator(LIFECYCLE_PROPERTY)
