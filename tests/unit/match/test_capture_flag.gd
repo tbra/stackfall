@@ -196,7 +196,7 @@ func test_client_mirrors_host_scores_for_display_only() -> void:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
+	node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	var wire: Dictionary = {
 		"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [7.5, 2.0],

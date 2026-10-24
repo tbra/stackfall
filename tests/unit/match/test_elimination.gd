@@ -184,7 +184,7 @@ func test_reconnecting_keeps_the_eliminated_and_alive_state() -> void:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
+	node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	node.net_match_event(MatchNetScript.EVENT_MODE_STATE, [snapshot])
 	assert_false(Match.slot(1).home_flag_alive)
@@ -200,7 +200,7 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	var node: MatchNetScript = MatchNetScript.new()
 	node.set_process(false)
 	add_child_autofree(node)
-	node.bind_ports(SessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
+	node.bind_ports(FakeSessionPort.new(_fake_net), MatchHostPort.new(Match), MatchReplicaPort.new(Match))
 	_net = node
 	var wire: Dictionary = {
 		"mode_id": MatchConfig.GameMode.ELIMINATION, "scores": [1.0, 0.0, 1.0],
