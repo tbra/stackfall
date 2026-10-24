@@ -9,6 +9,8 @@ const CONNECT_TIMEOUT: float = 20.0
 const CAPTURE_PROGRESS: float = 0.5
 const HOST_FORCE_STEPS: int = 80
 const HOST_FORCE_STEP_S: float = 0.1
+## One _process delta longer than any send period, so the territory tick fires at once.
+const TERRITORY_TICK_S: float = 1.0
 const MODE_ARG: String = "--mode="
 
 var _match_net: Node
@@ -68,7 +70,7 @@ func _run_host() -> void:
 		# Ship the faked state in the same frame: the live solver rewrites the capture
 		# values and goal cells between frames, and the periodic territory tick could
 		# otherwise broadcast the solver's empty state instead of the fake.
-		(_match_net.call(&"_replication") as MatchReplication).send_territory()
+		_match_net.call(&"_process", TERRITORY_TICK_S)
 		if _i < HOST_FORCE_STEPS - 1:
 			await _wait(HOST_FORCE_STEP_S)
 	print("BTENET host mode=%s timer=%s chip=%s" % [
