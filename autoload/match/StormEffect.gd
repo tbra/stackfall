@@ -27,8 +27,6 @@ extends WindEffect
 var _elapsed: float = 0.0
 var _tick_index: int = 0
 var _seed: int = 0
-var last_dir: Vector2 = Vector2.ZERO
-var last_gust: float = 1.0
 
 
 func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
@@ -47,8 +45,6 @@ func tick(delta: float, intensity: float) -> void:
 	_tick_index += 1
 	var dir2: Vector2 = WindField.direction(_seed, _elapsed, wt)
 	var gust_mult: float = WindField.gust(_seed, _elapsed, wt)
-	last_dir = dir2
-	last_gust = gust_mult
 	var dir: Vector3 = Vector3(dir2.x, 0.0, dir2.y)
 	var surface: float = _surface_y()
 	var stride: int = maxi(wt.sleeper_stride_ticks, 1)

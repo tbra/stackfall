@@ -17,10 +17,6 @@ const GUST_MAX_ANGLE: float = TAU * 4.0
 
 ## Same gate as WeatherNet.awaiting_world (set by WeatherNet).
 var awaiting_world: Callable = Callable()
-var gusts_sent: int = 0
-var gusts_applied: int = 0
-var gusts_refused: int = 0
-var last_sent_gust: Dictionary = {}
 
 var _tuning: BreezeTuning = preload("res://config/breeze/breeze.tres")
 var _last_id: int = 0
@@ -43,8 +39,6 @@ func _on_gust_started(gust: Dictionary) -> void:
 	# On a client this fires for gusts this node re-emitted itself: never resend.
 	if not _session().is_host():
 		return
-	last_sent_gust = gust.duplicate()
-	gusts_sent += 1
 	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_breeze_gust", [gust])
 
@@ -52,17 +46,13 @@ func _on_gust_started(gust: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func net_breeze_gust(gust: Dictionary) -> void:
 	if _session().is_host():
-		gusts_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != MultiplayerPeer.TARGET_PEER_SERVER:
-		gusts_refused += 1
 		return
 	if awaiting_world.is_valid() and bool(awaiting_world.call()):
-		gusts_refused += 1
 		return
 	if not MatchAutoload.is_replicating(_authority().state()):
-		gusts_refused += 1
 		return
 	apply_gust(gust)
 
@@ -72,10 +62,8 @@ func net_breeze_gust(gust: Dictionary) -> void:
 func apply_gust(raw: Variant) -> bool:
 	var gust: Dictionary = sanitize_gust(raw, _tuning)
 	if gust.is_empty() or int(gust["id"]) <= _last_id:
-		gusts_refused += 1
 		return false
 	_last_id = int(gust["id"])
-	gusts_applied += 1
 	Events.breeze_gust_started.emit(gust)
 	return true
 
