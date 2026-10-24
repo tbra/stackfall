@@ -1473,7 +1473,8 @@ func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 ## jelly tint (HoneyCoatTuning.hud_jelly_tint) drawn over the block silhouette.
 const HONEY_TUNING_PATH: String = "res://config/gifts/honey_coat_tuning.tres"
 static var _honey_tuning: HoneyCoatTuning = null
-var _glue_active: bool = false
+## Read every draw; public so the HUD's owner and tests observe the same state the draw uses.
+var glue_overlay: GlueOverlayState = GlueOverlayState.new()
 
 
 ## leaving a match (lobby/end) drops the overlay at once and
@@ -1508,9 +1509,8 @@ func prime_pregame_widgets() -> void:
 
 
 func _set_glue_active(active: bool) -> void:
-	if active == _glue_active:
+	if not glue_overlay.set_active(active):
 		return
-	_glue_active = active
 	_shape_preview.queue_redraw()
 	_next_shape_preview.queue_redraw()
 
@@ -1639,7 +1639,7 @@ func _draw_static_shape(control: Control, shape: BlockShape, color: Color) -> vo
 	var draw_size: Vector2 = texture_size * scale
 	var image_rect: Rect2 = Rect2((control.size - draw_size) * 0.5, draw_size)
 	control.draw_texture_rect(texture, image_rect, false, color)
-	if _glue_active and gift_id == &"":
+	if glue_overlay.active and gift_id == &"":
 		if _honey_tuning == null:
 			_honey_tuning = load(HONEY_TUNING_PATH) as HoneyCoatTuning
 		# Jelly tint follows the silhouette exactly (same texture, amber modulate).

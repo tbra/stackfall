@@ -374,7 +374,6 @@ func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
 		hud.set_local_slot(0)
 		fake_match.glue_drops_by_slot[0] = 5
 		await wait_frames(1)
-		# BOUNDARY: the glue overlay is draw-only, so its state is read from the HUD (the file's single private read).
-		assert_true(hud._glue_active)
+		assert_true(hud.glue_overlay.active)
 		Events.match_state_changed.emit(Match.State.PLAYING, to_state)
-		assert_false(hud._glue_active)
+		assert_false(hud.glue_overlay.active)
