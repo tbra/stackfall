@@ -36,7 +36,6 @@ func bind(match_context: MatchContext, weather_tuning: WeatherTuning) -> void:
 
 
 func tick(delta: float, intensity: float) -> void:
-	last_pushed = 0
 	last_woken = 0
 	var wt: StormTuning = tuning as StormTuning
 	if wt == null or intensity <= 0.0 or not _is_host():
@@ -76,10 +75,8 @@ func tick(delta: float, intensity: float) -> void:
 		if block.linear_velocity.dot(dir) >= wt.max_speed_ms:
 			continue
 		block.apply_central_force(dir * accel * block.mass)
-		last_pushed += 1
 
 
 func restore() -> void:
 	_elapsed = 0.0
 	_tick_index = 0
-	last_pushed = 0

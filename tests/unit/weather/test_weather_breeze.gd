@@ -167,17 +167,25 @@ func test_frozen_blocks_and_clients_are_never_pushed() -> void:
 	var effect: BreezeEffect = _effect(_quiet_tuning())
 	effect.begin(SEED_A)
 	_inject_gust(effect, Vector3(0.0, HIGH_M, 0.6))
+	var control: Block = _block(Vector3(5.0, HIGH_M, 0.0))
+	_inject_gust(effect, Vector3(5.0, HIGH_M, 0.6))
 	effect.tick(DELTA)
-	assert_eq(effect.last_pushed, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_gt(control.linear_velocity.length(), 0.0, "fixture: the gust pushes an unfrozen block")
+	assert_eq(frozen.linear_velocity.length(), 0.0, "a frozen block is not pushed")
 	var client: BreezeEffect = BreezeEffect.new()
 	client.tuning = _quiet_tuning()
 	var client_context: FakeMatchContext = WeatherTestHost.wind_context(self, func() -> Array: return _blocks, func() -> float: return 0.0)
 	client_context.has_authority_value = false
 	client.bind(client_context)
 	client.begin(SEED_A)
-	_inject_gust(client, Vector3(0.0, HIGH_M, 0.6))
+	_inject_gust(client, Vector3(5.0, HIGH_M, 0.6))
+	control.linear_velocity = Vector3.ZERO
 	client.tick(DELTA)
-	assert_eq(client.last_pushed, 0, "no host authority, no push")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	assert_eq(control.linear_velocity.length(), 0.0, "no host authority, no push")
 	assert_eq(_gusts_seen.size(), 0, "and no spawn")
 
 

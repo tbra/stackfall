@@ -91,7 +91,6 @@ func stop() -> void:
 	_gusts.clear()
 	_spawn_left = 0.0
 	_tick_index = 0
-	last_pushed = 0
 
 
 func is_running() -> bool:
@@ -120,7 +119,6 @@ func gusts() -> Array[Dictionary]:
 
 
 func tick(delta: float, _intensity: float = 1.0) -> void:
-	last_pushed = 0
 	last_woken = 0
 	if not _running or not _enabled or not _is_host():
 		return
@@ -236,7 +234,6 @@ func _push(delta: float) -> void:
 			continue
 		accel = minf(accel, _bt.max_dv_per_tick / maxf(delta, 0.0001))
 		block.apply_central_force(dir * accel * block.mass)
-		last_pushed += 1
 
 
 func _active_weather_id() -> StringName:

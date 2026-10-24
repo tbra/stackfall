@@ -16,10 +16,7 @@ extends PortBoundNode
 ## presentation from it. There is no client -> host weather message at all:
 ## the RPC is `authority`-only, and a host that somehow receives one ignores it.
 
-## Counters for tests and the net debug overlay.
-var states_sent: int = 0
-var states_applied: int = 0
-var states_refused: int = 0
+## The last state this host sent.
 var last_sent_state: Dictionary = {}
 
 ## Set by MatchNet: true on a client that has not yet received its world
@@ -63,7 +60,6 @@ func _on_weather_state_changed(state: Dictionary) -> void:
 	if not _session().is_host():
 		return
 	last_sent_state = state.duplicate()
-	states_sent += 1
 	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_weather_state", [state])
 
@@ -81,7 +77,6 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 	var weather: MatchWeather = _authority().weather() as MatchWeather
 	if weather == null or not weather.is_running():
 		return
-	states_sent += 1
 	last_sent_state = weather.state_dict()
 	NetFanout.send_to(self, _session(), peer_id, &"net_weather_state", [last_sent_state])
 
@@ -92,24 +87,17 @@ func net_weather_state(state: Dictionary) -> void:
 	# checks below are the second line: never on the host, never from a peer
 	# other than the server.
 	if _session().is_host():
-		states_refused += 1
 		return
 	if _is_awaiting_world():
-		states_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != MultiplayerPeer.TARGET_PEER_SERVER:
-		states_refused += 1
 		return
 	var authority: MatchHostPort = _authority()
 	var weather: MatchWeather = authority.weather() as MatchWeather
 	if weather == null:
-		states_refused += 1
 		return
 	# A late packet from a finished match must not resurrect weather: only a
 	# started match (countdown onward, not END) accepts one.
 	var live: bool = MatchAutoload.is_replicating(authority.state())
-	if weather.apply_replicated_state(state, live):
-		states_applied += 1
-	else:
-		states_refused += 1
+	weather.apply_replicated_state(state, live)

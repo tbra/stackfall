@@ -16,9 +16,6 @@ extends PortBoundNode
 ## colliders: it never creates a snow collider and never decides anything.
 ## There is no client -> host message.
 
-var states_sent: int = 0
-var states_applied: int = 0
-var states_refused: int = 0
 var last_sent_state: Dictionary = {}
 
 var _tuning: SnowTuning = preload("res://config/weather/snow.tres") as SnowTuning
@@ -73,7 +70,6 @@ func _send(state: Dictionary) -> void:
 	_pending = {}
 	_since_send = 0.0
 	last_sent_state = state
-	states_sent += 1
 	if NetFanout.can_send(multiplayer, _session()):
 		NetFanout.broadcast(self, _session(), &"net_snow_state", [state])
 
@@ -86,21 +82,17 @@ func _on_net_peer_joined(peer_id: int, _slot_id: int, _player_name: String) -> v
 	var state: Dictionary = SnowRelay.instance().last_state
 	if SnowRelay.is_empty_state(state):
 		return
-	states_sent += 1
 	NetFanout.send_to(self, _session(), peer_id, &"net_snow_state", [state])
 
 
 @rpc("authority", "call_remote", "reliable")
 func net_snow_state(state: Dictionary) -> void:
 	if _session().is_host():
-		states_refused += 1
 		return
 	if awaiting_world.is_valid() and bool(awaiting_world.call()):
-		states_refused += 1
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != MultiplayerPeer.TARGET_PEER_SERVER:
-		states_refused += 1
 		return
 	apply_state(state)
 
@@ -112,21 +104,17 @@ func net_snow_state(state: Dictionary) -> void:
 ## no snow event is live (an empty state is always accepted: it clears).
 func apply_state(raw: Variant) -> bool:
 	if _session().is_host():
-		states_refused += 1
 		return false
 	var authority: MatchHostPort = _authority()
 	var field: Field = authority.field() as Field
 	var max_cell: int = field.grid().cell_count() - 1 if field != null else -1
 	var data: Dictionary = SnowGeometry.sanitize_state(raw, _tuning, max_cell)
 	if data.is_empty():
-		states_refused += 1
 		return false
 	var has_snow: bool = int(data["cover"]) > 0 or not (data["blocks"] as Dictionary).is_empty() or not (data["disc"] as Dictionary).is_empty()
 	if has_snow and not _snow_live(authority):
-		states_refused += 1
 		return false
 	_client_renderer().apply(data)
-	states_applied += 1
 	return true
 
 

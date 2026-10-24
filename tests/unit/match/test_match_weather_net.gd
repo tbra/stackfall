@@ -100,7 +100,7 @@ func _host_payload(seconds: float) -> Dictionary:
 	host_weather.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
 	_run(host_weather, seconds)
 	var payload: Dictionary = host_net.last_sent_state.duplicate(true)
-	assert_gt(host_net.states_sent, 0, "host announced its state")
+	assert_false(payload.is_empty(), "host announced its state")
 	host_net.free()
 	host_weather.reset()
 	_events.clear()
@@ -113,15 +113,13 @@ func test_host_sends_state_on_every_phase_change() -> void:
 	var w: MatchWeather = _weather(true)
 	var net: WeatherNet = _net_for(w, true)
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
-	assert_eq(net.states_sent, 1, "calm announced at match start")
 	assert_eq(int(net.last_sent_state["sched"]), MatchWeather.Sched.CALM)
 	assert_almost_eq(float(net.last_sent_state["left"]), 1.0, 0.001, "calm carries remaining time for the cue")
 	_run(w, 2.0)
 	assert_eq(int(net.last_sent_state["sched"]), MatchWeather.Sched.EVENT)
 	assert_ne(String(net.last_sent_state["id"]), "")
-	var sent_at_event: int = net.states_sent
+	assert_ne(int(net.last_sent_state["phase"]), WeatherTuning.Phase.HOLD, "fixture: still ramping in")
 	_run(w, 4.0)
-	assert_gt(net.states_sent, sent_at_event, "ramp-in to hold announced")
 	assert_eq(int(net.last_sent_state["phase"]), WeatherTuning.Phase.HOLD)
 
 
@@ -130,10 +128,10 @@ func test_a_joining_peer_is_handed_the_current_state() -> void:
 	var net: WeatherNet = _net_for(w, true)
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
 	_run(w, 6.0)
-	var before: int = net.states_sent
+	_run(w, 1.0)
+	assert_ne(net.last_sent_state, w.state_dict(), "fixture: the clock moved on since the last phase announcement")
 	Events.net_peer_joined.emit(2, 1, "late")
-	assert_eq(net.states_sent, before + 1)
-	assert_eq(net.last_sent_state, w.state_dict())
+	assert_eq(net.last_sent_state, w.state_dict(), "the joiner is handed the state as it is now")
 	assert_eq(int(net.last_sent_state["sched"]), MatchWeather.Sched.EVENT)
 
 
@@ -144,7 +142,6 @@ func test_client_reproduces_the_hosts_event_from_the_payload() -> void:
 	var client_weather: MatchWeather = _weather(false)
 	var client_net: WeatherNet = _net_for(client_weather, false)
 	client_net.net_weather_state(payload)
-	assert_eq(client_net.states_applied, 1)
 	assert_eq(String(client_weather.active_id()), String(payload["id"]))
 	assert_eq(_events.size(), 1)
 	assert_eq(_events[0][0], "start")
@@ -213,13 +210,11 @@ func test_malformed_state_is_rejected_and_changes_nothing() -> void:
 	var cases: Dictionary = _hostile_cases(valid)
 	for label: String in cases.keys():
 		client_net.net_weather_state(cases[label] as Dictionary)
-		assert_eq(client_net.states_applied, 0, label)
 		assert_eq(client_weather.active_id(), &"", label)
 		assert_false(client_weather.is_running(), label)
-	assert_eq(client_net.states_refused, cases.size())
 	assert_eq(_events.size(), 0, "no presentation signal from garbage")
 	client_net.net_weather_state(valid)
-	assert_eq(client_net.states_applied, 1, "the untouched payload is still accepted")
+	assert_eq(String(client_weather.active_id()), String(valid["id"]), "the untouched payload is still accepted")
 
 
 func test_a_stale_epoch_is_ignored() -> void:
@@ -229,10 +224,9 @@ func test_a_stale_epoch_is_ignored() -> void:
 	var newer: Dictionary = valid.duplicate()
 	newer["epoch"] = int(valid["epoch"]) + 1
 	client_net.net_weather_state(newer)
-	assert_eq(client_net.states_applied, 1)
+	assert_eq(int(client_weather.state_dict()["epoch"]), int(newer["epoch"]), "the newer epoch is adopted")
 	client_net.net_weather_state(valid)
-	assert_eq(client_net.states_applied, 1, "an older match's late packet is dropped")
-	assert_eq(client_net.states_refused, 1)
+	assert_eq(int(client_weather.state_dict()["epoch"]), int(newer["epoch"]), "an older match's late packet is dropped")
 
 
 # --- Typed binding -----------------------------------------------------------------------
@@ -245,7 +239,7 @@ func test_bind_refuses_invalid_ports_and_keeps_the_previous_binding() -> void:
 	assert_false(broken.is_valid())
 	assert_false(node.bind(FakeSessionPort.new(FakeNet.host()), broken))
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
-	assert_eq(node.states_sent, 1, "the earlier binding still answers")
+	assert_eq(int(node.last_sent_state["sched"]), MatchWeather.Sched.CALM, "the earlier binding still answers")
 
 
 func test_weather_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> void:
@@ -256,7 +250,7 @@ func test_weather_net_is_a_port_bound_node_and_rebinding_swaps_the_session() -> 
 	stub.weather_ref = w
 	assert_true(node.bind(FakeSessionPort.new(FakeNet.client(0)), stub))
 	w.begin_match(_config(MatchConfig.WeatherMode.CHANGING))
-	assert_eq(node.states_sent, 0, "rebound as a client: the host announcement is gone")
+	assert_true(node.last_sent_state.is_empty(), "rebound as a client: the host announcement is gone")
 
 
 func test_an_unbound_weather_net_reads_the_real_net() -> void:
@@ -264,8 +258,8 @@ func test_an_unbound_weather_net_reads_the_real_net() -> void:
 	var node: WeatherNet = WeatherNet.new()
 	add_child(node)
 	_nodes.append(node)
-	node.net_weather_state({})
-	assert_eq(node.states_refused, 1, "no bind: the host check goes to the real Net")
+	node.net_weather_state(_host_payload(6.0))
+	assert_eq(_events.size(), 0, "no bind: the host check goes to the real Net, which is its own host and applies nothing")
 
 
 # --- Presentation -----------------------------------------------------------------------
