@@ -579,5 +579,81 @@ class FalsePositiveFixesTest(unittest.TestCase):
         self.assertIn("main.gd", g["files"])
 
 
+FIXTURE_RECV = {
+    "project.godot": '[application]\nrun/main_scene="res://Caller.gd"\n[autoload]\nSvc="*res://Svc.gd"\n',
+    "Foo.gd": "class_name Foo\nextends RefCounted\n\nfunc go() -> int:\n\treturn 1\n",
+    "Sub.gd": "class_name Sub\nextends Foo\n\nfunc extra() -> int:\n\treturn 1\n",
+    "Other.gd": "class_name Other\nextends RefCounted\n\nfunc extra() -> int:\n\treturn 2\n",
+    "Bar.gd": "class_name Bar\nextends RefCounted\n\nfunc go() -> int:\n\treturn 2\n",
+    "Svc.gd": "extends Node\n\nfunc go() -> int:\n\treturn 3\n",
+    "Holder.gd": "class_name Holder\nextends RefCounted\n\nvar foo: Foo = null\n",
+    "Caller.gd": (
+        "class_name Caller\nextends Node\n\n"
+        "var _m: Foo = null\nvar _holder: Holder = null\n\n"
+        "func go() -> int:\n\treturn 0\n\n"
+        "func make() -> Foo:\n\treturn Foo.new()\n\n"
+        "func member() -> void:\n\t_m.go()\n\n"
+        "func param(p: Bar) -> void:\n\tp.go()\n\n"
+        "func local() -> void:\n\tvar l: Bar = Bar.new()\n\tl.go()\n\n"
+        "func returned() -> void:\n\tmake().go()\n\n"
+        "func bare() -> void:\n\tgo()\n\tself.go()\n\n"
+        "func autoload() -> void:\n\tSvc.go()\n\n"
+        "func constructed() -> void:\n\tBar.new().go()\n\n"
+        "func chained() -> void:\n\t_holder.foo.go()\n\n"
+        "func casted(x) -> void:\n\t(x as Bar).go()\n\n"
+        "func downcast() -> void:\n\tvar f: Foo = Sub.new()\n\tf.extra()\n\n"
+        "func variant(v: Variant) -> void:\n\tv.go()\n\n"
+        "func shadowed() -> void:\n\tvar _m = null\n\t_m.go()\n"
+    ),
+}
+
+
+class ReceiverTypeTest(unittest.TestCase):
+    """A receiver with a static type resolves before the name fallback; an untyped one stays ambiguous."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="depgraph_recv_")
+        for rel, body in FIXTURE_RECV.items():
+            with open(os.path.join(cls.tmp, rel), "w") as fh:
+                fh.write(body)
+        cls.g = dep_graph.build_graph(cls.tmp)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def targets(self, caller):
+        return sorted((e["dst"], e["kind"], e["amb"]) for e in self.g["call_edges"]
+                      if e["src"] == "Caller.gd:" + caller and e["dst"] != "Caller.gd:make")
+
+    def only(self, caller, dst, kind):
+        self.assertEqual(self.targets(caller), [(dst, kind, False)])
+
+    def test_typed_member_param_local_and_return(self):
+        self.only("member", "Foo.gd:go", "typed")
+        self.only("param", "Bar.gd:go", "typed")
+        self.only("local", "Bar.gd:go", "typed")
+        self.only("returned", "Foo.gd:go", "typed")
+
+    def test_self_bare_autoload_and_class_calls(self):
+        self.assertEqual(self.targets("bare"), [("Caller.gd:go", "self", False)])
+        self.only("autoload", "Svc.gd:go", "autoload")
+        self.only("constructed", "Bar.gd:go", "typed")
+
+    def test_member_chain_and_cast(self):
+        self.only("chained", "Foo.gd:go", "typed")
+        self.only("casted", "Bar.gd:go", "typed")
+
+    def test_base_typed_receiver_reaches_the_subclass_method_only(self):
+        self.only("downcast", "Sub.gd:extra", "typed")
+
+    def test_variant_receiver_and_untyped_shadow_stay_ambiguous(self):
+        want = [("Bar.gd:go", "ambiguous", True), ("Caller.gd:go", "ambiguous", True),
+                ("Foo.gd:go", "ambiguous", True), ("Svc.gd:go", "ambiguous", True)]
+        self.assertEqual(self.targets("variant"), want)
+        self.assertEqual(self.targets("shadowed"), want)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,8 +49,6 @@
    "game/debug/DebugMode.gd:clear_override_for_test",
    "game/debug/DebugMode.gd:set_override_for_test",
    "game/player/CameraRig.gd:get_pitch",
-   "game/weather/SnowClientRenderer.gd:apply",
-   "game/weather/SnowClientRenderer.gd:clear",
    "net/MatchNet.gd:request_replay",
    "net/MatchNet.gd:request_return_to_lobby",
    "net/MatchNet.gd:submit_cat_target",
@@ -420,11 +418,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/weather/SnowRelay.gd:publish",
-   "reason": "SnowEffect.gd:713 SnowRelay.instance().publish (SnowEffect via effect_script)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "config/weather/SnowTuning.gd:melt_cap_after",
    "reason": "SnowEffect.gd:288 (SnowEffect via effect_script)"
   },
@@ -437,21 +430,6 @@
    "id": "test-only-func",
    "entry": "core/ai/BotModeGoal.gd:next_goal_index",
    "reason": "MatchTerritory.gd:423 in bot_mode_goal"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ReachSkyObjective.gd:_team_value",
-   "reason": "ReachSkyObjective.gd:100 in record_height"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ReachSkyObjective.gd:record_height",
-   "reason": "MatchTerritory.gd:445 (_objective as ReachSkyObjective).record_height"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/TeamAssigner.gd:team_count",
-   "reason": "TeamAssigner.gd:122 in blocker (LobbySeats.gd:423/457)"
   },
   {
    "id": "test-only-func",
@@ -550,51 +528,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_add_dust",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_build_debris",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_build_flash",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_build_puffs",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_make_mesh",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_make_puff_material",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_unit_box",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:_unit_sphere",
-   "reason": "CartoonBlast.gd setup chain (setup live via GiftFxPresenter.gd:114)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:setup",
-   "reason": "GiftFxPresenter.gd:114 effect.setup(...)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
@@ -612,26 +545,6 @@
    "id": "test-only-func",
    "entry": "game/sky/Skybox.gd:start_cycle",
    "reason": "game/debug/AgentProbe.gd:235,244 skybox.call(&start_cycle) (string call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "ui/components/UiTab.gd:setup",
-   "reason": "UiTabs.gd:47 UiTab.new().setup(...)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "ui/menus/KeyRebindRow.gd:_display_name",
-   "reason": "KeyRebindRow.gd:207 in setup (OptionsMenu.gd:937)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "ui/menus/KeyRebindRow.gd:refresh",
-   "reason": "OptionsMenu.gd:888 row.refresh()"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "ui/menus/KeyRebindRow.gd:setup",
-   "reason": "OptionsMenu.gd:937 row.setup(action)"
   },
   {
    "id": "test-only-func",

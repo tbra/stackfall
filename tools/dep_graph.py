@@ -128,6 +128,10 @@ ALIAS_RE = re.compile(
     re.M)
 TYPED_RE = re.compile(r"\b([a-z_]\w*)\s*:\s*([A-Z]\w*)\b(?!\s*\[)")
 TYPED_NEW_RE = re.compile(r"\b([a-z_]\w*)\s*:?=\s*([A-Z]\w*)\s*\.\s*new\s*\(")
+TYPED_CALL_RE = re.compile(r"\b([a-z_]\w*)\s*:=\s*([a-z_]\w*)\s*\(")
+VAR_RE = re.compile(r"\bvar\s+([a-z_]\w*)")
+RET_RE = re.compile(r"\)\s*->\s*([A-Z]\w*)\s*:")
+CAST_RE = re.compile(r"\bas\s+([A-Z]\w*)\s*$")
 TSCN_CONN_RE = re.compile(
     r'^\[connection\s+signal="([^"]+)"\s+from="([^"]*)"\s+to="([^"]*)"\s+method="([^"]+)"', re.M)
 EXT_RES_RE = re.compile(r"^\[ext_resource\b([^\]]*)\]", re.M)
@@ -842,8 +846,172 @@ class Builder(object):
             return self.classes[name]
         return None
 
-    def resolve_member(self, rel, d, recv, name, caller_cls, typed):
-        """Return (list of dst ids, kind, ambiguous)."""
+    def decl_types(self, d, rel, lo, hi):
+        """name -> declared type name (None: declared but untyped or conflicting) for lines lo..hi."""
+        found = {}
+        declared = []
+
+        def put(var, cls):
+            found[var] = cls if found.get(var, cls) == cls else None
+        lines = d["lines"]
+        for ln in range(lo, hi + 1):
+            line = lines[ln - 1]
+            for m in VAR_RE.finditer(line):
+                declared.append(m.group(1))
+            for m in TYPED_RE.finditer(line):
+                put(m.group(1), m.group(2))
+            for m in TYPED_NEW_RE.finditer(line):
+                put(m.group(1), m.group(2))
+            for m in TYPED_CALL_RE.finditer(line):
+                ret = self.return_type(rel, m.group(2))
+                if ret:
+                    put(m.group(1), ret[1])
+        for var in declared:
+            found.setdefault(var, None)
+        return found
+
+    def return_type(self, rel, name):
+        """(file, type name) for the declared `-> Type` of top-level func name in rel's chain."""
+        for c in self.chain(rel):
+            t = self.script[c]["rets"].get(name) if c in self.script else None
+            if t:
+                return c, t
+        return None
+
+    def member_type(self, rel, name):
+        for c in self.chain(rel):
+            if c in self.script and name in self.script[c]["members"]:
+                return c, self.script[c]["members"][name]
+        return None
+
+    def type_target(self, rel, cls):
+        """(file, inner class or None) a type name denotes in rel's script, or None (engine/Variant types)."""
+        d = self.script.get(rel)
+        if d is None or not cls:
+            return None
+        if cls in d["inner"]:
+            return rel, cls
+        if cls in d["aliases"]:
+            tgt = d["aliases"][cls]
+            return (tgt, None) if tgt in self.files and tgt.endswith(".gd") else None
+        if cls in self.classes:
+            return self.classes[cls], None
+        return None
+
+    def func_scope(self, rel, d, oi):
+        if oi is None:
+            return {}
+        cache = d.setdefault("scopes", {})
+        if oi not in cache:
+            f = d["funcs"][oi]
+            cache[oi] = self.decl_types(d, rel, f["line"], f["end"])
+        return cache[oi]
+
+    def receiver_chain(self, text):
+        """Split the expression ending text (the part before `.name(`) into [(ident, is_call, is_index)],
+        left to right, or None when it is not a plain member chain. A `(x as Foo)` group is ("as Foo", ...)."""
+        segs = []
+        i = len(text)
+        while True:
+            call = index = False
+            inner = ""
+            if i > 0 and text[i - 1] in ")]":
+                call, index = text[i - 1] == ")", text[i - 1] == "]"
+                depth = 0
+                j = i - 1
+                while j >= 0:
+                    depth += 1 if text[j] in ")]" else -1 if text[j] in "([" else 0
+                    if depth == 0:
+                        break
+                    j -= 1
+                if j < 0:
+                    return None
+                inner = text[j + 1:i - 1]
+                i = j
+            m = re.search(r"([A-Za-z_]\w*)\s*$", text[:i])
+            if not m:
+                cm = CAST_RE.search(inner) if call else None
+                if not cm:
+                    return None
+                segs.append(("as " + cm.group(1), False, False))
+                break
+            if m.start() > 0 and text[m.start() - 1] in "$%&^@":
+                return None
+            segs.append((m.group(1), call, index))
+            i = m.start()
+            while i > 0 and text[i - 1] == " ":
+                i -= 1
+            if i > 0 and text[i - 1] == ".":
+                i -= 1
+                while i > 0 and text[i - 1] == " ":
+                    i -= 1
+                continue
+            break
+        segs.reverse()
+        return segs
+
+    def resolve_receiver(self, rel, d, text, oi):
+        """Walk a receiver chain through static types: (file, inner, kind) or None when any step is untyped."""
+        segs = self.receiver_chain(text)
+        if not segs:
+            return None
+        name, call, index = segs[0]
+        scope = self.func_scope(rel, d, oi)
+        kind = "typed"
+        if name.startswith("as "):
+            cur = self.type_target(rel, name[3:])
+        elif call:
+            ret = self.return_type(rel, name)
+            cur = self.type_target(*ret) if ret else None
+        elif name == "self":
+            cur, kind = (rel, None), "self"
+        elif name in scope:
+            cur = self.type_target(rel, scope[name])
+        elif self.member_type(rel, name) is not None:
+            owner, t = self.member_type(rel, name)
+            cur = self.type_target(owner, t)
+        else:
+            cur = None
+        static = False
+        if cur is None and not call and name not in scope and not name.startswith("as "):
+            tgt = self.target_file_of_name(rel, d, name)
+            if tgt:
+                cur, static = (tgt, None), True
+                kind = "autoload" if name in self.autoloads else "class"
+            elif name in d["inner"]:
+                cur, static, kind = (rel, name), True, "class"
+        if index:
+            cur = None
+        for name, call, index in segs[1:]:
+            if cur is None:
+                return None
+            f, inner = cur
+            if index:
+                return None
+            if call and name == "new" and static:
+                cur, static, kind = cur, False, "typed"
+            elif inner is not None:
+                return None
+            elif call:
+                ret = self.return_type(f, name)
+                cur, static, kind = (self.type_target(*ret) if ret else None), False, "typed"
+            else:
+                mt = self.member_type(f, name)
+                cur, static, kind = (self.type_target(*mt) if mt else None), False, "typed"
+        return (cur[0], cur[1], kind) if cur else None
+
+    def resolve_member(self, rel, d, recv, name, caller_cls, typed, hit=None):
+        """Return (list of dst ids, kind, ambiguous). hit: the receiver's statically resolved type."""
+        if hit:
+            f, inner, kind = hit
+            if inner is not None:
+                return [i for i in self.file_funcs.get(f, {}).get(name, [])
+                        if self.funcs[i]["cls"].split(".")[-1:] == [inner]], kind, False
+            ids = self.lookup(f, name)
+            if not ids:
+                # A base-typed receiver may call a subclass-only method (a dynamic call at runtime).
+                ids = [i for c in self.script if f in self.chain(c) for i in self.file_funcs.get(c, {}).get(name, [])]
+            return ids, kind, False
         if recv == "self":
             ids = self.lookup(rel, name)
             return ids, "self", False
@@ -890,7 +1058,31 @@ class Builder(object):
             return cands, "ambiguous", True
         return [], "none", False
 
+    def collect_types(self):
+        """Per script: declared return types of top-level funcs and typed member vars (class-level lines)."""
+        for rel, d in self.script.items():
+            d["rets"] = {}
+            for f in d["funcs"]:
+                if f["cls"]:
+                    continue
+                for ln in range(f["line"], f["end"] + 1):
+                    text = d["lines"][ln - 1]
+                    m = RET_RE.search(text)
+                    if m:
+                        d["rets"][f["name"]] = m.group(1)
+                    if m or text.rstrip().endswith(":"):
+                        break
+        for rel, d in self.script.items():
+            outside = [ln for ln in range(1, len(d["lines"]) + 1)
+                       if ln >= len(d["owner"]) or d["owner"][ln] is None]
+            members = {}
+            for ln in outside:
+                for name, cls in self.decl_types(d, rel, ln, ln).items():
+                    members[name] = cls if members.get(name, cls) == cls else None
+            d["members"] = members
+
     def analyze_calls(self):
+        self.collect_types()
         func_name_set = set(self.funcs_by_name)
         signal_names = set(self.signals)
         for rel, d in self.script.items():
@@ -923,7 +1115,13 @@ class Builder(object):
                             continue
                         if name not in func_name_set and recv not in ("super",):
                             continue
-                        ids, kind, amb = self.resolve_member(rel, d, recv, name, caller_cls, typed)
+                        hit = self.resolve_receiver(rel, d, prefix[:-1], oi)
+                        # A bare local/param without a usable type hides the file-wide typed name.
+                        shadowed = (prefix[:-1].rstrip().endswith((")", "]")) or
+                                    (recv in self.func_scope(rel, d, oi)
+                                     and re.search(r"\.\s*[A-Za-z_]\w*$", prefix[:-1].rstrip()) is None))
+                        ids, kind, amb = self.resolve_member(rel, d, recv, name, caller_cls,
+                                                             {} if shadowed else typed, hit)
                         for i in ids:
                             self.add_ce(src, i, kind, ln, amb)
                     else:
