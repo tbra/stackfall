@@ -1,0 +1,159 @@
+{
+  "placement_centre": {
+    "area": "core/ rules",
+    "base": "f1c913d7e293c4f01198640c5a6e844088709fbf",
+    "accepted": "fc518e917be6adc9f023905eeb1c31dd11783992",
+    "brief": "briefs/placement_centre.md",
+    "hidden": [
+      "tests/unit/match/test_placement_point.gd",
+      "tests/unit/match/test_placement_point.gd.uid",
+      "tests/unit/match/test_placement_centre.gd",
+      "tests/unit/match/test_placement_centre.gd.uid"
+    ],
+    "regression": [
+      "test_placement_rules",
+      "test_placement_refusal",
+      "test_throw_rules",
+      "test_rule_scenarios",
+      "test_match_flow",
+      "test_sandbox_placement"
+    ],
+    "interface_lines": [
+      "class_name PlacementPoint in core/rules/PlacementPoint.gd",
+      "static func centre_offset(shape: BlockShape, basis: Basis, cube_size: float) -> Vector3",
+      "static func legality_point(pivot: Vector3, shape: BlockShape, basis: Basis, cube_size: float) -> Vector3"
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "bot_legality_centre": {
+    "area": "core/ai bugfix, follows placement_centre",
+    "base": "882f70623e49b1b20ae5d9469ef533da40ac5ca9",
+    "accepted": "22dc1912aec4a3a2720c54a341c23083a576f06a",
+    "brief": "briefs/bot_legality_centre.md",
+    "hidden": [
+      "tests/unit/bots/test_bot_candidate_gen.gd"
+    ],
+    "regression": [
+      "test_bot_think",
+      "test_bot_sound_base",
+      "test_bot_debris_surface",
+      "test_placement_point"
+    ],
+    "interface_lines": [
+      "Bots must judge the same point the host does; BotStatics.OrientationInfo.center_shift already exists."
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "elimination_batch": {
+    "area": "core/ rules + autoload/match",
+    "base": "7bfc8df97d32bf95d291c5c0902f1035230d1af2",
+    "accepted": "c1cb69cbd07c6e2e69ed3543fa19c8ff8e993104",
+    "brief": "briefs/elimination_batch.md",
+    "hidden": [
+      "tests/unit/match/test_classic_batch_elimination.gd",
+      "tests/unit/match/test_classic_batch_elimination.gd.uid",
+      "tests/unit/match/test_objective_eliminations.gd",
+      "tests/unit/match/test_objective_eliminations.gd.uid"
+    ],
+    "regression": [
+      "test_elimination",
+      "test_match_flow",
+      "test_sudden_death",
+      "test_turn_based",
+      "test_late_join",
+      "test_late_join_silence"
+    ],
+    "interface_lines": [
+      "No new names: MatchLifecycle.eliminate_slots, MatchTerritory.objective() and the objective hooks already exist at the base as typed stubs."
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "glue_send_seam": {
+    "area": "net/ host authority sends",
+    "base": "629f8b9a529f2543e0d526bfcb0e4acee0b5f253",
+    "accepted": "75f508228392e7f7601ea3df26ded8e5bbf82ddb",
+    "brief": "briefs/glue_send_seam.md",
+    "hidden": [
+      "tests/unit/net/test_match_event_mirror_glue.gd",
+      "tests/unit/net/test_match_event_mirror_glue.gd.uid"
+    ],
+    "regression": [
+      "test_glue_coat_replication",
+      "test_glue_drops",
+      "test_glue_effect",
+      "test_glue_fusion",
+      "test_net_client_mirror"
+    ],
+    "interface_lines": [
+      "MatchEventMirror.on_blocks_fused(carrier: Node, members: Array)",
+      "MatchEventMirror.on_fused_member_released(member: Node)",
+      "MatchEventMirror.on_glue_drop_charged(body: Node)",
+      "MatchEventMirror.forget_glued(net_id: int)",
+      "MatchEventMirror.glued_ids() -> Array",
+      "MatchEventMirror.reset_glue()"
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "client_spawn_reuse": {
+    "area": "net/ client mirror bugfix",
+    "base": "ea7eaa87e35ee2b2680c92d597e1797177744f20",
+    "accepted": "7b3ccbf46cfcd1d4390e644722f27f0dab8b6d82",
+    "brief": "briefs/client_spawn_reuse.md",
+    "hidden": [
+      "tests/unit/net/test_net_client_mirror.gd"
+    ],
+    "regression": [
+      "test_late_join",
+      "test_late_join_silence"
+    ],
+    "interface_lines": [
+      "ClientBlockMirror.has_spawned(net_id) already exists; behaviour only."
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "reject_sentences": {
+    "area": "UI + config",
+    "base": "b6af36c91c0a81b96f4b2017cf8bffe77170f18c",
+    "accepted": "0fa6e3e2885845da4322deab7c5dd13ae5766f67",
+    "brief": "briefs/reject_sentences.md",
+    "hidden": [
+      "tests/unit/ui/test_reject_message_table.gd",
+      "tests/unit/ui/test_reject_message_table.gd.uid",
+      "tests/unit/ui/test_hud.gd"
+    ],
+    "regression": [
+      "test_placement_refusal"
+    ],
+    "interface_lines": [
+      "class_name RejectMessageTable in config/ui/RejectMessageTable.gd",
+      "resource config/ui/reject_message_table.tres",
+      "has_message(reason: StringName) -> bool",
+      "message_for(reason: StringName) -> String",
+      "fallback_message: String"
+    ],
+    "runner": "gut",
+    "lint_floor": null
+  },
+  "slot_set_atomic": {
+    "area": "tooling bugfix",
+    "base": "00da3da4453d2d03dfc04046f42b5f7ec60de3d2",
+    "accepted": "d278211c586bdcfa8c08d640dcf1c93dbb6d32f1",
+    "brief": "briefs/slot_set_atomic.md",
+    "hidden": [
+      "tools/test_godot_slots.py",
+      "tools/test_run_enet_set.py"
+    ],
+    "regression": [],
+    "interface_lines": [
+      "godot_slots.acquire_many(label, count, pid=None, wait_s=None) -> list",
+      "context manager godot_slots(label, count, wait_s=None)"
+    ],
+    "runner": "unittest",
+    "lint_floor": null
+  }
+}
