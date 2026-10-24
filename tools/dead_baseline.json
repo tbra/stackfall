@@ -49,7 +49,6 @@
    "game/debug/DebugMode.gd:clear_override_for_test",
    "game/debug/DebugMode.gd:set_override_for_test",
    "game/player/CameraRig.gd:get_pitch",
-   "game/player/PlayerController.gd:set_session_provider",
    "game/weather/SnowClientRenderer.gd:apply",
    "game/weather/SnowClientRenderer.gd:clear",
    "net/MatchNet.gd:request_replay",

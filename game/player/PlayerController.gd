@@ -65,11 +65,10 @@ var _arc_preview: ThrowArcPreview
 ## assigned.
 var _match: Variant = null
 
-## DECISION (game/player/PlayerController.gd): Net is an autoload for the same
-## reason Match is, and needs the same seam for the same reason; null means
-## the real one. Offline Net.is_offline() is true and every branch below
-## collapses to the offline behaviour.
-var _session_provider: Variant = null
+## The session seam: the parent binds it (LocalPlayer binds a port over the Net autoload);
+## null until then and a bare controller builds the same port on first use (see _session()).
+## Offline Net.is_offline() is true and every branch below collapses to the offline behaviour.
+var _session_port: SessionPort = null
 
 var _shapes_by_id: Dictionary = {}
 
@@ -478,22 +477,28 @@ func _camera_follow_anchor() -> Vector3:
 	return Vector3(center.x, anchor_y, center.z)
 
 
-func _session() -> Variant:
-	return _session_provider if _session_provider != null else Net
+func _session() -> SessionPort:
+	if _session_port == null:
+		_session_port = SessionPort.new(Net)
+	return _session_port
 
 
-## Test seam for the Net autoload; null restores the real one.
-func set_session_provider(provider: Variant) -> void:
-	_session_provider = provider
+## Binds the session port this controller asks for host/client/offline and its slot.
+## Returns false (and binds nothing) for a null or invalid port.
+func bind_session(port: SessionPort) -> bool:
+	if port == null or not port.is_valid():
+		return false
+	_session_port = port
+	return true
 
 
 ## Which slot this controller acts for. Offline that is whoever
 ## Events.turn_changed last named (strict alternation).
 ## Networked, one instance drives exactly one player: the slot Net gave it.
 func _acting_slot() -> int:
-	if bool(_session().is_offline()):
+	if _session().is_offline():
 		return _active_slot
-	return int(_session().local_slot())
+	return _session().local_slot()
 
 
 ## Lets the integrator bind this controller to a slot directly; an
@@ -506,7 +511,7 @@ func set_acting_slot(slot_id: int) -> void:
 ## throttles the send to NetConfig.cursor_hz, so calling it per frame is both
 ## correct and cheap; offline there is nobody to tell.
 func _publish_cursor() -> void:
-	if _ghost == null or bool(_session().is_offline()):
+	if _ghost == null or _session().is_offline():
 		return
 	var membrane: Variant = _intent_target()
 	if membrane == null:
@@ -881,7 +886,7 @@ func _request_place(auto_drop: bool) -> StringName:
 		return _match.request_place(
 			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
 		)
-	if bool(_session().is_client()):
+	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
 	return membrane.submit_place(
 		slot_id,
@@ -915,7 +920,7 @@ func _request_throw(velocity: Vector3) -> StringName:
 		return _match.request_throw(
 			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, velocity
 		)
-	if bool(_session().is_client()):
+	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
 	return membrane.submit_throw(
 		slot_id,
@@ -1446,7 +1451,7 @@ func _on_feed_timer_expired(slot_id: int) -> void:
 	if slot_id != _acting_slot() or _ghost == null or _is_active_slot_eliminated():
 		return
 	_ghost.play_auto_drop_flash()
-	if not bool(_session().is_host()):
+	if not _session().is_host():
 		return
 	_request_place(true)
 
