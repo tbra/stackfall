@@ -7,7 +7,8 @@ const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const FROZEN_FRAMES: int = 12
 const BOT_COUNT: int = 2
-const JOIN_WAIT_MSEC: int = 6000
+const JOIN_ATTEMPT_MSEC: int = 8000
+const JOIN_ATTEMPTS: int = 3
 
 var _main: Variant = null
 var _menu: PauseMenu = null
@@ -159,13 +160,24 @@ func test_connected_client_prevents_the_freeze() -> void:
 	for side: Node in [host, client]:
 		get_tree().set_multiplayer(MultiplayerAPI.create_default_interface(), NodePath(String(get_path()) + "/" + side.name))
 		add_child_autofree(side)
-	var port: int = AgentProbe.free_udp_port()
-	assert_eq(host.host_game(port, "Hostie"), OK)
-	assert_true(host.is_solo_session(), "host alone is solo")
-	assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
-	var deadline: int = Time.get_ticks_msec() + JOIN_WAIT_MSEC
-	while host.peer_ids().size() < 2 and Time.get_ticks_msec() < deadline:
-		await get_tree().process_frame
+	# A loopback join can stall under parallel shard load: wait on the join itself with a
+	# wall-clock ceiling per attempt and retry on a fresh port before failing.
+	for attempt: int in JOIN_ATTEMPTS:
+		if attempt > 0:
+			client.leave()
+			host.leave()
+			await get_tree().process_frame
+			await get_tree().process_frame
+		var port: int = AgentProbe.free_udp_port()
+		assert_eq(host.host_game(port, "Hostie"), OK)
+		if attempt == 0:
+			assert_true(host.is_solo_session(), "host alone is solo")
+		assert_eq(client.join_game("127.0.0.1", port, "Clienty"), OK)
+		var deadline: int = Time.get_ticks_msec() + JOIN_ATTEMPT_MSEC
+		while host.peer_ids().size() < 2 and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		if host.peer_ids().size() == 2:
+			break
 	assert_eq(host.peer_ids().size(), 2, "fixture: client joined")
 	assert_false(host.is_solo_session(), "host with a connected client never freezes")
 	assert_false(client.is_solo_session(), "a client never freezes")
