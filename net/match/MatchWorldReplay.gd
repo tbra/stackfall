@@ -177,6 +177,29 @@ func _finish_replay(peer_id: int, replay_id: int) -> void:
 	_seams.send_to_peer.call(peer_id, RPC_REPLAY_END, [replay_id])
 
 
+## Interface stubs of the MatchNet cut: join/reconnect policy and the slot-replay row.
+@warning_ignore("unused_parameter")
+func slot_replay_args(slot_id: int) -> Array:
+	push_error("MatchWorldReplay.slot_replay_args: not implemented")
+	return []
+
+
+func pick_open_seat() -> int:
+	push_error("MatchWorldReplay.pick_open_seat: not implemented")
+	return -1
+
+
+@warning_ignore("unused_parameter")
+func seat_reclaimable(slot_id: int) -> bool:
+	push_error("MatchWorldReplay.seat_reclaimable: not implemented")
+	return false
+
+
+func is_match_live() -> bool:
+	push_error("MatchWorldReplay.is_match_live: not implemented")
+	return false
+
+
 func _roster() -> Array:
 	var roster: Array = []
 	for peer_id: int in _session.peer_ids():

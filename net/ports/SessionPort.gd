@@ -70,6 +70,14 @@ func peer_info(peer_id: int) -> Dictionary:
 	return _typed.peer_info(peer_id)
 
 
+## peer_info() of every connected peer, in peer_ids() order.
+func roster() -> Array:
+	var roster: Array = []
+	for peer_id: int in peer_ids():
+		roster.append(peer_info(peer_id))
+	return roster
+
+
 func is_peer_disconnecting(peer_id: int) -> bool:
 	return _typed.is_peer_disconnecting(peer_id)
 
