@@ -37,7 +37,7 @@ var _host_field: Field = null
 var _client_field: Field = null
 var _client_sync: Node = null
 var _client_registry: BlockRegistry = null
-var _session_double: SessionDouble = null
+var _session_port: FakeSessionPort = null
 
 
 func _small_map() -> MapDef:
@@ -76,9 +76,8 @@ func before_each() -> void:
 
 	# client_tick() no-ops unless the bound session says is_client(): bind a narrow
 	# client session through the production seam instead of poking the live autoload.
-	_session_double = SessionDouble.new()
-	_session_double.client = true
-	assert_true(_client_sync.call("bind_session", SessionPort.new(_session_double, SnapshotSync.SESSION_METHODS)))
+	_session_port = FakeSessionPort.new(FakeNet.client(0))
+	assert_true(_client_sync.call("bind_session", _session_port))
 
 
 func after_each() -> void:
@@ -88,7 +87,7 @@ func after_each() -> void:
 	_client_field = null
 	_client_sync = null
 	_client_registry = null
-	_session_double = null
+	_session_port = null
 
 
 func _bounds() -> AABB:
@@ -175,45 +174,28 @@ func test_a_received_snapshot_feeds_the_disk_smoother() -> void:
 
 # --- The typed session seam -------------------------------------------------
 
-## A narrow session double: exactly the four methods SnapshotSync calls.
-class SessionDouble:
-	extends RefCounted
-	var client: bool = false
-	var reports: Array[Dictionary] = []
+## A spy session port whose is_valid() is false: the bind SnapshotSync must refuse.
+class InvalidSessionPort:
+	extends FakeSessionPort
 
-	func is_host() -> bool:
-		return not client
-
-	func is_client() -> bool:
-		return client
-
-	func is_offline() -> bool:
+	func is_valid() -> bool:
 		return false
-
-	func report_stats(source: StringName, values: Dictionary) -> void:
-		reports.append({"source": source, "values": values})
 
 
 func test_bind_session_routes_mode_checks_through_the_port() -> void:
-	var offline: SessionDouble = SessionDouble.new()
-	offline.client = false
-	assert_true(_client_sync.call("bind_session", SessionPort.new(offline, SnapshotSync.SESSION_METHODS)))
+	assert_true(_client_sync.call("bind_session", FakeSessionPort.new(FakeNet.host())))
 	_client_sync.call("client_tick", TICK)
 	assert_eq(float(_client_sync.get("_stats_accumulator")), 0.0, "fixture: a session that is not a client gates client_tick out")
-	var double: SessionDouble = SessionDouble.new()
-	double.client = true
-	var port: SessionPort = SessionPort.new(double, SnapshotSync.SESSION_METHODS)
-	assert_true(port.is_valid(), "the narrow double satisfies the subset SnapshotSync binds")
+	var port: SessionPort = FakeSessionPort.new(FakeNet.client(0))
+	assert_true(port.is_valid(), "a client session port is valid")
 	assert_true(_client_sync.call("bind_session", port), "a valid port rebinds")
 	_client_sync.call("client_tick", TICK)
 	assert_gt(float(_client_sync.get("_stats_accumulator")), 0.0, "the bound session's is_client() opened the gate")
 
 
 func test_bind_session_refuses_an_invalid_port() -> void:
-	var narrow: RefCounted = RefCounted.new()
-	var port: SessionPort = SessionPort.new(narrow, SnapshotSync.SESSION_METHODS)
-	assert_push_error("SessionPort:")
-	assert_false(port.is_valid(), "a double missing the methods is invalid")
+	var port: SessionPort = InvalidSessionPort.new()
+	assert_false(port.is_valid(), "a spy port that reports invalid is invalid")
 	var before: Variant = _client_sync.call("_session")
 	assert_false(_client_sync.call("bind_session", port), "an invalid port is refused")
 	assert_push_error("SnapshotSync.bind_session")
