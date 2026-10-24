@@ -107,7 +107,7 @@ func build_replay(peer_id: int, _slot_id: int) -> Array[Array]:
 	var running: MatchConfig = _host.config()
 	if running == null:
 		return rows
-	var start_args: Array = [running.to_dict(), _roster()]
+	var start_args: Array = [running.to_dict(), _session.roster()]
 	var replay_id: int = int(_pending.get(peer_id, 0))
 	if replay_id > 0:
 		start_args.append(replay_id)
@@ -234,13 +234,6 @@ func slot_replay_args(slot_id: int) -> Array:
 		StringName(_host.after_next_special(slot_id)),
 		_host.feed_staged_gift_shape_id(slot_id),
 	]
-
-
-func _roster() -> Array:
-	var roster: Array = []
-	for peer_id: int in _session.peer_ids():
-		roster.append(_session.peer_info(peer_id))
-	return roster
 
 
 func _event(event: StringName, args: Array) -> Array:

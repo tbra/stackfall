@@ -125,11 +125,6 @@ var _block_mirror: ClientBlockMirror = null
 ## Every instrumentation counter (the per-slot intent identities and the match-start
 ## records); net/NetCounters.gd.
 var counters: NetCounters = NetCounters.new()
-## Replicated block impacts (net/match/ImpactReplicator.gd), built on first use and dropped on a
-## reset or a provider change.
-var _impacts: ImpactReplicator = null
-var _impact_send_accum: float = 0.0
-
 ## DECISION (net/MatchNet.gd): Net and Match are plain autoloads and GUT
 ## cannot double one (see game/player/PlayerController.gd's DECISION for the whole
 ## story), so the two collaborators this node cannot work without are reached
@@ -147,15 +142,8 @@ var _gateway: MatchIntentGateway:
 	get:
 		return _intents()
 
-var _raster_send_accum: float = 0.0
-## Territory raster, shares, capture ring and circles (net/match/TerritoryReplicator.gd); holds
-## the diff baseline and the capture cache, so it is rebuilt (not reset) at a match boundary.
-var _territory: TerritoryReplicator = null
-
-## True once replicate_match_start() has gone out for the running match, so a
-## lobby that calls it explicitly and the automatic send below cannot both
-## fire.
-var _match_start_sent: bool = false
+## Territory, impacts and match start, both directions (net/match/MatchReplication.gd), built on first use.
+var _replication_module: MatchReplication = null
 
 ## -- Mid-match join / reconnect replay -----------------------
 ## Host only: the join/replay/ack/timeout collaborator (net/match/MatchWorldReplay.gd), built on first use.
@@ -183,8 +171,6 @@ var _replica_port_cache: MatchReplicaPort = null
 var _mirror: MatchEventMirror = null
 ## true once late_activate() has built the WeatherNet child.
 var _late_active: bool = false
-var _cat_send_accum: float = 0.0
-var _scores_send_accum: float = 0.0
 
 
 func _ready() -> void:
@@ -198,7 +184,7 @@ func _ready() -> void:
 	Events.placement_relocated.connect(_on_placement_relocated)
 	Events.block_removed.connect(_on_block_removed)
 	Events.block_dissolve_started.connect(_on_block_dissolve_started)
-	_territory_replicator()
+	_replication()
 	Events.block_impacted_at.connect(_on_block_impacted_at)
 	Events.net_peer_left.connect(_on_net_peer_left)
 	Events.net_peer_joined.connect(_on_net_peer_joined)
@@ -278,6 +264,8 @@ func _bind_modules() -> void:
 		_replay_gate.bind(_session_port(), config)
 	if _slot_cursors != null:
 		_slot_cursors.bind(_host_port())
+	if _replication_module != null:
+		_replication_module.bind(_session_port(), _host_port(), _replica_port(), config)
 	if _applier != null:
 		_bind_applier()
 
@@ -288,6 +276,28 @@ func _gate() -> ClientReplayGate:
 		_replay_gate = ClientReplayGate.new()
 		_replay_gate.bind(_session_port(), config)
 	return _replay_gate
+
+
+## The replication module, built on first use over the current ports; a rebind keeps it (the
+## start-sent flag and the queued impacts survive, see MatchReplication.bind).
+func _replication() -> MatchReplication:
+	if _replication_module == null:
+		var seams: MatchReplication.Seams = MatchReplication.Seams.new()
+		seams.can_send = func() -> bool: return NetFanout.can_send(multiplayer, _session_port())
+		seams.broadcast = func(method: StringName, args: Array) -> void: _broadcast(method, args)
+		seams.send_to_peer = func(peer_id: int, method: StringName, args: Array) -> bool:
+			return NetFanout.send_to(self, _session_port(), peer_id, method, args)
+		seams.peer_ids = func() -> Array[int]:
+			var ids: Array[int] = []
+			ids.assign(multiplayer.get_peers())
+			return ids
+		seams.is_replay_pending = func(peer_id: int) -> bool: return _world_replay.is_pending(peer_id)
+		seams.now_ms = Time.get_ticks_msec
+		seams.view_delay_ms = func() -> int:
+			return int(SnapshotSync.interpolation_delay_ms()) if SnapshotSync.is_running() else 0
+		_replication_module = MatchReplication.new(seams, _event_mirror())
+		_replication_module.bind(_session_port(), _host_port(), _replica_port(), config)
+	return _replication_module
 
 
 func _host_port() -> MatchHostPort:
@@ -317,7 +327,7 @@ func _ensure_ports() -> void:
 
 
 ## Binds the three ports every path of this node and its collaborators share, drops the collaborators
-## built on the old ones (the gateway, the world replay, the territory replicator) so they rebuild on
+## built on the old ones (the gateway, the world replay) so they rebuild on
 ## these, and rebinds the ones that hold ports. Installing this node as the host's replicator stays
 ## with the caller (_ready).
 ## Returns false (and binds nothing) when any port is missing or invalid.
@@ -332,9 +342,6 @@ func bind_ports(session: SessionPort, host: MatchHostPort, replica: MatchReplica
 	_intent_gateway = null
 	_world_replay_host = null
 	_block_mirror = null
-	if _territory != null:
-		_territory = null
-		_territory_replicator()
 	if _mirror != null:
 		_mirror.bind_ports(session, host)
 	_bind_modules()
@@ -395,9 +402,9 @@ func _replays() -> MatchWorldReplay:
 			return NetFanout.send_to(self, _session_port(), peer_id, method, args)
 		seams.now_s = _now
 		seams.clear_cursor = func(slot_id: int) -> void: _cursors().clear(slot_id)
-		seams.spawn_args = _spawn_args
+		seams.spawn_args = _replication().spawn_args
 		seams.glued_ids = func() -> Array: return _event_mirror().glued_ids()
-		seams.territory_args = _territory_replay_args
+		seams.territory_args = func() -> Array: return _replication().territory_replay_args()
 		seams.replay_acknowledged = _on_replay_acknowledged
 		_world_replay_host = MatchWorldReplay.new(_session_port(), _host_port(), config, seams)
 	return _world_replay_host
@@ -420,31 +427,10 @@ func _broadcast(method: StringName, args: Array = []) -> void:
 func _process(delta: float) -> void:
 	if not _session_port().is_host():
 		_gate().tick(Time.get_ticks_msec())
-		_play_due_impacts()
+		_replication().play_due_impacts()
 		return
 	_world_replay.tick_timeouts(_now())
-	_impact_send_accum += delta
-	if _impact_send_accum >= 1.0 / maxf(config.impact_batch_hz, 0.001):
-		_impact_send_accum = 0.0
-		_send_impacts(Time.get_ticks_msec())
-	var cat: RigidBody3D = _host_port().active_cat()
-	if cat != null and NetFanout.can_send(multiplayer, _session_port()):
-		_cat_send_accum += delta
-		if _cat_send_accum >= 1.0 / maxf(config.cursor_hz, 0.001):
-			_cat_send_accum = 0.0
-			_broadcast(&"net_cat_state", [cat.activation_id, cat.global_position,
-				cat.linear_velocity, cat.target, cat.time_left])
-	if MatchPhase.is_live(_host_port().state()):
-		_scores_send_accum += delta
-		if _scores_send_accum >= 1.0 / maxf(config.scoreboard_hz, 0.001):
-			_scores_send_accum = 0.0
-			var stats: RefCounted = _host_port().stats()
-			_event_mirror().on_live_scores(stats.call(&"build_live_payload") as Dictionary)
-	_raster_send_accum += delta
-	var step: float = 1.0 / maxf(config.raster_diff_hz, 0.001)
-	if _raster_send_accum >= step:
-		_raster_send_accum = 0.0
-		replicate_territory()
+	_replication().tick_host_feeds(delta)
 
 
 # --- Local -> authority (the one door every intent goes through) ------------
@@ -556,98 +542,32 @@ func cursor_for_slot(slot_id: int) -> Dictionary:
 
 # --- Host -> clients: replication hooks Match calls -------------------------
 
-## Host only. Announces a block the host just spawned, reliably, before any
-## snapshot can reference it. Clients build a frozen copy and bind `net_id`.
-##
-## `net_id` may be -1 (BlockRegistry.debug_set_next_net_id /
-## the allocator refusing past Quantize.NET_ID_MAX) when the body's own
-## net_id allocation failed; that body lives and simulates on the host only,
-## exactly as the allocator's own error says, so nothing goes out for it here
-## either -- sending it anyway would build a permanent phantom client copy no
-## despawn could ever address (bind_net_id() below also refuses it, but the
-## body would already be parented under blocks_parent by then).
+## Host only. Announces a block the host just spawned, reliably, before any snapshot can reference
+## it (MatchReplication.send_spawn).
 func replicate_spawn(block: BlockBody, net_id: int) -> void:
-	if not _session_port().is_host() or block == null:
-		return
-	if not Quantize.is_wire_id(net_id):
-		return
-	if not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	var args: Array = _spawn_args(block, net_id)
-	_broadcast(&"net_block_spawned", args)
-
-
-## net_block_spawned's argument list for `block`: the one wire shape both a
-## live spawn and a mid-match join replay use. owner_slot is
-## the block's *current* slot, so a Paintball conversion
-## replays as the converted colour.
-func _spawn_args(block: BlockBody, net_id: int) -> Array:
-	var basis: Basis = block.global_transform.basis.orthonormalized()
-	return [
-		net_id,
-		block.shape_id,
-		block.owner_slot,
-		block.global_position,
-		basis.get_rotation_quaternion(),
-		block.gift_id,
-	]
+	_replication().send_spawn(block, net_id)
 
 
 func replicate_despawn(net_id: int, reason: String) -> void:
-	if not _session_port().is_host() or net_id < 0:
-		return
-	if not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	_broadcast(&"net_block_despawned", [net_id, reason])
+	_replication().send_despawn(net_id, reason)
 
 
-## Host only, at NetConfig.raster_diff_hz. Sends TerritoryReplicator's packet: the changed raster
-## cells (or a full keyframe), the team shares, the capture ring values and the analytic circle
-## list, so the HUD costs no extra packet. Nothing goes out when nothing changed.
-func replicate_territory() -> void:
-	if not _session_port().is_host() or not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	var territory: TerritoryReplicator = _territory_replicator()
-	var packet: PackedByteArray = territory.encode_diff()
-	if not packet.is_empty():
-		_broadcast(&"net_territory", _territory_rpc_args(packet))
-
-
-## Host only. Mirrors a match-flow event to every client: state changes, the
-## countdown, feed issues, eliminations and the win. A per-player cue (a
-## refusal, a relocation) is not one of these: it goes to its owning peer alone
-## (_on_placement_rejected, _on_placement_relocated).
+## Host only. Mirrors a match-flow event to every client. A per-player cue (a refusal, a
+## relocation) is not one of these: it goes to its owning peer alone.
 func replicate_match_event(event: StringName, args: Array) -> void:
-	if not _session_port().is_host():
-		return
-	if not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	_broadcast(&"net_match_event", [event, args])
+	_replication().send_match_event(event, args)
 
 
-## Host only. Ships the whole match start: the sanitized MatchConfig, the slot
-## roster and the seed, so a client builds the identical world before the
-## first snapshot. Idempotent for one match, so an explicit call from the
-## lobby and the automatic one below cannot both go out.
+## Host only. Ships the whole match start; idempotent for one match, so an explicit call from the
+## lobby and the automatic one on LOADING cannot both go out.
 func replicate_match_start(match_config: MatchConfig) -> void:
-	if not _session_port().is_host() or match_config == null or _match_start_sent:
-		return
-	_match_start_sent = true
-	var territory: TerritoryReplicator = _territory_replicator()
-	territory.force_full()
-	if not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	_broadcast(&"net_match_start", [match_config.to_dict(), _roster(), 0])
+	_replication().send_match_start(match_config)
 
 
-## Host only. Tells every client the host just pressed Start,
-## one reliable message ahead of net_match_start, so a client can raise its
-## loading overlay and have it drawn before the synchronous world build that
-## net_match_start triggers. Reliable RPCs are ordered, so it always lands first.
+## Host only. One reliable message ahead of net_match_start, so a client can raise its loading
+## overlay before the synchronous world build that net_match_start triggers.
 func replicate_match_loading() -> void:
-	if not _session_port().is_host() or not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	_broadcast(&"net_match_loading")
+	_replication().send_match_loading()
 
 
 # --- Counters the acceptance harness asserts on -----------------------------
@@ -681,7 +601,6 @@ func cursors_refused(slot_id: int) -> int:
 
 ## Drops every counter and cursor. Called when a match starts or ends.
 func reset_counters() -> void:
-	_cat_send_accum = 0.0
 	if _intent_gateway != null:
 		_intent_gateway.reset_throttles()
 	if _gift_guard != null:
@@ -689,8 +608,7 @@ func reset_counters() -> void:
 	counters.reset()
 	if _slot_cursors != null:
 		_slot_cursors.reset()
-	_territory = null
-	_territory_replicator()
+	_replication().reset()
 	# a (re)start is itself a full sync for every peer (the
 	# broadcast net_match_start), so no replay is still owed an ack.
 	_world_replay.reset()
@@ -717,31 +635,17 @@ func _client_blocks() -> ClientBlockMirror:
 	return _block_mirror
 
 
-func _roster() -> Array:
-	var roster: Array = []
-	for peer_id: int in _session_port().peer_ids():
-		roster.append(_session_port().peer_info(peer_id))
-	return roster
-
-
 # --- Events the host mirrors to its clients ---------------------------------
 
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
-	# DECISION: impacts clear on LOBBY|LOADING only; END is excluded from
-	# is_resetting so impacts already queued still play into the results screen.
-	if MatchPhase.is_resetting(to_state) and to_state != MatchPhase.State.END:
-		# World teardown / rebuild: nothing still waiting may play into it.
-		_reset_impacts()
+	var replication: MatchReplication = _replication()
+	var new_match: bool = replication.on_match_state_changed(to_state)
 	if not _session_port().is_host():
 		return
-	if to_state == MatchPhase.State.LOADING:
-		# The lobby may call replicate_match_start() itself; this is the
-		# belt-and-braces path, and the flag makes the pair idempotent.
-		_match_start_sent = false
+	if new_match:
+		# The lobby may call replicate_match_start() itself; this is the belt-and-braces path.
 		reset_counters()
 		replicate_match_start(_host_port().config())
-	elif to_state == MatchPhase.State.LOBBY:
-		_match_start_sent = false
 	# The LOBBY/LOADING/COUNTDOWN start_match() produces internally is replayed on a client by
 	# net_match_start alone (the mirror skips it); every other state change replicates normally.
 	_event_mirror().on_state_changed(from_state, to_state)
@@ -811,73 +715,9 @@ func _on_block_dissolve_started(block: RigidBody3D, net_id: int, duration_s: flo
 	_event_mirror().on_block_dissolve_started(block, net_id, duration_s)
 
 
-# --- Replicated block impacts ------------------------------
-#
-# Host: Block._physics_process emits Events.block_impacted_at for a real
-# landing (host physics only; frozen client replicas emit nothing). The host's
-# own Sfx/camera/rumble/dust react to that emit directly, exactly as before;
-# this node only queues a copy for clients. Clients re-emit both impact
-# signals from the wire, so every consumer works unchanged (the host never
-# receives its own call_remote batch, so nothing plays twice there).
-
-## Host: one detected impact. Only collected while someone can hear it.
+## Host: one detected impact, queued for clients while someone can hear it.
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
-	if not _session_port().is_host() or not _impact_audience():
-		return
-	var impacts: ImpactReplicator = _impact_replicator()
-	impacts.collect(speed, position, Time.get_ticks_msec())
-
-
-func _impact_audience() -> bool:
-	return NetFanout.can_send(multiplayer, _session_port()) and not multiplayer.get_peers().is_empty()
-
-
-## Host: sends the current impact window as one batch to every peer that has its world. A
-## mid-match joiner still loading its replay hears nothing yet; impacts are never part of it.
-func _send_impacts(now_ms: int) -> void:
-	var impacts: ImpactReplicator = _impact_replicator()
-	var packet: PackedByteArray = impacts.flush(now_ms)
-	if packet.is_empty() or not NetFanout.can_send(multiplayer, _session_port()):
-		return
-	for peer_id: int in multiplayer.get_peers():
-		if not _world_replay.is_pending(peer_id):
-			NetFanout.send_to(self, _session_port(), peer_id, &"net_block_impacts", [packet])
-
-
-## Client: plays every queued impact the interpolated view (SnapshotSync renders
-## interpolation_delay_ms behind the host) has reached.
-func _play_due_impacts() -> void:
-	var view_ms: float = float(Time.get_ticks_msec())
-	if SnapshotSync.is_running():
-		view_ms -= SnapshotSync.interpolation_delay_ms()
-	var impacts: ImpactReplicator = _impact_replicator()
-	for row: Array in impacts.drain(view_ms):
-		_emit_impact(float(row[0]), row[1] as Vector3)
-
-
-## The same pair game/blocks/Block.gd emits on the host, so Sfx (thud), CameraRig
-## (shake), Rumble, BlockEffectsManager (dust) and PerchingBirds need nothing
-## network-aware.
-func _emit_impact(speed: float, position: Vector3) -> void:
-	Events.block_impacted.emit(speed)
-	Events.block_impacted_at.emit(speed, position)
-
-
-func _reset_impacts() -> void:
-	_impacts = null
-	_impact_send_accum = 0.0
-
-
-func _impact_replicator() -> ImpactReplicator:
-	if _impacts == null:
-		_impacts = ImpactReplicator.new(config, TokenBucket.new())
-	return _impacts
-
-
-func _territory_replicator() -> TerritoryReplicator:
-	if _territory == null:
-		_territory = TerritoryReplicator.new(_host_port(), _replica_port(), config)
-	return _territory
+	_replication().on_block_impacted_at(speed, position)
 
 
 func _on_net_peer_left(peer_id: int, slot_id: int, _reason: int) -> void:
@@ -903,7 +743,7 @@ func _on_net_peer_joined(peer_id: int, slot_id: int, player_name: String) -> voi
 
 func _on_net_mode_changed(mode: int) -> void:
 	_gate().on_mode_changed(mode == Net.Mode.CLIENT)
-	_reset_impacts()
+	_replication().clear_impacts()
 
 
 ## Host only, installed into Net's seat policy by game/main/Main.gd (MatchWorldReplay.pick_open_seat).
@@ -914,18 +754,6 @@ func pick_open_seat() -> int:
 ## Host only, installed into Net's seat policy by game/main/Main.gd (MatchWorldReplay.seat_reclaimable).
 func seat_reclaimable(slot_id: int) -> bool:
 	return _world_replay.seat_reclaimable(slot_id)
-
-
-## net_territory's arguments for one full keyframe, or [] with no raster.
-func _territory_replay_args() -> Array:
-	var territory: TerritoryReplicator = _territory_replicator()
-	var packet: PackedByteArray = territory.encode_full()
-	return [] if packet.is_empty() else _territory_rpc_args(packet)
-
-
-## net_territory's arguments: the packet, then neutral values for the slots the packet now carries.
-func _territory_rpc_args(packet: PackedByteArray) -> Array:
-	return [packet, false, PackedFloat32Array(), -1, 0.0]
 
 
 # --- RPCs -------------------------------------------------------------------
@@ -1001,9 +829,7 @@ func net_cat_state(id: int, position: Vector3, velocity: Vector3, point: Vector3
 func net_block_impacts(packet: PackedByteArray) -> void:
 	if _session_port().is_host() or _client_awaiting_world():
 		return
-	var impacts: ImpactReplicator = _impact_replicator()
-	if impacts.receive(packet, Time.get_ticks_msec()):
-		_play_due_impacts()
+	_replication().receive_impacts(packet)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1092,8 +918,7 @@ func net_territory(
 ) -> void:
 	if _client_awaiting_world():
 		return
-	var territory: TerritoryReplicator = _territory_replicator()
-	territory.apply(payload)
+	_replication().receive_territory(payload)
 
 
 @rpc("authority", "call_remote", "unreliable", CURSOR_CHANNEL)
