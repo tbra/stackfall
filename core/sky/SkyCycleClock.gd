@@ -51,19 +51,20 @@ func advance(clock_s: float, length_s: float) -> float:
 	return phase_at(clock_s)
 
 
-## Locks at `phase` (wrapped into 0..1) or, for `phase` < 0, unlocks so the cycle runs on from
-## the locked phase at the last clock seen. No-op before start().
+## Locks at `phase` (wrapped into 0..1). No-op before start().
 func set_locked(phase: float) -> void:
-	if not _active:
+	if _active:
+		_locked_phase = fposmod(phase, 1.0)
+
+
+## Unlocks so the cycle runs on from the locked phase as of shared clock `clock_s`, the clock at
+## the unlock and not the last one seen before it. No-op before start() or while running.
+func unlock(clock_s: float) -> void:
+	if not _active or _locked_phase < 0.0:
 		return
-	if phase < 0.0:
-		if _locked_phase < 0.0:
-			return
-		var held: float = _locked_phase
-		_locked_phase = -1.0
-		_offset = held - _clock_s / _length_s
-		return
-	_locked_phase = fposmod(phase, 1.0)
+	_clock_s = clock_s
+	_offset = _locked_phase - clock_s / _length_s
+	_locked_phase = -1.0
 
 
 ## The locked phase, or -1 while running or not started.

@@ -128,6 +128,23 @@ func _cycle_skybox(config: MatchConfig, clock: float) -> Skybox:
 	return skybox
 
 
+## Unlocking after the shared clock moved on resumes from the locked phase, not from a jump.
+func test_unlock_after_the_shared_clock_advanced_runs_on_from_the_locked_phase() -> void:
+	var skybox: Skybox = _make_wired_skybox()["skybox"] as Skybox
+	skybox.configure_match_sky(MatchConfig.new())
+	var context: FakeMatchContext = FakeMatchContext.new()
+	var previous_context: MatchContext = MatchContext.installed()
+	MatchContext.install(context)
+	SkyTestKit.run_to_clock(skybox, context, 10.0)
+	skybox.set_locked_phase(0.6)
+	context.shared_clock_seconds_value = 400.0
+	skybox.set_locked_phase(-1.0)
+	SkyTestKit.run_to_clock(skybox, context, 400.0)
+	MatchContext.install(previous_context)
+	var step: float = 1.0 / skybox.radiance_config.radiance_hz / skybox.sky_def.cycle_length_seconds
+	assert_almost_eq(skybox.current_cycle_phase(), 0.6, step * 2.0, "no jump at the unlock")
+
+
 ## [exposure, sea coverage] of the live sky material of `_cycle_skybox`.
 func _cycle_look(config: MatchConfig, clock: float) -> Array[float]:
 	return _look_of(_cycle_skybox(config, clock))
