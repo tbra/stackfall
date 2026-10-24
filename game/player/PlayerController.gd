@@ -444,7 +444,6 @@ func _present_countdown_hold() -> void:
 ## countdown included).
 func _follow_held_piece() -> void:
 	if _camera_rig != null and _ghost != null:
-		_camera_rig.block_held = _ghost.get_shape() != null
 		# Follow the rotated shape's own centre in X/Z, not this node's fixed local
 		# origin (see GhostPreview.rotated_center_world()). Placement
 		# intents/cursor publishing below keep sending _ghost.global_position (the

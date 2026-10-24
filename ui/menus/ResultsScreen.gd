@@ -26,9 +26,6 @@ var match_net_provider: Variant = null
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## The last results payload shown, so a test can inspect exactly what was rendered.
-var last_results: Dictionary = {}
-
 @onready var _mode_title: UiText = %ModeTitle
 @onready var _headline: UiText = %Headline
 ## Mode scores sit in their own small label, not the headline, so they cannot spill over the
@@ -86,10 +83,8 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 
 ## Events.match_scope_reset runs this. The screen is a persistent Main child that only replaced its
 ## stats rows when the NEXT results arrived, so after Replay / Back to lobby / Leave the previous
-## match's table stayed in the hidden tree and `last_results` kept its payload. Drops the rows and
-## the payload; the overlay itself is hidden by _on_match_state_changed() already.
+## match's table stayed in the hidden tree. Drops the rows; the overlay itself is hidden by _on_match_state_changed() already.
 func clear_results() -> void:
-	last_results = {}
 	for child: Node in _rows_list.get_children():
 		_rows_list.remove_child(child)
 		child.queue_free()
@@ -119,7 +114,6 @@ func _claim_input() -> void:
 ## Public entry point (also the one GUT tests drive directly) -- populates the headline and stats
 ## table, applies the host/client button gate, shows the screen and releases the mouse.
 func show_results(results: Dictionary) -> void:
-	last_results = results
 	_mode_title.text = mode_title(results).to_upper()
 	_headline.text = _headline_text(results)
 	var outcome: String = mode_outcome_text(results, _resolved_team_numbers()).strip_edges()

@@ -24,7 +24,6 @@ const GIFT_ID_PROPERTY: StringName = &"gift_id"
 
 var tuning: BeanHopFxTuning = DEFAULT_TUNING
 var hops: int = 0
-var landings: int = 0
 var _block: Node3D = null
 var _prev_y: float = 0.0
 var _has_prev: bool = false
@@ -67,7 +66,6 @@ func observe(y: float, delta: float) -> void:
 	if absf(vertical) < tuning.rest_speed_mps:
 		if _airborne and _fall_speed >= tuning.land_speed_mps:
 			_airborne = false
-			landings += 1
 			_spawn_landing()
 		_rest_ticks += 1
 		_fall_speed = 0.0

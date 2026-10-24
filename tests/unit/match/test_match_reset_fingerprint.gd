@@ -190,7 +190,6 @@ func _dirty_camera(rig: CameraRig) -> void:
 	rig._pitch = deg_to_rad(-72.0)
 	rig.set_follow_position(Vector3(12.0, 3.0, -7.0))
 	rig.begin_follow_transition()
-	rig.block_held = true
 	rig.set_local_slot(1)
 	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
 	rig._peek_active = true

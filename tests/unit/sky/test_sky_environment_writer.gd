@@ -59,10 +59,10 @@ func test_first_frame_writes_fields_and_values_land() -> void:
 func test_identical_frame_writes_nothing() -> void:
 	var frame: SkyFrame = _frame()
 	_writer.apply(frame, get_tree())
-	var total: int = _writer.total_writes
+	_environment.fog_density = 0.5  # a foreign write survives: an identical frame rewrites nothing
 	_writer.apply(frame, get_tree())
 	assert_eq(_writer.last_written.size(), 0)
-	assert_eq(_writer.total_writes, total)
+	assert_almost_eq(_environment.fog_density, 0.5, 0.0001)
 
 
 func test_sun_dim_only_change_writes_only_light_energy() -> void:
