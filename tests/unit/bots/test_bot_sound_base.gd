@@ -27,6 +27,8 @@ const SEED: int = 5454
 const STEP_GUARD: int = 800
 const BIG_BUDGET_US: int = 60000000
 const TOL: float = 0.01
+const CAUTIOUS: float = 0.0
+const BOLD: float = 1.0
 ## A column of cubes tall enough to make the numbers below readable.
 const PEAK_M: float = 9.0
 const SOUND_TOP_M: float = 4.0
@@ -62,7 +64,10 @@ func before_each() -> void:
 
 
 ## `circle_specs`: Array of [Vector2 xz, top m]; every one is an own block circle.
-func _view(circle_specs: Array, tower_xz: Variant = null, mode: int = MatchConfig.GameMode.REACH_THE_SKY) -> BotWorldView:
+func _view(
+	circle_specs: Array, tower_xz: Variant = null, mode: int = MatchConfig.GameMode.REACH_THE_SKY,
+	appetite: BotAppetite = null
+) -> BotWorldView:
 	var xs: PackedFloat32Array = PackedFloat32Array([HOME_A.x, HOME_B.x])
 	var zs: PackedFloat32Array = PackedFloat32Array([HOME_A.y, HOME_B.y])
 	var radii: PackedFloat32Array = PackedFloat32Array([_territory_tuning.home_radius, _territory_tuning.home_radius])
@@ -83,6 +88,8 @@ func _view(circle_specs: Array, tower_xz: Variant = null, mode: int = MatchConfi
 		PackedVector2Array([Vector2.ZERO]), _territory_tuning.goal_zone_radius, _bar3, _cube, goal,
 		PackedVector2Array(), PackedVector2Array()
 	)
+	if appetite != null:
+		view.appetite = appetite
 	return view
 
 
@@ -311,8 +318,8 @@ func test_the_think_analyses_the_stack_first_and_picks_off_the_pile() -> void:
 	assert_false(_rests_on_unsound(view.stack, decision.origin, info), "the piece does not land on the pile")
 
 
-func _pile_stack_sites(mode: int) -> int:
-	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN, mode)
+func _pile_stack_sites(mode: int, appetite: BotAppetite) -> int:
+	var view: BotWorldView = _view(_pile_circle_specs(), PILE_ORIGIN, mode, appetite)
 	var stack: BotStack = _stack()
 	_add_pile(stack)
 	view.stack = _analysed(stack)
@@ -324,6 +331,15 @@ func _pile_stack_sites(mode: int) -> int:
 	return count
 
 
-func test_only_reach_the_sky_skips_unsound_tops() -> void:
-	assert_gt(_pile_stack_sites(MatchConfig.GameMode.CLASSIC), 0, "Classic keeps the unsound top as a site")
-	assert_eq(_pile_stack_sites(MatchConfig.GameMode.REACH_THE_SKY), 0, "Reach the Sky skips it")
+func test_a_cautious_bot_skips_the_unsound_top_and_a_bold_one_keeps_it() -> void:
+	var classic: int = MatchConfig.GameMode.CLASSIC
+	assert_eq(_pile_stack_sites(classic, BotAppetite.new(CAUTIOUS)), 0, "a cautious Classic bot skips the leaning pile")
+	assert_gt(_pile_stack_sites(classic, BotAppetite.new(BOLD)), 0, "a bold Classic bot keeps it as a site")
+	assert_gt(_pile_stack_sites(classic, BotAppetite.shipped()), 0, "a view without a drawn appetite keeps it")
+
+
+func test_reach_the_sky_skips_unsound_tops_whatever_the_appetite() -> void:
+	var sky: int = MatchConfig.GameMode.REACH_THE_SKY
+	for value: float in [CAUTIOUS, BOLD]:
+		assert_eq(_pile_stack_sites(sky, BotAppetite.new(value)), 0, "Reach the Sky skips it at appetite %.1f" % value)
+	assert_eq(_pile_stack_sites(sky, BotAppetite.shipped()), 0)

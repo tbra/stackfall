@@ -91,3 +91,45 @@ func test_without_flag_end_does_not_restart() -> void:
 	await _settle()
 	assert_eq(Match.state(), Match.State.END)
 	assert_eq(_main._headless_loop_index, 1)
+
+
+func _summary_line(timed_out: bool) -> String:
+	return _main._headless_bots_flow_port().call(&"_headless_match_summary_line", timed_out) as String
+
+
+## The ` appetite=slot:value,...` token lists every bot once, after `stats=` and before the optional ` timeout=1`.
+func test_summary_line_reports_each_bots_appetite_before_the_timeout_token() -> void:
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+	var line: String = _summary_line(false)
+	var at: int = line.find(" appetite=")
+	assert_gt(at, line.find(" stats="), "appetite comes after stats")
+	var entries: PackedStringArray = line.substr(at + " appetite=".length()).split(" ")[0].split(",")
+	assert_eq(entries.size(), 2, "one entry per bot")
+	var slots: Dictionary = {}
+	for entry: String in entries:
+		var parts: PackedStringArray = entry.split(":")
+		assert_eq(parts.size(), 2, "entry '%s' is slot:value" % entry)
+		if parts.size() == 2:
+			assert_true(parts[1].is_valid_float())
+			assert_between(parts[1].to_float(), 0.0, 1.0)
+			slots[parts[0].to_int()] = true
+	assert_eq(slots.size(), 2, "two different bot slots")
+	assert_false(line.contains("timeout=1"), "no timeout token on a finished match")
+
+	var timed: String = _summary_line(true)
+	assert_true(timed.ends_with(" timeout=1"))
+	assert_lt(timed.find(" appetite="), timed.find(" timeout=1"), "appetite precedes timeout=1")
+	assert_gt(timed.find(" appetite="), 0)
+
+
+## tools/bot_h2h.py splits the stats token on "/" into exactly four fields; the new token must not leak into it.
+func test_the_appetite_token_stays_out_of_the_stats_token() -> void:
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+	var line: String = _summary_line(false)
+	var stats: String = line.substr(line.find(" stats=") + " stats=".length()).split(" ")[0]
+	for entry: String in stats.split(","):
+		assert_eq(entry.split(":")[1].split("/").size(), 4, "stats entry '%s' keeps four fields" % entry)
