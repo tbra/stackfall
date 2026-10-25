@@ -181,6 +181,7 @@ func _headless_match_summary_line(timed_out: bool = false) -> String:
 	]
 	# Appended after `teams=` so the bot_h2h.py regexes keep matching.
 	line += " stats=%s" % _headless_stats_string()
+	line += " appetite=%s" % _headless_appetite_string()
 	return line + " timeout=1" if timed_out else line
 
 
@@ -210,6 +211,14 @@ func _headless_stats_string() -> String:
 	for i: int in range(Match.slot_count()):
 		var p180: float = float(_peak180.get(i, stats.height_reached(i)))
 		parts.append("%d:%d/%d/%.1f/%.1f" % [i, stats.blocks_placed(i), stats.blocks_lost(i), stats.height_reached(i), p180])
+	return ",".join(parts)
+
+
+## Bot slots' drawn risk appetites as `slot:value`, comma-separated; before any `timeout=` token.
+func _headless_appetite_string() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for bot: BotController in main_node._bot_controllers:
+		parts.append(bot.appetite_report())
 	return ",".join(parts)
 
 

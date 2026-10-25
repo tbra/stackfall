@@ -29,6 +29,8 @@ enum State { IDLE, ACTING, THINKING, RELEASE_WAIT }
 ## think/aim draws of _rng, and the decisions they make, are unchanged by the release timing).
 const RELEASE_RNG_OFFSET: int = RNG_OFFSET + 1
 const SLOT_SEED_STRIDE: int = 1000003
+## Own seeded stream for the risk-appetite draw, so no existing stream moves.
+const APPETITE_RNG_OFFSET: int = RNG_OFFSET + 2
 
 ## Static per-physics-frame accounting of microseconds ALL V2 bots spent thinking, so eight
 ## bots cannot stack their budgets into one long frame (profile.think_frame_cap_us).
@@ -61,6 +63,8 @@ var _net_provider: Variant = null
 ## once, below), the territory-point sampling and the aim-noise offset.
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _release_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Drawn once per match in setup() (0 cautious .. 1 bold).
+var _appetite: BotAppetite = BotAppetite.shipped()
 ## Seconds left before a planned release is sent (State.RELEASE_WAIT).
 var _release_wait_s: float = 0.0
 
@@ -121,6 +125,7 @@ func setup(slot_id: int, difficulty: MatchConfig.AiDifficulty, field: Field, reg
 	_registry = registry
 	_profile = _resolve_profile()
 	_seed_rng()
+	_appetite = _draw_appetite()
 	_think_delay_s = _profile.reaction_delay_s + _rng.randf() * tuning.think_phase_jitter_s
 	_countdown = _think_delay_s
 	_state = State.IDLE
@@ -144,6 +149,22 @@ func set_match_provider(provider: Variant) -> void:
 ## Test seam for the Net autoload; null restores the real one.
 func set_net_provider(provider: Variant) -> void:
 	_net_provider = provider
+
+
+## "slot:value" for the headless match report.
+func appetite_report() -> String:
+	return "%d:%.2f" % [_slot_id, _appetite.value]
+
+
+func _draw_appetite() -> BotAppetite:
+	var match_ref: Variant = _match()
+	var config: MatchConfig = match_ref.config if match_ref != null else null
+	var appetite_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	if config != null and config.rng_seed >= 0:
+		appetite_rng.seed = config.rng_seed + APPETITE_RNG_OFFSET + _slot_id * SLOT_SEED_STRIDE
+	else:
+		appetite_rng.randomize()
+	return BotAppetite.draw(appetite_rng, _profile)
 
 
 func _seed_rng() -> void:
@@ -283,6 +304,7 @@ func _begin_thinking(match_ref: Variant) -> void:
 		_goal_positions(), raster.tuning().goal_zone_radius,
 		shape, next_shape, _mode_goal(match_ref), _active_special_positions(), _landed_gift_positions(match_ref)
 	)
+	view.appetite = _appetite
 	var built_us: int = Time.get_ticks_usec() if cost != null else 0
 	_apply_weather(view, match_ref)
 	_apply_gravity_and_gifts(view, match_ref)
@@ -326,7 +348,7 @@ func _apply_stack(view: BotWorldView, match_ref: Variant) -> void:
 		centres.append(entry["point"] as Vector2)
 	if view.mode_goal != null and view.mode_goal.has_tower:
 		centres.append(view.mode_goal.tower_origin)
-	if view.mode == MatchConfig.GameMode.REACH_THE_SKY:
+	if _appetite.skips_unsound_tops(view.mode):
 		_append_uncovered_towers(view, tops, centres, gen)
 	view.stack = BotStackProbe.build(
 		_registry, _field, centres, BotEvaluator.stack_tuning, view.cube_size,
