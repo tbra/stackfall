@@ -199,3 +199,86 @@ func punch_special_hole(disk_pos: Vector2, radius_m: float, hole_open_s: float) 
 
 func add_match_child(node: Node) -> void:
 	_match.add_child(node)
+
+
+func held_shape(slot_id: int) -> BlockShape:
+	if not _active():
+		return null
+	return _match.held_shape(slot_id)
+
+
+func held_special(slot_id: int) -> StringName:
+	if not _active():
+		return &""
+	return _match.held_special(slot_id)
+
+
+func feed_seq(slot_id: int) -> int:
+	return _match.feed_seq(slot_id)
+
+
+func is_release_locked(slot_id: int) -> bool:
+	return _match.is_release_locked(slot_id)
+
+
+func gift_slot_head(slot_id: int) -> StringName:
+	if not _active():
+		return &""
+	return _match.gift_slot_head(slot_id)
+
+
+func default_ghost_origin(slot_id: int) -> Vector3:
+	return _match.default_ghost_origin(slot_id)
+
+
+func preview_placement(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion) -> PlacementRules.Result:
+	return _match.preview_placement(slot_id, origin, orientation_index, free_quat)
+
+
+func active_cat() -> RigidBody3D:
+	return _match.active_cat()
+
+
+## The membrane (MatchNet) when installed: it acts inline on the host and sends the intent RPC on a
+## client, quoting Match.feed_seq exactly as the controller did. Otherwise Match directly.
+func submit_place(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, auto_drop: bool) -> StringName:
+	var membrane: Variant = _match.replicator()
+	if membrane == null:
+		return _match.request_place(slot_id, origin, orientation_index, free_quat, auto_drop)
+	return membrane.submit_place(slot_id, origin, orientation_index, free_quat, auto_drop,
+			int(_match.feed_seq(slot_id)))
+
+
+func submit_throw(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, velocity: Vector3) -> StringName:
+	var membrane: Variant = _match.replicator()
+	if membrane == null:
+		return _match.request_throw(slot_id, origin, orientation_index, free_quat, velocity)
+	return membrane.submit_throw(slot_id, origin, orientation_index, free_quat, velocity,
+			int(_match.feed_seq(slot_id)))
+
+
+func submit_use_gift_slot(slot_id: int) -> bool:
+	var membrane: Variant = _match.replicator()
+	if membrane == null:
+		return _match.request_use_gift_slot(slot_id)
+	return membrane.submit_use_gift_slot(slot_id)
+
+
+func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, aim: Vector3) -> void:
+	var membrane: Variant = _match.replicator()
+	if membrane != null:
+		membrane.submit_cursor(slot_id, origin, orientation_index, free_quat, aim)
+
+
+func submit_cat_target(slot_id: int, point: Vector3) -> void:
+	var membrane: Variant = _match.replicator()
+	if membrane != null:
+		membrane.submit_cat_target(slot_id, point)
+
+
+func note_aim(slot_id: int, forward: Vector3) -> void:
+	_match.note_aim(slot_id, forward)
