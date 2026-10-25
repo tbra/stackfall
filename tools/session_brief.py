@@ -10,6 +10,7 @@ memories are fetched by key on demand.
 import json
 import shutil
 import subprocess
+from pathlib import Path
 
 from bd_cli import native_or
 from skill_versions import list_versions
@@ -17,6 +18,8 @@ from skill_versions import list_versions
 HANDOVER_KEYS = ("stackfall-handoff", "stackfall-debrief")
 BD_TIMEOUT_S = 20
 MAX_MEMORY_CHARS = 2500
+LOW_DISK_GB = 20
+REPO = Path(__file__).resolve().parents[1]
 
 
 def read_memory(key):
@@ -39,6 +42,16 @@ def read_memory(key):
     return text
 
 
+def disk_line(path=REPO):
+    """Free space on the checkout's drive; a full drive broke integration and Dolt writes."""
+    try:
+        free_gb = shutil.disk_usage(str(path)).free / 1e9
+    except OSError as exc:
+        return "[disk] UNAVAILABLE (%s)" % exc.__class__.__name__
+    warn = " LOW DISK: free space before integrating or soaking" if free_gb < LOW_DISK_GB else ""
+    return "[disk] %s %.0f GB free%s" % (Path(path).anchor or path, free_gb, warn)
+
+
 def main():
     try:
         versions = list_versions()
@@ -49,6 +62,7 @@ def main():
         "Read the named Bead and live Git state; fetch other memories by key. "
         "Skill versions on disk: " + versions + ". Verify the active skill before use."
     )
+    print(disk_line())
     for key in HANDOVER_KEYS:
         print("[" + key + "] " + read_memory(key))
 

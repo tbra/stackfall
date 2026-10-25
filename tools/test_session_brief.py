@@ -46,5 +46,25 @@ class ReadMemoryTest(unittest.TestCase):
             self.assertIn("UNAVAILABLE", session_brief.read_memory("k"))
 
 
+class DiskLineTest(unittest.TestCase):
+    def _usage(self, free_gb):
+        return mock.Mock(free=free_gb * 1e9)
+
+    def test_reports_free_space(self):
+        with mock.patch.object(session_brief.shutil, "disk_usage", return_value=self._usage(35)):
+            line = session_brief.disk_line()
+        self.assertIn("35 GB free", line)
+        self.assertNotIn("LOW DISK", line)
+
+    def test_warns_when_low(self):
+        with mock.patch.object(session_brief.shutil, "disk_usage",
+                               return_value=self._usage(session_brief.LOW_DISK_GB - 1)):
+            self.assertIn("LOW DISK", session_brief.disk_line())
+
+    def test_error_never_raises(self):
+        with mock.patch.object(session_brief.shutil, "disk_usage", side_effect=OSError):
+            self.assertIn("UNAVAILABLE", session_brief.disk_line())
+
+
 if __name__ == "__main__":
     unittest.main()
