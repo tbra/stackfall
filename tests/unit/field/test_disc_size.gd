@@ -67,9 +67,13 @@ func test_camera_zoom_limit_grows_with_a_large_disc_but_never_shrinks() -> void:
 	var config: MatchConfig = MatchConfig.new()
 	config.disc_size_step = 5
 	rig.set_map_def(config.map_def())
-	assert_almost_eq(rig._zoom_max(), rig.tuning.zoom_max * 1.75, 0.001)
+	assert_almost_eq(_farthest_zoom(rig), rig.tuning.zoom_max * 1.75, 0.001)
 	config.disc_size_step = 0
 	rig.set_map_def(config.map_def())
-	assert_almost_eq(rig._zoom_max(), rig.tuning.zoom_max, 0.001)
+	assert_almost_eq(_farthest_zoom(rig), rig.tuning.zoom_max, 0.001)
 
 
+## Zooms out far past any limit and reads where the rig stops.
+func _farthest_zoom(rig: CameraRig) -> float:
+	rig.zoom_continuous(1000000.0)
+	return rig.get_distance()

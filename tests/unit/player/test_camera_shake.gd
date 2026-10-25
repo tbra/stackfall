@@ -106,7 +106,7 @@ func test_earthquake_shakes_while_the_disc_shakes_and_not_after() -> void:
 		field._physics_process(tick)
 		rig._process(tick)
 		elapsed += tick
-		if i > ticks_in_quake / 4 and rig._current_shake_amplitude() > 0.0:
+		if i > ticks_in_quake / 4 and rig.shake_offset().length() > 0.0:
 			shaking_during += 1
 	assert_gt(shaking_during, ticks_in_quake / 2, "the camera shakes while the disc is being shaken.")
 	for i: int in range(int(10.0 / tick)):
@@ -149,7 +149,7 @@ func test_slow_weight_tilt_never_shakes_at_high_frame_rates() -> void:
 				field.apply_replicated_pose(Vector3.ZERO, Quaternion(Vector3.RIGHT, tilt))
 				since_physics = 0.0
 			rig._process(frame_s)
-			assert_eq(rig._current_shake_amplitude(), 0.0, "slow tilt must not shake at %.0f fps" % (1.0 / frame_s))
+			assert_true(rig.shake_offset().is_equal_approx(Vector3.ZERO), "slow tilt must not shake at %.0f fps" % (1.0 / frame_s))
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
