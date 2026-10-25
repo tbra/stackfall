@@ -27,24 +27,24 @@ func after_each() -> void:
 
 func test_right_stick_orbits_when_nothing_is_open() -> void:
 	var rig: CameraRig = _make_rig()
-	var yaw_before: float = rig._yaw
+	var yaw_before: float = rig.get_yaw()
 	_push_right_stick(STICK_FULL)
 	Input.flush_buffered_events()
 	await wait_physics_frames(3)
 	rig._process(0.1)
-	assert_ne(rig._yaw, yaw_before, "fixture: the stick orbits the camera when no UI is open")
+	assert_ne(rig.get_yaw(), yaw_before, "fixture: the stick orbits the camera when no UI is open")
 
 
 func test_right_stick_does_not_move_camera_while_results_are_open() -> void:
 	var rig: CameraRig = _make_rig()
 	Events.match_results_ready.emit({})
 	assert_true(rig.is_input_blocked())
-	var yaw_before: float = rig._yaw
+	var yaw_before: float = rig.get_yaw()
 	_push_right_stick(STICK_FULL)
 	Input.flush_buffered_events()
 	await wait_physics_frames(3)
 	rig._process(0.1)
-	assert_almost_eq(rig._yaw, yaw_before, YAW_EPSILON, "results screen: stick must not orbit")
+	assert_almost_eq(rig.get_yaw(), yaw_before, YAW_EPSILON, "results screen: stick must not orbit")
 
 
 func test_pause_menu_blocks_and_releases_camera_input() -> void:
