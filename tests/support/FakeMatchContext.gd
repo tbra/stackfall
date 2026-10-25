@@ -34,6 +34,17 @@ var grant_glue_drops_result: bool = false
 var convert_block_owner_result: bool = false
 var spawn_projectile_result: RigidBody3D = null
 var add_match_child_adopts: bool = false
+var held_shape_by_slot: Dictionary = {}
+var held_special_by_slot: Dictionary = {}
+var feed_seq_by_slot: Dictionary = {}
+var release_locked_by_slot: Dictionary = {}
+var gift_slot_head_by_slot: Dictionary = {}
+var default_ghost_origin_by_slot: Dictionary = {}
+var preview_placement_value: PlacementRules.Result = PlacementRules.Result.EMPTY
+var active_cat_value: RigidBody3D = null
+var submit_place_result: StringName = &""
+var submit_throw_result: StringName = &""
+var submit_use_gift_slot_result: bool = false
 
 var start_cat_calls: Array[Dictionary] = []
 var end_cat_calls: Array[Dictionary] = []
@@ -42,6 +53,12 @@ var convert_block_owner_calls: Array[Dictionary] = []
 var spawn_special_projectile_calls: Array[Dictionary] = []
 var punch_special_hole_calls: Array[Dictionary] = []
 var add_match_child_calls: Array[Dictionary] = []
+var submit_place_calls: Array[Dictionary] = []
+var submit_throw_calls: Array[Dictionary] = []
+var submit_use_gift_slot_calls: Array[Dictionary] = []
+var submit_cursor_calls: Array[Dictionary] = []
+var submit_cat_target_calls: Array[Dictionary] = []
+var note_aim_calls: Array[Dictionary] = []
 
 
 func has_authority() -> bool:
@@ -155,6 +172,77 @@ func spawn_special_projectile(shape: BlockShape, world_origin: Vector3, basis: B
 
 func punch_special_hole(disk_pos: Vector2, radius_m: float, hole_open_s: float) -> void:
 	punch_special_hole_calls.append({"disk_pos": disk_pos, "radius_m": radius_m, "hole_open_s": hole_open_s})
+
+
+## A test supplies its own view by replacing this store.
+func set_local_held(view: LocalHeldView) -> void:
+	_held = view
+
+
+func held_shape(slot_id: int) -> BlockShape:
+	return held_shape_by_slot.get(slot_id, null) as BlockShape
+
+
+func held_special(slot_id: int) -> StringName:
+	return StringName(held_special_by_slot.get(slot_id, &""))
+
+
+func feed_seq(slot_id: int) -> int:
+	return int(feed_seq_by_slot.get(slot_id, 0))
+
+
+func is_release_locked(slot_id: int) -> bool:
+	return bool(release_locked_by_slot.get(slot_id, false))
+
+
+func gift_slot_head(slot_id: int) -> StringName:
+	return StringName(gift_slot_head_by_slot.get(slot_id, &""))
+
+
+func default_ghost_origin(slot_id: int) -> Vector3:
+	return default_ghost_origin_by_slot.get(slot_id, Vector3.ZERO) as Vector3
+
+
+func preview_placement(_slot_id: int, _origin: Vector3, _orientation_index: int,
+		_free_quat: Quaternion) -> PlacementRules.Result:
+	return preview_placement_value
+
+
+func active_cat() -> RigidBody3D:
+	return active_cat_value if is_instance_valid(active_cat_value) else null
+
+
+func submit_place(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, auto_drop: bool) -> StringName:
+	submit_place_calls.append({"slot_id": slot_id, "origin": origin,
+			"orientation_index": orientation_index, "free_quat": free_quat, "auto_drop": auto_drop})
+	return submit_place_result
+
+
+func submit_throw(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, velocity: Vector3) -> StringName:
+	submit_throw_calls.append({"slot_id": slot_id, "origin": origin,
+			"orientation_index": orientation_index, "free_quat": free_quat, "velocity": velocity})
+	return submit_throw_result
+
+
+func submit_use_gift_slot(slot_id: int) -> bool:
+	submit_use_gift_slot_calls.append({"slot_id": slot_id})
+	return submit_use_gift_slot_result
+
+
+func submit_cursor(slot_id: int, origin: Vector3, orientation_index: int,
+		free_quat: Quaternion, aim: Vector3) -> void:
+	submit_cursor_calls.append({"slot_id": slot_id, "origin": origin,
+			"orientation_index": orientation_index, "free_quat": free_quat, "aim": aim})
+
+
+func submit_cat_target(slot_id: int, point: Vector3) -> void:
+	submit_cat_target_calls.append({"slot_id": slot_id, "point": point})
+
+
+func note_aim(slot_id: int, forward: Vector3) -> void:
+	note_aim_calls.append({"slot_id": slot_id, "forward": forward})
 
 
 ## Records the node; frees it unless the test sets add_match_child_adopts (then the test owns it).
