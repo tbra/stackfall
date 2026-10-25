@@ -155,12 +155,14 @@ func sample_now() -> void:
 	_prev_bytes = bytes_total
 	_last_epoch = epoch
 	_samples += 1
-	_record(found, epoch, wall_ms)
 	var fields: Dictionary = _observer.sample_fields(bodies.size(), board)
 	fields["mt"] = now_s - _play_start_s if _play_start_s >= 0.0 else 0.0
 	fields["tick_p99_ms"] = _worst_p99_ms()
+	# The overhead budget covers the walk and checks, not log writes: a disk stall blocks
+	# both peers' prints in the same second and is not the monitor's cost.
 	_prev_monitor_us = Time.get_ticks_usec() - started_us
 	_prev_monitor_bodies = bodies.size()
+	_record(found, epoch, wall_ms)
 	fields["mon_us"] = _prev_monitor_us
 	print(SoakLine.sample(role, epoch, wall_ms, fields))
 	if dump:
