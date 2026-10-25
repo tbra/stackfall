@@ -90,6 +90,16 @@ func rotated_bottom_offset(basis: Basis, cube_size: float, cube_margin: float) -
 	return 0.0 if min_y == INF else min_y
 
 
+## Centre of every cell relative to the bottom_center() pivot, in metres, in `cells` order:
+## (Vector3(cell) - pivot) * cube_size. The one place that formula lives.
+func cell_centres(cube_size: float) -> Array[Vector3]:
+	var centres: Array[Vector3] = []
+	var pivot: Vector3 = bottom_center()
+	for cell: Vector3i in cells:
+		centres.append((Vector3(cell) - pivot) * cube_size)
+	return centres
+
+
 ## the rotated bounding-box centre of the cube centres, relative to the pivot
 ## (GhostPreview.rotated_center_offset parity; xz is 0 for a yaw-only basis).
 func rotated_center_offset(basis: Basis, cube_size: float) -> Vector3:

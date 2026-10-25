@@ -772,6 +772,31 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/blocks/GhostSilhouette.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/GhostSweep.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/SpawnClearance.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Iclear, which removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/blocks/BlockShape.gd:cell_centres",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Icells, which removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/gifts/GiftModelTable.gd:visual_for",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
   }
  ]
 }
