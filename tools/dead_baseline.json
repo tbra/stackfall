@@ -577,6 +577,31 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/blocks/GhostSilhouette.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/GhostSweep.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/SpawnClearance.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Iclear, which removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/blocks/BlockShape.gd:cell_centres",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Icells, which removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/gifts/GiftModelTable.gd:visual_for",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
   }
  ]
 }

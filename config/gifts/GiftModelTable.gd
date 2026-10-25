@@ -63,6 +63,12 @@ func build_gift_visual(special_id: StringName, world: bool = false) -> Node3D:
 	return _build(entry, world)
 
 
+## The visual for a gift id at `cube_size`; never null. Stub: an empty Node3D until the
+## three-tier lookup (table GLB, SpecialDef.held_scene, generic crate) lands.
+func visual_for(_gift_id: StringName, _cube_size: float) -> Node3D:
+	return Node3D.new()
+
+
 func build_crate_visual() -> Node3D:
 	return _build(crate, false)
 
