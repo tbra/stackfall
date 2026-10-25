@@ -685,21 +685,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/world/LocalHeldView.gd:publish",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/LocalHeldView.gd:clear",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:local_held",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/world/MatchContext.gd:held_shape",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },

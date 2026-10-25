@@ -315,6 +315,7 @@ func _take_back_home_spawn_raise() -> void:
 ## menu after leaving a match, soft-locking mouse users. Only undoes a capture
 ## this controller itself enabled, so headless runs and tests are unaffected.
 func _exit_tree() -> void:
+	MatchContext.current().local_held().clear()
 	if _mouse_capture_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -385,6 +386,23 @@ func _countdown_blocks_input() -> bool:
 
 
 func _process(delta: float) -> void:
+	_process_input(delta)
+	_publish_held_view()
+
+
+## Publishes the held pose after every early return of _process_input(), so an input gate,
+## the countdown or a peek never hides the held piece from readers.
+func _publish_held_view() -> void:
+	if _ghost == null:
+		return
+	# DECISION: reads the global MatchContext until the controller gets its own match_context
+	# property (replaced there).
+	MatchContext.current().local_held().publish(_acting_slot(), _ghost.get_shape(), _ghost.global_position,
+			_ghost.orientation_index, _ghost.free_quaternion, _ghost.visible,
+			_ghost.height_above_surface(), Time.get_ticks_msec())
+
+
+func _process_input(delta: float) -> void:
 	_sync_ghost_elimination_visibility()
 	if not input_enabled:
 		return
