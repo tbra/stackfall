@@ -56,6 +56,8 @@ extends Resource
 @export var threat_lookahead_m: float = 0.0
 ## Multiplier on BotStrategyTuning.gift_claim_value (0 = ignores gifts).
 @export var gift_claim_scale: float = 1.0
+## Range (min, max, 0..1) a bot of this tier draws its risk appetite from, once per match.
+@export var appetite_range: Vector2 = Vector2.ZERO
 
 
 ## Physics ticks a think may take for this profile: ceil(candidate_count / candidates_per_frame), at

@@ -54,7 +54,7 @@ static func proxy_terms(c: BotCandidate, view: BotWorldView, intent: BotIntent) 
 		terms[BotIntent.Term.KILL] = float(covered)
 		terms[BotIntent.Term.HAZARD] = minf(_hazard_from_gap(c, view, nearest_gap) + incoming_special_risk(c, view), 1.0)
 	terms[BotIntent.Term.EXPOSURE] = float(mini(threats + _home_threats(c.origin, view), tuning.exposure_cap))
-	terms[BotIntent.Term.TIP] = stability_risk(c) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = stability_risk(c, view) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.WASTE] = 1.0 if inside >= 1.0 else 0.0
 	return terms
 
@@ -73,7 +73,7 @@ static func measure(
 	terms[BotIntent.Term.WASTE] = fractions.y
 	terms[BotIntent.Term.KILL] = _kill(c, view, chains, radius)
 	terms[BotIntent.Term.EXPOSURE] = float(_exposure(c, view, chains))
-	terms[BotIntent.Term.TIP] = stability_risk(c) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
+	terms[BotIntent.Term.TIP] = stability_risk(c, view) + wind_tip(c, view) + breeze_tip(c, view) + rim_risk(c, view)
 	terms[BotIntent.Term.HAZARD] = minf(hazard(c, view, chains) + incoming_special_risk(c, view), 1.0)
 	return terms
 
@@ -95,8 +95,9 @@ static func score(terms: PackedFloat32Array, intent: BotIntent) -> float:
 ## TIP risk of the site's statics: topple_penalty when the probed placement is not stable under
 ## the owner's two centre-of-mass rules (BotStability slack <= 0), else 0. An unevaluated site has slack INF.
 ## DECISION: binary, no soft headroom band; the required margin already holds the aim error and the tolerance.
-static func stability_risk(c: BotCandidate) -> float:
-	return tuning.topple_penalty if c.stability_slack <= 0.0 else 0.0
+static func stability_risk(c: BotCandidate, view: BotWorldView) -> float:
+	var top: float = maxf(c.top_height, c.support_height + c.shape_height)
+	return tuning.topple_penalty * view.appetite.fall_probability(c.stability_slack, view.mode) + view.appetite.height_risk(top, view.mode)
 
 
 ## extra TIP risk from the active wind: grows with the weather intensity and

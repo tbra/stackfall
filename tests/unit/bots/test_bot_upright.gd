@@ -141,7 +141,7 @@ func test_upright_bar5_centred_on_a_sound_top_is_stable_and_pays_no_tip_charge()
 	)
 	c.stability_slack = BotStability.evaluate(c, info, view, req).slack
 	assert_gt(c.stability_slack, 0.0, "a centred upright bar5 stands")
-	assert_eq(BotEvaluator.stability_risk(c), 0.0, "and pays no TIP charge")
+	assert_eq(BotEvaluator.stability_risk(c, view), 0.0, "and pays no TIP charge")
 
 
 func test_toppling_upright_loses_to_the_flat_piece() -> void:

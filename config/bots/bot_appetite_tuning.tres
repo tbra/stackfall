@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="BotAppetiteTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://config/bots/BotAppetiteTuning.gd" id="1_appetite"]
+
+[resource]
+script = ExtResource("1_appetite")
