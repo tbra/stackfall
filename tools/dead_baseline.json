@@ -39,8 +39,6 @@
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",
    "config/bots/BotAppetiteTuning.gd:covers",
-   "core/ai/BotAppetite.gd:skips_unsound_tops",
-   "core/ai/BotAppetite.gd:tall_variants",
    "core/ai/BotThink.gd:decision",
    "game/blocks/HoleDissolver.gd:reset",
    "game/blocks/HoleDissolver.gd:set_field",

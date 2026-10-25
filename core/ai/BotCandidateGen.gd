@@ -214,9 +214,10 @@ class _Gen:
 
 	## Flat-first orientations alone lay bars flat: Reach the Sky also offers the
 	## tallest orientations after the flattest ones; any eligible orientation may stand on a sound top.
-	## DECISION: Reach the Sky only; other modes keep their flat-first stack orientations (and candidate sets).
+	## DECISION: how many tall orientations is the bot's risk appetite (all in Reach the Sky, none for a cautious bot).
 	func _add_tall_stack_orientations() -> void:
-		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or t.stack_tall_variants <= 0:
+		var n: int = view.appetite.tall_variants(view.mode, t.stack_tall_variants)
+		if n <= 0:
 			return
 		var tall: Array[BotStatics.OrientationInfo] = []
 		for info: BotStatics.OrientationInfo in infos:
@@ -231,7 +232,7 @@ class _Gen:
 				return a.self_margin > b.self_margin
 			return a.index < b.index
 		)
-		for info: BotStatics.OrientationInfo in tall.slice(0, t.stack_tall_variants):
+		for info: BotStatics.OrientationInfo in tall.slice(0, n):
 			if info.height > _stack_orientations[0].height:
 				_stack_orientations.append(info)
 
@@ -368,9 +369,8 @@ class _Gen:
 	## block, or one carrying such a block); an unmatched circle or no snapshot keeps the old behaviour.
 	func _usable_top(i: int, top: float) -> bool:
 		var stack: BotStack = view.stack
-		# DECISION: only Reach the Sky skips unsound tops; the other modes keep the old
-		# sites until the Classic mode's screen decides otherwise.
-		if view.mode != MatchConfig.GameMode.REACH_THE_SKY or stack == null or not stack.is_analysed():
+		# DECISION: whether unsound tops are skipped is the bot's risk appetite (always in Reach the Sky).
+		if not view.appetite.skips_unsound_tops(view.mode) or stack == null or not stack.is_analysed():
 			return true
 		var body: int = stack.body_near(
 			Vector2(view.cx[i], view.cz[i]), BotEvaluator.stack_tuning.circle_match_radius_m, top
