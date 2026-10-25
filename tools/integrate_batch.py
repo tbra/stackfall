@@ -32,7 +32,8 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               (the user says the PC is idle) tools/run_soak.py --idle runs on the temp worktree and the
               step says `soak      ok|REPORT|FAIL|INVALID <SOAK RESULT line>`; without it, `soak      NOT RUN`.
               Report-only: it never fails the batch. Silent when no SOAK_PATHS file changed.
-  6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main)
+  6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main);
+              with --no-push the merged branches' worktrees are pruned right after (prune_worktrees)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
               (retried with --force when bd refuses a live worker claim), then `bd close`
@@ -765,6 +766,9 @@ def integrate(args, ctx, say, res):
     # 7 push (separate step), then verify the remote
     if args.no_push:
         say("push      skip --no-push (beads not closed)")
+        # The orchestrator always pushes separately, so the merged branches are pruned here:
+        # their commits are on main from the fast-forward on.
+        prune_merged(args, say)
         # main moved: refresh its .godot caches so runs from the main checkout see new
         # class_name scripts (a soak in main hit a stale global class cache).
         code, issues, log = import_check(ctx, "postimport", repo)
