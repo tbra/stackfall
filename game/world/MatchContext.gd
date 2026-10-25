@@ -177,3 +177,79 @@ func punch_special_hole(_disk_pos: Vector2, _radius_m: float, _hole_open_s: floa
 func add_match_child(node: Node) -> void:
 	if node != null:
 		node.queue_free()
+
+
+# --- local player: held piece, reads and intents ----------------------------------
+
+## The one held-pose store of this context: the controller writes it, the HUD, birds and gift
+## presenters read it. Live and Fake inherit it.
+var _held: LocalHeldView = LocalHeldView.new()
+
+
+func local_held() -> LocalHeldView:
+	return _held
+
+
+func held_shape(_slot_id: int) -> BlockShape:
+	return null
+
+
+func held_special(_slot_id: int) -> StringName:
+	return &""
+
+
+## The value an intent must quote to be accepted (Match.feed_seq).
+func feed_seq(_slot_id: int) -> int:
+	return 0
+
+
+func is_release_locked(_slot_id: int) -> bool:
+	return false
+
+
+func gift_slot_head(_slot_id: int) -> StringName:
+	return &""
+
+
+func default_ghost_origin(_slot_id: int) -> Vector3:
+	return Vector3.ZERO
+
+
+## DECISION: PlacementRules.Result is an enum, so the null object answers EMPTY (what Match
+## answers before activation) rather than null.
+func preview_placement(_slot_id: int, _origin: Vector3, _orientation_index: int,
+		_free_quat: Quaternion) -> PlacementRules.Result:
+	return PlacementRules.Result.EMPTY
+
+
+func active_cat() -> RigidBody3D:
+	return null
+
+
+## Local intents: the refusal reason, &"" = accepted. Live sends through the network membrane when
+## one exists, else straight to Match.
+func submit_place(_slot_id: int, _origin: Vector3, _orientation_index: int,
+		_free_quat: Quaternion, _auto_drop: bool) -> StringName:
+	return &""
+
+
+func submit_throw(_slot_id: int, _origin: Vector3, _orientation_index: int,
+		_free_quat: Quaternion, _velocity: Vector3) -> StringName:
+	return &""
+
+
+func submit_use_gift_slot(_slot_id: int) -> bool:
+	return false
+
+
+func submit_cursor(_slot_id: int, _origin: Vector3, _orientation_index: int,
+		_free_quat: Quaternion, _aim: Vector3) -> void:
+	pass
+
+
+func submit_cat_target(_slot_id: int, _point: Vector3) -> void:
+	pass
+
+
+func note_aim(_slot_id: int, _forward: Vector3) -> void:
+	pass

@@ -144,25 +144,38 @@ func _key_event(keycode: Key) -> InputEventKey:
 	return event
 
 
+## Moves yaw, pitch and distance away from the start pose through the public API.
 func _disturb(rig: CameraRig) -> void:
-	rig._yaw += 1.0
-	rig._pitch = deg_to_rad(-70.0)
-	rig._distance = rig.tuning.zoom_min
-	rig._update_transform()
+	rig.set_home_view(Vector3(20.0, 0.0, 0.0))
+	rig.set_spectator_pose(Vector3.ZERO, rig.tuning.zoom_min, -70.0)
 
 
 ## camera_reset (V / pad Back) restores the match-start pose.
 func test_camera_reset_key_restores_the_recorded_start_pose() -> void:
+	Match.set_process(false)
+	Match.abort_match()
+	var field: Field = autofree(Field.new())
+	field.map_def = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
+	add_child_autofree(field)
+	var blocks_root: Node3D = autofree(Node3D.new())
+	add_child_autofree(blocks_root)
+	var registry: BlockRegistry = autofree(BlockRegistry.new())
+	add_child_autofree(registry)
+	Match.register_world(field, registry, blocks_root)
+	field.place_flags(2, PackedColorArray([Color.RED, Color.BLUE]), 2)
 	var rig: CameraRig = _make_rig()
 	rig.tuning = rig.tuning.duplicate()
 	rig.tuning.snap_enabled = false
-	rig._has_start_pose = true
-	rig._start_yaw = 0.4
-	rig._start_pitch = deg_to_rad(-20.0)
-	rig._start_distance = 12.0
+	assert_true(rig.begin_start_framing(0), "fixture: slot 0 has a home beacon")
+	var start_yaw: float = rig.get_yaw()
+	var start_pitch: float = rig.get_pitch()
+	var start_distance: float = rig.get_distance()
 	_disturb(rig)
+	assert_false(is_equal_approx(rig.get_distance(), start_distance), "fixture: the disturbance moved the distance")
 	rig._unhandled_input(_key_event(KEY_V))
-	assert_almost_eq(rig.get_yaw(), 0.4, 0.0001)
-	assert_almost_eq(rig.get_pitch(), deg_to_rad(-20.0), 0.0001)
-	assert_almost_eq(rig.get_distance(), 12.0, 0.0001)
-
+	assert_almost_eq(rig.get_yaw(), start_yaw, 0.0001)
+	assert_almost_eq(rig.get_pitch(), start_pitch, 0.0001)
+	assert_almost_eq(rig.get_distance(), start_distance, 0.0001)
+	Match.abort_match()
+	Match.set_process(true)
+	MatchTestReset.clear_world()

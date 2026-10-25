@@ -10,6 +10,17 @@ extends RefCounted
 enum Mode { NONE, THROW, AIMED }
 
 
+## How a held gift leaves the hand: mode, launch velocity, spawn point and facing.
+class Plan extends RefCounted:
+	var mode: Mode = Mode.NONE
+	var velocity: Vector3 = Vector3.ZERO
+	var spawn_origin: Vector3 = Vector3.ZERO
+	## faced_basis is valid only when faces (a null-vs-IDENTITY pair, not a Variant).
+	var faces: bool = false
+	var faced_basis: Basis = Basis.IDENTITY
+	var range_scale: float = 1.0
+
+
 static func mode_for(def: SpecialDef) -> Mode:
 	if def == null:
 		return Mode.NONE
@@ -35,3 +46,9 @@ static func sanitize_aim(direction: Vector3, tuning: SpecialTuning) -> Vector3:
 	if length < tuning.gift_aim_min_length or length > tuning.gift_aim_max_length:
 		return Vector3.ZERO
 	return direction / length
+
+
+## Stub: the full plan lands with the throw wiring; today every call answers a NONE plan.
+static func launch_plan(_def: SpecialDef, _mode: Mode, _aim: Vector3, _origin: Vector3,
+		_surface_y: float, _range_scale: float, _tuning: SpecialTuning, _shape: BlockShape) -> Plan:
+	return Plan.new()
