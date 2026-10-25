@@ -560,10 +560,13 @@ func _finish() -> void:
 	get_tree().quit(0)
 
 
-## sha256 of the first POSE_HASH_BODIES poses, rounded, for the reference-vs-reference diff.
+## sha256 of POSE_HASH_BODIES poses spread evenly over the whole pile, rounded, for the
+## reference-vs-reference diff: the first bodies are the frozen bottom layer, which no settle or
+## wake change would move.
 func _pose_hash() -> String:
 	var text: String = ""
-	for i: int in range(mini(POSE_HASH_BODIES, _bodies_wanted)):
+	var stride: int = maxi(1, _bodies_wanted / POSE_HASH_BODIES)
+	for i: int in range(0, _bodies_wanted, stride):
 		var block: Block = _blocks[i]
 		if not is_instance_valid(block):
 			text += "gone;"
