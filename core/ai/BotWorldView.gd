@@ -82,6 +82,8 @@ var stack: BotStack = null
 var gravity_local: Vector3 = Vector3.DOWN * DEFAULT_GRAVITY
 ## gifts are on in this match (BotStability adds BotStackTuning.gift_disturbance_m).
 var gifts_enabled: bool = false
+## The bot's risk appetite; the inert shipped one for any view built outside the controller.
+var appetite: BotAppetite = BotAppetite.shipped()
 
 
 static func build(

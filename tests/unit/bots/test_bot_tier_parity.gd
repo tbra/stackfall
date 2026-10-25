@@ -11,7 +11,7 @@ const MECHANICAL_FIELDS: Array[String] = [
 ## Strategy / goal fields that may differ per tier.
 const STRATEGY_FIELDS: Array[String] = [
 	"uses_defensive_specials", "uses_offensive_specials", "intent_mask", "threat_lookahead_m",
-	"gift_claim_scale",
+	"gift_claim_scale", "appetite_range",
 ]
 ## Precision, the one intended difference.
 const PRECISION_FIELDS: Array[String] = ["aim_noise_m"]

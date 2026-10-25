@@ -223,7 +223,7 @@ func test_think_picks_the_centred_site_with_the_stack_and_the_overhang_without()
 	var counter: BotCandidate = candidates[1]
 	assert_gt(counter.stability_slack, 0.0, "the centred site keeps the combined centre of mass inside the column")
 	assert_lte(overhang.stability_slack, 0.0, "the overhanging site pushes the load past the column")
-	assert_lt(BotEvaluator.stability_risk(counter), BotEvaluator.stability_risk(overhang))
+	assert_lt(BotEvaluator.stability_risk(counter, aware._special_view), BotEvaluator.stability_risk(overhang, aware._special_view))
 	assert_true(_picked_origin(aware).is_equal_approx(_site_origin(_counter_site(c))), "the stack-aware bot picks the centred site")
 	for cand: BotCandidate in candidates:
 		assert_eq(cand.support_bodies.size(), cand.probe_points.size())
@@ -231,7 +231,7 @@ func test_think_picks_the_centred_site_with_the_stack_and_the_overhang_without()
 	for cand: BotCandidate in blind._think.candidates():
 		assert_false(is_inf(cand.stability_slack), "no stack: the probe-only fallback still judges the piece")
 		assert_gt(cand.stability_slack, 0.0, "the piece's own centre of mass is over its own contact patch")
-		assert_eq(BotEvaluator.stability_risk(cand), 0.0)
+		assert_eq(BotEvaluator.stability_risk(cand, blind._special_view), 0.0)
 	assert_true(_picked_origin(blind).is_equal_approx(_site_origin(_overhang_site(c))), "without the stack the overhang wins on reach and area")
 
 
