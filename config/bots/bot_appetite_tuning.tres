@@ -4,3 +4,11 @@
 
 [resource]
 script = ExtResource("1_appetite")
+appetite_modes = 23
+unsound_top_skip_below = 0.5
+unsound_fall_floor = 0.3
+unsound_band_m = 0.15
+height_risk_start_m = 3.0
+height_risk_span_m = 12.0
+height_risk_max = 4.0
+height_risk_relief = 0.75
