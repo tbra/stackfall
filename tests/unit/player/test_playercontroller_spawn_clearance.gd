@@ -19,6 +19,7 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _ghost: GhostPreview
 
 ## Mirrors GhostPreview's own _CORNER_SIGNS (private there) -- duplicated
 ## rather than reached into, the same call this file's own fixtures make for
@@ -98,33 +99,54 @@ func _home_world_position(slot_id: int) -> Vector3:
 
 
 func _make_controller() -> PlayerController:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	_ghost = autofree(GhostPreview.new())
+	add_child_autofree(_ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = _ghost.get_path()
 	# spawn clearance is off by default now; these tests cover
 	# the feature itself, so enable it on a private copy of the tuning.
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	controller.ghost_tuning.spawn_clearance_enabled = true
 	add_child_autofree(controller)
-	controller._ghost = ghost
+	# The test drives the engine's per-frame callback itself (one deterministic step per call).
+	controller.set_process(false)
 	return controller
 
 
-## game/player/PlayerController.gd's own _process() -- not
-## _on_feed_block_issued() anymore -- is what actually calls
-## _apply_spawn_clearance() (see that function's own header DECISION): a
-## physics query run in the same call that spawned a body cannot see that
-## body yet, so the check has to wait for at least one physics step. Every
-## test below that exercises the overlap path drives that same sequence by
-## hand: wait a physics frame (so the space's broadphase has actually
-## registered whatever was just placed), refresh the ghost's transform for
-## its current cursor/shape (_process()'s own next step), then call
-## _apply_spawn_clearance() directly -- exactly what _process() does, minus
-## the unrelated gamepad/tint/publish steps this package doesn't touch.
+## The player parks the held piece over `cursor` on the floor: the cursor seed the game gives a
+## slot (set_home_position), then the wheel down, which makes the first piece's beacon raise the
+## player's own and takes it off.
+func _aim_at(controller: PlayerController, cursor: Vector3) -> void:
+	controller.set_home_position(cursor)
+	_ghost.manual_hover_offset = 0.0
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	controller._unhandled_input(wheel)
+
+
+## The ghost_place press the Input Map delivers.
+func _click_place(controller: PlayerController) -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
+
+
+## One engine frame of the controller.
+func _frame(controller: PlayerController, delta: float = 1.0 / 60.0) -> void:
+	controller._process(delta)
+
+
+## game/player/PlayerController.gd's own _process() is what resolves a placement's pending
+## spawn clearance: a physics query run in the same call that spawned a body cannot see that
+## body yet, so the check has to wait for at least one physics step. Every test below that
+## exercises the overlap path waits a physics frame (so the space's broadphase has actually
+## registered whatever was just placed), then runs one frame long enough to end the settle wait
+## (GhostTuning.spawn_clearance_settle_timeout_s) so the clearance resolves at once.
 func _resolve_pending_spawn_clearance(controller: PlayerController) -> void:
 	await wait_physics_frames(1)
-	controller._update_ghost_transform()
-	controller._apply_spawn_clearance()
+	_frame(controller, controller.ghost_tuning.spawn_clearance_settle_timeout_s)
 
 
 ## The world-space AABB `shape` occupies at `transform`, built exactly the way
@@ -161,9 +183,9 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 	var controller: PlayerController = _make_controller()
 	controller.set_acting_slot(slot_id)
 	var cursor: Vector3 = _home_world_position(slot_id)
-	controller._cursor = cursor
-	controller._ghost.set_shape(Match.held_shape(slot_id))
-	controller._update_ghost_transform()
+	_ghost.set_shape(Match.held_shape(slot_id))
+	_aim_at(controller, cursor)
+	_frame(controller)
 	var phys: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 	# Blocks are tracked by reference: one that tumbles off the field or fuses is
 	# freed and shifts the child indices, so get_child(i) is not stable.
@@ -171,11 +193,10 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 	var placed_shapes: Array[BlockShape] = []
 	for i: int in range(10):
 		_advance_past_one_release_interval()
-		var shape: BlockShape = controller._ghost.get_shape()
+		var shape: BlockShape = _ghost.get_shape()
 		var children_before: Array[Node] = _blocks_root.get_children()
-		controller._cursor = cursor
-		controller._update_ghost_transform()
-		controller._place_ghost_block()
+		_frame(controller)
+		_click_place(controller)
 		var spawned: Block = null
 		for child: Node in _blocks_root.get_children():
 			if not children_before.has(child):
@@ -186,7 +207,7 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 		placed_blocks.append(spawned)
 		placed_shapes.append(shape)
 		await _resolve_pending_spawn_clearance(controller)
-		assert_false(controller._ghost_overlaps_a_placed_block(), "drop %d: fresh spawn must be clear." % i)
+		assert_false(GhostOverlapProbe.overlaps_placed_block(get_viewport().world_3d, _ghost), "drop %d: fresh spawn must be clear." % i)
 		var rested_frames: int = 0
 		for _t: int in range(SETTLE_MAX_FRAMES):
 			await wait_physics_frames(1)
@@ -194,14 +215,13 @@ func test_ten_drops_on_a_growing_tower_do_not_ratchet() -> void:
 			rested_frames = rested_frames + 1 if rested else 0
 			if rested_frames >= SETTLE_REST_FRAMES:
 				break
-			controller._update_ghost_transform()
-			controller._decay_clearance_raise(1.0 / 60.0)
+			_frame(controller)
 		var top_y: float = 0.0
 		for index: int in range(placed_blocks.size()):
 			var body: Node3D = placed_blocks[index] if is_instance_valid(placed_blocks[index]) else null
 			if body != null:
 				top_y = maxf(top_y, _shape_world_aabb(placed_shapes[index], body.global_transform).end.y)
-		var bottom_y: float = controller._ghost.global_position.y
+		var bottom_y: float = _ghost.global_position.y
 		# DECISION: the bound allows one tallest shape (3 cells) of slack for
 		# tumbling blocks that settle unevenly; a ratchet would blow far past it.
 		assert_lt(
@@ -217,12 +237,11 @@ func _placed_controller() -> PlayerController:
 	_run_countdown()
 	var controller: PlayerController = _make_controller()
 	controller.set_acting_slot(0)
-	controller._ghost.set_shape(Match.held_shape(0))
-	controller._cursor = _home_world_position(0)
-	controller._update_ghost_transform()
-	controller._place_ghost_block()
+	_ghost.set_shape(Match.held_shape(0))
+	_aim_at(controller, _home_world_position(0))
+	_frame(controller)
+	_click_place(controller)
 	await wait_physics_frames(1)
-	controller._update_ghost_transform()
 	return controller
 
 
@@ -231,10 +250,13 @@ func test_settle_wait_times_out_on_a_block_that_never_settles() -> void:
 	var timeout: float = controller.ghost_tuning.spawn_clearance_settle_timeout_s
 	var block: Block = _blocks_root.get_child(0) as Block
 	assert_false(block.sleeping, "fixture: the dropped block is still awake")
-	controller._apply_spawn_clearance(timeout * 0.25, true)
-	assert_true(controller._pending_spawn_active, "still waiting before the timeout")
-	assert_eq(controller._ghost.manual_hover_offset, 0.0, "and nothing is raised meanwhile")
-	controller._apply_spawn_clearance(timeout, true)
-	assert_false(controller._pending_spawn_active, "the wait ends at the timeout")
-	assert_gt(controller._ghost.manual_hover_offset, 0.0, "and the ghost is raised clear of the block inside it")
+	assert_true(GhostOverlapProbe.overlaps_placed_block(get_viewport().world_3d, _ghost), "fixture: the next piece is loaded inside the block")
+	_frame(controller, timeout * 0.25)
+	assert_eq(_ghost.manual_hover_offset, 0.0, "still waiting before the timeout: nothing is raised meanwhile")
+	_frame(controller, timeout)
+	var raised: float = _ghost.manual_hover_offset
+	assert_gt(raised, 0.0, "the wait ends at the timeout and the ghost is raised clear of the block inside it")
+	assert_false(GhostOverlapProbe.overlaps_placed_block(get_viewport().world_3d, _ghost), "and it is clear of it")
+	_frame(controller, timeout)
+	assert_eq(_ghost.manual_hover_offset, raised, "the resolved wait does not run again")
 

@@ -31,6 +31,7 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _ghost: GhostPreview
 
 
 func before_each() -> void:
@@ -78,18 +79,29 @@ func _home_world_position(slot_id: int) -> Vector3:
 	return _field.to_global(Vector3(home.x, 5.0, home.y))
 
 
-func _make_controller_with_rig() -> Dictionary:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+## The controller seeded over `home` on the floor (as the game seeds a slot, then the player wheels
+## the first piece's beacon raise down), then the camera rig attached. The test drives both
+## engine per-frame callbacks itself, one deterministic step per call.
+func _make_controller_with_rig(home: Vector3) -> Dictionary:
+	_ghost = autofree(GhostPreview.new())
+	add_child_autofree(_ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = _ghost.get_path()
 	# spawn clearance is off by default now; these tests cover
 	# the feature itself, so enable it on a private copy of the tuning.
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	controller.ghost_tuning.spawn_clearance_enabled = true
 	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.set_process(false)
+	controller.set_home_position(home)
+	_ghost.manual_hover_offset = 0.0
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	controller._unhandled_input(wheel)
 	var rig: CameraRig = autofree(load("res://game/player/CameraRig.tscn").instantiate())
 	add_child_autofree(rig)
+	rig.set_process(false)
 	# A rig-local tuning duplicate keeps this test from mutating the shared
 	# config/player/camera_tuning.tres singleton every other test/scene reads (same
 	# DECISION every other CameraRig test in this project makes).
@@ -98,65 +110,58 @@ func _make_controller_with_rig() -> Dictionary:
 	return {"controller": controller, "rig": rig}
 
 
-## Same manual sequence test_playercontroller_spawn_clearance.gd's own
-## _resolve_pending_spawn_clearance() uses (see that file's header comment for
-## why this can't just be a plain _process()/await process_frame loop: a
-## physics query run in the same call that spawned a body cannot see that
-## body yet), plus this file's own camera bookkeeping.
-func _place_and_resolve_clearance(controller: PlayerController, slot_id: int) -> void:
-	var placed_shape: BlockShape = Match.held_shape(slot_id)
-	controller._ghost.set_shape(placed_shape)
-	controller._cursor = _home_world_position(slot_id)
-	controller._update_ghost_transform()
+## One engine frame: the controller (which also publishes the follow anchor), then the rig.
+func _frame(controller: PlayerController, rig: CameraRig, delta: float = 1.0 / 60.0) -> void:
+	controller._process(delta)
+	rig._process(delta)
 
-	controller._place_ghost_block()
+
+func _place_and_resolve_clearance(controller: PlayerController, rig: CameraRig, slot_id: int) -> void:
+	_ghost.set_shape(Match.held_shape(slot_id))
+	_frame(controller, rig)
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
 	assert_eq(_blocks_root.get_child_count(), 1, "fixture: the click must have actually spawned a block.")
-
+	# a physics query run in the frame that spawned a body cannot see it yet
 	await wait_physics_frames(1)
-	controller._update_ghost_transform()
 
 
 func test_camera_target_y_stays_continuous_across_a_drop_that_needs_spawn_clearance() -> void:
 	Match.start_match(_config())
 	_run_countdown()
 	var slot_id: int = 0
-	var built: Dictionary = _make_controller_with_rig()
+	var built: Dictionary = _make_controller_with_rig(_home_world_position(slot_id))
 	var controller: PlayerController = built["controller"]
 	var rig: CameraRig = built["rig"]
 	controller.set_acting_slot(slot_id)
 
-	await _place_and_resolve_clearance(controller, slot_id)
+	await _place_and_resolve_clearance(controller, rig, slot_id)
 
 	# Establish the camera's baseline (pre-raise) followed position and let it
-	# settle there -- exactly what PlayerController._process()'s own
-	# _camera_rig.set_follow_position() call and CameraRig's own _process()
-	# do every ordinary frame, before this frame's _apply_spawn_clearance().
-	rig.set_follow_position(controller._camera_follow_anchor())
-	rig._process(1.0 / 60.0)
+	# settle there: the controller publishes the anchor every frame, the rig follows. The piece
+	# fed right where the block landed is still waiting for that block to settle.
+	_frame(controller, rig)
 	var target_y_before_clearance: float = rig.get_target().y
 	var pitch_before: float = rig.get_pitch()
+	assert_eq(_ghost.manual_hover_offset, 0.0, "fixture: nothing is raised while the dropped block is unsettled")
 
-	controller._apply_spawn_clearance()
+	# The wait ends: the next frame raises the ghost clear of the block and publishes the raised anchor.
+	_frame(controller, rig, controller.ghost_tuning.spawn_clearance_settle_timeout_s)
 	assert_gt(
-		controller._ghost.manual_hover_offset, 0.0,
+		_ghost.manual_hover_offset, 0.0,
 		"fixture: the piece fed right where the first block landed must need spawn clearance."
 	)
 
-	# What production does the rest of this same frame: publish the (now
-	# raised) follow anchor, then let the rig react to it.
-	rig.set_follow_position(controller._camera_follow_anchor())
-	rig._process(1.0 / 60.0)
-
 	# round 2: the camera is tied to the held block, so it
 	# eases up to the raised ghost (no permanent offset, no drift).
-	var expected_y: float = controller._camera_follow_anchor().y
+	var expected_y: float = _ghost.global_position.y
 	assert_gt(expected_y, target_y_before_clearance + 0.01, "fixture: the followed anchor must include the raise.")
 	for _i: int in range(240):
-		rig.set_follow_position(controller._camera_follow_anchor())
-		rig._process(1.0 / 60.0)
+		_frame(controller, rig)
 	assert_almost_eq(rig.get_target().y, expected_y, 0.01, "the camera must settle exactly on the raised ghost.")
 	assert_almost_eq(
 		rig.get_pitch(), pitch_before, 0.0001,
 		"nothing in this drop should touch the camera's pitch."
 	)
-
