@@ -240,9 +240,10 @@ func test_held_gift_claims_where_its_one_cell_sits() -> void:
 	var gift_id: int = _spawn()
 	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
 	_publish(LOCAL, shape, _crate(gift_id) - BlockFactory.gift_cell_center(shape, tuning))
+	var queued_before: int = Match.pending_special_count(LOCAL)
 	Match._gifts.tick_host(TICK_S)
 	assert_true(_claimed(gift_id))
-	assert_eq(Match.pending_special_count(LOCAL), 1)
+	assert_eq(Match.pending_special_count(LOCAL), queued_before + 1, "the claim queues one special")
 
 
 func test_held_gift_ignores_the_carrier_cells_outside_its_one_cell() -> void:
