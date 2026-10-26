@@ -21,7 +21,7 @@ enum Phase { HIDDEN, DEPLOYING, DESCENDING, COLLAPSING }
 ## the phase at once instead of dividing by zero.
 const MIN_DURATION_S: float = 0.001
 ## Golden angle (radians): spreads per-crate phase offsets evenly, the same
-## idea as MatchGifts._flight_position()'s per-id sway offset.
+## idea as GiftFlight.world_position()'s per-id sway offset.
 const PHASE_STRIDE: float = 2.39996323
 ## The second lean axis runs a quarter-turn out of phase with the first.
 const AXIS_PHASE: float = PI * 0.5

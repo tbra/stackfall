@@ -141,16 +141,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/gifts/GiftCrateTouch.gd",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icore fills it and P6-Icrates wires it; Icore removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/gifts/GiftFlight.gd",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icore fills it and P6-Icrates wires it; Icore removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "game/main/PrewarmLoader.gd",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
   },
@@ -258,11 +248,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:pending_special_count",
    "reason": "live: autoload/Match.gd:650 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchGifts.gd:prewarm_crate_assets",
-   "reason": "MatchGifts.gd:138 in setup (live via Match setup chain)"
   },
   {
    "id": "test-only-func",
