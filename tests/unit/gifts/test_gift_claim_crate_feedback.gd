@@ -9,6 +9,7 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _saved_context: MatchContext = null
 
 
 func before_each() -> void:
@@ -24,9 +25,13 @@ func before_each() -> void:
 	_registry = autofree(BlockRegistry.new())
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
+	_saved_context = MatchContext.installed()
+	MatchContext.install(Match.context())
 
 
 func after_each() -> void:
+	MatchContext.current().local_held().clear()
+	MatchContext.install(_saved_context)
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
@@ -63,12 +68,12 @@ func _make_crate(gift_id: int, disk_point: Vector2, parent: Node3D) -> GiftCrate
 	return crate
 
 
-func _make_local_ghost() -> GhostPreview:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
-	ghost.add_to_group(GhostPreview.LOCAL_HELD_GROUP)
-	return ghost
+## Publishes the local held pose the way the player controller does each frame.
+func _hold_cube_at(world_pos: Vector3) -> void:
+	MatchContext.current().local_held().publish(
+		Net.local_slot(), load("res://config/blocks/cube.tres") as BlockShape, world_pos,
+		0, Quaternion.IDENTITY, true, 0.0, Time.get_ticks_msec()
+	)
 
 
 # --- Claim pop ---------------------------------------------------------------
@@ -110,8 +115,7 @@ func test_hint_pulses_when_the_local_ghost_hovers_an_unclaimable_crate() -> void
 	# Off every home flag and off-center (same off-territory position
 	# test_gift_claim.gd's own life_s test uses) -- nobody's cell here.
 	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
-	var ghost: GhostPreview = _make_local_ghost()
-	ghost.global_position = crate.global_position
+	_hold_cube_at(crate.global_position)
 
 	crate._process(0.05)
 
@@ -128,8 +132,7 @@ func test_hint_does_not_trigger_over_a_crate_inside_the_local_players_own_territ
 	add_child_autofree(parent)
 	# Slot 0's own home flag: ground it already owns, uncontested.
 	var crate: GiftCrate = _make_crate(1, Match.slot(0).home_position, parent)
-	var ghost: GhostPreview = _make_local_ghost()
-	ghost.global_position = crate.global_position
+	_hold_cube_at(crate.global_position)
 
 	crate._process(0.05)
 
@@ -165,8 +168,7 @@ func test_hint_does_not_trigger_over_a_teammates_territory_under_teams_2() -> vo
 	# Slot 0's own home flag: team 1's ground, the local player's own team.
 	# Slot 3 is also team 1 (team_of_slot(3) == 1), a real teammate.
 	var crate: GiftCrate = _make_crate(1, Match.slot(0).home_position, parent)
-	var ghost: GhostPreview = _make_local_ghost()
-	ghost.global_position = crate.global_position
+	_hold_cube_at(crate.global_position)
 
 	crate._process(0.05)
 
@@ -174,3 +176,31 @@ func test_hint_does_not_trigger_over_a_teammates_territory_under_teams_2() -> vo
 		crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR,
 		"a crate over the local player's own team's territory must not show the not-claimable hint"
 	)
+
+
+func test_hint_does_not_pulse_when_nothing_is_held() -> void:
+	_start_playing(_config())
+	_step_territory()
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
+	MatchContext.current().local_held().publish(
+		Net.local_slot(), null, crate.global_position, 0, Quaternion.IDENTITY, true, 0.0, 1
+	)
+
+	crate._process(0.05)
+
+	assert_eq(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "no held shape: nobody to hint")
+
+
+func test_hint_does_not_pulse_when_the_held_piece_is_far_from_the_crate() -> void:
+	_start_playing(_config())
+	_step_territory()
+	var parent: Node3D = autofree(Node3D.new())
+	add_child_autofree(parent)
+	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
+	_hold_cube_at(_field.world_from_disk_local(Vector2(-19.0, -19.0), 0.0))
+
+	crate._process(0.05)
+
+	assert_eq(crate._material.albedo_color, GiftCrate.UNCLAIMED_COLOR, "a pose outside the hint radius must not pulse")
