@@ -46,7 +46,7 @@ func bind_local_slot(slot_id: int) -> void:
 	_controller.set_acting_slot(slot_id)
 	# default_ghost_origin() converts PlayerSlot.home_position (disk-local) to
 	# a world point: this slot's home flag in world space.
-	_controller.set_home_position(MatchContext.current().default_ghost_origin(slot_id))
+	_controller.set_home_position(_controller.match_context.default_ghost_origin(slot_id))
 	# The HUD's per-slot widgets (HELD/NEXT cards, timer ring) follow the local slot
 	# from here, not from the first PLAYING-time turn_changed, so the first block
 	# issued at countdown start lands in the cards.

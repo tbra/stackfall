@@ -7,9 +7,9 @@ extends Node
 ## Placement is intent-only (spec 2.6, "clients send intents; the host checks
 ## every intent before acting on it"): this script never builds a Block itself.
 ## It positions the ghost, tracks which slot it acts for, and sends an intent; the host alone decides what happens next
-## and answers on the Events bus. Offline the intent is Match.request_place()
-## for Events.turn_changed's slot; networked it goes through net/MatchNet.gd
-## (inline to Match on the host, a reliable RPC on a client) and always for
+## and answers on the Events bus. Every intent goes through match_context.submit_*
+## (Match directly offline and on the host, a reliable RPC on a client): offline for
+## Events.turn_changed's slot; networked always for
 ## Net.local_slot(), because one instance drives one player.
 ##
 ## Controls are block-locked (spec 1.5): the mouse positions the block directly
@@ -54,9 +54,9 @@ var _ghost: GhostPreview
 ## below no-ops) when the scene doesn't wire one, exactly like _camera_rig.
 var _arc_preview: ThrowArcPreview
 
-## The match this controller reads and sends intents through: set by the parent (LocalPlayer)
-## before add_child, defaulting to the installed context in _ready() for Sandbox, Tutorial and
-## tests. Tests install a FakeMatchContext here.
+## The match this controller reads and sends intents through. Defaults to the installed
+## MatchContext in _ready(), which covers LocalPlayer, Sandbox and Tutorial; tests set a
+## FakeMatchContext before add_child.
 var match_context: MatchContext = null
 
 ## The session seam: the parent binds it (LocalPlayer binds a port over the Net autoload);
@@ -828,7 +828,7 @@ func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
 
 # --- Placement intent (spec 2.6) --------------------------------------------
 
-## ghost_place: send exactly one intent to Match and let it decide. Never
+## ghost_place: send exactly one intent to the match context and let the host decide. Never
 ## builds a Block itself (spec 2.6: intent-only placement).
 func _place_ghost_block() -> void:
 	if _ghost == null or _acting_slot() < 0:
