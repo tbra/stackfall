@@ -272,7 +272,7 @@ func set_home_position(home_position: Vector3) -> void:
 
 ## The first held piece is seeded on the home flag, but the ghost anchors at the
 ## bare disc surface plus tuning.hover_height, and neither the placement ray nor
-## the spawn-clearance query sees the beacon (Field.PLACEMENT_QUERY_MASK; the
+## the spawn-clearance query sees the beacon (FieldBody.PLACEMENT_QUERY_MASK; the
 ## clearance never runs for the first piece), so the piece would sit inside the
 ## beacon's socket and crystal. Raises the hover offset so the shape's lowest
 ## point clears the beacon top by GhostTuning.home_spawn_beacon_margin; a no-op
@@ -382,7 +382,18 @@ func _countdown_blocks_input() -> bool:
 
 func _process(delta: float) -> void:
 	_process_input(delta)
+	_push_ghost_timers()
 	_publish_held_view()
+
+
+## Feeds the held ghost's glow timer and glue shell every frame, input gates or not.
+func _push_ghost_timers() -> void:
+	if _ghost == null:
+		return
+	var slot: int = _acting_slot()
+	var timed: bool = slot >= 0 and _ghost.get_shape() != null and match_context.feed_timer_enabled()
+	_ghost.set_drop_time_left(match_context.feed_time_left(slot) if timed else -1.0)
+	_ghost.set_glue_charges(match_context.glue_drops_left(slot) if slot >= 0 else 0)
 
 
 ## Publishes the held pose after every early return of _process_input(), so an input gate,
@@ -1385,7 +1396,7 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 		params.transform = Transform3D(pose.basis, pose.origin + pose.basis * local_center)
 		params.collide_with_bodies = true
 		params.collide_with_areas = false
-		params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		params.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(params, ghost_tuning.collision_probe_max_bodies)
 		for overlap: Dictionary in overlaps:
 			var body: RigidBody3D = overlap.get("collider") as RigidBody3D
@@ -1645,7 +1656,7 @@ func _update_ghost_transform() -> void:
 		return
 	var origin: Vector3 = _cursor + Vector3.UP * ghost_tuning.cursor_ray_height
 
-	var hit: Dictionary = _raycast_disk_surface(origin)
+	var hit: Dictionary = _ghost.raycast_disk_surface(origin)
 	var hit_point: Vector3
 	var hit_normal: Vector3
 	if hit.is_empty():
@@ -1665,19 +1676,6 @@ func _update_ghost_transform() -> void:
 	_ghost.update_placement(hit_point, hit_normal)
 
 
-## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
-## the first hit reported is the disk's own collision (a StaticBody3D, or an
-## AnimatableBody3D on a tilting disk) -- never a tower underneath the
-## cursor. Bounded by ghost_tuning.surface_probe_max_blocks so a very tall (or
-## adversarially deep) stack can't spin this loop forever; past that many
-## skips it just reports a miss, same as an empty query.
-func _raycast_disk_surface(origin: Vector3) -> Dictionary:
-	var space_state: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
-	return Field.raycast_disk_surface(
-		space_state, origin, ghost_tuning.placement_ray_length, ghost_tuning.surface_probe_max_blocks
-	)
-
-
 # --- Ghost-vs-placed-block collision (spec 1.4 "Held-block
 # behaviour" [ORIGINAL]) ------------------------------
 #
@@ -1694,7 +1692,7 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 # zone -- defaults to Godot's layer 1, and project.godot has no [layer_names]
 # section), and adding one would mean editing the project's physics layers
 # (tools/bootstrap_project.gd owns project settings) and rippling into
-# BlockFactory/Field. This is the technique _raycast_disk_surface() above uses
+# BlockFactory/Field. This is the technique GhostPreview.raycast_disk_surface() uses
 # to skip a block when it wants the disk, inverted: skip anything that ISN'T a
 # RigidBody3D (the disk, a future goal-zone Area3D) and only stop for one that
 # is. A dedicated layer would be a follow-up.
@@ -1823,7 +1821,7 @@ func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
 ## along `motion`, skipping any collider that isn't a placed block -- see this
 ## section's top-of-file DECISION for why type, not collision_mask, is the
 ## filter here. Bounded by ghost_tuning.collision_probe_max_bodies, the same
-## bounded-skip idea _raycast_disk_surface() uses, so a pathological pile of
+## bounded-skip idea GhostPreview.raycast_disk_surface() uses, so a pathological pile of
 ## non-block colliders in the way can't spin this loop forever. Returns the
 ## safe fraction of `motion` (1.0 = fully clear).
 ##
@@ -1863,7 +1861,7 @@ func _cast_one_box(
 	start_probe.transform = Transform3D(_ghost.basis, world_center)
 	start_probe.collide_with_bodies = true
 	start_probe.collide_with_areas = false
-	start_probe.collision_mask = Field.PLACEMENT_QUERY_MASK
+	start_probe.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 	for start_overlap: Dictionary in space_state.intersect_shape(start_probe, 8):
 		if start_overlap.get("collider") is RigidBody3D:
 			return 1.0
@@ -1874,7 +1872,7 @@ func _cast_one_box(
 	params.motion = motion
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
-	params.collision_mask = Field.PLACEMENT_QUERY_MASK
+	params.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 	var exclude: Array[RID] = []
 	var attempts: int = 0
 	while attempts <= ghost_tuning.collision_probe_max_bodies:
@@ -1896,7 +1894,7 @@ func _cast_one_box(
 		probe.transform = Transform3D(_ghost.basis, world_center + motion * unsafe_fraction)
 		probe.collide_with_bodies = true
 		probe.collide_with_areas = false
-		probe.collision_mask = Field.PLACEMENT_QUERY_MASK
+		probe.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 		probe.exclude = exclude
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(probe, 8)
 		var non_block_rids: Array[RID] = []

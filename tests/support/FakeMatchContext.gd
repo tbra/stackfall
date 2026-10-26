@@ -6,13 +6,10 @@ extends MatchContext
 
 var has_authority_value: bool = true
 var net_is_client_value: bool = false
-var net_is_offline_value: bool = true
-var net_local_slot_value: int = -1
 var config_value: MatchConfig = null
 var physics_tuning_value: PhysicsTuning = null
 var state_value: int = MatchPhase.State.LOBBY
 var slot_count_value: int = 0
-var active_slot_value: int = -1
 var field_value: FieldBody = null
 var registry_value: Node = null
 var blocks_parent_value: Node3D = null
@@ -67,12 +64,6 @@ func has_authority() -> bool:
 func net_is_client() -> bool:
 	return net_is_client_value
 
-func net_is_offline() -> bool:
-	return net_is_offline_value
-
-func net_local_slot() -> int:
-	return net_local_slot_value
-
 func config() -> MatchConfig:
 	return config_value
 
@@ -84,9 +75,6 @@ func state() -> int:
 
 func slot_count() -> int:
 	return slot_count_value
-
-func active_slot() -> int:
-	return active_slot_value
 
 func field() -> FieldBody:
 	return field_value
