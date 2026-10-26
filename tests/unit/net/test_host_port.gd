@@ -536,6 +536,16 @@ func test_mode_state_snapshot_and_collaborator_objects_are_the_matchs() -> void:
 	assert_same(_port.weather(), Match.weather())
 
 
+func test_stats_is_the_matchs_match_stats_and_writes_through() -> void:
+	_start()
+	var stats: MatchStats = _port.stats() as MatchStats
+	assert_not_null(stats, "the port's stats object is a MatchStats")
+	assert_same(stats, Match.stats() as MatchStats)
+	stats.record_height(1, 3.5)
+	assert_eq((Match.stats() as MatchStats).height_reached(1), 3.5)
+	assert_eq(stats.build_live_payload(), (Match.stats() as MatchStats).build_live_payload())
+
+
 # --- transitional feed and lifecycle collaborators -------------------------------
 
 func test_feed_knows_the_shapes_the_game_ships() -> void:
