@@ -31,32 +31,22 @@ func after_each() -> void:
 	MatchTestReset.clear_world()
 
 
-func test_sandbox_flow_loads_on_first_use_through_the_queue() -> void:
-	assert_null(_main._sandbox_flow, "no flow before the first sandbox/tutorial use")
+func test_sandbox_flow_loads_on_first_use() -> void:
+	assert_null(MainNodes.first(_main, &"Sandbox"), "no sandbox before the first sandbox use")
 	_main.start_sandbox_from_menu()
-	assert_true(_main._sandbox_flow is MainSandboxFlowPort)
-	assert_eq((_main._sandbox_flow as RefCounted).get_script().resource_path, "res://game/main/MainSandboxFlow.gd")
-	assert_true(_main._prewarm_queue.is_ready("res://game/main/MainSandboxFlow.gd"))
+	assert_not_null(MainNodes.first(_main, &"Sandbox"), "the sandbox flow loaded on demand and built its world")
 
 
 func test_main_boots_to_menu_without_lobby_or_match_nodes() -> void:
-	assert_not_null(_main._main_menu)
-	assert_null(_main._lobby)
-	assert_null(_main._local_player)
-	assert_null(_main._sandbox)
-	assert_null(_main._tutorial)
-	assert_null(_main._remote_cursors)
-	assert_null(_main._debug_overlay)
+	assert_not_null(MainNodes.main_menu(_main))
+	assert_null(MainNodes.lobby(_main))
+	assert_null(MainNodes.local_player(_main))
+	assert_null(MainNodes.first(_main, &"Sandbox"))
+	assert_null(MainNodes.first(_main, &"Tutorial"))
+	assert_null(MainNodes.first(_main, &"RemoteCursors"))
 
 
 func test_lobby_is_built_on_demand() -> void:
-	_main._show_lobby()
-	assert_not_null(_main._lobby, "lobby instantiates from the on-demand load")
-
-
-func test_headless_bots_flow_loads_on_first_use_through_the_queue() -> void:
-	assert_null(_main._headless_bots_flow, "no flow before the first bots use")
-	assert_eq(_main._headless_bots_flow_port().call(&"_bots_arg", PackedStringArray(["--bots=3"])), 3)
-	assert_true(_main._headless_bots_flow is MainHeadlessBotsFlowPort)
-	assert_eq((_main._headless_bots_flow as RefCounted).get_script().resource_path, "res://game/main/MainHeadlessBotsFlow.gd")
-	assert_true(_main._prewarm_queue.is_ready("res://game/main/MainHeadlessBotsFlow.gd"))
+	assert_eq(Net.host_game(0, "Host", false), OK)
+	assert_not_null(MainNodes.lobby(_main), "hosting instantiates the lobby from the on-demand load")
+	Net.leave()

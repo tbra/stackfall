@@ -88,15 +88,20 @@ func test_close_request_is_deferred_until_load_collected() -> void:
 	get_tree().auto_accept_quit = true
 
 
-## a second close request after the first quit is a no-op.
+## A repeated close request, before and after the deferred quit, quits once.
 func test_second_close_request_quits_once() -> void:
 	_quit_calls = 0
 	var boot: Boot = _threaded_boot("res://game/main/Main.tscn")
 	boot.quit_callable = _count_quit
 	add_child(boot)
-	boot._pending_path = ""
 	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
 	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
-	assert_eq(_quit_calls, 1, "one quit for two close requests")
+	var frames: int = 0
+	while _quit_calls == 0 and frames < WAIT_FRAME_LIMIT:
+		await get_tree().process_frame
+		frames += 1
+	boot.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
+	await get_tree().process_frame
+	assert_eq(_quit_calls, 1, "one quit for three close requests")
 	boot.free()
 	get_tree().auto_accept_quit = true
