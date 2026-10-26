@@ -1,7 +1,6 @@
 extends GutTest
 ## PlayerController publishes the local held pose into MatchContext.local_held() every processed
 ## frame (after every early return), and clears it when it leaves the tree.
-## Rows marked AWAITING-IHELD fail until the controller publishes (P3-Iheld).
 
 const CUBE_PATH: String = "res://config/blocks/cube.tres"
 const BAR_PATH: String = "res://config/blocks/bar3.tres"
@@ -76,7 +75,6 @@ func _action_event(action: StringName, pressed: bool) -> InputEventAction:
 	return event
 
 
-# AWAITING-IHELD
 func test_a_normal_frame_publishes_the_held_pose() -> void:
 	_start_match()
 	_run_countdown()
@@ -91,7 +89,6 @@ func test_a_normal_frame_publishes_the_held_pose() -> void:
 	assert_gt(view.updated_msec, 0, "stamped with the publish time")
 
 
-# AWAITING-IHELD
 func test_publishing_works_offline() -> void:
 	_start_match()
 	_run_countdown()
@@ -100,7 +97,6 @@ func test_publishing_works_offline() -> void:
 	assert_eq(_view().slot_id, 0)
 
 
-# AWAITING-IHELD
 func test_input_disabled_still_publishes() -> void:
 	_start_match()
 	_run_countdown()
@@ -111,7 +107,6 @@ func test_input_disabled_still_publishes() -> void:
 	assert_not_null(_view().shape)
 
 
-# AWAITING-IHELD
 func test_countdown_still_publishes() -> void:
 	_start_match()
 	assert_eq(Match.state(), Match.State.COUNTDOWN, "fixture: in the countdown")
@@ -120,7 +115,6 @@ func test_countdown_still_publishes() -> void:
 	assert_not_null(_view().shape)
 
 
-# AWAITING-IHELD
 func test_peek_still_publishes() -> void:
 	_start_match()
 	_run_countdown()
@@ -143,7 +137,6 @@ func test_peek_still_publishes() -> void:
 	assert_not_null(_view().shape)
 
 
-# AWAITING-IHELD
 func test_a_shape_change_shows_on_the_next_frame() -> void:
 	_start_match()
 	_run_countdown()
@@ -160,7 +153,6 @@ func test_a_shape_change_shows_on_the_next_frame() -> void:
 	assert_eq(shown.id if shown != null else &"", next.id)
 
 
-# AWAITING-IHELD
 func test_an_eliminated_slot_publishes_not_visible() -> void:
 	_start_match()
 	_run_countdown()
@@ -173,7 +165,6 @@ func test_an_eliminated_slot_publishes_not_visible() -> void:
 	assert_false(_view().visible)
 
 
-# AWAITING-IHELD
 func test_leaving_the_tree_clears_the_view() -> void:
 	_start_match()
 	_run_countdown()
