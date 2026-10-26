@@ -147,15 +147,9 @@ func _refresh_timer(slot_id: int) -> void:
 	]
 
 
-## GhostPreview.current_state() is read before the plain validity check so a tester aiming a throw
-## (STATE_THROW) sees "throw" instead of a stale landing-spot reason for a gesture that is not a
-## placement.
 func _refresh_validity(slot_id: int) -> void:
 	if _ghost == null or slot_id < 0:
 		_validity_label.text = "Ghost: -"
-		return
-	if _ghost.current_state() == GhostPreview.STATE_THROW:
-		_validity_label.text = "Ghost: throw"
 		return
 	var result: PlacementRules.Result = match_provider.preview_placement(
 		slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion

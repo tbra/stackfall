@@ -939,7 +939,6 @@ func _update_throw_aim(_delta: float) -> void:
 
 func _drive_throw_visuals() -> void:
 	if _ghost != null:
-		_ghost.show_throw_hint(false)
 		_ghost.set_held_aim(_held_gift_aim_direction())
 	if _arc_preview == null:
 		return
