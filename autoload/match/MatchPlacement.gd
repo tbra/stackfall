@@ -362,7 +362,7 @@ func request_throw(
 		launch_velocity = GiftAim.throw_velocity(aim_direction, _special_tuning, _throw_range_scale())
 		if launch_velocity == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
-	elif held_def.effect.may_aim_upward():
+	elif held_def.effect != null and held_def.effect.may_aim_upward():
 		# Any aim, upward included (Rocket).
 		if GiftAim.sanitize_launch_direction(aim_direction) == Vector3.ZERO:
 			return PlacementRules.REASON_NO_BLOCK
