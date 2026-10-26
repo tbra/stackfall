@@ -701,6 +701,16 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/BlackHoleEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/BlackHoleEffect.gd:effect_radius_m",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:build_client_fx",
    "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
   },
@@ -776,6 +786,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/PropellerEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/RocketEffect.gd:apply_launch",
    "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
   },
@@ -838,6 +853,16 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:may_aim_upward",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/VolcanoEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
   },
   {
    "id": "test-only-func",
