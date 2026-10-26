@@ -7,13 +7,17 @@ const RemoteCursorsScene := preload("res://game/player/RemoteCursors.tscn")
 const LOCAL_SLOT: int = 0
 const REMOTE_SLOT: int = 1
 
+var _previous_context: MatchContext = null
+
 
 func before_each() -> void:
+	_previous_context = MatchContext.installed()
 	assert_true(Net.is_offline(), "fixture: the real Net starts offline")
 
 
 func after_each() -> void:
 	Net.leave()
+	MatchContext.install(_previous_context)
 
 
 func _host_and_make_cursors() -> RemoteCursors:
@@ -93,87 +97,107 @@ func test_the_end_of_a_match_clears_every_remote_ghost() -> void:
 
 
 # --- PlayerController, networked ---------------------------------------------
-# These five bind a FakeSessionPort into the controller (bind_session) and inject a Match
-# straight into it (_match).
+# These five bind a FakeSessionPort into the controller (bind_session) and install a
+# FakeMatchContext, which the controller picks up from MatchContext.current().
 
-func _fake_match_with_slots() -> FakeMatch:
-	var fake: FakeMatch = FakeMatch.new()
-	fake.slots_by_id[0] = PlayerSlot.new(0, 0, "P1", Color(0.9, 0.2, 0.2))
-	fake.slots_by_id[1] = PlayerSlot.new(1, 1, "P2", Color(0.2, 0.4, 0.9))
-	return fake
-
-
-func _make_controller(session: FakeNet, fake_match: FakeMatch) -> PlayerController:
+func _make_controller(session: FakeNet, context: FakeMatchContext) -> PlayerController:
+	MatchContext.install(context)
 	var scene: PackedScene = load("res://game/main/LocalPlayer.tscn")
 	var local_player: LocalPlayer = autofree(scene.instantiate())
 	add_child_autofree(local_player)
 	var controller: PlayerController = local_player.controller()
-	controller._match = fake_match
 	controller.bind_session(FakeSessionPort.new(session))
-	(local_player.get_node("GhostPreview") as GhostPreview).set_shape(load("res://config/blocks/cube.tres"))
+	local_player.ghost().set_shape(load("res://config/blocks/cube.tres"))
 	return controller
 
 
+func _context_with_slots() -> FakeMatchContext:
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.slot_by_id[0] = PlayerSlot.new(0, 0, "P1", Color(0.9, 0.2, 0.2))
+	context.slot_by_id[1] = PlayerSlot.new(1, 1, "P2", Color(0.2, 0.4, 0.9))
+	return context
+
+
+func _press_place(controller: PlayerController) -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
+
+
 func test_online_the_controller_acts_for_its_own_slot_not_the_turn() -> void:
-	var fake_match: FakeMatch = _fake_match_with_slots()
-	fake_match.held_shapes[1] = load("res://config/blocks/cube.tres")
-	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
+	var context: FakeMatchContext = _context_with_slots()
+	var controller: PlayerController = _make_controller(FakeNet.client(1), context)
 
 	# Events.turn_changed (the turn-based hand-off) must not move a
 	# networked controller off its own slot.
 	Events.turn_changed.emit(0)
-	controller._place_ghost_block()
+	_press_place(controller)
 
-	assert_eq(fake_match.request_place_calls.size(), 1)
-	assert_eq(fake_match.request_place_calls[0]["slot_id"], 1, "One instance drives one player.")
+	assert_eq(context.submit_place_calls.size(), 1)
+	assert_eq(context.submit_place_calls[0]["slot_id"], 1, "One instance drives one player.")
 
 
 func test_a_client_does_not_auto_drop_itself() -> void:
-	var fake_match: FakeMatch = _fake_match_with_slots()
-	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
+	var context: FakeMatchContext = _context_with_slots()
+	_make_controller(FakeNet.client(1), context)
 
 	Events.feed_timer_expired.emit(1)
 
 	assert_eq(
-		fake_match.request_place_calls.size(),
+		context.submit_place_calls.size(),
 		0,
 		"Spec 1.4's auto-drop happens on the host, from the last cursor it received."
 	)
 
 
 func test_a_locked_ghost_sends_no_second_intent() -> void:
-	var fake_match: FakeMatch = _fake_match_with_slots()
-	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
-	controller._intent_lock_left = load("res://config/net/net_config.tres").intent_ack_timeout
+	var context: FakeMatchContext = _context_with_slots()
+	var controller: PlayerController = _make_controller(FakeNet.client(1), context)
 
-	controller._place_ghost_block()
+	_press_place(controller)
+	_press_place(controller)
 
 	assert_eq(
-		fake_match.request_place_calls.size(),
-		0,
+		context.submit_place_calls.size(),
+		1,
 		"A second click inside one round trip must not spend a second block."
 	)
 
 
 func test_the_hosts_answer_unlocks_the_ghost() -> void:
-	var fake_match: FakeMatch = _fake_match_with_slots()
-	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
-	controller._intent_lock_left = 1.0
+	var context: FakeMatchContext = _context_with_slots()
+	var controller: PlayerController = _make_controller(FakeNet.client(1), context)
+	_press_place(controller)
+	_press_place(controller)
+	assert_eq(context.submit_place_calls.size(), 1, "fixture: the ghost is locked")
 
 	Events.feed_block_issued.emit(1, &"cube", &"")
 
-	assert_eq(controller._intent_lock_left, 0.0)
-	controller._place_ghost_block()
-	assert_eq(fake_match.request_place_calls.size(), 1, "and the next click goes through")
+	_press_place(controller)
+	assert_eq(context.submit_place_calls.size(), 2, "and the next click goes through")
+
+
+func test_a_rejection_unlocks_the_ghost() -> void:
+	var context: FakeMatchContext = _context_with_slots()
+	var controller: PlayerController = _make_controller(FakeNet.client(1), context)
+	_press_place(controller)
+
+	Events.placement_rejected.emit(1, PlacementRules.REASON_OUTSIDE_TERRITORY)
+
+	_press_place(controller)
+	assert_eq(context.submit_place_calls.size(), 2, "a refused intent frees the next click")
 
 
 func test_the_lock_expires_on_its_own_after_intent_ack_timeout() -> void:
-	var fake_match: FakeMatch = _fake_match_with_slots()
-	var controller: PlayerController = _make_controller(FakeNet.client(1), fake_match)
+	var context: FakeMatchContext = _context_with_slots()
+	var controller: PlayerController = _make_controller(FakeNet.client(1), context)
 	var timeout: float = load("res://config/net/net_config.tres").intent_ack_timeout
-	controller._intent_lock_left = timeout
+	_press_place(controller)
+	assert_eq(context.submit_place_calls.size(), 1)
 
 	# A host that never answers must not lock a player out for good.
 	controller._process(timeout + 0.1)
 
-	assert_eq(controller._intent_lock_left, 0.0)
+	_press_place(controller)
+	assert_eq(context.submit_place_calls.size(), 2)

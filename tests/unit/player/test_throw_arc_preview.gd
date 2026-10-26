@@ -134,47 +134,78 @@ func test_update_arc_shows_it_and_matches_sample_arc() -> void:
 		assert_true(_drawn_points(arc)[i].is_equal_approx(expected[i]))
 
 
-func _make_special_controller(fake: FakeMatch) -> Dictionary:
+func _make_special_controller(context: FakeMatchContext) -> Dictionary:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
 	ghost.set_shape(CUBE_SHAPE)
+	var rig: CameraRig = load("res://game/player/CameraRig.tscn").instantiate() as CameraRig
+	add_child_autofree(rig)
 
 	var arc: ThrowArcPreview = _make_arc()
 
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.match_context = context
+	controller.ghost_path = ghost.get_path()
+	controller.arc_preview_path = arc.get_path()
+	controller.set_acting_slot(0)
 	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._arc_preview = arc
-	controller._active_slot = 0
-	controller._match = fake
+	controller.set_camera_rig(rig)
 
 	return {"ghost": ghost, "arc": arc, "controller": controller}
 
 
-func _fake_match_with_special(slot_id: int) -> FakeMatch:
-	var fake: FakeMatch = FakeMatch.new()
-	fake.held_special_by_slot[slot_id] = &"bomb"
-	return fake
+func _context_holding(special_id: StringName) -> FakeMatchContext:
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_special_by_slot[0] = special_id
+	return context
 
 
 func test_arc_is_shown_automatically_while_a_throwable_is_held_without_lt() -> void:
-	var fake: FakeMatch = _fake_match_with_special(0)
-	var fixture: Dictionary = _make_special_controller(fake)
+	var context: FakeMatchContext = _context_holding(&"bomb")
+	var fixture: Dictionary = _make_special_controller(context)
 	var arc: ThrowArcPreview = fixture["arc"]
 	var controller: PlayerController = fixture["controller"]
 
 	assert_false(arc.visible, "fixture: nothing drawn before the first frame")
 
-	controller._update_throw_aim(1.0 / 60.0)  # no LT / throw_aim press anywhere
+	await wait_process_frames(2)  # the engine's own _process; no LT / throw_aim press anywhere
 
 	assert_true(arc.visible, "a held throwable shows the arc automatically")
 	var preview: Dictionary = controller.gift_launch_preview()
+	# The context has no field, so the arc lands on no disc.
 	var expected: PackedVector3Array = arc.sample_arc(
-		preview["origin"] as Vector3, preview["velocity"] as Vector3, Match.field(), float(preview["gravity_scale"])
+		preview["origin"] as Vector3, preview["velocity"] as Vector3, null, float(preview["gravity_scale"])
 	)
 	assert_eq(_drawn_points(arc).size(), expected.size())
 	for i: int in range(expected.size()):
 		assert_true(_drawn_points(arc)[i].is_equal_approx(expected[i]), "the arc is the host's GiftAim launch")
+
+
+func test_the_arc_is_cleared_when_the_gift_is_gone() -> void:
+	var context: FakeMatchContext = _context_holding(&"bomb")
+	var fixture: Dictionary = _make_special_controller(context)
+	var arc: ThrowArcPreview = fixture["arc"]
+	await wait_process_frames(2)
+	assert_true(arc.visible, "fixture: the arc shows while the gift is held")
+
+	context.held_special_by_slot[0] = &""
+	await wait_process_frames(2)
+
+	assert_false(arc.visible, "no gift in hand, no arc")
+
+
+func test_a_rocket_draws_no_arc_and_an_eliminated_slot_draws_none() -> void:
+	var rocket: Dictionary = _make_special_controller(_context_holding(&"rocket"))
+	await wait_process_frames(2)
+	assert_false((rocket["arc"] as ThrowArcPreview).visible, "Rocket draws no arc")
+
+	var eliminated_context: FakeMatchContext = _context_holding(&"bomb")
+	var dead: PlayerSlot = PlayerSlot.new(0, 0, "P1", Color.RED)
+	dead.home_flag_alive = false
+	eliminated_context.slot_by_id[0] = dead
+	var eliminated: Dictionary = _make_special_controller(eliminated_context)
+	await wait_process_frames(2)
+	assert_false((eliminated["arc"] as ThrowArcPreview).visible, "an eliminated slot has no arc")
 
 
 func test_rocket_arc_is_straight_gravity_free() -> void:
