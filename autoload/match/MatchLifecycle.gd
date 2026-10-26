@@ -621,8 +621,6 @@ func apply_replicated_match_timer(seconds_left: float) -> void:
 	_match_timer_left = seconds_left
 
 
-## True only in State.SUDDEN_DEATH. MatchGifts._effective_special_frequency()
-## reads it to ramp the gift chance only once sudden death has started.
 ## Progress 0..1 of the sudden-death ramp over `ramp_s` seconds (the gift-chance
 ## climb, spec 1.9); 0 outside sudden death.
 func sudden_death_ramp(ramp_s: float) -> float:
@@ -631,6 +629,8 @@ func sudden_death_ramp(ramp_s: float) -> float:
 	return clampf(_sudden_death_elapsed / ramp_s, 0.0, 1.0)
 
 
+## True only in State.SUDDEN_DEATH. MatchGifts._effective_special_frequency()
+## reads it to ramp the gift chance only once sudden death has started.
 func sudden_death_active() -> bool:
 	return _state == MatchAutoload.State.SUDDEN_DEATH
 
