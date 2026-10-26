@@ -125,6 +125,14 @@ class DispatchPrepTest(unittest.TestCase):
         self.assertIn("branch ?, base ?.", brief)
         self.assertIn("Prior commits for this bead on main: none.", brief)
 
+    def test_hand_written_brief_also_gets_the_dispatch_block(self):
+        brief = dispatch_prep.compose_brief(self.args(package="", checkout="work/wt/p3", note=["Extra."]),
+                                            lambda cmd, stdin_text=None: (1, "", ""),
+                                            text="Bead: Bontago-123 (fix).\nOwned: a.gd.\n")
+        self.assertTrue(brief.startswith("Bead: Bontago-123 (fix).\nOwned: a.gd.\n"))
+        self.assertIn("Checkout: work/wt/p3, branch ?, base ?.", brief)
+        self.assertTrue(brief.endswith("- Extra.\n"))
+
 
 if __name__ == "__main__":
     unittest.main()
