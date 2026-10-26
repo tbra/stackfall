@@ -46,6 +46,7 @@ static func effect_of(def: SpecialDef) -> SpecialEffect:
 var _block: Block = null
 var _def: SpecialDef = null
 var _tuning: SpecialTuning = null
+var _state: EffectState = null
 
 var _age: float = 0.0
 var _armed: bool = false
@@ -72,11 +73,32 @@ func bind(block: Block, def: SpecialDef, tuning: SpecialTuning) -> void:
 	_completed = false
 	_despawn_timer = -1.0
 	var fx0: SpecialEffect = effect_of(_def) if _def != null else null
+	_state = fx0.new_state() if fx0 != null else null
 	var effect_landed: LandedTuning = fx0.landed_tuning() if fx0 != null else null
 	_landed_probe = LandedProbe.new(effect_landed)
 	_landed_at_age = -1.0
 	_prev_linear_velocity = block.linear_velocity if block != null else Vector3.ZERO
 	add_to_group(GROUP)
+
+
+## The bound def's id; &"" before bind().
+func def_id() -> StringName:
+	return _def.id if _def != null else &""
+
+
+## The effect's per-activation state taken in bind(); null for a stateless effect.
+func state() -> EffectState:
+	return _state
+
+
+## Every live SpecialBehavior in the tree, in group insertion order.
+static func live(tree: SceneTree) -> Array[SpecialBehavior]:
+	var result: Array[SpecialBehavior] = []
+	for node: Node in tree.get_nodes_in_group(GROUP):
+		var behavior: SpecialBehavior = node as SpecialBehavior
+		if behavior != null:
+			result.append(behavior)
+	return result
 
 
 func is_triggered() -> bool:
@@ -275,10 +297,8 @@ func trigger(incoming_chain_depth: int) -> void:
 ## in-range/not-already-triggered filtering to the pure _filter_in_range()
 ## below, and triggers each survivor one chain link deeper.
 func trigger_others_in_range(center: Vector3, radius: float, chain_depth: int) -> void:
-	var candidates: Array[SpecialBehavior] = []
-	for node: Node in get_tree().get_nodes_in_group(GROUP):
-		if node is SpecialBehavior and node != self:
-			candidates.append(node as SpecialBehavior)
+	var candidates: Array[SpecialBehavior] = live(get_tree())
+	candidates.erase(self)
 	for target: SpecialBehavior in _filter_in_range(candidates, center, radius, chain_depth):
 		target.trigger(chain_depth + 1)
 
