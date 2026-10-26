@@ -48,9 +48,17 @@ extends SpecialEffect
 const MIN_DIRECTION_LENGTH: float = 0.001
 
 const LAUNCH_DIRECTION_META: StringName = &"paintball_launch_direction"
-const _LAUNCH_AGE_META: StringName = &"paintball_launch_age"
-const _HIT_META: StringName = &"paintball_hit"
-const _CARRIER_GRAVITY_META: StringName = &"paintball_carrier_gravity_scale"
+
+
+## Per-activation flight state (SpecialBehavior.state()): the shared effect Resource keeps none.
+class PaintballState extends EffectState:
+	## behavior.age() at the first flying tick; negative until the glob has launched.
+	var launch_age: float = -1.0
+	var hit: bool = false
+	var carrier_gravity_scale: float = 1.0
+
+	func launched() -> bool:
+		return launch_age >= 0.0
 
 
 ## Host-side aimed-launch input for `block`; returns whether it was accepted. The upward part is
@@ -58,11 +66,43 @@ const _CARRIER_GRAVITY_META: StringName = &"paintball_carrier_gravity_scale"
 static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if block == null or not is_instance_valid(block):
 		return false
-	var clean: Vector3 = RocketEffect.sanitize_downward_direction(direction)
+	var clean: Vector3 = GiftAim.sanitize_downward_direction(direction)
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
 	return true
+
+
+func new_state() -> EffectState:
+	return PaintballState.new()
+
+
+## The slingshot spawns facing its shot, upright, as the held model does.
+func faces_launch(mode: GiftThrow.Mode, aim_direction: Vector3, _throw_velocity: Vector3) -> bool:
+	return mode == GiftThrow.Mode.AIMED and GiftAim.sanitize_downward_direction(aim_direction) != Vector3.ZERO
+
+
+func launch_facing(_mode: GiftThrow.Mode, aim_direction: Vector3, _throw_velocity: Vector3) -> Basis:
+	return FlightFacing.upright_nose_basis(model_nose_axis, GiftAim.sanitize_downward_direction(aim_direction))
+
+
+func apply_launch(block: Block, direction: Vector3) -> void:
+	set_launch_direction(block, direction)
+
+
+func effect_radius_m() -> float:
+	return splash_radius_m
+
+
+## Expanding colour shell tinted by the thrower's slot.
+func build_client_fx(ctx: MatchContext, block: Block, position: Vector3, _owner_slot: int) -> void:
+	var parent: Node3D = ctx.blocks_parent()
+	if parent == null or block == null or block.owner_slot < 0 or block.owner_slot >= ctx.slot_count():
+		return
+	var splash: PaintballSplash = PaintballSplash.new()
+	splash.bind_to_match = true
+	DiscAnchor.attach(splash, position, parent)
+	splash.setup(ctx.slot(block.owner_slot).color)
 
 
 ## A flying (aimed) Paintball ends by its own contact probe, not the velocity-drop test.
@@ -71,11 +111,12 @@ func impact_triggers(block: Block, _behavior: SpecialBehavior) -> bool:
 
 
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-	if not block.has_meta(LAUNCH_DIRECTION_META) or block.has_meta(_HIT_META):
+	var state: PaintballState = behavior.state() as PaintballState
+	if not block.has_meta(LAUNCH_DIRECTION_META) or state.hit:
 		return
-	if not block.has_meta(_LAUNCH_AGE_META):
-		block.set_meta(_LAUNCH_AGE_META, behavior.age())
-		block.set_meta(_CARRIER_GRAVITY_META, block.gravity_scale)
+	if not state.launched():
+		state.launch_age = behavior.age()
+		state.carrier_gravity_scale = block.gravity_scale
 		block.wake_for_impulse()
 		block.wake()
 		RocketEffect.hold_own_exceptions(block, own_block_clear_radius_m)
@@ -84,7 +125,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	block.gravity_scale = flight_gravity_scale
 	block.kick(direction * flight_speed_mps)
 	block.angular_velocity = Vector3.ZERO
-	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
+	var launched_at: float = state.launch_age
 	if behavior.age() - launched_at >= own_block_grace_s:
 		RocketEffect.release_own_exceptions(block)
 	var params: PhysicsTestMotionParameters3D = PhysicsTestMotionParameters3D.new()
@@ -94,18 +135,19 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	var result: PhysicsTestMotionResult3D = PhysicsTestMotionResult3D.new()
 	if PhysicsServer3D.body_test_motion(block.get_rid(), params, result):
 		if behavior.impact_filter(result.get_collider(), launched_at):
-			block.set_meta(_HIT_META, true)
+			state.hit = true
 
 
-func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
-	return block.has_meta(_HIT_META)
+func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
+	return (behavior.state() as PaintballState).hit
 
 
-func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
+func detonate(block: Block, behavior: SpecialBehavior, _chain_depth: int) -> void:
+	var state: PaintballState = behavior.state() as PaintballState if behavior != null else null
 	if block != null:
 		RocketEffect.release_own_exceptions(block)
-	if block != null and block.has_meta(_CARRIER_GRAVITY_META):
-		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
+	if block != null and state != null and state.launched():
+		block.gravity_scale = state.carrier_gravity_scale
 	var ctx: MatchContext = MatchContext.current()
 	if block == null or not ctx.has_authority() or ctx.state() != MatchPhase.State.PLAYING:
 		return

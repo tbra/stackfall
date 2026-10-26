@@ -926,11 +926,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/gifts/GiftAim.gd:sanitize_downward_direction",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipaint (PaintballEffect:61) and P6-Iplace call it; Ipaint removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/CatController.gd:set_target",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
   },
@@ -973,6 +968,46 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/fx/CartoonBlast.gd:spawn",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iquake (BombEffect) and P6-Irocket call it, and P6-Ipresenter drops _build_explosion; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PaintballEffect.gd:build_client_fx",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter calls it; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/MagnetEffect.gd:effect_radius_m",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PaintballEffect.gd:effect_radius_m",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PaintballEffect.gd:faces_launch",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PaintballEffect.gd:launch_facing",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PaintballEffect.gd:apply_launch",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace calls it; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/MagnetEffect.gd:faces_launch",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/MagnetEffect.gd:launch_facing",
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
   }
  ]
 }
