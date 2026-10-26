@@ -85,14 +85,25 @@ func _wheel_up() -> InputEventMouseButton:
 	return event
 
 
-func _make_controller() -> PlayerController:
+## The controller finds its ghost through the exported ghost_path, as LocalPlayer.tscn
+## wires it: a sibling "Ghost" under one holder per controller.
+func _make_controller(shape_path: String = "res://config/blocks/cube.tres", ghost_tuning: GhostTuning = null) -> PlayerController:
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	ghost.name = &"Ghost"
+	holder.add_child(ghost)
+	ghost.set_shape(load(shape_path))
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.ghost_path = NodePath("../Ghost")
+	if ghost_tuning != null:
+		controller.ghost_tuning = ghost_tuning
+	holder.add_child(controller)
 	return controller
+
+
+func _ghost_of(controller: PlayerController) -> GhostPreview:
+	return controller.get_node(controller.ghost_path) as GhostPreview
 
 
 # --- 1. The wheel must reach past the old 30 m cap -------------------------
@@ -109,11 +120,11 @@ func test_wheel_raises_the_ghost_past_the_old_30m_cap() -> void:
 		controller._unhandled_input(_wheel_up())
 
 	assert_gte(
-		controller._ghost.manual_hover_offset, TARGET_HEIGHT_M,
+		_ghost_of(controller).manual_hover_offset, TARGET_HEIGHT_M,
 		"wheeling up enough notches must be able to clear 40 m -- the exact height the owner reported as stuck at 30."
 	)
 	assert_lte(
-		controller._ghost.manual_hover_offset, controller.ghost_tuning.hover_manual_max,
+		_ghost_of(controller).manual_hover_offset, controller.ghost_tuning.hover_manual_max,
 		"the wheel must still respect whatever the (now higher) cap is."
 	)
 
@@ -149,18 +160,10 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		"fixture: the settled tower must be taller than a single wheel notch, or this test can't tell the bug apart from a normal short block."
 	)
 
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
-	ghost.set_shape(load("res://config/blocks/domino.tres"))
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller.ghost_tuning = ghost_tuning
-	controller._cursor = Vector3.ZERO
-	controller._clamp_cursor_collision()
-	controller._update_ghost_transform()
+	var controller: PlayerController = _make_controller("res://config/blocks/domino.tres", ghost_tuning)
+	controller._process(1.0 / 60.0)
 	assert_lt(
-		controller._ghost.global_position.y, tower_top,
+		_ghost_of(controller).global_position.y, tower_top,
 		"fixture: the ghost's own baseline height must start below the tower's top (ignoring the tower under it, mv0.17 item 5) for this to reproduce the bug."
 	)
 
@@ -170,22 +173,20 @@ func test_towers_below_the_ghost_do_not_trap_the_hover_raise() -> void:
 		wheel.button_index = MOUSE_BUTTON_WHEEL_UP
 		wheel.pressed = true
 		controller._unhandled_input(wheel)
-		controller._clamp_cursor_collision()
-		controller._update_ghost_transform()
+		controller._process(1.0 / 60.0)
 
-	# second pass: the real ceiling is now the wire band
-	# (_hover_offset_ceiling(): NetConfig.pos_max_y - hover_ceiling_margin),
-	# below hover_manual_max's own 200 m default.
+	# second pass: the real ceiling is now the wire band (the ghost origin may rise to
+	# NetConfig.pos_max_y - hover_ceiling_margin), below hover_manual_max's own 200 m default.
 	assert_almost_eq(
-		controller._ghost.manual_hover_offset, controller._hover_offset_ceiling(), 0.01,
+		_ghost_of(controller).global_position.y, controller.net_config.pos_max_y - ghost_tuning.hover_ceiling_margin, 0.01,
 		"wheeling up enough notches must reach the real ceiling, not freeze partway up the tower underneath."
 	)
 	assert_gt(
-		controller._ghost.manual_hover_offset, 60.0,
+		_ghost_of(controller).manual_hover_offset, 60.0,
 		"and that ceiling is above the old 60 m manual cap."
 	)
 	assert_gt(
-		controller._ghost.global_position.y, tower_top,
+		_ghost_of(controller).global_position.y, tower_top,
 		"the ghost must actually clear the tower's own top, not stay embedded somewhere inside it."
 	)
 

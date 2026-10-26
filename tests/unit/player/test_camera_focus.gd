@@ -198,16 +198,16 @@ func test_ghost_place_is_ignored_while_the_camera_is_peeking() -> void:
 	var built: Dictionary = _make_controller_with_rig()
 	var controller: PlayerController = built["controller"]
 	var rig: CameraRig = built["rig"]
-	var fake: FakeMatch = FakeMatch.new()
-	fake.next_request_result = PlacementRules.REASON_OK
-	controller._match = fake
+	var fake: FakeMatchContext = FakeMatchContext.new()
+	fake.submit_place_result = PlacementRules.REASON_OK
+	controller.match_context = fake
 
 	_press_and_hold(rig, &"camera_snap_home", 30)
 	assert_true(rig.is_peeking(), "fixture: PEEK must actually be engaged for this test to mean anything.")
 
 	controller._unhandled_input(_action_event(&"ghost_place", true))
 
-	assert_eq(fake.request_place_calls.size(), 0, "ghost_place must not reach Match while the camera is peeking.")
+	assert_eq(fake.submit_place_calls.size(), 0, "ghost_place must not reach Match while the camera is peeking.")
 
 	_release_and_settle(rig, &"camera_snap_home")
 
@@ -216,4 +216,4 @@ func test_ghost_place_is_ignored_while_the_camera_is_peeking() -> void:
 	# else (a missing shape, an unset slot) being the real reason it never
 	# reached Match.
 	controller._unhandled_input(_action_event(&"ghost_place", true))
-	assert_eq(fake.request_place_calls.size(), 1, "fixture: ghost_place must work normally once PEEK has ended.")
+	assert_eq(fake.submit_place_calls.size(), 1, "fixture: ghost_place must work normally once PEEK has ended.")

@@ -1,76 +1,84 @@
 extends GutTest
-## PlayerController sends exactly one placement intent to Match.request_place and reacts to the host's reply (spec 2.6).
+## PlayerController sends exactly one placement intent through its MatchContext and reacts to the host's reply on
+## the Events bus (spec 2.6). The host's answer (the spawn, the rejection) is the host's: this
+## controller never builds a block itself.
 
-func test_place_sends_the_ghost_transform_to_match_which_spawns_and_reports() -> void:
+## How long the rejection kick is let run before the ghost is read (the kick lasts
+## GhostTuning.reject_arc_duration; half of it is the rise).
+const KICK_WAIT_S: float = 0.1
+## The ghost has to have lifted by at least this much of its reject arc by then.
+const MIN_KICK_RISE_M: float = 0.05
+
+var _cube_shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+
+
+## A controller acting for slot 0 on a ghost holding a cube, talking to `context`.
+func _make_controller(context: FakeMatchContext, ghost: GhostPreview) -> PlayerController:
+	ghost.set_shape(_cube_shape)
+	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = ghost.get_path()
+	controller.match_context = context
+	add_child_autofree(controller)
+	controller.set_acting_slot(0)
+	return controller
+
+
+## The ghost_place press the Input Map delivers.
+func _click_place(controller: PlayerController) -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
+
+
+func test_place_sends_one_intent_with_the_ghost_transform_and_spawns_nothing_locally() -> void:
 	var blocks_root: Node3D = autofree(Node3D.new())
 	add_child_autofree(blocks_root)
-
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
-	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
-	ghost.set_shape(cube_shape)
+	ghost.set_shape(_cube_shape)
 	ghost.set_orientation_index(BlockOrientations.step_yaw_ccw(0))
 	ghost.global_position = Vector3(3.0, 7.0, -2.0)
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.spawn_parent = blocks_root
-	fake_match.spawn_on_ok = true
-	fake_match.held_shapes[0] = cube_shape
-	controller._match = fake_match
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = _cube_shape
+	var controller: PlayerController = _make_controller(context, ghost)
 
 	watch_signals(Events)
 
-	controller._place_ghost_block()
+	_click_place(controller)
 
-	assert_eq(fake_match.request_place_calls.size(), 1, "ghost_place should send exactly one placement intent.")
-	assert_eq(fake_match.request_place_calls[0]["slot_id"], 0)
-
-	assert_eq(blocks_root.get_child_count(), 1, "Match should have spawned exactly one block.")
-	var placed: Block = blocks_root.get_child(0) as Block
-	assert_not_null(placed)
-	assert_eq(placed.shape_id, cube_shape.id)
-	assert_true(placed.global_position.is_equal_approx(Vector3(3.0, 7.0, -2.0)))
-	assert_true(
-		placed.global_transform.basis.is_equal_approx(BlockOrientations.get_basis(BlockOrientations.step_yaw_ccw(0))),
-		"The spawned block should carry the ghost's exact orientation."
-	)
-
-	assert_signal_emitted(Events, "block_placed")
-	assert_signal_emitted_with_parameters(Events, "block_placed", [placed, cube_shape.id])
+	assert_eq(context.submit_place_calls.size(), 1, "ghost_place should send exactly one placement intent.")
+	var call: Dictionary = context.submit_place_calls[0]
+	assert_eq(call["slot_id"], 0)
+	assert_true((call["origin"] as Vector3).is_equal_approx(Vector3(3.0, 7.0, -2.0)), "the intent carries the ghost's position")
+	assert_eq(call["orientation_index"], BlockOrientations.step_yaw_ccw(0), "and the ghost's exact orientation")
+	assert_eq(call["auto_drop"], false, "a click is not an auto-drop")
+	assert_eq(blocks_root.get_child_count(), 0, "Only the host spawns the block.")
+	assert_signal_not_emitted(Events, "block_placed")
 
 
-func test_a_rejected_placement_emits_the_event_and_spawns_nothing_locally() -> void:
+func test_a_rejected_placement_flashes_the_ghost_and_spawns_nothing_locally() -> void:
 	# Every invalid release burns the block
-	# — decided inside Match.request_place, which the controller never
-	# second-guesses. From PlayerController's side a rejection only means
-	# Events.placement_rejected fires and the ghost plays its reject flash
-	# (game/player/GhostPreview.gd); it never spawns anything itself either way.
+	# - decided by the host, which the controller never second-guesses. From the
+	# controller's side a rejection only means Events.placement_rejected arrives and the ghost plays
+	# its reject arc (game/player/GhostPreview.gd); it never spawns anything itself either way.
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
-	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
-	ghost.set_shape(cube_shape)
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.held_shapes[0] = cube_shape
-	fake_match.next_request_result = PlacementRules.REASON_CONTESTED
-	controller._match = fake_match
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = _cube_shape
+	context.submit_place_result = PlacementRules.REASON_CONTESTED
+	var controller: PlayerController = _make_controller(context, ghost)
+	await wait_process_frames(2)
+	var rest_y: float = ghost.global_position.y
 
 	watch_signals(Events)
+	_click_place(controller)
+	assert_eq(context.submit_place_calls.size(), 1, "the intent went to the host")
+	Events.placement_rejected.emit(0, PlacementRules.REASON_CONTESTED)
+	await get_tree().create_timer(KICK_WAIT_S).timeout
 
-	controller._place_ghost_block()
-
-	assert_signal_emitted_with_parameters(Events, "placement_rejected", [0, PlacementRules.REASON_CONTESTED])
-	assert_almost_eq(
-		(ghost._material.get_shader_parameter(&"albedo_color") as Color).r, ghost.ghost_tuning.reject_flash_color.r, 0.001,
-		"A rejected placement should flash the ghost (spec 1.5's reject animation)."
+	assert_gt(
+		ghost.global_position.y, rest_y + MIN_KICK_RISE_M,
+		"A rejected placement should play the ghost's reject arc (spec 1.5's reject animation)."
 	)
+	assert_signal_not_emitted(Events, "block_placed")

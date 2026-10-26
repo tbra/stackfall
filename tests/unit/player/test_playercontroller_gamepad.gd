@@ -3,25 +3,47 @@ extends GutTest
 ## InputEventJoypadButton/Motion events, since there's no physical pad here.
 ##
 ## ghost_place is now intent-only (spec
-## 3.4), so a press should send exactly one Match.request_place() call
-## rather than spawn a block directly — see tests/support/FakeMatch.gd.
+## 3.4), so a press should send exactly one submit_place() intent through the
+## match context rather than spawn a block directly — see
+## tests/support/FakeMatchContext.gd.
+
+
+## The controller finds its ghost through the exported ghost_path, as LocalPlayer.tscn
+## wires it: a sibling "Ghost" under one holder. `context` (when given) is installed on
+## match_context before add_child, the way LocalPlayer injects the port.
+func _make_controller(ghost: GhostPreview, context: MatchContext = null) -> PlayerController:
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
+	ghost.name = &"Ghost"
+	holder.add_child(ghost)
+	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = NodePath("../Ghost")
+	if context != null:
+		controller.match_context = context
+	holder.add_child(controller)
+	return controller
+
+
+func _make_ghost() -> GhostPreview:
+	var ghost: GhostPreview = autofree(GhostPreview.new())
+	return ghost
+
+
+## Where the cursor aims, read off the ghost: the rotated shape's centre sits over the cursor.
+func _cursor_xz(ghost: GhostPreview) -> Vector2:
+	var centre: Vector3 = ghost.rotated_center_world()
+	return Vector2(centre.x, centre.z)
 
 
 func test_gamepad_button_places_a_block() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	var ghost: GhostPreview = _make_ghost()
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = cube_shape
+	var controller: PlayerController = _make_controller(ghost, context)
 	ghost.set_shape(cube_shape)
 	ghost.global_position = Vector3(0.0, 5.0, 0.0)
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.held_shapes[0] = cube_shape
-	controller._match = fake_match
+	controller.set_acting_slot(0)
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
@@ -35,16 +57,23 @@ func test_gamepad_button_places_a_block() -> void:
 	controller._unhandled_input(button_event)
 
 	assert_eq(
-		fake_match.request_place_calls.size(), 1,
+		context.submit_place_calls.size(), 1,
 		"A synthetic gamepad ghost_place press should send exactly one placement intent."
 	)
-	assert_eq(fake_match.request_place_calls[0]["slot_id"], 0)
-	assert_eq(fake_match.request_place_calls[0]["auto_drop"], false)
+	assert_eq(context.submit_place_calls[0]["slot_id"], 0)
+	assert_eq(context.submit_place_calls[0]["auto_drop"], false)
+	assert_eq(
+		context.submit_place_calls[0]["origin"], ghost.global_position,
+		"the intent carries the pose the ghost shows."
+	)
 
 
 func test_gamepad_stick_moves_the_ghost_cursor() -> void:
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
+	var ghost: GhostPreview = _make_ghost()
+	var controller: PlayerController = _make_controller(ghost)
+	ghost.set_shape(load("res://config/blocks/cube.tres"))
+	controller._process(1.0)
+	var before: Vector2 = _cursor_xz(ghost)
 
 	var motion: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	motion.device = -1
@@ -57,12 +86,12 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 	Input.parse_input_event(motion)
 	Input.flush_buffered_events()
 
-	controller._update_gamepad_cursor(1.0)
+	controller._process(1.0)
 
-	assert_true(controller._using_gamepad_cursor, "Pushing the left stick should switch input to the gamepad cursor.")
-	# renamed from _gamepad_cursor to _cursor -- mouse motion
-	# moves the same field now (see test_playercontroller_mouse.gd).
-	assert_gt(controller._cursor.x, 0.0, "ghost_move_right should move the cursor toward +X at camera yaw 0.")
+	# The cursor is the one both devices move (see test_playercontroller_mouse.gd); the
+	# ghost sits over it.
+	assert_gt(_cursor_xz(ghost).x, before.x, "ghost_move_right should move the cursor toward +X at camera yaw 0.")
+	assert_almost_eq(_cursor_xz(ghost).y, before.y, 0.001, "and not sideways.")
 
 	# Zero the synthetic axis (a fresh event — Godot warns if the same event
 	# object is parsed twice in one frame) so it doesn't bleed into later tests.
@@ -83,13 +112,9 @@ func test_gamepad_stick_moves_the_ghost_cursor() -> void:
 ## exercises rotate_snap (B) instead of the shoulder-button binding this test
 ## used to check before that reassignment.
 func test_gamepad_rotate_snap_button_steps_the_orientation_table() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	var ghost: GhostPreview = _make_ghost()
+	var controller: PlayerController = _make_controller(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
@@ -113,13 +138,9 @@ func test_gamepad_rotate_snap_button_steps_the_orientation_table() -> void:
 ## "RB = hover raise, LB = hover lower (held)") moved these off
 ## RS click/X onto the shoulder buttons.
 func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	var ghost: GhostPreview = _make_ghost()
+	var controller: PlayerController = _make_controller(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
 
 	var button_event: InputEventJoypadButton = InputEventJoypadButton.new()
 	button_event.device = -1
@@ -133,7 +154,7 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 	Input.flush_buffered_events()
 
 	var before: float = ghost.manual_hover_offset
-	controller._handle_hover_adjust(1.0)
+	controller._process(1.0)
 
 	assert_almost_eq(
 		ghost.manual_hover_offset, before + controller.ghost_tuning.hover_manual_adjust_speed, 0.001,
@@ -156,14 +177,11 @@ func test_gamepad_hover_raise_held_continuously_raises_the_ghost() -> void:
 ## mouse-motion branch uses (test_playercontroller_mouse.gd), and must not
 ## move the cursor while held.
 func test_gamepad_rotate_drag_pad_free_rotates_like_mmb_drag_and_freezes_the_cursor() -> void:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	var ghost: GhostPreview = _make_ghost()
+	var controller: PlayerController = _make_controller(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
-
-	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	var cursor_before: Vector3 = controller._cursor
+	controller._process(1.0)
+	var cursor_before: Vector2 = _cursor_xz(ghost)
 
 	var trigger: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	trigger.device = -1
@@ -183,7 +201,7 @@ func test_gamepad_rotate_drag_pad_free_rotates_like_mmb_drag_and_freezes_the_cur
 	Input.parse_input_event(stick)
 	Input.flush_buffered_events()
 
-	controller._update_gamepad_cursor(1.0)
+	controller._process(1.0)
 
 	# Mirrors rotate_drag's own mouse-motion branch: +X input yaws the same
 	# direction a +X mouse-relative drag does (both negate the raw input
@@ -194,7 +212,7 @@ func test_gamepad_rotate_drag_pad_free_rotates_like_mmb_drag_and_freezes_the_cur
 		"holding rotate_drag_pad (RT) with stick deflection must free-rotate the ghost."
 	)
 	assert_eq(ghost.orientation_index, 0, "rotate_drag_pad must not touch the 90-degree snap table, only free_quaternion.")
-	assert_eq(controller._cursor, cursor_before, "rotate_drag_pad must not move the cursor while held.")
+	assert_almost_eq(_cursor_xz(ghost), cursor_before, Vector2(0.001, 0.001), "rotate_drag_pad must not move the cursor while held.")
 
 	var trigger_release: InputEventJoypadMotion = InputEventJoypadMotion.new()
 	trigger_release.device = -1

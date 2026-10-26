@@ -67,21 +67,20 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
 	var ghost: GhostPreview = autofree(GhostPreview.new())
+	ghost.name = &"Ghost"
 	world_holder.add_child(ghost)
 	ghost.set_shape(cube_shape)
 
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = cube_shape
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = NodePath("../Ghost")
+	controller.match_context = context
 	world_holder.add_child(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.spawn_parent = blocks_root
-	fake_match.spawn_on_ok = true
-	fake_match.held_shapes[0] = cube_shape
-	controller._match = fake_match
+	controller.set_acting_slot(0)
 
 	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
+
 	var edge: float = tuning.cube_size - tuning.cube_margin
 
 	# Each new cube targets the PREVIOUS cube's actual settled position (not
@@ -91,10 +90,24 @@ func test_thirty_cube_tower_stands_and_sleeps() -> void:
 	# Events.feed_block_issued/turn_changed), so every block in this tower
 	# stays a cube without needing to reset it after each placement.
 	var next_position: Vector3 = Vector3(0.0, edge * 0.5, 0.0)
+	# ghost_place the way a gamepad A press reaches the controller (the Input Map action).
+	var place_event: InputEventJoypadButton = InputEventJoypadButton.new()
+	place_event.device = -1
+	place_event.button_index = JOY_BUTTON_A
+	place_event.pressed = true
 	for i: int in range(TOWER_HEIGHT):
 		ghost.reset_rotation()
 		ghost.global_position = next_position
-		controller._place_ghost_block()
+		controller._unhandled_input(place_event)
+		assert_eq(context.submit_place_calls.size(), i + 1, "each ghost_place press sends one placement intent.")
+		# The intent is accepted (the fake answers &""): spawn what the host would, at the intent's pose.
+		var intent: Dictionary = context.submit_place_calls[i]
+		var block: Block = BlockFactory.build(cube_shape, tuning)
+		blocks_root.add_child(block)
+		block.global_position = intent["origin"] as Vector3
+		block.global_transform.basis = (
+			Basis(intent["free_quat"] as Quaternion) * BlockOrientations.get_basis(int(intent["orientation_index"]))
+		)
 
 		for _settle_tick: int in range(TICKS_BETWEEN_PLACEMENTS):
 			await get_tree().physics_frame
