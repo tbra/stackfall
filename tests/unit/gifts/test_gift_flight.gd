@@ -70,9 +70,9 @@ func test_flight_lands_then_expires_at_exact_configured_life_boundary() -> void:
 	assert_eq(float(Match.gift_state(gift_id)["landed_age"]), 0.0)
 	var life_s: float = Match._gifts._gift_config.life_s
 	Match._gifts.tick_host(life_s - 0.001)
-	assert_true(Match._gifts._crates.has(gift_id))
+	assert_false(Match.gift_state(gift_id).is_empty())
 	Match._gifts.tick_host(0.001)
-	assert_false(Match._gifts._crates.has(gift_id))
+	assert_true(Match.gift_state(gift_id).is_empty())
 
 
 func test_owned_landing_claims_once() -> void:
@@ -80,7 +80,7 @@ func test_owned_landing_claims_once() -> void:
 	var gift_id: int = _spawn(Match.slot(0).home_position)
 	watch_signals(Events)
 	Match._gifts.tick_host(9.0)
-	assert_false(Match._gifts._crates.has(gift_id))
+	assert_true(Match.gift_state(gift_id).is_empty())
 	assert_signal_emit_count(Events, "gift_claimed", 1)
 	Match._gifts.tick_host(1.0)
 	assert_signal_emit_count(Events, "gift_claimed", 1)
@@ -117,7 +117,7 @@ func test_two_held_blocks_touching_in_air_claim_once_in_slot_order() -> void:
 	Match.set_replicator(provider)
 	watch_signals(Events)
 	Match._gifts.tick_host(0.01)
-	assert_false(Match._gifts._crates.has(gift_id))
+	assert_true(Match.gift_state(gift_id).is_empty())
 	assert_eq(Match.held_special(0), &"")
 	assert_eq(Match.pending_special_count(0), 1)
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, Match._gifts._pending_queues[0][0]])
@@ -134,7 +134,7 @@ func test_stale_cursor_cannot_claim_airborne_gift() -> void:
 		"orientation_index": 0, "free_quat": Quaternion.IDENTITY, "age": 10.0}
 	Match.set_replicator(provider)
 	Match._gifts.tick_host(0.01)
-	assert_true(Match._gifts._crates.has(gift_id))
+	assert_false(Match.gift_state(gift_id).is_empty())
 	assert_eq(int(Match.gift_state(gift_id)["phase"]), MatchGifts.FALLING)
 
 
@@ -149,7 +149,7 @@ func test_landed_gift_claims_when_territory_arrives_later() -> void:
 	Match.raster().fill_ownership(circles, TerritorySolver.new(Match._territory_tuning).solve(circles), true)
 	Match.raster().adopt_fill(Match.raster(), 0.1, true, false)
 	Match._gifts.tick_host(0.1)
-	assert_false(Match._gifts._crates.has(gift_id))
+	assert_true(Match.gift_state(gift_id).is_empty())
 	assert_eq(Match.held_special(1), &"")
 	assert_eq(Match.pending_special_count(1), 1)
 
