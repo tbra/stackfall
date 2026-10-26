@@ -336,8 +336,9 @@ signal net_steam_lobbies_discovered(lobbies: Array[Dictionary])
 ## game/blocks/Block.gd detected a sudden drop in its own speed frame to frame (a
 ## landing or collision; no contact_monitor, which cost too much physics step
 ## time). `speed` is that deceleration
-## magnitude in m/s; autoload/Sfx.gd is the only listener and scales its
-## thud's volume from it (config/audio/AudioConfig.gd's impact_speed_min/_loud).
+## magnitude in m/s; listeners include Rumble, CameraRig and
+## net/match/MatchReplication.gd. Sfx listens to block_impacted_at instead
+## (config/audio/AudioConfig.gd's impact_speed_min/_loud scale its thud).
 ## Throttled per block (Block.IMPACT_EMIT_INTERVAL_MS) so a long slide or
 ## tumble doesn't machine-gun thuds.
 signal block_impacted(speed: float)
@@ -355,8 +356,7 @@ signal lobby_ui_cue(cue: StringName)
 ## next to each other -- this one also carries the block's own global
 ## position at emit time, for effects that need to know *where* the impact
 ## happened (game/blocks/BlockEffectsManager.gd's landing-dust/impact burst).
-## autoload/Sfx.gd deliberately keeps listening to block_impacted only and is
-## untouched by this signal.
+## autoload/Sfx.gd listens to this one for the thud.
 signal block_impacted_at(speed: float, position: Vector3)
 
 # --- Pause menu -------------------------------------------------------------

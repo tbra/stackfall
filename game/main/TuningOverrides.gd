@@ -7,10 +7,10 @@ extends RefCounted
 const SAVE_PATH: String = "user://tuning_overrides.cfg"
 
 
-## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run so
-## tests never touch the owner's real F4 overrides.
+## The file actually read/written: SAVE_PATH, or a per-PID file in a GUT run or agent
+## probe so neither touches the owner's real F4 overrides.
 static func save_path() -> String:
-	return UserPaths.resolve(SAVE_PATH)
+	return UserPaths.gut_path(SAVE_PATH) if UserPaths.is_isolated_run() else SAVE_PATH
 
 
 ## Loads any saved overrides onto the shared tuning singletons, before anything else in the game

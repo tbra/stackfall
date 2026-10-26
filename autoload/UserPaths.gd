@@ -47,10 +47,6 @@ static func gut_path(real_path: String) -> String:
 	return real_path.get_basename() + GUT_INFIX + str(OS.get_process_id()) + "." + real_path.get_extension()
 
 
-static func resolve(real_path: String) -> String:
-	return gut_path(real_path) if is_gut_run() else real_path
-
-
 ## Deletes per-PID GUT files left by crashed runs (older than an hour).
 static func sweep_stale() -> void:
 	var dir: DirAccess = DirAccess.open(USER_ROOT)

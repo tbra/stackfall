@@ -21,6 +21,7 @@ func _active() -> bool:
 
 
 func has_authority() -> bool:
+	# DECISION: private read kept on purpose (the D9 two-file cycle); a public accessor would have one caller.
 	return _match._is_host()
 
 
@@ -45,6 +46,7 @@ func config() -> MatchConfig:
 
 
 func physics_tuning() -> PhysicsTuning:
+	# DECISION: private read kept on purpose (the D9 two-file cycle); a public accessor would have one caller.
 	return _match._physics_tuning
 
 
@@ -115,6 +117,7 @@ func goal_zone_visual_radius() -> float:
 
 
 func capture_hold_seconds() -> float:
+	# DECISION: private read kept on purpose (the D9 two-file cycle); a public accessor would have one caller.
 	return _match._territory_tuning.capture_hold
 
 
