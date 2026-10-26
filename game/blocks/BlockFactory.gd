@@ -96,10 +96,10 @@ static func build(shape: BlockShape, tuning: PhysicsTuning, owner_slot: int = -1
 	# see BlockShape.bottom_center()'s own doc comment. This makes the body's local
 	# origin coincide with the shape's bottom face, matching the ghost's visual
 	# (build_visual_only() below) and the pivot Match.request_place() spawns at.
-	var pivot: Vector3 = shape.bottom_center()
-	for cell: Vector3i in shape.cells:
-		var local_pos: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
-		var is_sloped: bool = shape.sloped_cells.has(cell)
+	var local_positions: Array[Vector3] = shape.cell_centres(tuning.cube_size)
+	for i: int in shape.cells.size():
+		var local_pos: Vector3 = local_positions[i]
+		var is_sloped: bool = shape.sloped_cells.has(shape.cells[i])
 
 		var collision: CollisionShape3D = CollisionShape3D.new()
 		collision.shape = _make_collision_shape(half_size, is_sloped)
@@ -196,10 +196,7 @@ static func overlap_probe_centers(shape: BlockShape, tuning: PhysicsTuning, gift
 	if not is_equal_approx(gift_scale, 1.0):
 		centers.append(gift_cell_center(shape, tuning) + Vector3.UP * ((gift_scale - 1.0) * (tuning.cube_size - tuning.cube_margin) * 0.5))
 		return centers
-	var pivot: Vector3 = shape.bottom_center()
-	for cell: Vector3i in shape.cells:
-		centers.append((Vector3(cell) - pivot) * tuning.cube_size)
-	return centers
+	return shape.cell_centres(tuning.cube_size)
 
 
 ## Edge length of each box overlap_probe_centers() places.
@@ -226,11 +223,9 @@ static func muzzle_matched_origin(
 ## (unrotated, bottom-face-pivot) frame: the centre of the shape's bounds. The
 ## visual, the collider and the held-gift touch test all use this one point.
 static func gift_cell_center(shape: BlockShape, tuning: PhysicsTuning) -> Vector3:
-	var pivot: Vector3 = shape.bottom_center()
 	var min_local: Vector3 = Vector3(INF, INF, INF)
 	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
-	for cell: Vector3i in shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+	for local: Vector3 in shape.cell_centres(tuning.cube_size):
 		min_local = min_local.min(local)
 		max_local = max_local.max(local)
 	return (min_local + max_local) * 0.5
@@ -286,14 +281,15 @@ static func _add_shape_visual(
 		return
 
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	var pivot: Vector3 = shape.bottom_center()
-	for cell: Vector3i in shape.cells:
+	var local_positions: Array[Vector3] = shape.cell_centres(tuning.cube_size)
+	for i: int in shape.cells.size():
+		var cell: Vector3i = shape.cells[i]
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 		var is_sloped: bool = shape.sloped_cells.has(cell)
 		var mesh: Mesh = shape.mesh if shape.mesh != null else _make_visual_mesh(half_size, is_sloped)
 		mesh_instance.mesh = mesh
 		mesh_instance.material_override = material
-		mesh_instance.position = (Vector3(cell) - pivot) * tuning.cube_size
+		mesh_instance.position = local_positions[i]
 		parent.add_child(mesh_instance)
 
 

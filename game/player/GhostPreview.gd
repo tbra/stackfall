@@ -598,10 +598,8 @@ func _rotated_top_offset() -> float:
 	if _shape == null or _shape.cells.is_empty():
 		return 0.0
 	var half_size: float = tuning.cube_size * 0.5
-	var pivot: Vector3 = _shape.bottom_center()
 	var max_y: float = -INF
-	for cell: Vector3i in _shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+	for local: Vector3 in _shape.cell_centres(tuning.cube_size):
 		for corner_sign: Vector3 in _CORNER_SIGNS:
 			var corner: Vector3 = local + corner_sign * half_size
 			var rotated_y: float = (basis * corner).y
@@ -619,19 +617,7 @@ func _rotated_top_offset() -> float:
 func rotated_center_offset() -> Vector3:
 	if _shape == null or _shape.cells.is_empty():
 		return Vector3.ZERO
-	var pivot: Vector3 = _shape.bottom_center()
-	var min_local: Vector3 = Vector3(INF, INF, INF)
-	var max_local: Vector3 = Vector3(-INF, -INF, -INF)
-	for cell: Vector3i in _shape.cells:
-		var local: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
-		min_local.x = minf(min_local.x, local.x)
-		min_local.y = minf(min_local.y, local.y)
-		min_local.z = minf(min_local.z, local.z)
-		max_local.x = maxf(max_local.x, local.x)
-		max_local.y = maxf(max_local.y, local.y)
-		max_local.z = maxf(max_local.z, local.z)
-	var center_local: Vector3 = (min_local + max_local) * 0.5
-	return basis * center_local
+	return _shape.rotated_center_offset(basis, tuning.cube_size)
 
 
 ## The rotated held shape's own geometric centre, in world space -- what
@@ -657,10 +643,8 @@ func _rotated_shape_hull() -> PackedVector2Array:
 	if _shape == null or _shape.cells.is_empty():
 		return PackedVector2Array()
 	var half_size: float = (tuning.cube_size - tuning.cube_margin) * 0.5
-	var pivot: Vector3 = _shape.bottom_center()
 	var points: PackedVector2Array = PackedVector2Array()
-	for cell: Vector3i in _shape.cells:
-		var local_center: Vector3 = (Vector3(cell) - pivot) * tuning.cube_size
+	for local_center: Vector3 in _shape.cell_centres(tuning.cube_size):
 		for corner_sign: Vector3 in _CORNER_SIGNS:
 			var rotated_corner: Vector3 = basis * (local_center + corner_sign * half_size)
 			points.append(Vector2(rotated_corner.x, rotated_corner.z))
@@ -1484,13 +1468,9 @@ func projection_span_y() -> Vector2:
 ## lines _rotated_bottom_offset() already computes for the same shape. Empty (not
 ## null) when nothing is held.
 func collision_box_local_centers() -> Array[Vector3]:
-	var centers: Array[Vector3] = []
 	if _shape == null:
-		return centers
-	var pivot: Vector3 = _shape.bottom_center()
-	for cell: Vector3i in _shape.cells:
-		centers.append((Vector3(cell) - pivot) * tuning.cube_size)
-	return centers
+		return []
+	return _shape.cell_centres(tuning.cube_size)
 
 
 ## Half-extent of one collision box, matching game/blocks/BlockFactory.gd's own
@@ -1705,16 +1685,7 @@ func _apply_glue_overlay() -> void:
 		if mesh_instance != null:
 			# Loaded by path, not by class name: HoneyCoat reaches Block, which would grow the layer-lint SCC.
 			var honey_coat: GDScript = LateScripts.script(LateScripts.HONEY_COAT)
-			honey_coat.call(&"set_ghost_coated", mesh_instance, _glue_cell_centres(), _glue_charges > 0)
-
-
-## Block-local cell centres of the held shape (same pivot rule as BlockFactory.build).
-func _glue_cell_centres() -> Array[Vector3]:
-	var centres: Array[Vector3] = []
-	var pivot: Vector3 = _shape.bottom_center()
-	for cell: Vector3i in _shape.cells:
-		centres.append((Vector3(cell) - pivot) * tuning.cube_size)
-	return centres
+			honey_coat.call(&"set_ghost_coated", mesh_instance, _shape.cell_centres(tuning.cube_size), _glue_charges > 0)
 
 
 func _local_glue_charges() -> int:
