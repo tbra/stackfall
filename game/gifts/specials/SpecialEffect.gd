@@ -89,3 +89,42 @@ func detaches() -> bool:
 ## impact_triggers() veto above: both must allow the impact. True by default.
 func triggers_on_impact() -> bool:
 	return true
+
+
+## A fresh per-activation state for SpecialBehavior.bind() to keep (an inner EffectState
+## subclass of the effect). null (default) = stateless effect.
+func new_state() -> EffectState:
+	return null
+
+
+## True when a camera-aimed launch of this gift may point upward (Rocket). False by default.
+func may_aim_upward() -> bool:
+	return false
+
+
+## True when the carrier is oriented along its launch in `mode`; then launch_facing() gives
+## the basis. False by default (the carrier keeps its drop orientation).
+func faces_launch(_mode: GiftThrow.Mode, _aim_direction: Vector3, _throw_velocity: Vector3) -> bool:
+	return false
+
+
+## The carrier's basis for a launch. Only valid when faces_launch() is true for the same arguments.
+func launch_facing(_mode: GiftThrow.Mode, _aim_direction: Vector3, _throw_velocity: Vector3) -> Basis:
+	return Basis.IDENTITY
+
+
+## Stores the host-sanitised aim `direction` on the spawned `block` for the effect to read.
+## No-op by default.
+func apply_launch(_block: Block, _direction: Vector3) -> void:
+	pass
+
+
+## Metres of the effect's blast/field radius; 0.0 = none (default).
+func effect_radius_m() -> float:
+	return 0.0
+
+
+## Draws this effect's client-side visual at `position` (every peer, from the replicated
+## trigger). `block` may be null on a client. No-op by default.
+func build_client_fx(_ctx: MatchContext, _block: Block, _position: Vector3, _owner_slot: int) -> void:
+	pass

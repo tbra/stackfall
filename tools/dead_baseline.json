@@ -903,6 +903,76 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "autoload/match/CatSession.gd",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icat moves the Match cat code here; Icat removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/gifts/GiftCrateTouch.gd",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icore fills it and P6-Icrates wires it; Icore removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/gifts/GiftFlight.gd",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icore fills it and P6-Icrates wires it; Icore removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/gifts/GiftAim.gd:sanitize_launch_direction",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Irocket (RocketEffect wrappers) and P6-Iplace call it; Irocket removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/gifts/GiftAim.gd:sanitize_downward_direction",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipaint (PaintballEffect:61) and P6-Iplace call it; Ipaint removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/CatController.gd:set_target",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialBehavior.gd:state",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: Match.state() and other state() funcs share the name; the first caller is an effect package (Irocket/Ipaint/Iquake) reading its EffectState; Irocket removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:may_aim_upward",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:faces_launch",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:launch_facing",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:apply_launch",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace replaces MatchPlacement._apply_aim_direction; Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (Bontago-di0.12) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/SpecialEffect.gd:build_client_fx",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/fx/CartoonBlast.gd:spawn",
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iquake (BombEffect) and P6-Irocket call it, and P6-Ipresenter drops _build_explosion; Ipresenter removes this entry"
   }
  ]
 }

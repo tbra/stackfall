@@ -71,3 +71,17 @@ static func flat_range(t: SpecialTuning, range_scale: float, gravity: float) -> 
 ## goes with speed squared at fixed gravity and loft, so speed scales with its square root.
 static func speed_factor(range_scale: float) -> float:
 	return sqrt(maxf(range_scale, 0.0))
+
+
+## The direction a Rocket flies: non-finite or degenerate input gives Vector3.ZERO (rejected),
+## otherwise the unit vector, upward and straight up included.
+static func sanitize_launch_direction(direction: Vector3) -> Vector3:
+	return unit_forward(direction)
+
+
+## The Paintball's launch direction: the upward part removed and normalised, ZERO when nothing
+## is left or the input is non-finite.
+static func sanitize_downward_direction(direction: Vector3) -> Vector3:
+	if not direction.is_finite():
+		return Vector3.ZERO
+	return unit_forward(Vector3(direction.x, minf(direction.y, 0.0), direction.z))
