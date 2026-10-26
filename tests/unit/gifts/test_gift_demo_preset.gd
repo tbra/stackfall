@@ -99,14 +99,17 @@ func test_f5_re_places_the_preset_towers() -> void:
 var _silent_at_placement: Array[bool] = []
 
 
+## Connected after Sfx's own handler, so Sfx has already decided whether this placement sounds.
 func _record_silence(_block: RigidBody3D, _shape_id: StringName) -> void:
-	_silent_at_placement.append(Sfx._world_replay_silent)
+	_silent_at_placement.append(not SfxChildren.any_playing())
+	SfxChildren.stop_all()
 
 
 ## pre-placed scene blocks go through the ordinary placement path (their
 ## block_placed would sound the local drop cue for every block at once); Sfx must be silenced
 ## for exactly that build, and a real drop afterwards must not be.
 func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
+	SfxChildren.stop_all()
 	Events.block_placed.connect(_record_silence)
 	_main.start_gift_demo_from_menu()
 	_run_countdown()
@@ -115,4 +118,10 @@ func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
 	Events.block_placed.disconnect(_record_silence)
 	assert_gt(_silent_at_placement.size(), 0, "towers were pre-placed")
 	assert_false(_silent_at_placement.has(false), "every pre-placed block was placed under Sfx silence")
-	assert_false(Sfx._world_replay_silent, "silence is released once the scene is built")
+	var own_block: BlockBody = BlockBody.new()
+	own_block.owner_slot = Net.local_slot()
+	add_child_autofree(own_block)
+	SfxChildren.stop_all()
+	Events.block_placed.emit(own_block, &"shape")
+	assert_true(SfxChildren.any_playing(), "silence is released once the scene is built: a later own drop sounds")
+	SfxChildren.stop_all()
