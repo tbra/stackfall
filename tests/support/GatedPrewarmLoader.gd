@@ -56,11 +56,7 @@ func _resource(path: String) -> Resource:
 
 ## Hands `loader` to `queue` (the queue's loader seam).
 static func wire(queue: MenuPrewarmQueue, loader: PrewarmLoader) -> void:
-	queue.request_callable = func(path: String) -> int: return OK if loader.request(path) else ERR_CANT_CREATE
-	queue.status_callable = loader.status
-	queue.collect_callable = loader.collect
-	queue.load_callable = loader.load_now
-	queue.exists_callable = loader.exists
+	queue.loader = loader
 
 
 ## A queue over `chunk_list` (an Array of Arrays of paths) that loads through `loader`.

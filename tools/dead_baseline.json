@@ -141,11 +141,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "game/main/PrewarmLoader.gd",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "dead-file",
    "entry": "game/player/GhostSweep.gd",
    "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
   },
@@ -698,66 +693,6 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
    "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:await_prewarmed",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:begin",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:ensure_late_active",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:ensure_script",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:is_late_active",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:load_scene",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:menu_shown",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/AppLoader.gd:wants_background",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/DeferredQuit.gd:is_done",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/DeferredQuit.gd:is_requested",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/DeferredQuit.gd:on_close_request",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/DeferredQuit.gd:settle",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
   },
   {
    "id": "test-only-func",
