@@ -79,14 +79,48 @@ func _controller() -> PlayerController:
 	return _main._local_player.controller()
 
 
+func _ghost() -> GhostPreview:
+	return _main._local_player.ghost()
+
+
+func _field_surface_y() -> float:
+	return (_main.get_node("Field") as Field).surface_y()
+
+
+## The player's wheel notch down, delivered the way the Input Map delivers it.
+func _wheel_down() -> void:
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	_controller()._unhandled_input(wheel)
+
+
+## The ghost_place press the Input Map delivers.
+func _click_place() -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	_controller()._unhandled_input(press)
+
+
+## The held piece is parked over `cursor` (the seed the game gives a slot) and wheeled down to the floor.
+func _park_over(cursor: Vector3) -> void:
+	_controller().set_home_position(cursor)
+	_player_lowers_first_piece_to_the_floor()
+
+
+func _held_overlaps_a_placed_block() -> bool:
+	return GhostOverlapProbe.overlaps_placed_block(_controller().get_viewport().world_3d, _ghost())
+
+
 ## the match's first piece now starts raised clear of the home
 ## beacon (PlayerController.set_home_position()). These tests exercise the
 ## ordinary hover, so the player first wheels it back down to the floor -- the
 ## same input that makes any raise their own -- which restores the geometry
 ## they were written against.
 func _player_lowers_first_piece_to_the_floor() -> void:
-	_controller()._ghost.manual_hover_offset = 0.0
-	_controller()._absorb_clearance_raise()
+	_ghost().manual_hover_offset = 0.0
+	_wheel_down()
 
 
 ## One engine frame: a physics tick and the controller's own _process.
@@ -100,9 +134,9 @@ func _place() -> Block:
 	var grab: Callable = func(block: RigidBody3D, _shape_id: StringName) -> void:
 		captured.append(block as Block)
 	Events.block_placed.connect(grab)
-	var reason: StringName = _controller()._request_place(false)
+	_click_place()
 	Events.block_placed.disconnect(grab)
-	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the drop")
+	assert_eq(captured.size(), 1, "the host accepts the drop")
 	return captured[0] if not captured.is_empty() else null
 
 
@@ -138,16 +172,15 @@ func _stack_drop_trace() -> Dictionary:
 	await _start_hosted_match()
 	_player_lowers_first_piece_to_the_floor()
 	var controller: PlayerController = _controller()
-	var ghost: GhostPreview = controller._ghost
+	var ghost: GhostPreview = _ghost()
 	var rig: CameraRig = _main._camera_rig
 	# Two metres in from the home flag, toward the disk centre (own territory).
 	# the first spawn now sits home_spawn_back_offset outward of
 	# the flag, so measure from the flag itself to keep this fixture's geometry
 	# (A's spot, and B tumbling clear of it) exactly as it was written.
-	var home: Vector3 = controller._cursor
+	var home: Vector3 = Match.default_ghost_origin(HOST_SLOT)
 	var inward: Vector3 = Vector3(-home.x, 0.0, -home.z).normalized()
-	controller._cursor = home + inward * (2.0 + controller.ghost_tuning.home_spawn_back_offset)
-	controller._last_safe_cursor = controller._cursor
+	_park_over(home + inward * (2.0 + controller.ghost_tuning.home_spawn_back_offset))
 	for _i: int in range(5):
 		await _frame()
 	var a: Block = _place()
@@ -158,9 +191,10 @@ func _stack_drop_trace() -> Dictionary:
 	Match._feed._feed_time_left[HOST_SLOT] = Match.config.block_timer
 	Match._feed._feed_expired[HOST_SLOT] = false
 	# The player wheels the held piece up so it hangs DROP_GAP_M above A.
-	var player_offset: float = maxf(_top_y(a) - controller._last_hit_point.y - controller.tuning.hover_height, 0.0) + DROP_GAP_M
-	ghost.manual_hover_offset = player_offset
-	controller._absorb_clearance_raise()
+	var player_offset: float = maxf(_top_y(a) - _field_surface_y() - controller.tuning.hover_height, 0.0) + DROP_GAP_M
+	# one wheel notch down from a notch above the target, so the hover is the player's own
+	ghost.manual_hover_offset = player_offset + controller.ghost_tuning.hover_wheel_step
+	_wheel_down()
 	# Let the follow camera finish easing onto the player's own new hover.
 	for _i: int in range(CAMERA_SETTLE_FRAMES):
 		await _frame()
@@ -181,8 +215,8 @@ func _stack_drop_trace() -> Dictionary:
 		a_drift = maxf(a_drift, d[0])
 		a_rot = maxf(a_rot, d[1])
 		if i % 10 == 0:
-			gut.p("f%03d ghost_off=%.3f raise=%.3f cam_y=%.3f B_y=%.3f B_sleep=%s A_drift=%.4f" % [
-				i, ghost.manual_hover_offset, controller._clearance_raise, rig.get_target().y,
+			gut.p("f%03d ghost_off=%.3f cam_y=%.3f B_y=%.3f B_sleep=%s A_drift=%.4f" % [
+				i, ghost.manual_hover_offset, rig.get_target().y,
 				b.global_position.y, b.sleeping, d[0],
 			])
 	var b_rot: float = _drift(b_released, b.global_transform)[1]
@@ -213,10 +247,9 @@ func test_a_raise_waits_for_the_dropped_block_to_settle_then_clears_it() -> void
 	await _start_hosted_match()
 	_player_lowers_first_piece_to_the_floor()
 	var controller: PlayerController = _controller()
-	var ghost: GhostPreview = controller._ghost
-	var home: Vector3 = controller._cursor
-	controller._cursor = home + Vector3(-home.x, 0.0, -home.z).normalized() * 2.0
-	controller._last_safe_cursor = controller._cursor
+	var ghost: GhostPreview = _ghost()
+	var home: Vector3 = Match.default_ghost_origin(HOST_SLOT)
+	_park_over(home + Vector3(-home.x, 0.0, -home.z).normalized() * 2.0)
 	for _i: int in range(5):
 		await _frame()
 	var player_offset: float = ghost.manual_hover_offset
@@ -232,10 +265,10 @@ func test_a_raise_waits_for_the_dropped_block_to_settle_then_clears_it() -> void
 		if settled_at >= 0 and i > settled_at + 5:
 			break
 	gut.p("ground drop: settled_at=f%d rise_while_unsettled=%.3f final_offset=%.3f overlaps=%s" % [
-		settled_at, rise_while_unsettled, ghost.manual_hover_offset, controller._ghost_overlaps_a_placed_block(),
+		settled_at, rise_while_unsettled, ghost.manual_hover_offset, _held_overlaps_a_placed_block(),
 	])
 	assert_gte(settled_at, 0, "fixture: the dropped block comes to rest")
 	assert_lte(rise_while_unsettled, MAX_GHOST_RISE_M, "no raise while the dropped block is still moving")
 	assert_gt(ghost.manual_hover_offset, player_offset, "once it rests inside the next piece, the piece is raised")
-	assert_false(controller._ghost_overlaps_a_placed_block(), "and clears it")
+	assert_false(_held_overlaps_a_placed_block(), "and clears it")
 

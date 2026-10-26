@@ -21,11 +21,14 @@ const CUBE_PATH: String = "res://config/blocks/cube.tres"
 const HEIGHT_EPSILON: float = 0.0001
 ## Start of the downward beacon ray, well above any beacon.
 const RAY_HEIGHT: float = 50.0
+## Mouse travel that carries the cursor well clear of the block just released.
+const MOVE_AWAY_PX: float = 800.0
 
 var _tiny_map: MapDef
 var _blocks_root: Node3D
 var _registry: BlockRegistry
 var _field: Field
+var _ghost: GhostPreview
 
 
 func before_each() -> void:
@@ -57,89 +60,43 @@ func _make_field(map: MapDef) -> Field:
 
 
 func _make_controller() -> PlayerController:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	_ghost = autofree(GhostPreview.new())
+	add_child_autofree(_ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = _ghost.get_path()
 	# Private copy so a test can retune the margin without touching the shared resource.
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	add_child_autofree(controller)
-	controller._ghost = ghost
-	ghost.set_shape(load(CUBE_PATH) as BlockShape)
+	# The test drives the engine's per-frame callback itself (one deterministic step per call).
+	controller.set_process(false)
+	_ghost.set_shape(load(CUBE_PATH) as BlockShape)
 	return controller
 
 
-## World Y of the highest beacon collider point above the home flag, found by a
-## downward ray against Field.BEACON_COLLISION_LAYER, measured independently of
-## BeaconVisualTuning.beacon_top_height() so the two are cross-checked.
-func _collider_top_world(field: Field, slot_id: int) -> float:
-	await wait_physics_frames(1)
-	var flag_pos: Vector3 = field.home_flags()[slot_id].global_position
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		flag_pos + Vector3.UP * RAY_HEIGHT, flag_pos - Vector3.UP * RAY_HEIGHT, Field.BEACON_COLLISION_LAYER
-	)
-	var hit: Dictionary = field.direct_space().intersect_ray(query)
-	assert_false(hit.is_empty(), "fixture: the home beacon collider answers a ray from above")
-	return (hit["position"] as Vector3).y
+## One engine frame of the controller (poses the ghost at its cursor).
+func _frame(controller: PlayerController, delta: float = 1.0 / 60.0) -> void:
+	controller._process(delta)
 
 
-## World Y of the held shape's lowest point right now, built from the ghost's
-## own reported hover over the surface it was last placed on.
-func _lowest_point_y(controller: PlayerController) -> float:
-	return controller._ghost.height_above_surface() + controller._last_hit_point.y
+## The player's wheel notch down, delivered the way the Input Map delivers it.
+func _wheel_down(controller: PlayerController) -> void:
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	controller._unhandled_input(wheel)
 
 
-func test_first_held_block_clears_the_home_beacon_on_every_map() -> void:
-	var paths: PackedStringArray = _map_paths()
-	assert_gt(paths.size(), 0, "fixture: config/match/maps must hold at least one map")
-	for path: String in paths:
-		var map: MapDef = load(path) as MapDef
-		var field: Field = _make_field(map)
-		var controller: PlayerController = _make_controller()
-		var margin: float = controller.ghost_tuning.home_spawn_beacon_margin
-		var home: Vector3 = field.home_flags()[0].global_position
-		var beacon_top: float = await _collider_top_world(field, 0)
-
-		controller.set_home_position(home)
-		await wait_physics_frames(1)
-		controller._update_ghost_transform()
-
-		assert_gte(
-			_lowest_point_y(controller), beacon_top + margin - HEIGHT_EPSILON,
-			"%s: the first block's lowest point must clear the home beacon top (%.3f) by the %.2f m margin"
-			% [path.get_file(), beacon_top, margin]
-		)
-		field.queue_free()
+## The ghost_place press the Input Map delivers.
+func _click_place(controller: PlayerController) -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
 
 
-func test_raise_is_dropped_by_the_next_accepted_spawn_so_later_blocks_are_unchanged() -> void:
-	var field: Field = _make_field(MapDef.base().scaled(0.75))
-	var controller: PlayerController = _make_controller()
-	controller.set_home_position(field.home_flags()[0].global_position)
-	assert_gt(controller._ghost.manual_hover_offset, 0.0, "fixture: the first piece is raised")
-
-	# What _on_feed_block_issued()/_process() run for the piece after an accepted placement.
-	controller._pending_spawn_active = true
-	controller._apply_spawn_clearance()
-
-	assert_eq(controller._ghost.manual_hover_offset, 0.0, "the next piece hovers at the player's own height again")
-
-
-func test_players_own_hover_input_takes_over_the_raise() -> void:
-	var field: Field = _make_field(MapDef.base().scaled(0.75))
-	var controller: PlayerController = _make_controller()
-	controller.set_home_position(field.home_flags()[0].global_position)
-	controller._step_hover(-1.0)
-	var player_owned: float = controller._ghost.manual_hover_offset
-
-	controller._pending_spawn_active = true
-	controller._apply_spawn_clearance()
-
-	assert_eq(controller._ghost.manual_hover_offset, player_owned, "a hover the player set is theirs and persists")
-
-
-func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
-	# End to end through the real host rules: the pose the ghost sends is where
-	# the block spawns, so it spawns clear of the beacon.
+## A started two-player match on a tiny round map and the controller for slot 0, seeded on its home
+## flag as the game seeds a slot (LocalPlayer.bind_local_slot).
+func _start_match_with_controller() -> PlayerController:
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
 	_field = autofree(Field.new())
@@ -158,17 +115,99 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
 		Match._process(1.0 / Engine.physics_ticks_per_second)
-
 	var controller: PlayerController = _make_controller()
 	controller.set_acting_slot(0)
-	controller._ghost.set_shape(Match.held_shape(0))
+	_ghost.set_shape(Match.held_shape(0))
 	controller.set_home_position(Match.default_ghost_origin(0))
+	return controller
+
+
+## World Y of the highest beacon collider point above the home flag, found by a
+## downward ray against Field.BEACON_COLLISION_LAYER, measured independently of
+## BeaconVisualTuning.beacon_top_height() so the two are cross-checked.
+func _collider_top_world(field: Field, slot_id: int) -> float:
 	await wait_physics_frames(1)
-	controller._update_ghost_transform()
+	var flag_pos: Vector3 = field.home_flags()[slot_id].global_position
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		flag_pos + Vector3.UP * RAY_HEIGHT, flag_pos - Vector3.UP * RAY_HEIGHT, Field.BEACON_COLLISION_LAYER
+	)
+	var hit: Dictionary = field.direct_space().intersect_ray(query)
+	assert_false(hit.is_empty(), "fixture: the home beacon collider answers a ray from above")
+	return (hit["position"] as Vector3).y
+
+
+## World Y of the held shape's lowest point right now, built from the ghost's
+## own reported hover over the field's surface.
+func _lowest_point_y(field: Field) -> float:
+	return _ghost.height_above_surface() + field.surface_y()
+
+
+func test_first_held_block_clears_the_home_beacon_on_every_map() -> void:
+	var paths: PackedStringArray = _map_paths()
+	assert_gt(paths.size(), 0, "fixture: config/match/maps must hold at least one map")
+	for path: String in paths:
+		var map: MapDef = load(path) as MapDef
+		var field: Field = _make_field(map)
+		var controller: PlayerController = _make_controller()
+		var margin: float = controller.ghost_tuning.home_spawn_beacon_margin
+		var home: Vector3 = field.home_flags()[0].global_position
+		var beacon_top: float = await _collider_top_world(field, 0)
+
+		controller.set_home_position(home)
+		await wait_physics_frames(1)
+		_frame(controller)
+
+		assert_gte(
+			_lowest_point_y(field), beacon_top + margin - HEIGHT_EPSILON,
+			"%s: the first block's lowest point must clear the home beacon top (%.3f) by the %.2f m margin"
+			% [path.get_file(), beacon_top, margin]
+		)
+		field.queue_free()
+
+
+func test_raise_is_dropped_by_the_next_accepted_spawn_so_later_blocks_are_unchanged() -> void:
+	var controller: PlayerController = _start_match_with_controller()
+	assert_gt(_ghost.manual_hover_offset, 0.0, "fixture: the first piece is raised")
+	_frame(controller)
+	_click_place(controller)
+	assert_eq(_blocks_root.get_child_count(), 1, "fixture: the release spawned the first block")
+
+	# The next piece after the accepted placement: its spawn takes the first piece's raise off.
+	await wait_physics_frames(1)
+	_frame(controller, controller.ghost_tuning.spawn_clearance_settle_timeout_s)
+
+	assert_eq(_ghost.manual_hover_offset, 0.0, "the next piece hovers at the player's own height again")
+
+
+func test_players_own_hover_input_takes_over_the_raise() -> void:
+	var controller: PlayerController = _start_match_with_controller()
+	_wheel_down(controller)
+	var player_owned: float = _ghost.manual_hover_offset
+	assert_gt(player_owned, 0.0, "fixture: one notch down leaves part of the raise")
+	_frame(controller)
+	_click_place(controller)
+	assert_eq(_blocks_root.get_child_count(), 1, "fixture: the release spawned the first block")
+	# The player moves the cursor off the block just released, so the next piece has nothing to clear.
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.relative = Vector2(MOVE_AWAY_PX, 0.0)
+	controller._unhandled_input(motion)
+
+	await wait_physics_frames(1)
+	_frame(controller, controller.ghost_tuning.spawn_clearance_settle_timeout_s)
+
+	assert_eq(_ghost.manual_hover_offset, player_owned, "a hover the player set is theirs and persists")
+
+
+func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
+	# End to end through the real host rules: the pose the ghost sends is where
+	# the block spawns, so it spawns clear of the beacon.
+	var controller: PlayerController = _start_match_with_controller()
+	await wait_physics_frames(1)
+	_frame(controller)
 	var margin: float = controller.ghost_tuning.home_spawn_beacon_margin
 	var beacon_top: float = _field.global_position.y + controller.beacon_visuals.beacon_top_height()
 
-	controller._place_ghost_block()
+	_click_place(controller)
 
 	assert_eq(_blocks_root.get_child_count(), 1, "fixture: the release must have spawned the first block")
 	var block: Node3D = _blocks_root.get_child(0) as Node3D
@@ -184,5 +223,3 @@ func test_host_spawns_the_first_released_block_above_the_beacon() -> void:
 		lowest, beacon_top + margin - HEIGHT_EPSILON,
 		"the host must spawn the first block's lowest point above the beacon top plus margin"
 	)
-
-

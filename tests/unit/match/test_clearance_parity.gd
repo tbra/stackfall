@@ -15,11 +15,14 @@ const HOME_SLOT: int = 0
 ## The controller listens to feed events of its acting slot only; during the host
 ## phase it acts for this other seat so the host spawn cannot move its ghost.
 const OTHER_SLOT: int = 1
+## A host lift below this is no lift.
+const CLEAR_EPSILON: float = 0.0001
 
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+var _ghost: GhostPreview
 var _saved_feed_config: BlockFeedConfig = null
 var _special_tuning: SpecialTuning = load("res://config/gifts/special_tuning.tres") as SpecialTuning
 var _tuning: GhostTuning = load("res://config/blocks/tuning/ghost_tuning.tres") as GhostTuning
@@ -71,25 +74,49 @@ func _start_match() -> void:
 
 
 func _make_controller() -> PlayerController:
-	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	_ghost = autofree(GhostPreview.new())
+	add_child_autofree(_ghost)
 	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = _ghost.get_path()
 	controller.ghost_tuning = controller.ghost_tuning.duplicate() as GhostTuning
 	controller.ghost_tuning.spawn_clearance_enabled = true
 	add_child_autofree(controller)
-	controller._ghost = ghost
 	controller.set_acting_slot(OTHER_SLOT)
-	controller._ghost.set_shape(Match.held_shape(HOME_SLOT))
-	var home: Vector2 = Match.slot(HOME_SLOT).home_position
-	controller._cursor = _field.to_global(Vector3(home.x, 5.0, home.y))
+	_ghost.set_shape(Match.held_shape(HOME_SLOT))
+	_aim_at(controller, _home_spot())
 	return controller
+
+
+func _home_spot() -> Vector3:
+	var home: Vector2 = Match.slot(HOME_SLOT).home_position
+	return _field.to_global(Vector3(home.x, 5.0, home.y))
+
+
+## The player parks the held piece over `cursor` on the floor: the cursor seed the game gives a
+## slot (set_home_position), then the wheel down, which makes the first piece's beacon raise the
+## player's own and takes it off.
+func _aim_at(controller: PlayerController, cursor: Vector3) -> void:
+	controller.set_home_position(cursor)
+	_ghost.manual_hover_offset = 0.0
+	var wheel: InputEventMouseButton = InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	controller._unhandled_input(wheel)
+
+
+## The ghost_place press the Input Map delivers.
+func _click_place(controller: PlayerController) -> void:
+	var press: InputEventAction = InputEventAction.new()
+	press.action = &"ghost_place"
+	press.pressed = true
+	controller._unhandled_input(press)
 
 
 ## The pose the ghost shows at `hover_offset`, before any release lift.
 func _ghost_pose(controller: PlayerController, hover_offset: float) -> Transform3D:
-	controller._ghost.manual_hover_offset = hover_offset
-	controller._update_ghost_transform()
-	return controller._ghost.global_transform
+	_ghost.manual_hover_offset = hover_offset
+	controller.spawn_camera_anchor()  # poses the ghost at its cursor
+	return _ghost.global_transform
 
 
 ## Host request path. Returns the block it spawned (null if refused).
@@ -99,7 +126,7 @@ func _host_place(pose: Transform3D, controller: PlayerController) -> Block:
 		captured.append(block as Block)
 	Events.block_placed.connect(grab)
 	var reason: StringName = Match.request_place(
-		HOME_SLOT, pose.origin, controller._ghost.orientation_index, controller._ghost.free_quaternion, false
+		HOME_SLOT, pose.origin, _ghost.orientation_index, _ghost.free_quaternion, false
 	)
 	Events.block_placed.disconnect(grab)
 	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the release")
@@ -112,13 +139,13 @@ func _hold_gift(controller: PlayerController, gift_id: StringName) -> void:
 		return
 	Match._gifts._ensure_capacity(HOME_SLOT)
 	Match._gifts._held_specials[HOME_SLOT] = gift_id
-	controller._ghost.set_shape(Match.held_shape(HOME_SLOT))
-	controller._ghost.set_held_gift(gift_id)
+	_ghost.set_shape(Match.held_shape(HOME_SLOT))
+	_ghost.set_held_gift(gift_id)
 
 
 ## What the controller sends for a gift release: no camera rig, so a level aim along +Z.
-func _gift_aim(controller: PlayerController) -> Vector3:
-	return controller._camera_forward()
+func _gift_aim(_controller: PlayerController) -> Vector3:
+	return Vector3.BACK
 
 
 func _host_throw(pose: Transform3D, controller: PlayerController, gift_id: StringName) -> Block:
@@ -127,7 +154,7 @@ func _host_throw(pose: Transform3D, controller: PlayerController, gift_id: Strin
 		captured.append(block as Block)
 	Events.block_placed.connect(grab)
 	var reason: StringName = Match.request_throw(
-		HOME_SLOT, pose.origin, controller._ghost.orientation_index, controller._ghost.free_quaternion, _gift_aim(controller)
+		HOME_SLOT, pose.origin, _ghost.orientation_index, _ghost.free_quaternion, _gift_aim(controller)
 	)
 	Events.block_placed.disconnect(grab)
 	assert_eq(reason, PlacementRules.REASON_OK, "the host accepts the %s throw" % gift_id)
@@ -176,14 +203,15 @@ func _lifts_for(tower_height: int, hover_offset: float, gift_id: StringName = &"
 	var controller: PlayerController = _make_controller()
 	await _build_tower(controller, tower_height)
 	_hold_gift(controller, gift_id)
-	controller._cursor += Vector3.RIGHT * lateral_cells * Match._physics_tuning.cube_size
+	_aim_at(controller, _home_spot() + Vector3.RIGHT * lateral_cells * Match._physics_tuning.cube_size)
 	var unlifted: Transform3D = _ghost_pose(controller, hover_offset)
 	controller.set_acting_slot(HOME_SLOT)  # the held gift is the acting seat's
-	var clear_already: bool = not controller._ghost_overlaps_a_placed_block()
 	controller.set_acting_slot(OTHER_SLOT)
 	# host search on its own, from the unlifted pose; its block is then removed
 	var host_block: Block = _host_place(unlifted, controller) if gift_id == &"" else _host_throw(unlifted, controller, gift_id)
 	var host_rise: float = host_block.global_position.y - _host_base_y(unlifted, controller, gift_id)
+	# the host left the pose alone: nothing to clear (the host and the release agree on that pose)
+	var clear_already: bool = host_rise < CLEAR_EPSILON
 	host_block.get_parent().remove_child(host_block)
 	host_block.free()
 	await wait_physics_frames(2)
@@ -192,8 +220,14 @@ func _lifts_for(tower_height: int, hover_offset: float, gift_id: StringName = &"
 	_hold_gift(controller, gift_id)
 	var shown: Vector3 = _ghost_pose(controller, hover_offset).origin
 	assert_eq(shown, unlifted.origin, "fixture: the ghost shows the same unlifted pose")
-	assert_eq(controller._request_place(false), PlacementRules.REASON_OK, "the client's release is accepted")
-	var released: Vector3 = controller._ghost.global_position
+	var released_blocks: Array[Block] = []
+	var grab: Callable = func(block: RigidBody3D, _shape_id: StringName) -> void:
+		released_blocks.append(block as Block)
+	Events.block_placed.connect(grab)
+	_click_place(controller)
+	Events.block_placed.disconnect(grab)
+	assert_eq(released_blocks.size(), 1, "the client's release is accepted")
+	var released: Vector3 = _ghost.global_position
 	var ghost_rise: float = released.y - unlifted.origin.y
 	var client_rise: float = ghost_rise
 	if gift_id != &"":

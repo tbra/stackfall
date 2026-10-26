@@ -124,16 +124,16 @@ func test_the_fallback_lands_on_the_same_clearance_the_players_first_block_gets(
 	# Drift guard: PlayerController and SlotCursors both derive their height from
 	# GhostTuning.home_spawn_clear_hover(), so the two lowest points must agree.
 	_start_host_match(MapDef.base().scaled(0.75))
-	var controller: PlayerController = autofree(PlayerController.new())
 	var ghost: GhostPreview = autofree(GhostPreview.new())
 	add_child_autofree(ghost)
+	var controller: PlayerController = autofree(PlayerController.new())
+	controller.ghost_path = ghost.get_path()
 	add_child_autofree(controller)
-	controller._ghost = ghost
 	ghost.set_shape(load(CUBE_PATH) as BlockShape)
 	controller.set_home_position(Match.default_ghost_origin(REMOTE_SLOT))
 	await wait_physics_frames(1)
-	controller._update_ghost_transform()
-	var player_lowest: float = ghost.height_above_surface() + controller._last_hit_point.y
+	controller.spawn_camera_anchor()  # poses the ghost at its cursor
+	var player_lowest: float = ghost.height_above_surface() + _field.surface_y()
 
 	Events.feed_timer_expired.emit(REMOTE_SLOT)
 
