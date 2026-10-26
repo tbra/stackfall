@@ -894,13 +894,7 @@ func _claim_gift(gift_id: int, team_id: int) -> void:
 	var recipient_slot: int = _resolve_recipient_slot(team_id, crate_position)
 	if recipient_slot < 0:
 		return
-	_ensure_capacity(recipient_slot)
-	if not _free_crate_visual(gift_id):
-		return
-	_ensure_special_drawer_installed()
-	var special_id: StringName = _draw_special_id()
-	_queue_claimed_special(recipient_slot, special_id)
-	Events.gift_claimed.emit(gift_id, recipient_slot, special_id)
+	_claim_gift_for_slot(gift_id, recipient_slot)
 
 
 ## Picks the alive (home_flag_alive) member of `team_id` whose home circle
