@@ -13,6 +13,8 @@ extends RefCounted
 
 var _match: MatchAutoload = null
 var _gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
+var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Host seconds of live play this match (physics ticks), for GiftConfig.first_gift_delay_s.
 var _play_time_s: float = 0.0
 
@@ -159,6 +161,12 @@ func set_special_drawer(drawer: Callable) -> void:
 	_special_drawer = drawer
 
 
+## Restores the placeholder drawer, so a forced-special drawer cannot leak into
+## the next match (Match.start_match).
+func reset_special_drawer() -> void:
+	_special_drawer = _default_special_drawer
+
+
 ## Builds one fresh per-slot queue. A real Array[StringName], not a plain
 ## Array -- see _pending_queues' own DECISION for why the *outer* container
 ## cannot also be typed on this engine version.
@@ -213,15 +221,15 @@ func _queue_claimed_special(slot_id: int, special_id: StringName, immediate: boo
 		_store_in_gift_slot(slot_id, special_id)
 		return
 	_ensure_capacity(slot_id)
-	if not immediate and _match._feed.gift_after_next_active():
-		var had_staged: bool = _match._feed.has_staged_gift(slot_id)
-		if _match._feed.stage_gift_after_next(slot_id) != &"":
+	if not immediate and _match.feed().gift_after_next_active():
+		var had_staged: bool = _match.feed().has_staged_gift(slot_id)
+		if _match.feed().stage_gift_after_next(slot_id) != &"":
 			_enqueue_after_next(slot_id, special_id, had_staged)
 			return
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
 	queue.append(special_id)
-	_match._feed.replace_next_with_gift(slot_id)
+	_match.feed().replace_next_with_gift(slot_id)
 
 
 ## Queue order is [gift that is next (if any), staged gift].
@@ -236,7 +244,7 @@ func _enqueue_after_next(slot_id: int, special_id: StringName, had_staged: bool)
 
 ## The claimed gift staged as the block after next, or &"" for none.
 func after_next_special(slot_id: int) -> StringName:
-	if slot_id < 0 or slot_id >= _pending_queues.size() or not _match._feed.has_staged_gift(slot_id):
+	if slot_id < 0 or slot_id >= _pending_queues.size() or not _match.feed().has_staged_gift(slot_id):
 		return &""
 	var queue: Array = _pending_queues[slot_id]
 	return StringName(queue.back()) if not queue.is_empty() else &""
@@ -306,14 +314,14 @@ func request_use_gift_slot(slot_id: int) -> bool:
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
 	queue.append(special_id)
-	var carrier_id: StringName = _match._feed.replace_next_with_gift(slot_id)
+	var carrier_id: StringName = _match.feed().replace_next_with_gift(slot_id)
 	if carrier_id == &"":
 		queue.clear()
 		contents.push_front(special_id)
 		return false
 	# Clients mirror the queue and carrier before the feed event that follows.
 	Events.gift_slot_changed.emit(slot_id, gift_slot_contents(slot_id), special_id, carrier_id)
-	_match._feed.issue_gift_now(slot_id, _match.config.qol.effective_gift_min_window_s())
+	_match.feed().issue_gift_now(slot_id, _match.config.qol.effective_gift_min_window_s())
 	return true
 
 
@@ -330,7 +338,7 @@ func apply_replicated_gift_slot(slot_id: int, contents: Array, activated: String
 		var queue: Array = _pending_queues[slot_id]
 		queue.clear()
 		queue.append(activated)
-		_match._feed.apply_replicated_next_gift(slot_id, carrier_id)
+		_match.feed().apply_replicated_next_gift(slot_id, carrier_id)
 
 
 func glue_drops_left(slot_id: int) -> int:
@@ -401,7 +409,7 @@ func next_special(slot_id: int) -> StringName:
 	if queue.is_empty():
 		return &""
 	# A lone staged gift is not next yet (after_next_special()).
-	if queue.size() == 1 and _match._feed.has_staged_gift(slot_id):
+	if queue.size() == 1 and _match.feed().has_staged_gift(slot_id):
 		return &""
 	return StringName(queue[0])
 
@@ -421,7 +429,7 @@ func defer_held_special_after_burn(slot_id: int) -> void:
 	# gift as the next held piece, replacing the next ordinary draw.
 	if queue.is_empty():
 		queue.append(special_id)
-		_match._feed.replace_next_with_gift(slot_id)
+		_match.feed().replace_next_with_gift(slot_id)
 	_held_specials.erase(slot_id)
 
 
@@ -514,7 +522,7 @@ func _ensure_capacity(slot_id: int) -> void:
 func on_feed_block_issued(slot_id: int) -> void:
 	if not _match._is_host():
 		return
-	if _match._feed._suppress_gift_roll:
+	if _match.feed().gift_roll_suppressed():
 		return
 	# Start grace; the roll is skipped outright, not queued.
 	# DECISION: sandbox / gift-demo matches skip the grace (a testing aid; the
@@ -558,10 +566,9 @@ func _lowest_alive_slot() -> int:
 ## for why its duration is not spec-given.
 func _effective_special_frequency() -> float:
 	var base_frequency: float = float(_match.config.special_frequency) if _match.config != null else 0.0
-	if not _match._lifecycle.sudden_death_active():
+	if not _match.lifecycle().sudden_death_active():
 		return base_frequency
-	var ramp_s: float = maxf(_match._territory_tuning.sudden_death_ramp_s, 0.001)
-	var t: float = clampf(_match._lifecycle._sudden_death_elapsed / ramp_s, 0.0, 1.0)
+	var t: float = _match.lifecycle().sudden_death_ramp(_territory_tuning.sudden_death_ramp_s)
 	return lerpf(base_frequency, float(MatchConfig.SPECIAL_FREQUENCY_MAX), t)
 
 
@@ -788,16 +795,16 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	if not found or not _match.is_pose_well_formed(origin, orientation, free_quat):
 		return false
 	var basis: Basis = Basis(free_quat) * BlockOrientations.get_basis(orientation)
-	var half: float = _match._physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
+	var half: float = _physics_tuning.cube_size * 0.5 + _gift_config.air_touch_margin_m
 	var crate_half: Vector3 = GiftCrate.CRATE_SIZE * 0.5
 	var pivot: Vector3 = shape.bottom_center()
 	# A held gift is one cell where its model sits, matching the
 	# collider it will be delivered with, not the whole carrier piece.
 	if _match.held_special(slot_id) != &"":
-		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _match._physics_tuning)
+		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _physics_tuning)
 		return GiftCrateTouch.cell_overlaps_crate(gift_center, basis, half, crate_world, crate_half)
 	return GiftCrateTouch.shape_overlaps_crate(
-		shape.cells, pivot, origin, basis, _match._physics_tuning.cube_size, half, crate_world, crate_half)
+		shape.cells, pivot, origin, basis, _physics_tuning.cube_size, half, crate_world, crate_half)
 
 
 func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
@@ -1081,9 +1088,9 @@ func apply_replicated_claim(gift_id: int, slot_id: int, special_id: StringName) 
 	if special_id == GLUE_SPECIAL_ID:
 		return # charges arrive through apply_replicated_glue_charges()
 	_ensure_capacity(slot_id)
-	if _match._feed.gift_after_next_active():
+	if _match.feed().gift_after_next_active():
 		# Mirrors the host's _queue_claimed_special(); the applier stages the carrier right after.
-		_enqueue_after_next(slot_id, special_id, _match._feed.has_staged_gift(slot_id))
+		_enqueue_after_next(slot_id, special_id, _match.feed().has_staged_gift(slot_id))
 		return
 	var queue: Array = _pending_queues[slot_id]
 	queue.clear()
@@ -1128,10 +1135,6 @@ func reset() -> void:
 	_held_specials.clear()
 	_glue_drops.clear()
 	_glue_revisions.clear()
-	# MatchLifecycle clears the feed arrays before calling this reset.
-	_match._feed._next_gift_shapes.clear()
-	_match._feed._staged_gift_shapes.clear()
-	_match._feed._held_is_gift.clear()
 	for node: Object in _crate_nodes.values():
 		if is_instance_valid(node):
 			(node as GiftCrate).queue_free()

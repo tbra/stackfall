@@ -377,7 +377,7 @@ func start_match(match_config: MatchConfig) -> void:
 	# so resetting here for every non-sandbox start is safe; the weighted
 	# drawer is re-installed lazily at the first claim (_roster_ready reset).
 	if match_config == null or not match_config.sandbox:
-		_gifts.set_special_drawer(_gifts._default_special_drawer)
+		_gifts.reset_special_drawer()
 	_lifecycle.start_match(match_config)
 
 
