@@ -921,11 +921,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/gifts/GiftAim.gd:sanitize_launch_direction",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Irocket (RocketEffect wrappers) and P6-Iplace call it; Irocket removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/gifts/GiftAim.gd:sanitize_downward_direction",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipaint (PaintballEffect:61) and P6-Iplace call it; Ipaint removes this entry"
   },
@@ -933,11 +928,6 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/CatController.gd:set_target",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialBehavior.gd:state",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: Match.state() and other state() funcs share the name; the first caller is an effect package (Irocket/Ipaint/Iquake) reading its EffectState; Irocket removes this entry"
   },
   {
    "id": "test-only-func",
@@ -973,6 +963,36 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/fx/CartoonBlast.gd:spawn",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iquake (BombEffect) and P6-Irocket call it, and P6-Ipresenter drops _build_explosion; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:may_aim_upward",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:faces_launch",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:launch_facing",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:apply_launch",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:effect_radius_m",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; Bontago-di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/RocketEffect.gd:build_client_fx",
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Ipresenter removes this entry"
   }
  ]
 }
