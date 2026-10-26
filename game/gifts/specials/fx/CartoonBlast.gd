@@ -57,6 +57,12 @@ func _init() -> void:
 	set_process(false)
 
 
+func _enter_tree() -> void:
+	# The Field outlives a match, so a blast still animating at a reset would linger into the next one.
+	if not Events.match_scope_reset.is_connected(queue_free):
+		Events.match_scope_reset.connect(queue_free)
+
+
 ## Builds every layer for a blast of `radius_m` with `t`; call once the node is
 ## in the tree and placed at the blast point. `shape_seed` varies the cluster's shape.
 func setup(t: GiftExplosionFxTuning, radius_m: float, shape_seed: int = 0) -> void:
