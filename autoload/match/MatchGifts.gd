@@ -68,11 +68,12 @@ var _special_roster: Array[SpecialDef] = []
 var _special_rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _special_rng_ready: bool = false
 
-## Live, unclaimed crates: gift_id -> {"position": Vector2 (disk-local),
-## "age": float, "node": GiftCrate}. Every entry, host or client mirror, is
-## created and freed only through _make_crate_node()/_free_crate_visual() so
-## the two paths cannot drift.
+## Live, unclaimed crates: gift_id -> GiftFlight. Every entry, host or client
+## mirror, is created and freed only through _make_crate_node()/_free_crate_visual()
+## so the two paths cannot drift.
 var _crates: Dictionary = {}
+## gift_id -> GiftCrate visual (absent when no container exists), kept beside _crates.
+var _crate_nodes: Dictionary = {}
 
 ## Parallel to Match's slots: each inner array has zero or one next gift.
 ## A new claim replaces its element and never changes the current held piece.
@@ -119,24 +120,19 @@ var _container: Node3D = null
 var _crate_prewarmed: bool = false
 
 
-func setup(match_ref: MatchAutoload) -> void:
-	_match = match_ref
-	prewarm_crate_assets()
-	if not Events.player_eliminated.is_connected(_on_player_eliminated_clear_glue):
-		Events.player_eliminated.connect(_on_player_eliminated_clear_glue)
-
-
 ## DECISION: the first GiftCrate of a process cost 42-70 ms inside a bot's
 ## placement frame (GiftModelTable load + crate GLB instantiate + toon materials),
 ## the worst frame of the bot bench; one throwaway build_crate_visual() at setup (host and client both run
-## setup) moves that cost out of the match. Idempotent; nothing is added to the tree.
-func prewarm_crate_assets() -> void:
-	if _crate_prewarmed:
-		return
-	_crate_prewarmed = true
-	var visual: Node3D = GiftModelTable.shared().build_crate_visual()
-	if visual != null:
-		visual.free()
+## setup) moves that cost out of the match. Once per process; nothing is added to the tree.
+func setup(match_ref: MatchAutoload) -> void:
+	_match = match_ref
+	if not _crate_prewarmed:
+		_crate_prewarmed = true
+		var visual: Node3D = GiftModelTable.shared().build_crate_visual()
+		if visual != null:
+			visual.free()
+	if not Events.player_eliminated.is_connected(_on_player_eliminated_clear_glue):
+		Events.player_eliminated.connect(_on_player_eliminated_clear_glue)
 
 
 ## DECISION: an eliminated slot can never drop again, so the host zeroes its Glue charges (harmless to rules) and publishes the change,
@@ -571,8 +567,8 @@ func _effective_special_frequency() -> float:
 
 func _live_positions() -> Array[Vector2]:
 	var result: Array[Vector2] = []
-	for entry: Dictionary in _crates.values():
-		result.append(entry["position"])
+	for flight: GiftFlight in _crates.values():
+		result.append(flight.position)
 	return result
 
 
@@ -668,9 +664,9 @@ func _spawn_crate_at(point: Vector2) -> void:
 	var landing: Vector3 = _world_at(point, GiftCrate.CRATE_SIZE.y * 0.5)
 	var origin: Vector3 = landing + Vector3.UP * _gift_config.drop_height_m
 	var node: GiftCrate = _make_crate_node(point, gift_id)
-	_crates[gift_id] = {"position": point, "origin": origin, "landing": landing,
-		"elapsed": 0.0, "age": 0.0, "phase": FALLING, "node": node}
+	_crates[gift_id] = GiftFlight.new(gift_id, point, origin, landing, FALLING)
 	if node != null:
+		_crate_nodes[gift_id] = node
 		node.global_position = origin
 		node.set_falling(true)
 	Events.gift_flight_spawned.emit(gift_id, origin, landing)
@@ -682,31 +678,13 @@ func _world_at(point: Vector2, height: float) -> Vector3:
 	return field.world_from_disk_local(point, height) if field != null else Vector3(point.x, height, point.y)
 
 
-## Host and client use the same time/id-derived arc; no extra wire data or
-## random state is needed. Clients begin on event receipt, so their visual can
+## Host and client use the same time/id-derived arc (GiftFlight.world_position); no extra
+## wire data or random state is needed. Clients begin on event receipt, so their visual can
 ## trail the host by transport latency; only the host resolves airborne touch.
-## Height stays linear, and sway fades to the exact authoritative landing point.
-func _flight_position(gift_id: int, origin: Vector3, landing: Vector3,
-		elapsed: float, progress: float) -> Vector3:
-	if progress <= 0.0:
-		return origin
-	if progress >= 1.0:
-		return landing
-	var straight: Vector3 = origin.lerp(landing, progress)
-	var amplitude: float = maxf(_gift_config.sway_amplitude_m, 0.0) * sin(PI * progress)
-	var angle: float = TAU * maxf(_gift_config.sway_frequency_hz, 0.0) * elapsed + float(gift_id) * 2.39996323
-	return straight + Vector3(sin(angle), 0.0, sin(angle * 0.73 + 0.8)) * amplitude
-
-
 ## A copy safe for minimap and network consumers. Position is host-authored.
 func gift_state(gift_id: int) -> Dictionary:
-	var entry: Dictionary = _crates.get(gift_id, {})
-	if entry.is_empty():
-		return {}
-	return {"id": gift_id, "phase": int(entry.get("phase", LANDED)),
-		"position": entry["position"], "origin": entry.get("origin", Vector3.ZERO),
-		"landing": entry.get("landing", Vector3.ZERO),
-		"elapsed": float(entry.get("elapsed", 0.0)), "landed_age": float(entry.get("age", 0.0))}
+	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
+	return {} if flight == null else flight.snapshot()
 
 
 func gift_states() -> Array[Dictionary]:
@@ -735,16 +713,11 @@ func tick_host(delta: float) -> void:
 	for gift_id: int in ids:
 		if not _crates.has(gift_id):
 			continue
-		var entry: Dictionary = _crates[gift_id]
-		if int(entry.get("phase", LANDED)) == FALLING:
-			var origin: Vector3 = entry["origin"]
-			var landing: Vector3 = entry["landing"]
-			var distance: float = origin.distance_to(landing)
-			var elapsed: float = float(entry["elapsed"]) + delta
-			entry["elapsed"] = elapsed
-			var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
-			var world_position: Vector3 = _flight_position(gift_id, origin, landing, elapsed, progress)
-			var node: GiftCrate = entry.get("node") as GiftCrate
+		var flight: GiftFlight = _crates[gift_id]
+		if flight.phase == FALLING:
+			var progress: float = flight.advance_fall(delta, _gift_config)
+			var world_position: Vector3 = flight.world_position(_gift_config, progress)
+			var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 			if node != null and is_instance_valid(node):
 				node.global_position = world_position
 			for slot_id: int in range(_match.slot_count()):
@@ -754,18 +727,18 @@ func tick_host(delta: float) -> void:
 			if not _crates.has(gift_id):
 				continue
 			if progress >= 1.0:
-				entry["phase"] = LANDED
-				entry["age"] = 0.0
+				flight.phase = LANDED
+				flight.age = 0.0
 				if node != null and is_instance_valid(node):
 					node.set_falling(false)
-				Events.gift_landed.emit(gift_id, landing)
+				Events.gift_landed.emit(gift_id, flight.landing)
 				_claim_landed(gift_id)
 		else:
 			_claim_landed(gift_id)
 			if not _crates.has(gift_id):
 				continue
-			entry["age"] = float(entry.get("age", 0.0)) + delta
-			if float(entry["age"]) >= _gift_config.life_s:
+			flight.age += delta
+			if flight.age >= _gift_config.life_s:
 				_expire_gift(gift_id)
 
 
@@ -774,10 +747,10 @@ func _claim_landed(gift_id: int) -> void:
 	var grid: CellGrid = _match.cell_grid()
 	if raster == null or grid == null:
 		return
-	var entry: Dictionary = _crates.get(gift_id, {})
-	if entry.is_empty() or int(entry.get("phase", LANDED)) != LANDED:
+	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
+	if flight == null or flight.phase != LANDED:
 		return
-	var cell: Vector2i = grid.world_to_cell(entry["position"])
+	var cell: Vector2i = grid.world_to_cell(flight.position)
 	var team: int = raster.team_at(cell.x, cell.y) if grid.in_bounds(cell.x, cell.y) else -1
 	if team >= 0:
 		_claim_gift(gift_id, team)
@@ -822,44 +795,9 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	# collider it will be delivered with, not the whole carrier piece.
 	if _match.held_special(slot_id) != &"":
 		var gift_center: Vector3 = origin + basis * BlockFactory.gift_cell_center(shape, _match._physics_tuning)
-		return _oriented_cube_overlaps_crate(gift_center, basis, half, crate_world, crate_half)
-	for cell: Vector3i in shape.cells:
-		var center: Vector3 = origin + basis * ((Vector3(cell) - pivot) * _match._physics_tuning.cube_size)
-		if _oriented_cube_overlaps_crate(center, basis, half, crate_world, crate_half):
-			return true
-	return false
-
-
-## Separating-axis test for a rotated held cell and the world-aligned crate.
-## The three face axes of each box plus nine edge cross-products cover every
-## possible separation. Only the held cell expands by the configured margin.
-func _oriented_cube_overlaps_crate(
-	cell_center: Vector3, basis: Basis, cell_half: float,
-	crate_center: Vector3, crate_half: Vector3
-) -> bool:
-	var world_axes: Array[Vector3] = [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
-	var cell_axes: Array[Vector3] = [basis.x, basis.y, basis.z]
-	var axes: Array[Vector3] = []
-	axes.append_array(world_axes)
-	axes.append_array(cell_axes)
-	for world_axis: Vector3 in world_axes:
-		for cell_axis: Vector3 in cell_axes:
-			var cross_axis: Vector3 = world_axis.cross(cell_axis)
-			if cross_axis.length_squared() > 0.00000001:
-				axes.append(cross_axis)
-	var displacement: Vector3 = crate_center - cell_center
-	for axis: Vector3 in axes:
-		var crate_radius: float = (
-			crate_half.x * absf(axis.x) + crate_half.y * absf(axis.y)
-			+ crate_half.z * absf(axis.z)
-		)
-		var cell_radius: float = cell_half * (
-			absf(axis.dot(cell_axes[0])) + absf(axis.dot(cell_axes[1]))
-			+ absf(axis.dot(cell_axes[2]))
-		)
-		if absf(displacement.dot(axis)) > crate_radius + cell_radius:
-			return false
-	return true
+		return GiftCrateTouch.cell_overlaps_crate(gift_center, basis, half, crate_world, crate_half)
+	return GiftCrateTouch.shape_overlaps_crate(
+		shape.cells, pivot, origin, basis, _match._physics_tuning.cube_size, half, crate_world, crate_half)
 
 
 func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
@@ -887,10 +825,10 @@ func _claim_gift_for_slot(gift_id: int, slot_id: int) -> bool:
 func _claim_gift(gift_id: int, team_id: int) -> void:
 	if team_id < 0:
 		return
-	var entry: Dictionary = _crates.get(gift_id, {})
-	if entry.is_empty():
+	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
+	if flight == null:
 		return
-	var crate_position: Vector2 = entry["position"]
+	var crate_position: Vector2 = flight.position
 	var recipient_slot: int = _resolve_recipient_slot(team_id, crate_position)
 	if recipient_slot < 0:
 		return
@@ -944,10 +882,10 @@ func _draw_special_id() -> StringName:
 ## erases its `_crates` entry, so _relocate_after_expiry() can measure the
 ## replacement's minimum distance against it.
 func _expire_gift(gift_id: int) -> void:
-	var entry: Dictionary = _crates.get(gift_id, {})
-	if entry.is_empty():
+	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
+	if flight == null:
 		return
-	var old_position: Vector2 = entry["position"]
+	var old_position: Vector2 = flight.position
 	if not _free_crate_visual(gift_id):
 		return
 	Events.gift_expired.emit(gift_id)
@@ -1014,11 +952,11 @@ func _pick_relocation_point(raster: TerritoryRaster, grid: CellGrid, old_positio
 
 
 func _free_crate_visual(gift_id: int) -> bool:
-	var entry: Dictionary = _crates.get(gift_id, {})
-	if entry.is_empty():
+	if not _crates.has(gift_id):
 		return false
 	_crates.erase(gift_id)
-	var node: GiftCrate = entry.get("node") as GiftCrate
+	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
+	_crate_nodes.erase(gift_id)
 	if node != null and is_instance_valid(node):
 		node.queue_free()
 	return true
@@ -1072,26 +1010,23 @@ func tick_client(delta: float) -> void:
 	if _match._is_host() or not is_finite(delta) or delta <= 0.0:
 		return
 	for gift_id: int in _crates.keys():
-		var entry: Dictionary = _crates[gift_id]
-		if int(entry.get("phase", LANDED)) != FALLING:
+		var flight: GiftFlight = _crates[gift_id]
+		if flight.phase != FALLING:
 			continue
-		var origin: Vector3 = entry["origin"]
-		var landing: Vector3 = entry["landing"]
-		var distance: float = origin.distance_to(landing)
-		var elapsed: float = float(entry["elapsed"]) + delta
-		entry["elapsed"] = elapsed
-		var progress: float = 1.0 if distance <= 0.0 else minf(elapsed * maxf(_gift_config.fall_speed_m_s, 0.001) / distance, 1.0)
-		var node: GiftCrate = entry.get("node") as GiftCrate
+		var progress: float = flight.advance_fall(delta, _gift_config)
+		var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 		if node != null and is_instance_valid(node):
-			node.global_position = _flight_position(gift_id, origin, landing, elapsed, progress)
+			node.global_position = flight.world_position(_gift_config, progress)
 
 
 func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 	if gift_id < 0 or not position.is_finite() or _crates.has(gift_id):
 		return
 	var landing: Vector3 = _world_at(position, GiftCrate.CRATE_SIZE.y * 0.5)
-	_crates[gift_id] = {"position": position, "origin": landing, "landing": landing,
-		"elapsed": 0.0, "age": 0.0, "phase": LANDED, "node": _make_crate_node(position, gift_id)}
+	_crates[gift_id] = GiftFlight.new(gift_id, position, landing, landing, LANDED)
+	var node: GiftCrate = _make_crate_node(position, gift_id)
+	if node != null:
+		_crate_nodes[gift_id] = node
 
 
 func apply_replicated_flight(gift_id: int, origin: Vector3, landing: Vector3) -> void:
@@ -1101,16 +1036,16 @@ func apply_replicated_flight(gift_id: int, origin: Vector3, landing: Vector3) ->
 	var point: Vector2 = field.disk_local_from_world(landing) if field != null else Vector2(landing.x, landing.z)
 	if not _crates.has(gift_id):
 		apply_replicated_spawn(gift_id, point)
-	var entry: Dictionary = _crates[gift_id]
-	if entry.get("flight_received", false):
+	var flight: GiftFlight = _crates[gift_id]
+	if flight.flight_received:
 		return
-	entry["flight_received"] = true
-	entry["position"] = point
-	entry["origin"] = origin
-	entry["landing"] = landing
-	entry["phase"] = FALLING
-	entry["elapsed"] = 0.0
-	var node: GiftCrate = entry.get("node") as GiftCrate
+	flight.flight_received = true
+	flight.position = point
+	flight.origin = origin
+	flight.landing = landing
+	flight.phase = FALLING
+	flight.elapsed = 0.0
+	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 	if node != null and is_instance_valid(node):
 		node.global_position = origin
 		node.set_falling(true)
@@ -1119,13 +1054,11 @@ func apply_replicated_flight(gift_id: int, origin: Vector3, landing: Vector3) ->
 func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 	if not _crates.has(gift_id) or not landing.is_finite():
 		return
-	var entry: Dictionary = _crates[gift_id]
-	if int(entry.get("phase", LANDED)) != FALLING:
+	var flight: GiftFlight = _crates[gift_id]
+	if flight.phase != FALLING:
 		return
-	entry["phase"] = LANDED
-	entry["landing"] = landing
-	entry["age"] = 0.0
-	var node: GiftCrate = entry.get("node") as GiftCrate
+	flight.land(landing)
+	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 	if node != null and is_instance_valid(node):
 		node.global_position = landing
 		node.set_falling(false)
@@ -1199,11 +1132,10 @@ func reset() -> void:
 	_match._feed._next_gift_shapes.clear()
 	_match._feed._staged_gift_shapes.clear()
 	_match._feed._held_is_gift.clear()
-	for gift_id: int in _crates.keys():
-		var entry: Dictionary = _crates[gift_id]
-		var node: GiftCrate = entry.get("node") as GiftCrate
-		if node != null and is_instance_valid(node):
+	for node: GiftCrate in _crate_nodes.values():
+		if is_instance_valid(node):
 			node.queue_free()
+	_crate_nodes.clear()
 	_crates.clear()
 	_pending_queues.clear()
 	_next_gift_id = 0

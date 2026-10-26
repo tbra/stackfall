@@ -54,7 +54,7 @@ var _idle_glow_enabled: bool = true
 ## Godot kills a node-bound Tween the moment the node is actually freed, which
 ## can land mid-animation. So _on_gift_claimed() below reads this node's
 ## still-valid position/state and hands the actual "pop" animation off to a
-## brand-new, independently-lived node (spawn_claim_pop()) rather than trying to
+## brand-new, independently-lived node (_spawn_claim_pop()) rather than trying to
 ## animate itself.
 @export var gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
 
@@ -286,7 +286,7 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	# moves to the crate's parent and finishes its collapse there.
 	if _parachute != null and _parachute.is_active():
 		_parachute.release_to(parent as Node3D)
-	spawn_claim_pop(parent as Node3D, global_position, _claim_color(slot_id), gift_config)
+	_spawn_claim_pop(parent as Node3D, global_position, _claim_color(slot_id), gift_config)
 
 
 ## HUD._color_for_slot()'s own fallback shape: a real PlayerSlot's own colour
@@ -312,7 +312,7 @@ func _claim_color(slot_id: int) -> Color:
 ## GiftConfig.claim_pop_scale_factor and back down to nothing before freeing
 ## itself. Static so it needs no `self` from an already-claimed (and about to
 ## be deleted) crate instance beyond the position/colour it already read.
-static func spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Color, config: GiftConfig) -> void:
+static func _spawn_claim_pop(parent: Node3D, world_position: Vector3, color: Color, config: GiftConfig) -> void:
 	var pop: Node3D = Node3D.new()
 	pop.name = &"GiftClaimPop"
 	parent.add_child(pop)
