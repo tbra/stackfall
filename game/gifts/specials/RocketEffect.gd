@@ -73,12 +73,20 @@ const DETONATION_LOOKAHEAD_TICKS: float = 3.0
 ## block.set_meta() key: the host-side launch direction input (Vector3, unit length).
 const LAUNCH_DIRECTION_META: StringName = &"rocket_launch_direction"
 
-## block.set_meta() keys for the per-block flight state (the effect resource is shared).
-const _LAUNCH_AGE_META: StringName = &"rocket_launch_age"
-const _FLIGHT_DIRECTION_META: StringName = &"rocket_flight_direction"
-const _HIT_META: StringName = &"rocket_hit"
-const _CARRIER_GRAVITY_META: StringName = &"rocket_carrier_gravity_scale"
+## block.set_meta() key for the own-block collision exceptions (shared with Paintball).
 const _OWN_EXCEPTIONS_META: StringName = &"projectile_own_exceptions"
+
+
+## The per-activation flight state (the effect resource is shared), kept by SpecialBehavior.
+class RocketState extends EffectState:
+	## Behaviour age at the launch; negative until the first armed tick.
+	var launch_age: float = -1.0
+	var flight_direction: Vector3 = Vector3.ZERO
+	var hit: bool = false
+	var carrier_gravity_scale: float = 1.0
+
+	func launched() -> bool:
+		return launch_age >= 0.0
 
 
 ## Host-side launch-direction input for `block` (a Rocket carrier). Returns whether it was
@@ -86,7 +94,7 @@ const _OWN_EXCEPTIONS_META: StringName = &"projectile_own_exceptions"
 static func set_launch_direction(block: Block, direction: Vector3) -> bool:
 	if block == null or not is_instance_valid(block):
 		return false
-	var clean: Vector3 = sanitize_launch_direction(direction)
+	var clean: Vector3 = GiftAim.sanitize_launch_direction(direction)
 	if clean == Vector3.ZERO:
 		return false
 	block.set_meta(LAUNCH_DIRECTION_META, clean)
@@ -112,24 +120,16 @@ static func is_outside_bounds(point: Vector3, bounds: AABB) -> bool:
 	return not bounds.has_point(point)
 
 
-## Pure: the direction the host will actually fly. Non-finite or degenerate input gives
-## Vector3.ZERO (rejected). The Rocket flies exactly where
-## the camera aims, upward and straight up included (fuel ends it if it hits nothing), so no
-## upward part is removed.
+# SHORTCUT: wrappers over GiftAim for MatchPlacement/PlayerController callers, deleted by P6-Iplace
+## The direction the host will actually fly (GiftAim.sanitize_launch_direction).
 static func sanitize_launch_direction(direction: Vector3) -> Vector3:
-	if not direction.is_finite() or direction.length() < MIN_DIRECTION_LENGTH:
-		return Vector3.ZERO
-	return direction.normalized()
+	return GiftAim.sanitize_launch_direction(direction)
 
 
-## Pure: the Paintball's launch direction (unlike the Rocket's it removes the upward part): the upward part removed and normalised, ZERO when nothing is left.
+# SHORTCUT: wrappers over GiftAim for MatchPlacement/PlayerController callers, deleted by P6-Iplace
+## The Paintball's launch direction (GiftAim.sanitize_downward_direction).
 static func sanitize_downward_direction(direction: Vector3) -> Vector3:
-	if not direction.is_finite():
-		return Vector3.ZERO
-	var not_upward: Vector3 = Vector3(direction.x, minf(direction.y, 0.0), direction.z)
-	if not_upward.length() < MIN_DIRECTION_LENGTH:
-		return Vector3.ZERO
-	return not_upward.normalized()
+	return GiftAim.sanitize_downward_direction(direction)
 
 
 ## Default launch direction without camera input: toward the middle of the field (the
@@ -150,10 +150,39 @@ func launch_direction_for(block: Block) -> Vector3:
 	if block.has_meta(LAUNCH_DIRECTION_META):
 		var raw: Variant = block.get_meta(LAUNCH_DIRECTION_META)
 		if raw is Vector3:
-			var stored: Vector3 = sanitize_launch_direction(raw)
+			var stored: Vector3 = GiftAim.sanitize_launch_direction(raw)
 			if stored != Vector3.ZERO:
 				return stored
 	return default_launch_direction(block)
+
+
+func new_state() -> EffectState:
+	return RocketState.new()
+
+
+func may_aim_upward() -> bool:
+	return true
+
+
+func faces_launch(mode: GiftThrow.Mode, aim_direction: Vector3, _throw_velocity: Vector3) -> bool:
+	return mode == GiftThrow.Mode.AIMED and GiftAim.sanitize_launch_direction(aim_direction) != Vector3.ZERO
+
+
+func launch_facing(_mode: GiftThrow.Mode, aim_direction: Vector3, _throw_velocity: Vector3) -> Basis:
+	return FlightFacing.nose_basis(model_nose_axis, GiftAim.sanitize_launch_direction(aim_direction))
+
+
+## Stores the sanitised aim as the launch-direction input (a rejected value changes nothing).
+func apply_launch(block: Block, direction: Vector3) -> void:
+	set_launch_direction(block, direction)
+
+
+func effect_radius_m() -> float:
+	return blast.radius_m
+
+
+func build_client_fx(ctx: MatchContext, _block: Block, position: Vector3, _owner_slot: int) -> void:
+	CartoonBlast.spawn(ctx, position, blast)
 
 
 ## Impacts are detected by the contact probe below, not by the velocity-drop test.
@@ -176,21 +205,22 @@ func detaches() -> bool:
 ## Every armed tick: launch once, hold the straight-line velocity, probe for contact.
 ## Written with kick() so the thrust is exempt from rebound damping.
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-	if block.has_meta(_HIT_META):
+	var state: RocketState = behavior.state() as RocketState
+	if state.hit:
 		return
-	if not block.has_meta(_LAUNCH_AGE_META):
-		_launch(block, behavior)
-	var direction: Vector3 = block.get_meta(_FLIGHT_DIRECTION_META) as Vector3
+	if not state.launched():
+		_launch(block, behavior, state)
+	var direction: Vector3 = state.flight_direction
 	block.continuous_cd = true
 	block.gravity_scale = flight_gravity_scale
 	block.kick(direction * thrust_speed_mps)
 	block.angular_velocity = Vector3.ZERO
 	_face_direction(block, direction)
-	var launched_at: float = float(block.get_meta(_LAUNCH_AGE_META))
+	var launched_at: float = state.launch_age
 	if behavior.age() - launched_at >= own_block_grace_s:
 		release_own_exceptions(block)
 	if _contact_ahead(block, behavior, direction, delta, launched_at):
-		block.set_meta(_HIT_META, true)
+		state.hit = true
 	# DECISION: a rocket aimed upward (or out past the field) would leave the
 	# volume snapshots quantize into, and clients would see it pinned at the clamp. The host
 	# detonates it on the last tick it is still inside, using NetConfig.position_bounds() (the
@@ -199,24 +229,26 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 		block.global_position + direction * thrust_speed_mps * delta * DETONATION_LOOKAHEAD_TICKS,
 		replicable_bounds()
 	):
-		block.set_meta(_HIT_META, true)
+		state.hit = true
 
 
 ## True once the Rocket touched something (impact) or its safety fuel is spent.
 func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
-	if block.has_meta(_HIT_META):
+	var state: RocketState = behavior.state() as RocketState
+	if state.hit:
 		return true
-	if not block.has_meta(_LAUNCH_AGE_META):
+	if not state.launched():
 		return false
-	return behavior.age() - float(block.get_meta(_LAUNCH_AGE_META)) >= fuel_duration_s
+	return behavior.age() - state.launch_age >= fuel_duration_s
 
 
 ## Blast every real RigidBody3D within `blast.radius_m` (the Rocket's own body excluded),
 ## then chain into any other special in range one depth deeper.
 func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void:
 	release_own_exceptions(block)
-	if block.has_meta(_CARRIER_GRAVITY_META):
-		block.gravity_scale = float(block.get_meta(_CARRIER_GRAVITY_META))
+	var state: RocketState = behavior.state() as RocketState
+	if state.launched():
+		block.gravity_scale = state.carrier_gravity_scale
 	var center: Vector3 = block.global_position
 	ExplosionFx.blast(block.get_world_3d().direct_space_state, center, blast, [block.get_rid()])
 	ExplosionFx.chain(behavior, center, blast.radius_m, chain_depth)
@@ -224,10 +256,10 @@ func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void
 
 ## First armed tick: fix the flight direction and wake the body (a long-stable carrier is
 ## STATIC-frozen by StableBlockManager and would ignore the velocity write).
-func _launch(block: Block, behavior: SpecialBehavior) -> void:
-	block.set_meta(_LAUNCH_AGE_META, behavior.age())
-	block.set_meta(_CARRIER_GRAVITY_META, block.gravity_scale)
-	block.set_meta(_FLIGHT_DIRECTION_META, launch_direction_for(block))
+func _launch(block: Block, behavior: SpecialBehavior, state: RocketState) -> void:
+	state.launch_age = behavior.age()
+	state.carrier_gravity_scale = block.gravity_scale
+	state.flight_direction = launch_direction_for(block)
 	block.wake_for_impulse()
 	block.wake()
 	hold_own_exceptions(block, own_block_clear_radius_m)
