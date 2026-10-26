@@ -782,6 +782,11 @@
    "id": "test-only-func",
    "entry": "config/gifts/GiftModelTable.gd:visual_for",
    "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/InputGate.gd",
+   "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
   }
  ]
 }
