@@ -23,40 +23,42 @@ extends SpecialEffect
 ## Landing-detection thresholds.
 @export var landed: LandedTuning = LandedTuning.new()
 
-## block.set_meta() key marking "mass already overridden for this block".
+## Per-activation state, kept on the SpecialBehavior (the effect resource is shared by
+## every block spawned with this special).
 ##
-## DECISION: a SpecialDef's `effect` is one shared Resource instance reused by
-## every block spawned with this special, so this effect carries no per-block
-## mutable state of its own. Idempotency lives on the block via set_meta().
-const _MASS_APPLIED_META: StringName = &"anvil_mass_applied"
+## DECISION: Anvil keeps its own probe instead of `needs_landing()`. The behaviour only
+## ticks an effect after landing when needs_landing() is true, but the mass override must
+## happen on the first armed tick (the anvil has to be heavy when it hits), so the effect
+## polls the probe itself.
+class AnvilState extends EffectState:
+	## True once the block's mass was overridden.
+	var mass_applied: bool = false
+	var probe: LandedProbe
 
-## block.set_meta() key holding this block's own LandedProbe (a RefCounted),
-## for the same shared-resource reason as above.
-##
-## DECISION: Anvil keeps its own probe instead of `needs_landing()`. The
-## behaviour only ticks an effect after landing when needs_landing() is true,
-## but the mass override must happen on the first armed tick (the anvil has
-## to be heavy when it hits), so the effect polls the probe itself.
-const _PROBE_META: StringName = &"anvil_landed_probe"
+
+## Fresh state with a probe on this anvil's landing thresholds.
+func new_state() -> EffectState:
+	var state: AnvilState = AnvilState.new()
+	state.probe = LandedProbe.new(landed)
+	return state
 
 
 ## One-shot mass override on the first armed tick (mid-fall mass changes do
 ## not alter the trajectory), then feeds this block's landing probe.
-func physics_tick(block: Block, _behavior: SpecialBehavior, delta: float) -> void:
-	if not block.has_meta(_MASS_APPLIED_META):
+func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
+	var state: AnvilState = behavior.state() as AnvilState
+	if not state.mass_applied:
 		block.mass = mass
-		block.set_meta(_MASS_APPLIED_META, true)
-	var probe: LandedProbe = _probe_for(block)
-	probe.update(block, delta)
+		state.mass_applied = true
+	state.probe.update(block, delta)
 
 
 ## Triggers once the anvil has actually landed (velocity/timeout probe, see
 ## LandedProbe), not on a timer. A hard landing satisfying
 ## SpecialBehavior's arm_impulse check can still trigger it earlier.
-func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
-	if block == null or not block.has_meta(_PROBE_META):
-		return false
-	return (block.get_meta(_PROBE_META) as LandedProbe).has_landed()
+func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
+	var state: AnvilState = behavior.state() as AnvilState
+	return state != null and state.probe.has_landed()
 
 
 ## Dips the disc at the point the anvil landed, via MatchContext.field() -- a
@@ -64,11 +66,3 @@ func wants_early_trigger(block: Block, _behavior: SpecialBehavior) -> bool:
 ## no-op at the exact disc centre and while the field's tilt is disabled.
 func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> void:
 	DiscForce.apply(MatchContext.current().field(), block.global_position, 1.0, disc_force, 0.0)
-
-
-func _probe_for(block: Block) -> LandedProbe:
-	if block.has_meta(_PROBE_META):
-		return block.get_meta(_PROBE_META) as LandedProbe
-	var probe: LandedProbe = LandedProbe.new(landed)
-	block.set_meta(_PROBE_META, probe)
-	return probe

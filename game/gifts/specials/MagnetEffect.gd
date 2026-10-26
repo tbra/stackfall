@@ -6,9 +6,8 @@ extends SpecialEffect
 ## wants_early_trigger() flips once pull_duration_s has elapsed since arming; detonate()
 ## is a no-op because the pull already ran tick by tick.
 ##
-## DECISION: a SpecialDef's `effect` is one shared Resource reused by every block with this
-## special, so this effect keeps NO mutable per-block state; "behavior.age() at first armed
-## tick" lives in block.set_meta(), keyed by a unique StringName.
+## A SpecialDef's `effect` is one shared Resource reused by every block with this special, so
+## this effect keeps NO mutable per-block state; it lives in MagnetState (SpecialBehavior.state()).
 
 ## Pull strength and reach. RadialPull applies a mass-independent acceleration (accel_mps2 * falloff) plus friction_compensation,
 ## so an 8 kg tetromino on the 0.85-friction disc really slides toward the magnet.
@@ -36,22 +35,39 @@ extends SpecialEffect
 ## the Magnet-specific tunables live on this class.
 @export var tuning: SpecialTuning = preload("res://config/gifts/special_tuning.tres")
 
-## block.set_meta() key: behavior.age() at the tick this block first armed, seeded once;
-## elapsed = age() - start_age.
-const _START_AGE_META: StringName = &"magnet_start_age"
+## Per-activation state (SpecialBehavior.state()): the shared effect Resource keeps none.
+class MagnetState extends EffectState:
+	## behavior.age() at the tick this block first armed; negative until seeded.
+	var start_age: float = -1.0
+	## Set once the thrown magnet has slowed below face_min_speed_mps (landed); from then on it
+	## keeps its resting pose instead of turning toward a slide or wobble.
+	var facing_done: bool = false
 
-## block.set_meta() key: set once the thrown magnet has slowed below face_min_speed_mps (landed);
-## from then on it keeps its resting pose instead of turning toward a slide or wobble.
-const _FACING_DONE_META: StringName = &"magnet_facing_done"
+	func started() -> bool:
+		return start_age >= 0.0
+
+
+func new_state() -> EffectState:
+	return MagnetState.new()
+
+
+## A thrown magnet spawns with its pole tips along the throw velocity.
+func faces_launch(mode: GiftThrow.Mode, _aim_direction: Vector3, throw_velocity: Vector3) -> bool:
+	return mode == GiftThrow.Mode.THROW and throw_velocity.length() > 0.0
+
+
+func launch_facing(_mode: GiftThrow.Mode, _aim_direction: Vector3, throw_velocity: Vector3) -> Basis:
+	return FlightFacing.nose_basis(model_nose_axis, throw_velocity)
 
 
 ## Pulls every enemy Block within pull.radius_m toward this block's own position, every
 ## armed tick, for pull_duration_s seconds from the first tick this runs (no landing gate).
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-	if not block.has_meta(_START_AGE_META):
-		block.set_meta(_START_AGE_META, behavior.age())
-	_face_while_airborne(block)
-	if behavior.age() - float(block.get_meta(_START_AGE_META)) < pull_start_delay_s:
+	var state: MagnetState = behavior.state() as MagnetState
+	if not state.started():
+		state.start_age = behavior.age()
+	_face_while_airborne(block, state)
+	if behavior.age() - state.start_age < pull_start_delay_s:
 		return
 
 	var world: World3D = block.get_world_3d()
@@ -75,12 +91,12 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 ## While the thrown magnet is still travelling it turns so the pole tips lead along its
 ## velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
 ## keeps that pose for good. Runs from the first tick (magnet.tres arm_delay is 0).
-func _face_while_airborne(block: Block) -> void:
-	if block.has_meta(_FACING_DONE_META):
+func _face_while_airborne(block: Block, state: MagnetState) -> void:
+	if state.facing_done:
 		return
 	if block.linear_velocity.length() < face_min_speed_mps:
 		if block.has_meta(FlightFacing.FACED_META):
-			block.set_meta(_FACING_DONE_META, true)
+			state.facing_done = true
 		return
 	block.angular_velocity = Vector3.ZERO
 	FlightFacing.face_velocity(block, model_nose_axis, face_min_speed_mps)
@@ -94,10 +110,11 @@ func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 
 
 ## True once elapsed-since-first-armed-tick reaches pull_duration_s.
-func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
-	if not block.has_meta(_START_AGE_META):
+func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
+	var state: MagnetState = behavior.state() as MagnetState
+	if not state.started():
 		return false
-	var elapsed: float = behavior.age() - float(block.get_meta(_START_AGE_META))
+	var elapsed: float = behavior.age() - state.start_age
 	return elapsed >= pull_start_delay_s + pull_duration_s
 
 

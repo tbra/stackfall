@@ -64,3 +64,9 @@ func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> vo
 	if block == null or not block.is_inside_tree():
 		return
 	PropellerStand.spawn_host(self, block.global_position, block.owner_slot)
+
+
+## Clients draw the party balloon clipped to the disc in the owner's colour; the host
+## already has the real stand (build_client_visual returns null there).
+func build_client_fx(_ctx: MatchContext, _block: Block, position: Vector3, owner_slot: int) -> void:
+	PropellerStand.build_client_visual(self, position, owner_slot)

@@ -338,6 +338,7 @@
   "core/audio/ClaimTensionState.gd",
   "core/blocks/BlockMeshBuilder.gd",
   "core/blocks/BlockOrientations.gd",
+  "core/gifts/GiftAim.gd",
   "core/gifts/GiftShapePicker.gd",
   "core/gifts/GiftThrow.gd",
   "core/gifts/GiftWirePhase.gd",

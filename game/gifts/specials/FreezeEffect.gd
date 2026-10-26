@@ -23,6 +23,7 @@ extends SpecialEffect
 const FREEZE_REASON: StringName = &"freeze_special"
 const TIMER_NAME: StringName = &"FreezeReleaseTimer"
 const RIDER_NAME: StringName = &"FreezeFieldRider"
+const FX_TUNING: FreezeFxTuning = preload("res://config/gifts/specials/fx/freeze_fx_tuning.tres")
 
 
 ## DECISION: the Freeze hold is KINEMATIC, not STATIC,
@@ -54,6 +55,16 @@ class FieldRider:
 			return
 		_last_field = current
 		body.global_transform = current * local
+
+
+## Every peer draws the freeze burst at the trigger position.
+func build_client_fx(ctx: MatchContext, _block: Block, position: Vector3, _owner_slot: int) -> void:
+	var parent: Node3D = ctx.blocks_parent()
+	if parent == null or not parent.is_inside_tree():
+		return
+	var burst: FreezeBurst = FreezeBurst.new()
+	DiscAnchor.attach(burst, position, parent)
+	burst.setup(FX_TUNING, freeze_radius_m, hash(position))
 
 
 func detonate(block: Block, behavior: SpecialBehavior, _chain_depth: int) -> void:
