@@ -54,16 +54,10 @@ var _ghost: GhostPreview
 ## below no-ops) when the scene doesn't wire one, exactly like _camera_rig.
 var _arc_preview: ThrowArcPreview
 
-## DECISION (game/player/PlayerController.gd): Match is a global autoload (like
-## Events), so gameplay code normally calls `Match.foo()` directly with full
-## static type-checking. This one field breaks that pattern on purpose: GUT
-## cannot double a plain autoload the way it doubles engine singletons (see
-## addons/gut/test.gd's double_singleton, which only recognizes Godot's own
-## engine singletons), so tests need a seam to inject a fake Match. `Variant`
-## keeps the declaration explicit (not "untyped" under CLAUDE.md's
-## error-on-warning rule) while allowing dynamic dispatch to whatever object is
-## assigned.
-var _match: Variant = null
+## The match this controller reads and sends intents through: set by the parent (LocalPlayer)
+## before add_child, defaulting to the installed context in _ready() for Sandbox, Tutorial and
+## tests. Tests install a FakeMatchContext here.
+var match_context: MatchContext = null
 
 ## The session seam: the parent binds it (LocalPlayer binds a port over the Net autoload);
 ## null until then and a bare controller builds the same port on first use (see _session()).
@@ -216,7 +210,8 @@ func _ready() -> void:
 		# CameraRig turns interpolation off, so an interpolated ghost jitters
 		# against the camera. Remote ghosts are not touched.
 		_ghost.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-	_match = Match
+	if match_context == null:
+		match_context = MatchContext.current()
 	_shapes_by_id = _load_shapes_by_id()
 	Events.turn_changed.connect(_on_turn_changed)
 	Events.player_eliminated.connect(_on_player_eliminated)
@@ -315,7 +310,7 @@ func _take_back_home_spawn_raise() -> void:
 ## menu after leaving a match, soft-locking mouse users. Only undoes a capture
 ## this controller itself enabled, so headless runs and tests are unaffected.
 func _exit_tree() -> void:
-	MatchContext.current().local_held().clear()
+	match_context.local_held().clear()
 	if _mouse_capture_enabled and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -382,7 +377,7 @@ func _on_pause_menu_closed() -> void:
 ## listener and keeps working. The host also refuses every intent outside
 ## PLAYING, so this is feedback, not the rule.
 func _countdown_blocks_input() -> bool:
-	return Match.state() == Match.State.COUNTDOWN
+	return match_context.state() == MatchPhase.State.COUNTDOWN
 
 
 func _process(delta: float) -> void:
@@ -395,9 +390,7 @@ func _process(delta: float) -> void:
 func _publish_held_view() -> void:
 	if _ghost == null:
 		return
-	# DECISION: reads the global MatchContext until the controller gets its own match_context
-	# property (replaced there).
-	MatchContext.current().local_held().publish(_acting_slot(), _ghost.get_shape(), _ghost.global_position,
+	match_context.local_held().publish(_acting_slot(), _ghost.get_shape(), _ghost.global_position,
 			_ghost.orientation_index, _ghost.free_quaternion, _ghost.visible,
 			_ghost.height_above_surface(), Time.get_ticks_msec())
 
@@ -530,10 +523,7 @@ func set_acting_slot(slot_id: int) -> void:
 func _publish_cursor() -> void:
 	if _ghost == null or _session().is_offline():
 		return
-	var membrane: Variant = _intent_target()
-	if membrane == null:
-		return
-	membrane.submit_cursor(
+	match_context.submit_cursor(
 		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, _camera_forward()
 	)
 
@@ -542,16 +532,14 @@ func _publish_cat_target() -> void:
 	var cat: CatController = _session_cat()
 	if cat == null or cat.owner_slot != _acting_slot():
 		return
-	var membrane: Variant = _intent_target()
-	if membrane != null:
-		# The placement cursor is controlled by mouse and gamepad even while
-		# the gift has moved on to the next feed. The cat input is independent
-		# of whether a ghost is currently held.
-		membrane.submit_cat_target(_acting_slot(), _cursor)
+	# The placement cursor is controlled by mouse and gamepad even while
+	# the gift has moved on to the next feed. The cat input is independent
+	# of whether a ghost is currently held.
+	match_context.submit_cat_target(_acting_slot(), _cursor)
 
 
 func _session_cat() -> CatController:
-	return Match.active_cat()
+	return match_context.active_cat()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -685,16 +673,10 @@ func _unhandled_input(event: InputEvent) -> void:
 ## slotted gift. A no-op unless the toggle is on and a gift is waiting; the host
 ## validates everything again (MatchGifts.request_use_gift_slot).
 func _use_gift_slot() -> void:
-	if _match == null or not _match.has_method(&"gift_slot_head"):
-		return
 	var slot_id: int = _acting_slot()
-	if StringName(_match.gift_slot_head(slot_id)) == &"":
+	if match_context.gift_slot_head(slot_id) == &"":
 		return
-	var membrane: Variant = _intent_target()
-	if membrane == null:
-		_match.request_use_gift_slot(slot_id)
-	else:
-		membrane.submit_use_gift_slot(slot_id)
+	match_context.submit_use_gift_slot(slot_id)
 
 
 func _orientation_index() -> int:
@@ -849,7 +831,7 @@ func _drive_gamepad_zoom(stick_y: float, delta: float) -> void:
 ## ghost_place: send exactly one intent to Match and let it decide. Never
 ## builds a Block itself (spec 2.6: intent-only placement).
 func _place_ghost_block() -> void:
-	if _ghost == null or _match == null or _acting_slot() < 0:
+	if _ghost == null or _acting_slot() < 0:
 		return
 	if _ghost.get_shape() == null:
 		return
@@ -864,19 +846,6 @@ func _place_ghost_block() -> void:
 	_request_place(false)
 
 
-## The one door every intent goes through: net/MatchNet.gd, which calls
-## Match.request_place() inline on the host and sends the reliable intent RPC
-## on a client. It exists only once the MatchNet
-## autoload has installed itself on Match, and only for the real Match -- a
-## test that injects a FakeMatch into _match is asking for that object's
-## calls and gets them directly, which is exactly what MatchNet's host path
-## would have done with it.
-func _intent_target() -> Variant:
-	if _match != Match:
-		return null
-	return Match.replicator()
-
-
 func _request_place(auto_drop: bool) -> StringName:
 	# every throwable/aimed gift (Bomb, Magnet, Jumping Bean, Rocket,
 	# Paintball) is released along the camera forward (the throw intent carries it); every
@@ -886,38 +855,31 @@ func _request_place(auto_drop: bool) -> StringName:
 	# at timer expiry the host throws a held throwable gift along the last
 	# aim it knows (MatchPlacement.request_place); a seat this instance controls reports its
 	# own camera first (MatchNet only ever hears remote seats' aim from their cursor packets).
-	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE and _match.has_method(&"note_aim"):
-		_match.note_aim(_acting_slot(), _camera_forward())
+	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE:
+		match_context.note_aim(_acting_slot(), _camera_forward())
 	var slot_id: int = _acting_slot()
-	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()
 	# record what this request is about to occupy *before*
 	# sending it -- on the host this resolves synchronously inside the call
 	# below (Events.placement_rejected/placement_relocated/feed_block_issued
-	# all fire before _match.request_place() returns), so this has to be set
+	# all fire before match_context.submit_place() returns), so this has to be set
 	# first or _on_feed_block_issued() below would see a stale flag.
 	_pending_spawn_active = true
 	_pending_spawn_top_y = _ghost.projection_span_y().x
 	_begin_pending_spawn()
-	if membrane == null:
-		return _match.request_place(
-			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, auto_drop
-		)
 	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
-	return membrane.submit_place(
+	return match_context.submit_place(
 		slot_id,
 		_ghost.global_position,
 		_ghost.orientation_index,
 		_ghost.free_quaternion,
-		auto_drop,
-		int(_match.feed_seq(slot_id))
+		auto_drop
 	)
 
 
 ## The one door a throw goes through, mirroring _request_place() above: same
-## slot/pose arguments, same membrane (net/MatchNet.gd's submit_throw on the wire, or the offline/test-double
-## Match.request_throw()/FakeMatch.request_throw() directly), same
+## slot/pose arguments, same door (match_context.submit_throw: the wire on a client, Match directly otherwise), same
 ## spawn-clearance bookkeeping for the next ghost. DECISION (game/
 ## PlayerController.gd): a thrown special's shape does not actually stay
 ## where _pending_spawn_top_y is captured -- it flies off with `velocity` --
@@ -928,24 +890,18 @@ func _request_place(auto_drop: bool) -> StringName:
 ## reseeds hover height, never blocks anything).
 func _request_throw(velocity: Vector3) -> StringName:
 	var slot_id: int = _acting_slot()
-	var membrane: Variant = _intent_target()
 	_clear_ghost_before_release()
 	_pending_spawn_active = true
 	_pending_spawn_top_y = _ghost.projection_span_y().x
 	_begin_pending_spawn()
-	if membrane == null:
-		return _match.request_throw(
-			slot_id, _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion, velocity
-		)
 	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
-	return membrane.submit_throw(
+	return match_context.submit_throw(
 		slot_id,
 		_ghost.global_position,
 		_ghost.orientation_index,
 		_ghost.free_quaternion,
-		velocity,
-		int(_match.feed_seq(slot_id))
+		velocity
 	)
 
 
@@ -954,9 +910,9 @@ func _request_throw(velocity: Vector3) -> StringName:
 ## how the gift in hand leaves it (NONE for an ordinary piece).
 func _held_gift_mode() -> GiftThrow.Mode:
 	var slot_id: int = _acting_slot()
-	if _match == null or slot_id < 0:
+	if slot_id < 0:
 		return GiftThrow.Mode.NONE
-	var special_id: StringName = StringName(_match.held_special(slot_id))
+	var special_id: StringName = match_context.held_special(slot_id)
 	if special_id == &"":
 		return GiftThrow.Mode.NONE
 	return GiftThrow.mode_for(SpecialDef.find_by_id(special_id))
@@ -997,14 +953,14 @@ func _drive_throw_visuals() -> void:
 	_arc_preview.update_arc(
 		launch["origin"] as Vector3,
 		launch["velocity"] as Vector3,
-		Match.field(),
+		match_context.field() as Field,
 		float(launch["gravity_scale"]),
 		_throw_range_scale()
 	)
 
 
 func _can_preview_gift_aim() -> bool:
-	if _ghost == null or _match == null or _acting_slot() < 0:
+	if _ghost == null or _acting_slot() < 0:
 		return false
 	if _ghost.get_shape() == null or _is_active_slot_eliminated():
 		return false
@@ -1020,7 +976,7 @@ func gift_launch_preview() -> Dictionary:
 	if mode == GiftThrow.Mode.NONE:
 		return {}
 	var forward: Vector3 = _camera_forward()
-	var field: Field = Match.field() if _match == Match else null
+	var field: FieldBody = match_context.field()
 	var surface_y: float = field.surface_y() if field != null else _ghost.global_position.y
 	# the arc starts at the held model's visual centre, not the ghost's
 	# bottom-face pivot (which sits below the model).
@@ -1044,7 +1000,7 @@ func gift_launch_preview() -> Dictionary:
 ## the active field's thrown-gift range scale (same GiftAim rule the host
 ## applies); 1.0 with no field.
 func _throw_range_scale() -> float:
-	var field: Field = Match.field() if _match == Match else null
+	var field: FieldBody = match_context.field()
 	if field == null or field.map_definition() == null or special_tuning == null:
 		return 1.0
 	return GiftAim.range_scale(field.map_definition().field_radius, special_tuning)
@@ -1061,7 +1017,7 @@ func _held_model_centre() -> Vector3:
 ## Direction the held gift will leave in (the held Rocket/Magnet model points
 ## its nose along it); ZERO when nothing aimable is held.
 func _held_gift_aim_direction() -> Vector3:
-	if _ghost == null or special_tuning == null or _match == null or _acting_slot() < 0:
+	if _ghost == null or special_tuning == null or _acting_slot() < 0:
 		return Vector3.ZERO
 	var mode: GiftThrow.Mode = _held_gift_mode()
 	var forward: Vector3 = _camera_forward()
@@ -1076,7 +1032,7 @@ func _held_gift_aim_direction() -> Vector3:
 
 ## Whether the held aimed gift may fly upward (Rocket, Q3); Paintball may not.
 func _held_gift_flies_upward() -> bool:
-	var def: SpecialDef = SpecialDef.find_by_id(StringName(_match.held_special(_acting_slot())))
+	var def: SpecialDef = SpecialDef.find_by_id(match_context.held_special(_acting_slot()))
 	return def != null and def.effect is RocketEffect
 
 
@@ -1085,9 +1041,9 @@ func _held_gift_flies_upward() -> bool:
 ## dedicated Events signal exists for it, so both the controller and the HUD just
 ## read PlayerSlot.home_flag_alive off Match.slot() (ui/hud/HUD.gd does the same).
 func _is_active_slot_eliminated() -> bool:
-	if _match == null or _acting_slot() < 0:
+	if _acting_slot() < 0:
 		return false
-	var slot: PlayerSlot = _match.slot(_acting_slot())
+	var slot: PlayerSlot = match_context.slot(_acting_slot())
 	return slot != null and not slot.home_flag_alive
 
 
@@ -1119,14 +1075,12 @@ func _on_player_eliminated(_slot_id: int, _team_id: int) -> void:
 
 func _on_turn_changed(slot_id: int) -> void:
 	_active_slot = slot_id
-	if _match == null:
-		return
-	var slot: PlayerSlot = _match.slot(slot_id)
+	var slot: PlayerSlot = match_context.slot(slot_id)
 	if _ghost == null:
 		return
 	if slot != null:
 		_ghost.set_player_color(slot.color)
-	var shape: BlockShape = _match.held_shape(slot_id)
+	var shape: BlockShape = match_context.held_shape(slot_id)
 	if shape != null:
 		_ghost.set_shape(shape)
 		_sync_ghost_gift(slot_id)
@@ -1138,9 +1092,9 @@ func _on_turn_changed(slot_id: int) -> void:
 ## slot's current piece is a claimed gift (Match.held_special is set before
 ## feed_block_issued fires), the plain block ghost otherwise.
 func _sync_ghost_gift(slot_id: int) -> void:
-	if _ghost == null or _match == null or not _match.has_method(&"held_special"):
+	if _ghost == null:
 		return
-	_ghost.set_held_gift(StringName(_match.held_special(slot_id)))
+	_ghost.set_held_gift(match_context.held_special(slot_id))
 
 
 ## the staged windowed build issues the first block (host) or
@@ -1148,10 +1102,10 @@ func _sync_ghost_gift(slot_id: int) -> void:
 ## exist, so a bind pulls whatever the acting slot already holds -- shape,
 ## colour and gift -- instead of waiting for the next feed signal.
 func pull_current_held() -> void:
-	if _match == null or _ghost == null:
+	if _ghost == null:
 		return
 	var slot_id: int = _acting_slot()
-	var shape: BlockShape = _match.held_shape(slot_id) as BlockShape
+	var shape: BlockShape = match_context.held_shape(slot_id)
 	if shape != null:
 		_on_feed_block_issued(slot_id, shape.id, &"")
 
@@ -1163,10 +1117,9 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	_intent_lock_left = 0.0
 	# Networked there is no Events.turn_changed to colour the ghost from, so
 	# the first feed this slot receives does it instead.
-	if _match != null:
-		var slot: PlayerSlot = _match.slot(slot_id)
-		if slot != null:
-			_ghost.set_player_color(slot.color)
+	var slot: PlayerSlot = match_context.slot(slot_id)
+	if slot != null:
+		_ghost.set_player_color(slot.color)
 	var shape: BlockShape = _shapes_by_id.get(shape_id) as BlockShape
 	if shape != null:
 		_ghost.set_shape(shape)
@@ -1444,9 +1397,9 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 
 ## The held gift's id (&"" for an ordinary piece).
 func _held_gift_id() -> StringName:
-	if _match == null or _acting_slot() < 0:
+	if _acting_slot() < 0:
 		return &""
-	return StringName(_match.held_special(_acting_slot()))
+	return match_context.held_special(_acting_slot())
 
 
 ## The pose the host overlap-tests this release at: the ghost's, except that an aimed gift
@@ -1460,7 +1413,7 @@ func _release_pose(gift_id: StringName) -> Transform3D:
 	if def == null or mode == GiftThrow.Mode.NONE:
 		return pose
 	var aim: Vector3 = _camera_forward()
-	var field: Field = Match.field() if _match == Match else null
+	var field: FieldBody = match_context.field()
 	pose.origin = GiftAim.spawn_point(pose.origin, aim, field.surface_y() if field != null else pose.origin.y, special_tuning)
 	var velocity: Vector3 = GiftAim.throw_velocity(aim, special_tuning, _throw_range_scale()) if mode == GiftThrow.Mode.THROW else Vector3.ZERO
 	var faced: Variant = MatchPlacement.launch_facing_basis(def, mode, aim, velocity)
@@ -1505,15 +1458,10 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 ## ghost position wasn't valid. Only ever acted on for this controller's own
 ## slot -- another slot's relocation is none of this instance's business, the
 ## same filter every other per-slot Events reaction here uses.
-##
-## DECISION (game/player/PlayerController.gd): guarded by `_match != Match` like
-## _intent_target() -- this only ever runs against the real Match autoload
-## (which alone has field()); a test driving a FakeMatch never reaches this
-## far since nothing there emits placement_relocated.
 func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
-	if slot_id != _acting_slot() or _ghost == null or _match != Match:
+	if slot_id != _acting_slot() or _ghost == null:
 		return
-	var field: Field = Match.field()
+	var field: FieldBody = match_context.field()
 	if field == null:
 		return
 	_cursor = field.to_global(Vector3(point.x, 0.0, point.y))
@@ -1541,11 +1489,11 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 ## ghost before the click. request_place() re-validates from scratch and
 ## never trusts this (spec 2.6).
 func _update_ghost_tint() -> void:
-	if _ghost == null or _match == null or _acting_slot() < 0:
+	if _ghost == null or _acting_slot() < 0:
 		return
 	if _ghost.get_shape() == null:
 		return
-	var result: PlacementRules.Result = _match.preview_placement(
+	var result: PlacementRules.Result = match_context.preview_placement(
 		_acting_slot(), _ghost.global_position, _ghost.orientation_index, _ghost.free_quaternion
 	)
 	_ghost.apply_validity(result)
@@ -1553,7 +1501,7 @@ func _update_ghost_tint() -> void:
 	# visible even at a legal location" -- release-locked overrides whatever
 	# apply_validity() just set, since the interval lock is about *when* this
 	# piece may drop, not *where*.
-	_ghost.set_locked(bool(_match.is_release_locked(_acting_slot())))
+	_ghost.set_locked(match_context.is_release_locked(_acting_slot()))
 
 
 ## Continuous, per-frame height adjustment for genuinely holdable inputs
