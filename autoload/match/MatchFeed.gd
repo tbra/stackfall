@@ -98,10 +98,9 @@ func held_shape(slot_id: int) -> BlockShape:
 
 ## What the HUD's next-block preview shows for `slot_id`.
 func next_shape(slot_id: int) -> BlockShape:
-	if _match != null and _match._lifecycle != null:
-		var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
-		if seat != null and not seat.home_flag_alive:
-			return null
+	var seat: PlayerSlot = _match._lifecycle.slot(slot_id)
+	if seat != null and not seat.home_flag_alive:
+		return null
 	if slot_id >= 0 and slot_id < _backlog.size() and not _backlog[slot_id].is_empty():
 		return _backlog[slot_id][0] as BlockShape
 	if _next_gift_shapes.has(slot_id):

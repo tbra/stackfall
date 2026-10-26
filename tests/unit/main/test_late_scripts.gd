@@ -20,3 +20,12 @@ func test_activate_autoloads_calls_late_activate_on_root_children() -> void:
 	LateScripts.activate_autoloads(get_tree())
 	assert_eq(probe.calls, 1)
 	probe.queue_free()
+
+
+func test_every_late_path_is_in_the_prewarm_queue() -> void:
+	var config: MenuPrewarmConfig = load("res://config/match/menu_prewarm.tres")
+	var queued: PackedStringArray = PackedStringArray()
+	for chunk: PackedStringArray in config.chunks:
+		queued.append_array(chunk)
+	for path: String in LateScripts.paths():
+		assert_true(queued.has(path), "%s is awaited by the prewarm queue" % path)

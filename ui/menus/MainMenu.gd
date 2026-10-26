@@ -729,10 +729,7 @@ func _on_game_activated(index: int) -> void:
 
 
 func _on_quit_pressed() -> void:
-	# let the AudioServer free stopped playbacks before exit (no quit-time leaks).
-	await Sfx.drain_for_quit()
-	QuitFlag.mark()
-	get_tree().quit()
+	await Sfx.quit_tree()
 
 
 func _on_host_online_pressed() -> void:

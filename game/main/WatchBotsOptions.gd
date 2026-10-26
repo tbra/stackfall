@@ -163,10 +163,7 @@ static func _save_path() -> String:
 
 
 static func _strip(raw: String) -> String:
-	var text: String = raw
-	while text.begins_with("-"):
-		text = text.substr(1)
-	return text
+	return raw.lstrip("-")
 
 
 static func _value(args: PackedStringArray, prefix: String) -> String:
