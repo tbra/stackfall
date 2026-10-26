@@ -258,8 +258,8 @@ static func has_cli_port(user_args: PackedStringArray) -> bool:
 ## A currently bindable UDP port in [FREE_PORT_MIN, FREE_PORT_MIN + SPAN), or 0.
 ## Net.host_game() uses it in probe mode so agent-run hosts (benches, tool
 ## scenes) never collide with each other or with the ENet acceptance harness.
-## Each process draws from its own slice (by process id) so two concurrent
-## processes never probe the same port; the rest of the range is the fallback.
+## Each process draws from its own slice (picked by process id), so two concurrent
+## processes rarely probe the same port; the rest of the range is the fallback.
 static func free_udp_port() -> int:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.randomize()
