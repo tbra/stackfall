@@ -1,13 +1,17 @@
+class_name SettingsAutoload
 extends Node
-## User settings: graphics preset, audio levels, control bindings, music folder.
+## User settings: graphics preset, audio levels, control bindings, window mode, UI scale and more.
 ##
 ## Persisted to a single user://settings.cfg ConfigFile and saved on every
 ## setter (small, infrequent writes, no debouncing needed).
 ##
-## Settings only stores the user's choices and emits signals; it never
-## touches a Viewport/Environment or plays audio itself. Consumers apply
+## Settings is the store and also the applier of three things: the root window's
+## content scale (apply_ui_scale), the OS window mode (apply_window_mode) and the
+## InputMap key overrides. It also classifies the last-used input device. It
+## never touches a graphics Environment or plays audio itself: consumers apply
 ## graphics_preset_changed/audio_settings_changed to the actual render/audio
-## state.
+## state. `class_name SettingsAutoload` lets UI code type a settings provider;
+## the autoload instance is still reached as `Settings`.
 
 signal graphics_preset_changed(preset: GraphicsPreset)
 signal audio_settings_changed()
