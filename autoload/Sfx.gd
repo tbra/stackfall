@@ -1,7 +1,7 @@
 extends Node
 ## Audio for the game's own sound effects and music.
 ## Loads streams at runtime from res://assets/audio/sfx (in the editor) or
-## <exe dir>/assets/effects (exported). HARD CONSTRAINT: third-party
+## <exe dir>/assets/audio/sfx (exported). HARD CONSTRAINT: third-party
 ## copyrighted assets (including the original Bontago's) never enter this
 ## repo. Absent folder: one info print, then every play() is a silent
 ## no-op -- the game runs fine with no sound, the same "supported absence"
@@ -133,11 +133,6 @@ var _claim_duck_db: float = 0.0
 var _claim_stream_missing: bool = false
 var _claim_flush_queued: bool = false
 var _claim_last_level: float = 0.0
-## Test seams: null = use Net/Match.
-var _claim_test_local_team: Variant = null
-var _claim_test_live: Variant = null
-var _claim_test_client: Variant = null
-var _claim_test_hold_s: Variant = null
 ## Last applied (volume_db, pitch, duck) targets; an unchanged target makes no tweens.
 var _claim_last_targets: Vector3 = Vector3(MUSIC_STEM_MUTE_DB, 1.0, 0.0)
 ## Client-side extrapolation of a hold between sparse replicated updates.
@@ -273,7 +268,7 @@ func play(event: StringName) -> bool:
 		return true
 	var player: AudioStreamPlayer = _next_ui_player() if _is_menu_event(event) else _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
@@ -417,7 +412,7 @@ func _sync_tense_player_with_calm() -> void:
 ## MUSIC_STEM_MUTE_DB to the only music stream that exists and mute it
 ## permanently.
 func calm_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
 		return baseline_db
 	return MUSIC_STEM_MUTE_DB if _tense_stem_is_active else baseline_db
@@ -429,7 +424,7 @@ func calm_stem_target_volume_db() -> float:
 ## _tense_music_player is never given a stream or started while unavailable,
 ## see _refresh_tense_stem()/_sync_tense_player_with_calm()).
 func tense_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
 		return MUSIC_STEM_MUTE_DB
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
@@ -745,7 +740,7 @@ func _start_playlist_track() -> void:
 func _apply_playlist_volume() -> void:
 	if _music_player == null:
 		return
-	var baseline: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + _claim_duck_db + linear_to_db(_music_envelope))
 
 
@@ -820,7 +815,7 @@ func _play_impact(speed: float, surface: StringName) -> void:
 		return
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.impact_volume_db(speed), Settings.sfx_volume_db())
 	player.play()
 
 
@@ -887,7 +882,7 @@ func play_ui_cue(cue: StringName) -> bool:
 		return false
 	var player: AudioStreamPlayer = _next_ui_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.ui_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.ui_cue_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
@@ -989,7 +984,7 @@ func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3,
 	_last_special_cue_msec[def_id] = now_msec
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.special_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.special_cue_volume_db, Settings.sfx_volume_db())
 	player.play()
 
 
@@ -1017,7 +1012,7 @@ func _on_special_consumed(_slot_id: int, special_id: StringName) -> void:
 	add_child(player)
 	player.stream = _looped_copy(source)
 	var target_db: float = (
-		config.sfx_volume_db + config.special_loop_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+		_volume_db(config.sfx_volume_db + config.special_loop_volume_db, Settings.sfx_volume_db())
 	)
 	player.volume_db = MUSIC_STEM_MUTE_DB
 	player.play()
@@ -1120,7 +1115,7 @@ func _play_cue_file(filename: String) -> bool:
 		return false
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
@@ -1183,28 +1178,24 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## The loop bound is `maxi(Match.slot_count(), recipient_slot + 1)`, not just
 ## Match.slot_count(): tests/unit/audio/test_sfx.gd calls this directly with no
 ## match started (slot_count() == 0), where team_of_slot() falls back to
-## identity (see _team_of_slot() below), so this keeps checking at least slot
+## identity (see LocalFeedback.team_of_slot()), so this keeps checking at least slot
 ## recipient_slot itself.
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
-	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
+	for slot_id: int in range(maxi(MatchContext.current().slot_count(), recipient_slot + 1)):
 		# A human seat on this machine only -- offline every slot
 		# is local, so a bot claiming on its own team (or a bot teammate) would
 		# otherwise chime for a player who has nothing to do with it.
 		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
-		if _team_of_slot(slot_id) != _team_of_slot(recipient_slot):
+		if LocalFeedback.team_of_slot(slot_id) != LocalFeedback.team_of_slot(recipient_slot):
 			continue
 		play(AudioConfig.EVENT_GIFT_CLAIMED)
 		return
 
 
-## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot() -- Match.config
-## is null before a match starts (TeamMode.OFF's own "every slot is its own
-## team" fallback), matching ui/hud/HUD.gd's own _team_of_slot() helper.
-func _team_of_slot(slot_id: int) -> int:
-	if Match.config == null:
-		return slot_id
-	return Match.config.team_of_slot(slot_id)
+## Final volume_db: `base_db` plus the master slider and the given channel slider (sfx or music).
+func _volume_db(base_db: float, channel_db: float) -> float:
+	return base_db + Settings.master_volume_db() + channel_db
 
 
 # --- Beacon-claim tension layer ------------------------------
@@ -1229,7 +1220,7 @@ func claim_tension_target_volume_db() -> float:
 	var level: float = _claim_state.level() if _claim_state != null else 0.0
 	if level <= 0.0 or not config.claim_tension_enabled:
 		return MUSIC_STEM_MUTE_DB
-	var baseline: float = config.claim_tension_max_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline: float = _volume_db(config.claim_tension_max_db, Settings.music_volume_db())
 	return clampf(baseline + linear_to_db(level), MUSIC_STEM_MUTE_DB, baseline)
 
 
@@ -1254,20 +1245,16 @@ func claim_tension_level() -> float:
 
 
 func _local_claim_team(team_id: int) -> int:
-	if _claim_test_local_team != null:
-		return int(_claim_test_local_team)
 	# Any human seat driven here that plays for the holding team makes it mine;
 	# otherwise (rival, spectator, bots only) it is the quieter rival flavour.
-	for slot_id: int in range(Match.slot_count()):
-		if LocalFeedback.is_own_human_slot(slot_id) and _team_of_slot(slot_id) == team_id:
+	for slot_id: int in range(MatchContext.current().slot_count()):
+		if LocalFeedback.is_own_human_slot(slot_id) and LocalFeedback.team_of_slot(slot_id) == team_id:
 			return team_id
 	return ClaimTensionState.NO_LOCAL_TEAM
 
 
 func _claim_match_live() -> bool:
-	if _claim_test_live != null:
-		return bool(_claim_test_live)
-	return Match.is_live(Match.state())
+	return MatchPhase.is_live(MatchContext.current().state())
 
 
 func _on_claim_progress(team_id: int, progress: float) -> void:
@@ -1308,15 +1295,11 @@ func _on_claim_match_won(_team_id: int) -> void:
 
 
 func _claim_is_client() -> bool:
-	if _claim_test_client != null:
-		return bool(_claim_test_client)
-	return Net.is_client()
+	return MatchContext.current().net_is_client()
 
 
 func _claim_hold_seconds() -> float:
-	if _claim_test_hold_s != null:
-		return float(_claim_test_hold_s)
-	return Match._territory_tuning.capture_hold
+	return MatchContext.current().capture_hold_seconds()
 
 
 ## A client only hears the capture progress when the territory raster changes
