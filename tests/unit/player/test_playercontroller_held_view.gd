@@ -159,6 +159,7 @@ func test_an_eliminated_slot_publishes_not_visible() -> void:
 	var controller: PlayerController = _make_controller()
 	controller._process(FRAME)
 	assert_true(_view().visible, "fixture: an alive slot is visible")
+	_fake.slot_by_id[0] = Match.slot(0)
 	Match.slot(0).home_flag_alive = false
 	controller._process(FRAME)
 	assert_eq(_view().slot_id, 0, "still published")

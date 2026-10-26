@@ -15,7 +15,7 @@ extends RefCounted
 ## next script in the same GUT process that reads Match.field()/registry()/
 ## blocks_parent() without registering its own world first (e.g.
 ## test_throw_arc_preview.gd's PlayerController fixtures, via
-## PlayerController._drive_throw_visuals() -> ThrowArcPreview.update_arc())
+## a PlayerController frame -> ThrowArcPreview.update_arc())
 ## gets a freed object and Godot's own argument type-check throws
 ## "previously freed" before the callee even runs -- reproduced by running
 ## any world-registering script immediately before test_throw_arc_preview.gd

@@ -35,15 +35,36 @@ extends GutTest
 ## pin here too.
 
 
+## The controller finds its ghost through the exported ghost_path, exactly as
+## LocalPlayer.tscn wires it: a sibling "Ghost" under one holder per controller.
 func _make_controller() -> PlayerController:
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	ghost.name = &"Ghost"
+	holder.add_child(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
 
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.ghost_path = NodePath("../Ghost")
+	holder.add_child(controller)
 	return controller
+
+
+func _ghost_of(controller: PlayerController) -> GhostPreview:
+	return controller.get_node(controller.ghost_path) as GhostPreview
+
+
+## One engine frame of the controller: input already delivered through
+## _unhandled_input() is turned into the ghost pose by _process(), as in the game.
+func _frame(controller: PlayerController) -> void:
+	controller._process(1.0 / 60.0)
+
+
+## Where the cursor aims, read off the ghost: the rotated shape's centre sits over the cursor.
+func _cursor_xz(controller: PlayerController) -> Vector2:
+	var centre: Vector3 = _ghost_of(controller).rotated_center_world()
+	return Vector2(centre.x, centre.z)
 
 
 func _motion(relative: Vector2) -> InputEventMouseMotion:
@@ -63,15 +84,17 @@ func _wheel(button: MouseButton) -> InputEventMouseButton:
 
 func test_mouse_motion_moves_the_cursor_in_the_disk_plane() -> void:
 	var controller: PlayerController = _make_controller()
-	assert_eq(controller._cursor, Vector3.ZERO, "fixture: the cursor starts centered.")
+	_frame(controller)
+	assert_almost_eq(_cursor_xz(controller), Vector2.ZERO, Vector2(0.001, 0.001), "fixture: the cursor starts centered.")
 
 	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+	_frame(controller)
 
 	assert_almost_eq(
-		controller._cursor.x, 100.0 * controller.ghost_tuning.block_move_sensitivity, 0.001,
+		_cursor_xz(controller).x, 100.0 * controller.ghost_tuning.block_move_sensitivity, 0.001,
 		"mouse X motion should move the cursor camera-relative (no rig wired -> yaw 0 -> world +X)."
 	)
-	assert_almost_eq(controller._cursor.z, 0.0, 0.001)
+	assert_almost_eq(_cursor_xz(controller).y, 0.0, 0.001)
 
 
 func test_mouse_motion_is_camera_relative_to_the_rigs_yaw() -> void:
@@ -88,9 +111,10 @@ func test_mouse_motion_is_camera_relative_to_the_rigs_yaw() -> void:
 	assert_almost_eq(rig.get_yaw(), PI * 0.5, 0.01, "fixture: the rig should now be yawed 90 degrees.")
 
 	controller._unhandled_input(_motion(Vector2(0.0, -100.0)))
+	_frame(controller)
 
-	assert_almost_eq(controller._cursor.z, 0.0, 0.01, "camera-relative movement should follow the rotated yaw, not world +Z.")
-	assert_ne(controller._cursor.x, 0.0, "at 90 degrees yaw, 'forward' motion should land on the X axis instead.")
+	assert_almost_eq(_cursor_xz(controller).y, 0.0, 0.01, "camera-relative movement should follow the rotated yaw, not world +Z.")
+	assert_ne(_cursor_xz(controller).x, 0.0, "at 90 degrees yaw, 'forward' motion should land on the X axis instead.")
 
 
 # --- Wheel = block height (spec 1.5: "the mouse wheel raises and lowers the
@@ -98,12 +122,12 @@ func test_mouse_motion_is_camera_relative_to_the_rigs_yaw() -> void:
 
 func test_wheel_up_raises_the_ghost_by_one_step() -> void:
 	var controller: PlayerController = _make_controller()
-	assert_eq(controller._ghost.manual_hover_offset, 0.0, "fixture: no manual hover yet.")
+	assert_eq(_ghost_of(controller).manual_hover_offset, 0.0, "fixture: no manual hover yet.")
 
 	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
 
 	assert_almost_eq(
-		controller._ghost.manual_hover_offset, controller.ghost_tuning.hover_wheel_step, 0.001,
+		_ghost_of(controller).manual_hover_offset, controller.ghost_tuning.hover_wheel_step, 0.001,
 		"one wheel-up notch should raise the ghost by exactly one step (it's a momentary event, not held)."
 	)
 
@@ -143,12 +167,14 @@ func test_moving_the_cursor_over_a_block_does_not_change_the_ghost_height() -> v
 	var controller: PlayerController = _make_controller()
 	_make_stacked_block(field, Vector3(0.0, 5.0, 0.0))
 
-	controller._update_ghost_transform()
-	var height_over_the_block: float = controller._ghost.global_position.y
+	_frame(controller)
+	var height_over_the_block: float = _ghost_of(controller).global_position.y
 
-	controller._cursor = Vector3(5.0, 0.0, 0.0)  # bare disk, well away from the block
-	controller._update_ghost_transform()
-	var height_over_bare_disk: float = controller._ghost.global_position.y
+	# 100 px of mouse motion is 5 m at block_move_sensitivity: bare disk, well away from the block.
+	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
+	_frame(controller)
+	assert_gt(_cursor_xz(controller).x, 1.0, "fixture: the cursor moved clear of the 1 m block.")
+	var height_over_bare_disk: float = _ghost_of(controller).global_position.y
 
 	assert_almost_eq(
 		height_over_the_block, height_over_bare_disk, 0.05,
@@ -158,7 +184,7 @@ func test_moving_the_cursor_over_a_block_does_not_change_the_ghost_height() -> v
 
 func test_rotation_mode_hold_plus_motion_snaps_yaw_by_90_degrees() -> void:
 	var controller: PlayerController = _make_controller()
-	var start_index: int = controller._orientation_index()
+	var start_index: int = _ghost_of(controller).orientation_index
 
 	Input.action_press(&"rotation_mode")
 	# block_rotation_sensitivity is tuned so ~120px of drag crosses one step.
@@ -166,27 +192,29 @@ func test_rotation_mode_hold_plus_motion_snaps_yaw_by_90_degrees() -> void:
 	Input.action_release(&"rotation_mode")
 
 	assert_eq(
-		controller._ghost.orientation_index, BlockOrientations.step_yaw_cw(start_index),
+		_ghost_of(controller).orientation_index, BlockOrientations.step_yaw_cw(start_index),
 		"enough rightward drag while rotation_mode is held should snap exactly one yaw step."
 	)
-	assert_eq(controller._cursor, Vector3.ZERO, "rotation_mode must not also move the cursor.")
+	_frame(controller)
+	assert_almost_eq(_cursor_xz(controller), Vector2.ZERO, Vector2(0.001, 0.001), "rotation_mode must not also move the cursor.")
 
 
 func test_rotate_drag_hold_plus_motion_spins_the_ghosts_free_quaternion() -> void:
 	var controller: PlayerController = _make_controller()
-	assert_eq(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: no free rotation yet.")
+	assert_eq(_ghost_of(controller).free_quaternion, Quaternion.IDENTITY, "fixture: no free rotation yet.")
 
 	Input.action_press(&"rotate_drag")
 	controller._unhandled_input(_motion(Vector2(100.0, 0.0)))
 	Input.action_release(&"rotate_drag")
 
 	assert_ne(
-		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		_ghost_of(controller).free_quaternion, Quaternion.IDENTITY,
 		"holding rotate_drag and moving the mouse should spin the ghost's free rotation continuously."
 	)
-	assert_eq(controller._cursor, Vector3.ZERO, "rotate_drag must not also move the cursor.")
+	_frame(controller)
+	assert_almost_eq(_cursor_xz(controller), Vector2.ZERO, Vector2(0.001, 0.001), "rotate_drag must not also move the cursor.")
 	assert_eq(
-		controller._ghost.orientation_index, 0,
+		_ghost_of(controller).orientation_index, 0,
 		"rotate_drag drives the continuous free_quaternion, not the 90 degree orientation index."
 	)
 
@@ -200,35 +228,35 @@ func _mmb(pressed: bool) -> InputEventMouseButton:
 
 func test_mmb_tap_with_no_motion_snaps_one_yaw_step_on_release() -> void:
 	var controller: PlayerController = _make_controller()
-	var start_index: int = controller._orientation_index()
+	var start_index: int = _ghost_of(controller).orientation_index
 
 	controller._unhandled_input(_mmb(true))
 	controller._unhandled_input(_mmb(false))
 
 	assert_eq(
-		controller._ghost.orientation_index, BlockOrientations.step_yaw_cw(start_index),
+		_ghost_of(controller).orientation_index, BlockOrientations.step_yaw_cw(start_index),
 		"a bare MMB press+release with no motion at all must snap exactly one 90 degree yaw step."
 	)
 	assert_eq(
-		controller._ghost.free_quaternion, Quaternion.IDENTITY,
+		_ghost_of(controller).free_quaternion, Quaternion.IDENTITY,
 		"a bare tap must never touch the continuous free rotation."
 	)
 
 
 func test_q_key_resets_rotation_same_as_home_and_f() -> void:
 	var controller: PlayerController = _make_controller()
-	controller._ghost.set_orientation_index(BlockOrientations.step_yaw_cw(0))
-	controller._ghost.apply_free_rotation_delta(0.3, 0.0, Vector3.RIGHT)
-	assert_ne(controller._ghost.orientation_index, 0, "fixture: the ghost must actually be rotated before resetting it.")
-	assert_ne(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: the ghost must have some free rotation too.")
+	_ghost_of(controller).set_orientation_index(BlockOrientations.step_yaw_cw(0))
+	_ghost_of(controller).apply_free_rotation_delta(0.3, 0.0, Vector3.RIGHT)
+	assert_ne(_ghost_of(controller).orientation_index, 0, "fixture: the ghost must actually be rotated before resetting it.")
+	assert_ne(_ghost_of(controller).free_quaternion, Quaternion.IDENTITY, "fixture: the ghost must have some free rotation too.")
 
 	var q_event: InputEventKey = InputEventKey.new()
 	q_event.physical_keycode = KEY_Q
 	q_event.pressed = true
 	controller._unhandled_input(q_event)
 
-	assert_eq(controller._ghost.orientation_index, 0, "Q must reset the 90 degree orientation index like Home/F.")
-	assert_eq(controller._ghost.free_quaternion, Quaternion.IDENTITY, "Q must reset the continuous free rotation like Home/F.")
+	assert_eq(_ghost_of(controller).orientation_index, 0, "Q must reset the 90 degree orientation index like Home/F.")
+	assert_eq(_ghost_of(controller).free_quaternion, Quaternion.IDENTITY, "Q must reset the continuous free rotation like Home/F.")
 
 
 func test_wheel_while_camera_orbit_held_zooms_the_rig_not_the_ghost_height() -> void:
@@ -244,7 +272,7 @@ func test_wheel_while_camera_orbit_held_zooms_the_rig_not_the_ghost_height() -> 
 
 	assert_ne(rig.get_distance(), distance_before, "the wheel should zoom the rig while camera_orbit is held.")
 	assert_eq(
-		controller._ghost.manual_hover_offset, 0.0,
+		_ghost_of(controller).manual_hover_offset, 0.0,
 		"the wheel must not also raise the ghost while camera_orbit is held."
 	)
 
@@ -285,7 +313,7 @@ func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_
 			"frame %d: global_transform must be bit-for-bit unchanged for the whole drag." % i
 		)
 	Input.action_release(&"rotate_drag")
-	assert_ne(controller._ghost.free_quaternion, Quaternion.IDENTITY, "fixture: the drag should have rotated the held block.")
+	assert_ne(_ghost_of(controller).free_quaternion, Quaternion.IDENTITY, "fixture: the drag should have rotated the held block.")
 
 	controller._process(1.0 / 60.0)
 	rig._process(1.0 / 60.0)
@@ -297,11 +325,11 @@ func test_rotate_drag_freezes_the_camera_rig_for_the_whole_drag_then_resumes_on_
 	# deliberately not part of this "resumes following" check any more.
 	var target_after_release: Vector3 = rig.get_target()
 	assert_almost_eq(
-		target_after_release.x, controller._ghost.rotated_center_world().x, 0.0001,
+		target_after_release.x, _ghost_of(controller).rotated_center_world().x, 0.0001,
 		"after release, the rig should resume following the ghost's rotated centre in X."
 	)
 	assert_almost_eq(
-		target_after_release.z, controller._ghost.rotated_center_world().z, 0.0001,
+		target_after_release.z, _ghost_of(controller).rotated_center_world().z, 0.0001,
 		"after release, the rig should resume following the ghost's rotated centre in Z."
 	)
 	# No longer asserts the target actually *moved* once resumed
@@ -320,25 +348,25 @@ func test_continuous_wheel_scroll_ramps_the_step_and_resets_after_a_gap() -> voi
 	var step: float = tuning.hover_wheel_step
 
 	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
-	assert_almost_eq(controller._ghost.manual_hover_offset, step, 0.001, "first notch is a plain step.")
+	assert_almost_eq(_ghost_of(controller).manual_hover_offset, step, 0.001, "first notch is a plain step.")
 
 	# Scroll on, one notch per short frame, past the ramp time.
 	var frame: float = tuning.hover_wheel_gap_seconds * 0.5
 	var elapsed: float = 0.0
 	while elapsed < tuning.hover_wheel_ramp_seconds + frame:
-		controller._tick_wheel_ramp(frame)
+		controller._process(frame)
 		controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
 		elapsed += frame
-	var before: float = controller._ghost.manual_hover_offset
-	controller._tick_wheel_ramp(frame)
+	var before: float = _ghost_of(controller).manual_hover_offset
+	controller._process(frame)
 	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
 	assert_almost_eq(
-		controller._ghost.manual_hover_offset - before, step * tuning.hover_wheel_max_multiplier, 0.001,
+		_ghost_of(controller).manual_hover_offset - before, step * tuning.hover_wheel_max_multiplier, 0.001,
 		"after the ramp time of continuous scrolling the notch uses the max multiplier."
 	)
 
 	# A pause longer than the gap resets to a plain step.
-	controller._tick_wheel_ramp(tuning.hover_wheel_gap_seconds + 0.1)
-	before = controller._ghost.manual_hover_offset
+	controller._process(tuning.hover_wheel_gap_seconds + 0.1)
+	before = _ghost_of(controller).manual_hover_offset
 	controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
-	assert_almost_eq(controller._ghost.manual_hover_offset - before, step, 0.001, "the ramp resets after a gap.")
+	assert_almost_eq(_ghost_of(controller).manual_hover_offset - before, step, 0.001, "the ramp resets after a gap.")

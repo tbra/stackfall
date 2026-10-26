@@ -77,15 +77,15 @@ static func _build_mesh_uncached(shape: BlockShape, cube_size: float) -> ArrayMe
 		cell_set[cell] = true
 
 	var half: float = cube_size * 0.5
-	var pivot: Vector3 = shape.bottom_center()
-
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
-	for cell: Vector3i in shape.cells:
-		var center: Vector3 = (Vector3(cell) - pivot) * cube_size
+	var centers: Array[Vector3] = shape.cell_centres(cube_size)
+	for i: int in shape.cells.size():
+		var cell: Vector3i = shape.cells[i]
+		var center: Vector3 = centers[i]
 		for direction: Vector3i in _FACE_DIRECTIONS:
 			if cell_set.has(cell + direction):
 				continue

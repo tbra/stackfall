@@ -14,14 +14,19 @@ extends RefCounted
 ## fingerprint is only comparable between runs with the same config and rng_seed.
 ##
 ## Headless limits: GPU particles cannot be read, so this sees node/state, not pixels.
-## Everything private is read through Object.get() so a renamed field shows up as a
-## missing key (null) in the diff instead of a parse error here.
+## Main is read through the scene tree only (child nodes found by script class), never through
+## its private fields; the exceptions are listed at _MAIN_PRIVATE_FLAGS. Other private fields are
+## read through Object.get() so a renamed field shows up as a missing key (null) in the diff
+## instead of a parse error here.
 
 const ROUND_STEP: float = 0.0001
 ## Weather/sky/audio statics that only the Sfx and weather owners expose through fields.
 const PHYSICS_TUNING_PATH: String = "res://config/physics/physics_tuning.tres"
 const WEATHER_PRESENTER_PATH: NodePath = ^"WeatherNet/WeatherPresenter"
 const BREEZE_PRESENTER_PATH: NodePath = ^"WeatherNet/BreezeNet/BreezePresenter"
+## Main flags with no tree or public observable: the world-build progress and the host's
+## start-click guard. Read through Object.get(); a rename shows up as a diff, not a parse error.
+const MAIN_PRIVATE_FLAGS: Array[StringName] = [&"_world_built", &"_world_building", &"_start_pending"]
 ## Gamepad slot polled for a vibration left running (Rumble.stop_all()).
 const RUMBLE_PROBE_DEVICE: int = 0
 
@@ -179,6 +184,16 @@ static func _bp(obj: Object, field: StringName) -> bool:
 	return bool(_p(obj, field))
 
 
+## First live direct child of `parent` whose script class (or engine class) is `kind`, else null.
+static func _child_of_kind(parent: Node, kind: String) -> Node:
+	if parent == null or not is_instance_valid(parent):
+		return null
+	for child: Node in parent.get_children():
+		if not child.is_queued_for_deletion() and _kind(child) == kind:
+			return child
+	return null
+
+
 ## Script class name or engine class: stable across auto-named nodes.
 static func _kind(node: Node) -> String:
 	var script: Variant = node.get_script()
@@ -205,7 +220,7 @@ static func _child_kinds(parent: Node) -> Array:
 # --- camera ---------------------------------------------------------------------------
 
 static func _capture_camera(main: Node, out: Dictionary) -> void:
-	var rig: CameraRig = _p(main, &"_camera_rig") as CameraRig
+	var rig: CameraRig = _child_of_kind(main, "CameraRig") as CameraRig
 	if rig == null:
 		out["camera.present"] = false
 		return
@@ -236,7 +251,7 @@ static func _capture_camera(main: Node, out: Dictionary) -> void:
 # --- field ----------------------------------------------------------------------------
 
 static func _capture_field(main: Node, out: Dictionary) -> void:
-	var field: Field = _p(main, &"_field") as Field
+	var field: Field = _child_of_kind(main, "Field") as Field
 	if field == null:
 		out["field.present"] = false
 		return
@@ -271,7 +286,7 @@ static func _capture_field(main: Node, out: Dictionary) -> void:
 # --- sky ------------------------------------------------------------------------------
 
 static func _capture_sky(main: Node, out: Dictionary) -> void:
-	var skybox: Skybox = _p(main, &"_skybox") as Skybox
+	var skybox: Skybox = _child_of_kind(main, "Skybox") as Skybox
 	if skybox == null:
 		out["sky.present"] = false
 		return
@@ -480,27 +495,35 @@ static func _capture_audio(out: Dictionary) -> void:
 static func _capture_ui(main: Node, out: Dictionary) -> void:
 	# _first_territory_ready is left out: it is only re-armed by the LOBBY -> LOADING lobby path
 	# and read only inside that path's _finish_loading_when_ready().
-	for flag: StringName in [&"_world_built", &"_world_building", &"_start_pending"]:
+	for flag: StringName in MAIN_PRIVATE_FLAGS:
 		out["ui.main%s" % flag] = _bp(main, flag)
-	for holder: StringName in [&"_main_menu", &"_lobby", &"_local_player", &"_sandbox", &"_tutorial",
-			&"_remote_cursors", &"_debug_overlay", &"_stable_block_manager"]:
-		var node: Variant = _p(main, holder)
-		out["ui.main%s" % holder] = node != null and is_instance_valid(node)
-	out["ui.bot_controllers"] = _size_of(_p(main, &"_bot_controllers"))
-	var loading: LoadingScreen = _p(main, &"_loading_screen") as LoadingScreen
+	# Node holders: the live child of that class under Main (the key keeps the old field name).
+	var holders: Dictionary = {
+		&"_main_menu": "MainMenu", &"_lobby": "Lobby", &"_local_player": "LocalPlayer",
+		&"_sandbox": "Sandbox", &"_tutorial": "Tutorial", &"_remote_cursors": "RemoteCursors",
+		&"_debug_overlay": "NetDebugOverlay", &"_stable_block_manager": "StableBlockManager",
+	}
+	for holder: StringName in holders.keys():
+		out["ui.main%s" % holder] = _child_of_kind(main, holders[holder]) != null
+	var bots: int = 0
+	for child: Node in main.get_children():
+		if child is BotController and not child.is_queued_for_deletion():
+			bots += 1
+	out["ui.bot_controllers"] = bots
+	var loading: LoadingScreen = _child_of_kind(main, "LoadingScreen") as LoadingScreen
 	if loading != null:
 		out["ui.loading_visible"] = loading.visible
 		out["ui.loading_pending"] = loading.is_pending()
-	var results: ResultsScreen = _p(main, &"_results_screen") as ResultsScreen
+	var results: ResultsScreen = _child_of_kind(main, "ResultsScreen") as ResultsScreen
 	if results != null:
 		out["ui.results_visible"] = results.visible
-	var pause: PauseMenu = _p(main, &"_pause_menu") as PauseMenu
+	var pause: PauseMenu = _child_of_kind(main, "PauseMenu") as PauseMenu
 	if pause != null:
 		out["ui.pause_visible"] = pause.visible
 		out["ui.pause_suppressed"] = pause.suppressed
 	# What the player reads on the match HUD: every visible, non-empty label text, sorted.
 	var texts: Array = []
-	var local_player: Node = _p(main, &"_local_player") as Node
+	var local_player: Node = _child_of_kind(main, "LocalPlayer")
 	if local_player != null and is_instance_valid(local_player):
 		for label: Node in local_player.find_children("*", "Label", true, false):
 			var control: Label = label as Label
@@ -524,7 +547,7 @@ static func _capture_wiring(main: Node, out: Dictionary) -> void:
 	# BlockEffectsManager's pooled bursts/trails, both caches that persist by design.
 	var counts: Dictionary = {}
 	if main.is_inside_tree():
-		var field: Field = _p(main, &"_field") as Field
+		var field: Field = _child_of_kind(main, "Field") as Field
 		var skip: Node = field.find_child(&"BeaconBody", true, false) if field != null else null
 		_count_nodes(main, "", skip, counts)
 	for key: Variant in counts.keys():

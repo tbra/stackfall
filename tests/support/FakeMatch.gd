@@ -46,13 +46,9 @@ var spawn_on_ok: bool = false
 var request_place_calls: Array[Dictionary] = []
 var preview_placement_calls: Array[Dictionary] = []
 
-## request_throw()'s own call log, exactly
-## request_place_calls' own pattern -- PlayerController._request_throw()
-## reaches this fake the same way _request_place() does (the membrane==null
-## branch, since a FakeMatch is never the real `Match` singleton
-## _intent_target() checks for), so tests/unit/player/test_playercontroller_throw.gd
-## asserts against this the same way test_playercontroller_mouse.gd's own
-## regression test asserts against request_place_calls.
+## request_throw()'s own call log, exactly request_place_calls' own pattern: a
+## FakeMatch is a Match stand-in for the HUD and the results screen, and for tests that call
+## request_place/request_throw directly. The PlayerController tests use FakeMatchContext instead.
 var request_throw_calls: Array[Dictionary] = []
 
 

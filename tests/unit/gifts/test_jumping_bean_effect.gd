@@ -18,6 +18,11 @@ extends GutTest
 
 const TICK: float = 1.0 / 60.0
 const MAX_LAND_FRAMES: int = 300
+## Physics frames for a dropped cube to come to rest on the field.
+const SETTLE_FRAMES: int = 20
+## Cube centre height above the field surface: resting, inside the landing probe's reach.
+const RESTING_OFFSET_M: float = 0.52
+
 func _make_block(position: Vector3 = Vector3.ZERO) -> Block:
 	var block: Block = autofree(Block.new())
 	add_child_autofree(block)
@@ -46,10 +51,28 @@ func _make_behavior(block: Block, def: SpecialDef) -> SpecialBehavior:
 	return behavior
 
 
-## Marks the carrier as landed without a real contact (a stub Block has no
-## collision, so the LandedProbe could never fire); same seam test_propeller_effect uses.
-func _land(behavior: SpecialBehavior) -> void:
-	behavior._landed_at_age = behavior.age()
+## A real cube resting on the registered field, so the landing probe finds contact. Call
+## after _register_field() / _start_hole_match(); position is the cube's horizontal spot.
+func _make_resting_block(position_xz: Vector2) -> Block:
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
+	var block: Block = BlockFactory.build(shape, tuning)
+	add_child_autofree(block)
+	block.global_position = Vector3(position_xz.x, _field.surface_y() + RESTING_OFFSET_M, position_xz.y)
+	await wait_physics_frames(SETTLE_FRAMES)
+	return block
+
+
+## Lands the carrier through SpecialBehavior.advance(): the block's velocity is stubbed to
+## rest (no physics frames run while the behaviour is driven) and the real LandedProbe finds
+## the field under it. Stops on the landing tick, so landed_age() starts at 0.
+func _land(behavior: SpecialBehavior, block: Block) -> void:
+	block.linear_velocity = Vector3.ZERO
+	var ticks: int = 0
+	while not behavior.has_landed() and ticks < MAX_LAND_FRAMES:
+		behavior.advance(TICK)
+		ticks += 1
+	assert_true(behavior.has_landed(), "setup: the resting block must land through advance()")
 
 
 func _small_map() -> MapDef:
@@ -64,6 +87,7 @@ func _small_map() -> MapDef:
 
 var _blocks_root: Node3D = null
 var _registry: BlockRegistry = null
+var _field: Field = null
 
 
 func after_each() -> void:
@@ -82,6 +106,7 @@ func after_each() -> void:
 ## order-dependent.
 func _register_field() -> void:
 	var field: Field = autofree(Field.new())
+	_field = field
 	field.map_def = _small_map()
 	add_child_autofree(field)
 	_blocks_root = autofree(Node3D.new())
@@ -132,12 +157,13 @@ func _count_hops_over(dt: float, hop_interval_s: float, total_span_s: float) -> 
 	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = hop_interval_s
 	effect.first_hop_delay_s = hop_interval_s  # legacy cadence: first hop one interval after landing
-	var block: Block = _make_block(Vector3(2.0, 0.0, 2.0))
+	var block: Block = await _make_resting_block(Vector2(2.0, 2.0))
 	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
+	_land(behavior, block)
 	var ticks: int = int(round(total_span_s / dt))
 	for _i: int in range(ticks):
 		behavior.advance(dt)
+	block.queue_free()  # the next call's block rests at the same spot
 	return effect.hop_calls
 
 
@@ -149,8 +175,8 @@ func test_hops_exactly_once_per_hop_interval_s_frame_rate_independent() -> void:
 	var hop_interval_s: float = 1.0
 	var total_span_s: float = 3.5 * hop_interval_s
 
-	var hops_fine: int = _count_hops_over(0.05, hop_interval_s, total_span_s)
-	var hops_coarse: int = _count_hops_over(0.1, hop_interval_s, total_span_s)
+	var hops_fine: int = await _count_hops_over(0.05, hop_interval_s, total_span_s)
+	var hops_coarse: int = await _count_hops_over(0.1, hop_interval_s, total_span_s)
 
 	assert_eq(hops_fine, 3, "3 full hop_interval_s windows must have elapsed by 3.5x")
 	assert_eq(hops_coarse, 3, "must match regardless of the caller's step size")
@@ -166,10 +192,10 @@ func test_hop_kicks_velocity_up_and_horizontal_never_teleports_position() -> voi
 	effect.first_hop_delay_s = 1.0
 	effect.hop_impulse = 6.0
 	effect.hop_horizontal_speed = 3.0
-	var start_position: Vector3 = Vector3(2.0, 0.0, 2.0)
-	var block: Block = _make_block(start_position)
+	var block: Block = await _make_resting_block(Vector2(2.0, 2.0))
+	var start_position: Vector3 = block.global_position
 	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
+	_land(behavior, block)
 
 	behavior.advance(0.5)  # landed 0.5 s: no hop due yet
 	assert_eq(block.linear_velocity, Vector3.ZERO, "setup: no hop before hop_interval_s")
@@ -195,10 +221,10 @@ func test_self_triggers_once_elapsed_since_settle_reaches_lifetime_s() -> void:
 	effect.contact_override = func(_b: Block) -> bool: return true  # stub block: no collision to probe
 	effect.hop_interval_s = 100.0  # keeps hops out of this timing-only test
 	effect.lifetime_s = 1.0
-	var block: Block = _make_block()
+	var block: Block = await _make_resting_block(Vector2(2.0, 2.0))
 	var def: SpecialDef = _make_def(effect, 0.25)
 	var behavior: SpecialBehavior = _make_behavior(block, def)
-	_land(behavior)
+	_land(behavior, block)
 
 	for _i: int in range(3):
 		behavior.advance(0.25)  # landed age reaches 0.75
@@ -221,6 +247,7 @@ func _start_hole_match(hole_mode: MatchConfig.HoleMode) -> void:
 	# Field null or pointed at a freed one -- register a fresh one for this
 	# match, exactly like test_match_territory_punch.gd's own before_each.
 	var field: Field = autofree(Field.new())
+	_field = field
 	field.map_def = tiny_map
 	add_child_autofree(field)
 	_blocks_root = autofree(Node3D.new())
@@ -239,14 +266,6 @@ func _start_hole_match(hole_mode: MatchConfig.HoleMode) -> void:
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
 		Match._process(1.0 / Engine.physics_ticks_per_second)
-
-
-## Real Blocks in this fixture are added directly under the test root (like
-## _make_block() above), not under Match's own _blocks_parent -- only
-## global_position and a bound SpecialBehavior matter for these two tests,
-## never spawn/replication.
-func _make_match_block(position: Vector3) -> Block:
-	return _make_block(position)
 
 
 ## Proves spec 1.6's "a hole between hops" at the level that matters: each
@@ -269,10 +288,10 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 	effect.hole_radius_m = 0.4  # smaller than one 1 m cell -> exactly one cell
 	effect.hole_open_s = 2.0
 
-	var position_1: Vector3 = Vector3(6.0, 0.0, 6.0)
-	var block: Block = _make_match_block(position_1)
+	var block: Block = await _make_resting_block(Vector2(6.0, 6.0))
+	var position_1: Vector3 = block.global_position
 	var behavior: SpecialBehavior = _make_behavior(block, _make_def(effect))
-	_land(behavior)
+	_land(behavior, block)
 
 	behavior.advance(0.5)  # landed 0.5 s, no hop yet
 	var cell_1: Vector2i = cell_grid.world_to_cell(Vector2(position_1.x, position_1.z))
@@ -283,7 +302,7 @@ func test_each_hop_punches_a_hole_at_the_bean_current_position_under_temporary()
 		raster.is_hole(cell_1.x, cell_1.y), "the first hop must punch a hole where the bean stood"
 	)
 
-	var position_2: Vector3 = Vector3(9.0, 0.0, 9.0)
+	var position_2: Vector3 = Vector3(9.0, position_1.y, 9.0)
 	block.global_position = position_2  # stand-in for real physics moving it since the last hop
 
 	behavior.advance(0.1)  # touchdown: the interval counts from here
