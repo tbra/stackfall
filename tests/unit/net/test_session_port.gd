@@ -6,6 +6,10 @@ extends GutTest
 
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 const _JOIN_WAIT_S: float = 10.0
+## free_udp_port() only proves a port was free a moment ago; a concurrent test process can take
+## it before the host binds, so a failed bind retries on a fresh port.
+const _HOST_ATTEMPTS: int = 4
+const _BIND_FAILED_ERROR: String = "Couldn't create an ENet host"
 const _HOST_NAME: String = "Hostie"
 const _JOINER_NAME: String = "Joiny"
 const _HOST_PEER: int = 1
@@ -35,7 +39,13 @@ func _make_net(node_name: String) -> Node:
 ## A host Net plus one joiner Net seated in slot 1. Returns [host, joiner] or an empty array.
 func _make_session() -> Array[Node]:
 	var host: Node = _make_net("H")
-	if host.host_game(AgentProbe.free_udp_port(), _HOST_NAME, false) != OK:
+	var hosted: bool = false
+	for _attempt: int in _HOST_ATTEMPTS:
+		if host.host_game(AgentProbe.free_udp_port(), _HOST_NAME, false) == OK:
+			hosted = true
+			break
+		assert_engine_error(_BIND_FAILED_ERROR)
+	if not hosted:
 		return []
 	host.set_accepting_joins(true)
 	var joiner: Node = _make_net("J")
