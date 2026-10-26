@@ -86,7 +86,7 @@ func _check(gift: StringName, aim: Vector3) -> void:
 	var block: Block = _blocks_root.get_child(_blocks_root.get_child_count() - 1) as Block
 	var launch: Vector3 = block.linear_velocity.normalized()
 	if gift == &"rocket":
-		launch = RocketEffect.sanitize_launch_direction(aim)
+		launch = GiftAim.sanitize_launch_direction(aim)
 	var spawn_nose: Vector3 = _placed_basis * _nose_of(gift)
 	assert_gt(spawn_nose.dot(launch), 1.0 - NOSE_TOLERANCE, "nose along launch at spawn")
 	assert_gt((block.global_basis * _nose_of(gift)).dot(launch), 1.0 - NOSE_TOLERANCE, "tick 0")
