@@ -1,0 +1,23 @@
+{
+	"about": "P3 visual floor (plan 6.2): two clean captures per case from an unmodified main (base c709d09d), 1280x720, separate processes, idle machine. A candidate (P3-Isil, P3-Ifallback) must stay within the floor: with a floor of 0 that means mean_abs=0 over1=0 over8=0 against the capture from main.",
+	"scene": "res://tests/bench/bench_p3_visual.tscn",
+	"cases": {
+		"stack": {
+			"shows": "three cubes stacked, the ghost hovering above them: footprint ring, light prism column, ground decal",
+			"mean_abs": 0.0,
+			"over1": 0.0,
+			"over8": 0.0,
+			"pixels": 921600
+		},
+		"gift": {
+			"shows": "one cube placed, a bomb gift fed and held over the ghost: held-gift presentation",
+			"mean_abs": 0.0,
+			"over1": 0.0,
+			"over8": 0.0,
+			"pixels": 921600
+		}
+	},
+	"capture_command": "python tools/godot_slots.py run -- godot --windowed --position 10000,10000 --resolution 320x180 --audio-driver Dummy --fixed-fps 60 --path <checkout> res://tools/shot.tscn -- --agent-probe --out=<dir> --render-size=1280x720 --target=scene --path=res://tests/bench/bench_p3_visual.tscn --visual-case=<stack|gift> --hud=0 --pin-sky-time=100,50 --rng-seed=20261025 --frames=440 --name=<stack|gift>",
+	"diff_command": "python tools/godot_slots.py run -- godot --headless --path <checkout> -s tools/image_diff.gd -- <main_dir>/<case>_1280x720.png <candidate_dir>/<case>_1280x720.png --max-mean=0 --max-over1=0 --max-over8=0",
+	"gate": "Run the capture on main and on the candidate for both cases, then the diff for both; each IMAGE_DIFF line must be mean_abs=0 over1=0 over8=0 (exit 0). Capture main fresh in the same session if the GPU driver or machine changed."
+}

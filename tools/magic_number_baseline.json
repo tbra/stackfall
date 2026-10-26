@@ -6,7 +6,7 @@
  "autoload/Sfx.gd": 2,
  "autoload/match/BreezeEffect.gd": 1,
  "autoload/match/MatchFeed.gd": 1,
- "autoload/match/MatchGifts.gd": 11,
+ "autoload/match/MatchGifts.gd": 5,
  "autoload/match/MatchLifecycle.gd": 3,
  "autoload/match/MatchPlacement.gd": 2,
  "autoload/match/MatchTerritory.gd": 1,
