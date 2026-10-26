@@ -973,6 +973,31 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/fx/CartoonBlast.gd:spawn",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iquake (BombEffect) and P6-Irocket call it, and P6-Ipresenter drops _build_explosion; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/BlackHoleEffect.gd:effect_radius_m",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/BlackHoleEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/PropellerEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/VolcanoEffect.gd:build_client_fx",
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
   }
  ]
 }
