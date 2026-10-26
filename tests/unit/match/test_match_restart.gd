@@ -8,6 +8,7 @@ const CAMERA_RIG_SCENE: PackedScene = preload("res://game/player/CameraRig.tscn"
 const DIRTY_ZOOM: float = 40.0
 const ORBIT_DRAG_PX: Vector2 = Vector2(-120.0, 150.0)
 const TILT_IMPULSE: float = 5.0
+const TILT_SAMPLE_TICKS: int = 4
 const FOCUS_ACTION: StringName = &"camera_snap_goal"
 const RAIN_TUNING: RainTuning = preload("res://config/weather/rain.tres")
 const SCHEDULE: WeatherScheduleTuning = preload("res://config/weather/weather_schedule.tres")
@@ -120,6 +121,7 @@ func _dirty(rig: CameraRig) -> void:
 	rig.begin_follow_transition()
 	rig.set_local_slot(1)
 	if Match.field() != null:
+		Match.field().set_tilt_enabled(true)  # the impulse only moves a disc whose tilt is on
 		Match.field().apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
 	Input.action_press(FOCUS_ACTION)
 	rig._unhandled_input(_focus_event(true))
@@ -127,7 +129,9 @@ func _dirty(rig: CameraRig) -> void:
 	rig._unhandled_input(_focus_event(false))
 	Input.action_press(FOCUS_ACTION)
 	rig._unhandled_input(_focus_event(true))
-	await get_tree().process_frame
+	# The tilt shake is sampled across physics ticks: let a few run (a fast headless frame can have none).
+	for _i: int in range(TILT_SAMPLE_TICKS):
+		await get_tree().physics_frame
 	await get_tree().process_frame
 
 
