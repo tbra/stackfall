@@ -644,7 +644,7 @@ func _rotated_shape_hull() -> PackedVector2Array:
 
 ## Rebuilds the footprint quad (0 or 1 -- see _rotated_shape_hull()) and the
 ## vertical projection prism to match the current shape/rotation. The landing
-## height comes from a disk-only raycast (_raycast_disk_surface(), skipping any
+## height comes from a disk-only raycast (raycast_disk_surface(), skipping any
 ## placed RigidBody3D, like PlayerController's own surface probe) straight down
 ## from the hull's centroid, so the marker lands on the bare disc even when part
 ## of the held shape hovers over a placed block, never that block's top face. If
@@ -665,7 +665,7 @@ func _update_footprint() -> void:
 	var world_x: float = global_position.x + centroid.x
 	var world_z: float = global_position.z + centroid.y
 	var probe_origin: Vector3 = Vector3(world_x, ghost_tuning.cursor_ray_height, world_z)
-	var hit: Dictionary = _raycast_disk_surface(probe_origin)
+	var hit: Dictionary = raycast_disk_surface(probe_origin)
 	var landing_y: float
 	var landing_normal: Vector3
 	if hit.is_empty():
@@ -804,7 +804,7 @@ func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 		var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
 			origin, Vector3(origin.x, floor_y - _PIECE_FLOOR_RAY_MARGIN, origin.z)
 		)
-		params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		params.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 		params.exclude = exclude
 		var hit: Dictionary = space_state.intersect_ray(params)
 		if hit.is_empty():
@@ -1411,10 +1411,9 @@ func _rasterize_footprint_mask(loops: Array[PackedVector2Array], origin: Vector2
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so the
 ## first hit reported is the disk's own collision -- never a tower underneath the
-## hull's centroid. Mirrors game/player/PlayerController.gd's own
-## _raycast_disk_surface() (both call Field.raycast_disk_surface()), including
-## its surface_probe_max_blocks bound against a very tall or adversarial stack.
-func _raycast_disk_surface(origin: Vector3) -> Dictionary:
+## hull's centroid. Also the controller's cursor ray (null-checked);
+## bounded by surface_probe_max_blocks against a very tall or adversarial stack.
+func raycast_disk_surface(origin: Vector3) -> Dictionary:
 	if not is_inside_tree():
 		return {}
 	var world: World3D = get_world_3d()
@@ -1619,17 +1618,14 @@ func _apply_projection_material() -> void:
 # glow_pulse_start_hz to glow_pulse_end_hz. Nothing here touches timers or drops.
 # DECISION: remote ghosts get the steady glow (same material, so
 # it is free and consistent) but never the warning pulse -- only the ghost in
-# LOCAL_HELD_GROUP polls the local slot's timer.
+# LOCAL_HELD_GROUP gets the local slot's timer pushed by its controller.
 
-## Seconds left on the block timer, or a negative value when no timer applies.
+## Seconds left on the block timer (pushed by the owner), or a negative value when no timer applies.
 var _drop_time_left: float = -1.0
 var _pulse_phase: float = 0.0
 
 
 func _process(delta: float) -> void:
-	if is_in_group(LOCAL_HELD_GROUP):
-		set_drop_time_left(_local_feed_time_left())
-		set_glue_charges(_local_glue_charges())
 	advance_glow(delta)
 
 
@@ -1656,20 +1652,6 @@ func _apply_glue_overlay() -> void:
 			# Loaded by path, not by class name: HoneyCoat reaches Block, which would grow the layer-lint SCC.
 			var honey_coat: GDScript = LateScripts.script(LateScripts.HONEY_COAT)
 			honey_coat.call(&"set_ghost_coated", mesh_instance, _shape.cell_centres(tuning.cube_size), _glue_charges > 0)
-
-
-func _local_glue_charges() -> int:
-	var ctx: MatchContext = MatchContext.current()
-	var slot: int = ctx.active_slot() if ctx.net_is_offline() else ctx.net_local_slot()
-	return ctx.glue_drops_left(slot)
-
-
-func _local_feed_time_left() -> float:
-	var ctx: MatchContext = MatchContext.current()
-	if _shape == null or not ctx.feed_timer_enabled():
-		return -1.0
-	var slot: int = ctx.active_slot() if ctx.net_is_offline() else ctx.net_local_slot()
-	return ctx.feed_time_left(slot)
 
 
 ## Feeds the block timer (seconds left before the forced drop; negative = none).
