@@ -30,6 +30,8 @@ const SKY_CYCLE_ID: String = "cycle"
 const FREE_PORT_MIN: int = 48000
 const FREE_PORT_SPAN: int = 10000
 const FREE_PORT_TRIES: int = 50
+## Ports per process slice: concurrent processes draw from different slices.
+const FREE_PORT_SLICE: int = 100
 ## DECISION: probe window size; tools needing a real render resolution use
 ## make_render_viewport() instead of a big window.
 const WINDOW_SIZE: Vector2i = Vector2i(320, 180)
@@ -256,11 +258,16 @@ static func has_cli_port(user_args: PackedStringArray) -> bool:
 ## A currently bindable UDP port in [FREE_PORT_MIN, FREE_PORT_MIN + SPAN), or 0.
 ## Net.host_game() uses it in probe mode so agent-run hosts (benches, tool
 ## scenes) never collide with each other or with the ENet acceptance harness.
+## Each process draws from its own slice (picked by process id), so two concurrent
+## processes rarely probe the same port; the rest of the range is the fallback.
 static func free_udp_port() -> int:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.randomize()
-	for _try: int in FREE_PORT_TRIES:
-		var port: int = FREE_PORT_MIN + rng.randi() % FREE_PORT_SPAN
+	var slice_start: int = FREE_PORT_MIN + (hash(OS.get_process_id()) % (FREE_PORT_SPAN / FREE_PORT_SLICE)) * FREE_PORT_SLICE
+	for attempt: int in FREE_PORT_TRIES * 2:
+		var port: int = slice_start + rng.randi() % FREE_PORT_SLICE
+		if attempt >= FREE_PORT_TRIES:
+			port = FREE_PORT_MIN + rng.randi() % FREE_PORT_SPAN
 		var probe: PacketPeerUDP = PacketPeerUDP.new()
 		var err: Error = probe.bind(port)
 		probe.close()
