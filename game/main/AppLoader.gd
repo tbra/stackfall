@@ -12,8 +12,6 @@ const LOADING_STATUS_TEXT: String = "Loading..."
 var queue: MenuPrewarmQueue = null
 var quit: DeferredQuit = null
 
-## begin() ran: a window close is this loader's to answer.
-var _begun: bool = false
 ## True while the queue loads behind the menu.
 var _background: bool = false
 ## The menu has been shown once, so _process may advance the queue.
@@ -33,11 +31,11 @@ func _exit_tree() -> void:
 
 ## A window close once Boot has handed over is a real quit. While the prewarm owns the close
 ## request, the quit waits for the in-flight chunk (the message pump stays alive) and no further
-## chunk starts. DECISION: after the queue drained, a close quits through DeferredQuit too.
+## chunk starts. Once drained the engine owns the close again (one quit path).
 func _notification(what: int) -> void:
 	if what != NOTIFICATION_WM_CLOSE_REQUEST:
 		return
-	if not _begun:
+	if not _background:
 		if not quit.quit_callable.is_valid():  # test seam: no real quit
 			QuitFlag.mark()
 		return
@@ -85,7 +83,6 @@ func is_background() -> bool:
 
 ## Starts the queue (the Lobby chunk first) while the splash plays and takes the close request.
 func begin(_lobby_path: String) -> void:
-	_begun = true
 	_background = true
 	get_tree().auto_accept_quit = false  # Boot restored it at hand-over; the queue owns close now
 	queue.start(get_tree())

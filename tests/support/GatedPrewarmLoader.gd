@@ -3,7 +3,6 @@ extends PrewarmLoader
 ## A PrewarmLoader test double: requests are recorded and report IN_PROGRESS until `released`
 ## (or until `polls_to_load` status polls when set); collect()/load_now() really load the path
 ## unless `fake_resources` is set. `missing` paths do not exist.
-## `wire()` is the single place that hands a loader to a MenuPrewarmQueue.
 
 var released: bool = false
 ## When > 0 a request reports LOADED after this many status polls instead of waiting for `released`.
@@ -54,11 +53,6 @@ func _resource(path: String) -> Resource:
 	return Resource.new() if fake_resources else load(path)
 
 
-## Hands `loader` to `queue` (the queue's loader seam).
-static func wire(queue: MenuPrewarmQueue, loader: PrewarmLoader) -> void:
-	queue.loader = loader
-
-
 ## A queue over `chunk_list` (an Array of Arrays of paths) that loads through `loader`.
 static func make_queue(loader: PrewarmLoader, chunk_list: Array) -> MenuPrewarmQueue:
 	var cfg: MenuPrewarmConfig = MenuPrewarmConfig.new()
@@ -68,5 +62,5 @@ static func make_queue(loader: PrewarmLoader, chunk_list: Array) -> MenuPrewarmQ
 	cfg.chunks = chunks
 	var queue: MenuPrewarmQueue = MenuPrewarmQueue.new()
 	queue.config = cfg
-	wire(queue, loader)
+	queue.loader = loader
 	return queue

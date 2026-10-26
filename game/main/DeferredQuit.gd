@@ -1,6 +1,6 @@
 class_name DeferredQuit
 extends RefCounted
-## Close-request handling shared by AppLoader and Boot.
+## Close-request handling used by AppLoader.
 
 ## Test seam: when valid, replaces the real quit.
 var quit_callable: Callable = Callable()

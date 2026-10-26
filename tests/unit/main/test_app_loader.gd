@@ -192,7 +192,7 @@ func test_close_during_splash_quits_once_and_the_menu_never_shows() -> void:
 	assert_eq(_quit_calls, 1, "quit is called exactly once")
 
 
-func test_close_with_nothing_in_flight_quits_at_once() -> void:
+func test_close_after_the_queue_drained_is_left_to_the_engine() -> void:
 	var app: AppLoader = _make_app([[LOBBY]])
 	app.begin(LOBBY)
 	_gated.released = true
@@ -200,8 +200,9 @@ func test_close_with_nothing_in_flight_quits_at_once() -> void:
 	for _i: int in range(IDLE_FRAMES):
 		await get_tree().process_frame
 	app.notification(Node.NOTIFICATION_WM_CLOSE_REQUEST)
-	await _frames_until_quit()
-	assert_eq(_quit_calls, 1)
+	await get_tree().process_frame
+	assert_eq(_quit_calls, 0, "drained: the engine alone quits (one quit path)")
+	assert_true(get_tree().auto_accept_quit)
 
 
 func test_close_without_background_prewarm_is_left_to_the_engine() -> void:
