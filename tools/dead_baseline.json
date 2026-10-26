@@ -196,18 +196,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_slot_head",
-   "reason": "live: game/bots/BotController.gd:258 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Match.gd:pending_special_count",
    "reason": "live: ui/hud/HUD.gd:1393 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:preview_placement",
-   "reason": "live: game/player/PlayerController.gd:1621 (untyped or dynamic call)"
   },
   {
    "id": "test-only-func",
@@ -216,72 +206,7 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:active_cat",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchContextLive.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:gift_slot_head",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:held_special",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:preview_placement",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_cat_target",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_cursor",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_place",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_throw",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_use_gift_slot",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
@@ -566,11 +491,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "config/blocks/BlockShape.gd:cell_centres",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Icells, which removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
@@ -593,16 +513,6 @@
    "id": "test-only-func",
    "entry": "core/ai/BotModeGoal.gd:next_goal_index",
    "reason": "MatchTerritory.gd:423 in bot_mode_goal"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/gifts/GiftAim.gd:sanitize_downward_direction",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipaint (PaintballEffect:61) and P6-Iplace call it; Ipaint removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/gifts/GiftAim.gd:sanitize_launch_direction",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Irocket (RocketEffect wrappers) and P6-Iplace call it; Irocket removes this entry"
   },
   {
    "id": "test-only-func",
@@ -821,11 +731,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialBehavior.gd:state",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: Match.state() and other state() funcs share the name; the first caller is an effect package (Irocket/Ipaint/Iquake) reading its EffectState; Irocket removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:apply_launch",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace replaces MatchPlacement._apply_aim_direction; Iplace removes this entry"
   },
@@ -976,72 +881,7 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:active_cat",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/world/MatchContext.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:gift_slot_head",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:held_special",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:preview_placement",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_cat_target",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_cursor",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_place",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_throw",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_use_gift_slot",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
