@@ -54,13 +54,11 @@ var _triggered_count: int = 0
 var _max_chain_depth_seen: int = 0
 var _field: Field = null
 var _blocks_root: Node3D = null
-## Review fix: the 5 spawned volcano Blocks themselves, kept
-## around so the final report can print each one's own
-## volcano_orbs_spawned/volcano_orb_count meta -- the reviewer could not tell
-## "5 full eruptions" from "some fired zero orbs" (e.g. a volcano detonated by
-## a nearby chain reaction before its own eruption ever completed) from the
-## single aggregate result line alone.
-var _volcano_blocks: Array[Block] = []
+## Net ids of the 5 spawned volcanoes, so the final report can print how often
+## each one triggered (one line per volcano instead of only the aggregate).
+var _volcano_net_ids: Array[int] = []
+## Events.special_triggered count per volcano net id (the volcano's own trigger).
+var _volcano_triggers: Dictionary = {}
 
 
 func _ready() -> void:
@@ -117,13 +115,15 @@ func _spawn_volcanoes() -> void:
 			cube_shape, origin, Basis.IDENTITY, 0, Vector3.ZERO, volcano_def, null
 		)
 		if volcano != null:
-			_volcano_blocks.append(volcano)
+			_volcano_net_ids.append(volcano.net_id)
 
 
 func _on_special_triggered(
-	_net_id: int, _def_id: StringName, _position: Vector3, chain_depth: int
+	net_id: int, _def_id: StringName, _position: Vector3, chain_depth: int
 ) -> void:
 	_triggered_count += 1
+	if _volcano_net_ids.has(net_id):
+		_volcano_triggers[net_id] = int(_volcano_triggers.get(net_id, 0)) + 1
 	_max_chain_depth_seen = maxi(_max_chain_depth_seen, chain_depth)
 
 
@@ -143,19 +143,11 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_finished = true
-	# Review fix: one line per volcano so a self-triggered
-	# volcano (spawned < orb_count) is visible instead of hidden inside the
-	# single aggregate result line below.
-	for idx: int in range(_volcano_blocks.size()):
-		var volcano: Block = _volcano_blocks[idx]
-		var orb_count: int = (
-			int(volcano.get_meta(&"volcano_orb_count")) if volcano.has_meta(&"volcano_orb_count") else -1
-		)
-		var spawned: int = (
-			int(volcano.get_meta(&"volcano_orbs_spawned")) if volcano.has_meta(&"volcano_orbs_spawned") else 0
-		)
+	# One line per volcano so a volcano that never triggered is visible.
+	for idx: int in range(_volcano_net_ids.size()):
 		print(
-			"BENCH_SPECIALS_CHAIN volcano=%d spawned=%d orb_count=%d" % [idx, spawned, orb_count]
+			"BENCH_SPECIALS_CHAIN volcano=%d triggered_count=%d"
+			% [idx, int(_volcano_triggers.get(_volcano_net_ids[idx], 0))]
 		)
 	var avg_step_ms: float = _step_time_sum_ms / float(_tick)
 	var equivalent_fps: float = 1000.0 / avg_step_ms if avg_step_ms > 0.0 else 0.0

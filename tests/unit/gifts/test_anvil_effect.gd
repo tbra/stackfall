@@ -9,6 +9,16 @@ extends GutTest
 const AWAKE_MAX_FRAMES: int = 480
 const AWAKE_KICK_EVERY_FRAMES: int = 6
 const AWAKE_KICK_IMPULSE: float = 1.0
+const TICK: float = 1.0 / 60.0
+const MOVING_SPEED_MPS: float = 5.0
+const MOVING_TICKS: int = 10
+## Past LandedTuning.landed_hold_s (0.2 s) at 60 ticks per second.
+const HOLD_TICKS: int = 15
+## Physics frames for a dropped cube to come to rest on the field.
+const SETTLE_FRAMES: int = 20
+const NEVER_IMPACT: float = 1.0e9
+## Cube centre height above the field surface: resting, inside the landing probe's reach.
+const RESTING_OFFSET_M: float = 0.52
 
 
 # --- shared stub-Block/def/behavior fixture (no physics, no scene tree) -----
@@ -41,6 +51,29 @@ func _make_behavior(block: Block, def: SpecialDef) -> SpecialBehavior:
 	return behavior
 
 
+## A real, tiny Field registered with Match (the same fixture the awake-disc test uses).
+func _register_real_field() -> Field:
+	var field: Field = autofree(Field.new())
+	field.map_def = _small_map()
+	add_child_autofree(field)
+	_blocks_root = autofree(Node3D.new())
+	add_child_autofree(_blocks_root)
+	_registry = autofree(BlockRegistry.new())
+	add_child_autofree(_registry)
+	Match.register_world(field, _registry, _blocks_root)
+	return field
+
+
+## A real cube placed just above the field surface, so the landing probe finds contact.
+func _make_resting_block(field: Field) -> Block:
+	var shape: BlockShape = load("res://config/blocks/cube.tres") as BlockShape
+	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres") as PhysicsTuning
+	var block: Block = BlockFactory.build(shape, tuning)
+	add_child_autofree(block)
+	block.global_position = Vector3(1.0, field.surface_y() + RESTING_OFFSET_M, 1.0)
+	return block
+
+
 # --- mass override: once armed, idempotent, never before arming -------------
 
 func test_mass_override_applied_on_the_first_armed_tick() -> void:
@@ -54,19 +87,31 @@ func test_mass_override_applied_on_the_first_armed_tick() -> void:
 	assert_eq(block.mass, 60.0, "mass must be overridden the instant the special arms")
 
 
-## End-to-end through SpecialBehavior.advance(): once landed the behaviour
-## triggers (and detonate() runs) via physics_tick()+wants_early_trigger().
+## End-to-end through SpecialBehavior.advance(): a real block resting on a real Field
+## is "landed" once its speed relative to the support stays under the landing threshold
+## for the hold time. The block velocity is the only stub (no physics frames run while
+## the behaviour is driven), so the landing probe reads exactly what it reads in game.
 func test_landing_triggers_the_behavior_through_advance() -> void:
+	var field: Field = _register_real_field()
+	var block: Block = _make_resting_block(field)
+	await wait_physics_frames(SETTLE_FRAMES)  # let the cube come to rest on the field
 	var effect: AnvilEffect = AnvilEffect.new()
-	var block: Block = _make_block(Vector3.ZERO, 1.0)
 	var def: SpecialDef = _make_def(effect, 0.1)
+	def.arm_impulse = NEVER_IMPACT  # the stubbed velocity steps must not read as a crash
 	var behavior: SpecialBehavior = _make_behavior(block, def)
+	behavior.set_physics_process(false)  # only this test advances the behaviour
 
-	behavior.advance(0.1)  # arms; still airborne, must not trigger yet
-	assert_false(behavior.is_triggered())
+	block.linear_velocity = Vector3(MOVING_SPEED_MPS, 0.0, 0.0)
+	for _i: int in range(MOVING_TICKS):
+		behavior.advance(TICK)
+	assert_eq(block.mass, effect.mass, "armed: heavy before it lands")
+	assert_false(behavior.is_triggered(), "a moving anvil has not landed")
 
-	(block.get_meta(&"anvil_landed_probe") as LandedProbe)._landed = true
-	behavior.advance(0.1)
+	block.linear_velocity = Vector3.ZERO
+	behavior.advance(TICK)
+	assert_false(behavior.is_triggered(), "one slow tick is not the landing hold time")
+	for _i: int in range(HOLD_TICKS):
+		behavior.advance(TICK)
 	assert_true(behavior.is_triggered(), "landing must early-trigger once armed")
 
 
