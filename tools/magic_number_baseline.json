@@ -63,7 +63,7 @@
  "game/main/MainHeadlessBotsFlow.gd": 2,
  "game/player/CameraRig.gd": 8,
  "game/player/GhostPreview.gd": 12,
- "game/player/PlayerController.gd": 7,
+ "game/player/PlayerController.gd": 5,
  "game/player/ThrowArcPreview.gd": 5,
  "game/sky/CloudSea.gd": 53,
  "game/sky/CloudShadows.gd": 2,

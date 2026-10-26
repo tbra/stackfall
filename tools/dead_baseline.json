@@ -71,6 +71,7 @@
    "ui/theme/UiScale.gd:stretch_factor",
    "ui/theme/UiScale.gd:user_factor"
   ],
+  "test-only-var": [],
   "stale-path": [
    "tests/enet/reset_enet.gd: docs/MATCH_RESET_AUDIT.md",
    "tests/support/MatchFingerprint.gd: docs/MATCH_RESET_AUDIT.md",
@@ -785,16 +786,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/world/LocalHeldView.gd:clear",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/LocalHeldView.gd:publish",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/world/MatchContext.gd:active_cat",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
@@ -826,11 +817,6 @@
   {
    "id": "test-only-func",
    "entry": "game/world/MatchContext.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:local_held",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
