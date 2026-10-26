@@ -14,7 +14,7 @@ extends GutTest
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
-var _main: Variant = null
+var _main: Main = null
 var _tutorial: Tutorial = null
 var _tiny_map: MapDef
 
@@ -50,7 +50,7 @@ func _setup_menu(timed_round: bool = false) -> void:
 	_main.match_config = tiny_config
 
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	assert_not_null(_main_menu(), "fixture: Main boots to the main menu with no command-line flags")
 
 
 func _teardown_menu() -> void:
@@ -70,12 +70,50 @@ func _run_countdown() -> void:
 ## Enters the tutorial and stops before the match reaches PLAYING.
 func _start_tutorial_before_play() -> void:
 	_main.start_tutorial_from_menu()
-	_tutorial = _main._tutorial
+	_tutorial = _live_tutorial()
 
 
 func _start_tutorial() -> void:
 	_start_tutorial_before_play()
 	_run_countdown()
+
+
+## The first live (not queued for deletion) node of a class under Main.
+func _first_live(type_name: StringName) -> Node:
+	for node: Node in _main.find_children("*", type_name, true, false):
+		if not node.is_queued_for_deletion():
+			return node
+	return null
+
+
+func _live_tutorial() -> Tutorial:
+	return _first_live(&"Tutorial") as Tutorial
+
+
+func _local_player() -> LocalPlayer:
+	return _first_live(&"LocalPlayer") as LocalPlayer
+
+
+func _main_menu() -> MainMenu:
+	return _first_live(&"MainMenu") as MainMenu
+
+
+func _lobby() -> Lobby:
+	return _first_live(&"Lobby") as Lobby
+
+
+func _pause_menu() -> PauseMenu:
+	return _first_live(&"PauseMenu") as PauseMenu
+
+
+## The id of the step the prompt shows ("<n>/<count>" on the step label), or &""
+## while no step runs (the prompt panel stays hidden until step 1 begins and after
+## the tutorial ends).
+func _step_id() -> StringName:
+	if _tutorial == null or not is_instance_valid(_tutorial) or not _prompt_panel_visible():
+		return &""
+	var shown: int = int((_tutorial.get_node("%StepLabel") as Label).text.split("/")[0])
+	return _tutorial.tutorial_config.steps[shown - 1].id
 
 
 func _prompt_panel_visible() -> bool:
@@ -87,7 +125,7 @@ func _prompt_panel_visible() -> bool:
 ## only cares about a later step doesn't have to repeat both drives itself.
 func _advance_to_territory_step() -> void:
 	Events.block_placed.emit(null, &"cube")
-	_tutorial._ghost.set_orientation_index(1)
+	_local_player().ghost().set_orientation_index(1)
 	_tutorial._process(0.016)
 
 
@@ -105,7 +143,7 @@ func _advance_to_camera_step() -> void:
 
 func test_start_tutorial_from_menu_builds_a_playing_one_player_real_rules_match() -> void:
 	_setup_menu()
-	assert_null(_main._lobby, "fixture: no Lobby exists before the Tutorial button is reached.")
+	assert_null(_lobby(), "fixture: no Lobby exists before the Tutorial button is reached.")
 
 	_start_tutorial()
 
@@ -118,11 +156,11 @@ func test_start_tutorial_from_menu_builds_a_playing_one_player_real_rules_match(
 		"only the gift the lesson teaches is enabled."
 	)
 	assert_eq(Match.config.special_frequency, 0, "no random crates: the lesson grants its own gift.")
-	assert_null(_main._lobby, "the Main-Menu tutorial path never builds a Lobby.")
+	assert_null(_lobby(), "the Main-Menu tutorial path never builds a Lobby.")
 	assert_true(Net.is_offline(), "the Main-Menu tutorial path never touches Net's host/join state.")
-	assert_null(_main._main_menu, "the menu is cleared once the tutorial world exists.")
+	assert_null(_main_menu(), "the menu is cleared once the tutorial world exists.")
 	assert_not_null(_tutorial, "start_tutorial_from_menu() must build the Tutorial scene.")
-	assert_eq(_tutorial._current_step().id, &"placing", "the tutorial always begins on step 1.")
+	assert_eq(_step_id(), &"placing", "the tutorial always begins on step 1.")
 
 	await _teardown_menu()
 
@@ -166,7 +204,7 @@ func test_the_f4_tuning_panel_exists_under_the_local_player() -> void:
 	_setup_menu()
 	_start_tutorial()
 
-	var local_player: Node = _main._local_player
+	var local_player: Node = _local_player()
 	assert_not_null(local_player, "the tutorial runs on the real local player.")
 	assert_eq(local_player.find_children("*", "TuningPanel", true, false).size(), 1)
 
@@ -181,7 +219,7 @@ func test_no_step_or_prompt_before_playing_and_step_one_begins_at_playing() -> v
 	assert_ne(Match.state(), Match.State.PLAYING, "fixture: the tutorial is attached before play begins.")
 	var ticks: int = 0
 	while Match.state() != Match.State.PLAYING and ticks < COUNTDOWN_TICK_CAP:
-		assert_null(_tutorial._current_step(), "no step runs while the match is %d." % Match.state())
+		assert_eq(_step_id(), &"", "no step runs while the match is %d." % Match.state())
 		assert_false(_prompt_panel_visible(), "no prompt shows while the match is %d." % Match.state())
 		Events.block_placed.emit(null, &"cube")
 		Events.territory_share_changed.emit(PackedFloat32Array([1.0]))
@@ -193,8 +231,8 @@ func test_no_step_or_prompt_before_playing_and_step_one_begins_at_playing() -> v
 		ticks += 1
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the match reached PLAYING.")
 	assert_eq(Match.pending_special_count(0), 0, "nothing granted a special before play.")
-	assert_not_null(_tutorial._current_step())
-	assert_eq(_tutorial._current_step().id, &"placing", "step 1 begins at PLAYING, untouched by earlier input.")
+	assert_ne(_step_id(), &"")
+	assert_eq(_step_id(), &"placing", "step 1 begins at PLAYING, untouched by earlier input.")
 	assert_true(_prompt_panel_visible(), "the prompt shows once step 1 begins.")
 
 	await _teardown_menu()
@@ -207,14 +245,14 @@ func test_step_placing_advances_exactly_once_on_block_placed() -> void:
 	_start_tutorial()
 
 	Events.block_placed.emit(null, &"cube")
-	assert_eq(_tutorial._current_step().id, &"rotating", "step 1 advances on Events.block_placed.")
+	assert_eq(_step_id(), &"rotating", "step 1 advances on Events.block_placed.")
 
 	# A second block_placed while "rotating" is current must not also fire
 	# that step's own advance a second time (it isn't listening for this
 	# signal any more) -- proves the completion check is scoped to the
 	# *current* step, not "any step this signal could ever complete".
 	Events.block_placed.emit(null, &"cube")
-	assert_eq(_tutorial._current_step().id, &"rotating", "a second block_placed must not skip past step 2.")
+	assert_eq(_step_id(), &"rotating", "a second block_placed must not skip past step 2.")
 
 	await _teardown_menu()
 
@@ -225,7 +263,7 @@ func test_step_specials_queues_the_demo_special_and_advances_on_special_consumed
 	_setup_menu()
 	_start_tutorial()
 	_advance_to_specials_step()
-	assert_eq(_tutorial._current_step().id, &"specials", "fixture: must reach step 4 first.")
+	assert_eq(_step_id(), &"specials", "fixture: must reach step 4 first.")
 	assert_eq(
 		Match.pending_special_count(0), 1,
 		"step 4 must force-queue tutorial_config.demo_special_id via Match.debug_queue_special()."
@@ -235,10 +273,10 @@ func test_step_specials_queues_the_demo_special_and_advances_on_special_consumed
 	# advance (defensive -- there is only ever slot 0 here, but this pins the
 	# guard rather than assuming it is dead code).
 	Events.special_consumed.emit(1, _tutorial.tutorial_config.demo_special_id)
-	assert_eq(_tutorial._current_step().id, &"specials", "a different slot's special_consumed must not complete this step.")
+	assert_eq(_step_id(), &"specials", "a different slot's special_consumed must not complete this step.")
 
 	Events.special_consumed.emit(0, _tutorial.tutorial_config.demo_special_id)
-	assert_eq(_tutorial._current_step().id, &"camera", "step 4 advances once the tutorial slot's special is consumed.")
+	assert_eq(_step_id(), &"camera", "step 4 advances once the tutorial slot's special is consumed.")
 
 	await _teardown_menu()
 
@@ -249,12 +287,12 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 	_setup_menu()
 	_start_tutorial()
 	_advance_to_camera_step()
-	assert_eq(_tutorial._current_step().id, &"camera", "fixture: must reach step 5 first.")
+	assert_eq(_step_id(), &"camera", "fixture: must reach step 5 first.")
 
 	Input.action_press(&"camera_orbit")
 	_tutorial._process(1.0)
 	assert_eq(
-		_tutorial._current_step().id, &"camera",
+		_step_id(), &"camera",
 		"1s of a %.1fs hold must not finish the tutorial yet." % [_tutorial.tutorial_config.camera_hold_seconds]
 	)
 
@@ -262,8 +300,8 @@ func test_step_camera_advances_after_the_configured_hold_and_ends_the_tutorial()
 	Input.action_release(&"camera_orbit")
 
 	assert_eq(Match.state(), Match.State.LOBBY, "step 5 completing ends the tutorial (Match.abort_match()).")
-	assert_null(_main._tutorial, "game/main/Main.gd frees the Tutorial node once `finished` fires.")
-	assert_not_null(_main._main_menu, "the tutorial finishing returns control to the Main Menu.")
+	assert_null(_live_tutorial(), "game/main/Main.gd frees the Tutorial node once `finished` fires.")
+	assert_not_null(_main_menu(), "the tutorial finishing returns control to the Main Menu.")
 
 	await _teardown_menu()
 
@@ -287,8 +325,8 @@ func test_pause_menu_action_aborts_cleanly_from_any_step() -> void:
 	_tutorial._unhandled_input(cancel_event)
 
 	assert_eq(Match.state(), Match.State.LOBBY, "pause_menu must call Match.abort_match().")
-	assert_null(_main._tutorial, "game/main/Main.gd frees the Tutorial node once `finished` fires.")
-	assert_not_null(_main._main_menu, "cancelling returns control to the Main Menu.")
+	assert_null(_live_tutorial(), "game/main/Main.gd frees the Tutorial node once `finished` fires.")
+	assert_not_null(_main_menu(), "cancelling returns control to the Main Menu.")
 
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -313,8 +351,8 @@ func test_the_match_reaching_end_ends_the_tutorial_once() -> void:
 
 	assert_eq(finished_count[0], 1, "the tutorial finishes exactly once when the match ends.")
 	assert_eq(Match.state(), Match.State.LOBBY, "ending the tutorial leaves the match.")
-	assert_null(_main._tutorial)
-	assert_not_null(_main._main_menu, "the menu is shown again.")
+	assert_null(_live_tutorial())
+	assert_not_null(_main_menu(), "the menu is shown again.")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_false(is_instance_valid(freed_tutorial), "no Tutorial node is left in the tree.")
@@ -325,12 +363,12 @@ func test_the_match_reaching_end_ends_the_tutorial_once() -> void:
 func test_the_pause_menu_is_suppressed_while_the_tutorial_runs_and_inert_at_the_menu_after() -> void:
 	_setup_menu()
 	_start_tutorial()
-	assert_true(_main._pause_menu.suppressed, "Escape quits the tutorial; the pause menu stays closed.")
+	assert_true(_pause_menu().suppressed, "Escape quits the tutorial; the pause menu stays closed.")
 
 	_tutorial._unhandled_input(_pause_event())
 
-	assert_not_null(_main._main_menu, "the player is back at the main menu.")
-	assert_true(_main._pause_menu.suppressed, "the pause menu stays inert over the main menu.")
+	assert_not_null(_main_menu(), "the player is back at the main menu.")
+	assert_true(_pause_menu().suppressed, "the pause menu stays inert over the main menu.")
 
 	await _teardown_menu()
 

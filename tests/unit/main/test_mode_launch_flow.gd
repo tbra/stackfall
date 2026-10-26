@@ -5,9 +5,12 @@ extends GutTest
 ## menu entries (start_sandbox_from_menu / start_tutorial_from_menu).
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
+## Frames a lobby start may take (its loading overlay holds a few before the match starts).
+const LOBBY_START_FRAME_CAP: int = 30
 
-## Main has no class_name (a scene root), so it is held as a Variant.
-var _main: Variant = null
+## Everything the flows build is read back through the tree (typed queries under
+## Main) and the public API, never through Main's private fields.
+var _main: Main = null
 var _tiny_map: MapDef
 var _saved_gravity_multiplier: float
 
@@ -27,7 +30,7 @@ func before_each() -> void:
 	tiny_match_config.rng_seed = 4242
 	_main.match_config = tiny_match_config
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu")
+	assert_not_null(_main_menu(), "fixture: Main boots to the main menu")
 	_saved_gravity_multiplier = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier
 
 
@@ -54,10 +57,46 @@ func _lobby_config() -> MatchConfig:
 	return config
 
 
-## A normal lobby match: host a session, then what the lobby's Start does.
-func _start_lobby_match() -> void:
+## What the lobby's Start button does: host a session (Main shows the Lobby), then
+## the Lobby asks to start. Main raises the loading screen at once and starts the
+## match once its pre-start frames have rendered.
+func _request_lobby_start() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
-	_main._on_lobby_start_requested(_lobby_config())
+	var lobby: Lobby = _first_live(&"Lobby") as Lobby
+	assert_not_null(lobby, "fixture: hosting shows the Lobby")
+	lobby.start_requested.emit(_lobby_config())
+
+
+## A normal lobby match, waited on until Match has left the lobby state.
+func _start_lobby_match() -> void:
+	_request_lobby_start()
+	var frames: int = 0
+	while Match.state() == Match.State.LOBBY and frames < LOBBY_START_FRAME_CAP:
+		await get_tree().process_frame
+		frames += 1
+	assert_ne(Match.state(), Match.State.LOBBY, "fixture: the lobby's Start began the match")
+
+
+## The first live (not queued for deletion) node of a class under Main.
+func _first_live(type_name: StringName) -> Node:
+	for node: Node in _main.find_children("*", type_name, true, false):
+		if not node.is_queued_for_deletion():
+			return node
+	return null
+
+
+func _main_menu() -> MainMenu:
+	return _first_live(&"MainMenu") as MainMenu
+
+
+## A built world carries its local player (the flow frees both together).
+func _world_built() -> bool:
+	return _first_live(&"LocalPlayer") != null
+
+
+func _loading_screen_visible() -> bool:
+	var screen: LoadingScreen = _first_live(&"LoadingScreen") as LoadingScreen
+	return screen != null and screen.visible
 
 
 func _count(type_check: Callable) -> int:
@@ -91,49 +130,49 @@ func _rig_pose() -> Transform3D:
 # --- Cases that run on today's lobby path ------------------------------------
 
 func test_lobby_match_builds_one_local_player_and_no_extras() -> void:
-	_start_lobby_match()
+	await _start_lobby_match()
 	await _settle()
 
-	assert_true(_main._world_built, "the world is built")
+	assert_true(_world_built(), "the world is built")
 	assert_eq(_local_players(), 1, "exactly one local player")
 	assert_eq(_extras_nodes(), 0, "a lobby match attaches no mode extras")
 
 
 func test_lobby_match_shows_the_loading_screen() -> void:
-	_start_lobby_match()
+	_request_lobby_start()
 
-	assert_true((_main._loading_screen as LoadingScreen).visible, "a lobby match loads behind the loading screen")
+	assert_true(_loading_screen_visible(), "a lobby match loads behind the loading screen")
 
 
 func test_leaving_frees_the_local_player() -> void:
-	_start_lobby_match()
+	await _start_lobby_match()
 	await _settle()
 	assert_eq(_local_players(), 1, "fixture: a local player exists")
 
 	Net.leave()
 	await _settle()
 
-	assert_false(_main._world_built)
+	assert_false(_world_built())
 	assert_eq(_local_players(), 0, "the local player is gone with the world")
 	assert_eq(_extras_nodes(), 0)
 
 
 func test_restart_rebuilds_exactly_one_local_player() -> void:
-	_start_lobby_match()
+	await _start_lobby_match()
 	await _settle()
-	var first: Node = _main._local_player
+	var first: Node = _first_live(&"LocalPlayer")
 
 	Match.start_match(Match.config)
 	await _settle()
 
-	assert_true(_main._world_built, "the restart built a world again")
+	assert_true(_world_built(), "the restart built a world again")
 	assert_eq(_local_players(), 1, "one local player after the restart, not two")
-	assert_ne(_main._local_player, first, "a fresh local player, not the old one")
+	assert_ne(_first_live(&"LocalPlayer"), first, "a fresh local player, not the old one")
 	assert_eq(_extras_nodes(), 0)
 
 
 func test_restart_resets_the_camera_rig_pose_like_any_rebuild() -> void:
-	_start_lobby_match()
+	await _start_lobby_match()
 	await _settle()
 	var built_pose: Transform3D = _rig_pose()
 	var rig: CameraRig = _main.get_node("CameraRig") as CameraRig
@@ -152,7 +191,7 @@ func test_sandbox_attaches_its_extras_once_for_the_built_world() -> void:
 	_main.start_sandbox_from_menu()
 	await _settle()
 
-	assert_true(_main._world_built)
+	assert_true(_world_built())
 	assert_eq(_local_players(), 1, "the sandbox drives the one local player")
 	assert_eq(_sandbox_nodes(), 1, "one sandbox extras node")
 	assert_eq(_tutorial_nodes(), 0)
@@ -162,7 +201,7 @@ func test_tutorial_attaches_its_extras_once_for_the_built_world() -> void:
 	_main.start_tutorial_from_menu()
 	await _settle()
 
-	assert_true(_main._world_built)
+	assert_true(_world_built())
 	assert_eq(_local_players(), 1)
 	assert_eq(_tutorial_nodes(), 1, "one tutorial extras node")
 	assert_eq(_sandbox_nodes(), 0)
@@ -171,8 +210,8 @@ func test_tutorial_attaches_its_extras_once_for_the_built_world() -> void:
 func test_restart_attaches_extras_again_and_frees_the_old_ones() -> void:
 	_main.start_sandbox_from_menu()
 	await _settle()
-	var first_extras: Node = _main._sandbox
-	var first_player: Node = _main._local_player
+	var first_extras: Node = _first_live(&"Sandbox")
+	var first_player: Node = _first_live(&"LocalPlayer")
 
 	Match.start_match(Match.config)
 	await _settle()
@@ -181,7 +220,7 @@ func test_restart_attaches_extras_again_and_frees_the_old_ones() -> void:
 	assert_eq(_local_players(), 1, "exactly one local player after the restart")
 	assert_false(is_instance_valid(first_extras), "the old extras node was freed")
 	assert_false(is_instance_valid(first_player), "the old local player was freed")
-	assert_not_null(_main._sandbox, "the new world has its extras")
+	assert_not_null(_first_live(&"Sandbox"), "the new world has its extras")
 
 
 func test_restart_keeps_the_mode_so_the_extras_return() -> void:
@@ -205,7 +244,7 @@ func test_returning_to_lobby_frees_extras_and_local_player_and_forgets_the_mode(
 	assert_eq(_local_players(), 0, "local player freed with the world")
 
 	# The mode is forgotten: an ordinary lobby match afterwards has no extras.
-	_start_lobby_match()
+	await _start_lobby_match()
 	await _settle()
 	assert_eq(_local_players(), 1)
 	assert_eq(_extras_nodes(), 0, "a later lobby match does not inherit the sandbox")
@@ -214,13 +253,13 @@ func test_returning_to_lobby_frees_extras_and_local_player_and_forgets_the_mode(
 func test_sandbox_skips_the_loading_screen() -> void:
 	_main.start_sandbox_from_menu()
 
-	assert_false((_main._loading_screen as LoadingScreen).visible, "sandbox starts at once, no loading screen")
+	assert_false(_loading_screen_visible(), "sandbox starts at once, no loading screen")
 
 
 func test_tutorial_shows_the_loading_screen() -> void:
 	_main.start_tutorial_from_menu()
 
-	assert_true((_main._loading_screen as LoadingScreen).visible, "only the sandbox skips loading")
+	assert_true(_loading_screen_visible(), "only the sandbox skips loading")
 
 
 func test_sandbox_restart_resets_the_camera_rig_pose_like_any_rebuild() -> void:

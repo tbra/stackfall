@@ -5,10 +5,9 @@ const CAMERA_RIG_SCENE: PackedScene = preload("res://game/player/CameraRig.tscn"
 ## Physics frames a dropped block gets to come to rest and freeze.
 const REST_FRAME_LIMIT: int = 900
 
-## game/main/Main.gd has no class_name (a scene root, not a type other code
-## names -- see tests/unit/match/test_match_lifecycle.gd's matching comment), so
-## the instance is held through a Variant-typed reference.
-var _main: Variant = null
+## Everything the flows build is read back through the tree (typed queries under
+## Main) and the nodes' public API, never through Main's private fields.
+var _main: Main = null
 
 ## DECISION: see test_match_flow.gd's own `_tiny_map` comment.
 ## Main.gd's `_build_sandbox_config()` (game/main/Main.gd) duplicates its own
@@ -36,7 +35,7 @@ func before_each() -> void:
 	tiny_match_config.rng_seed = 4242
 	_main.match_config = tiny_match_config
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	assert_not_null(_main_menu(), "fixture: Main boots to the main menu with no command-line flags")
 
 
 func after_each() -> void:
@@ -49,7 +48,7 @@ func after_each() -> void:
 	# this, a forced drawer left installed here would leak into whichever
 	# test file's Match._gifts the test runner happens to load next in the
 	# same process (see test_gift_claim.gd's matching after_each() cleanup).
-	Match._gifts.set_special_drawer(Match._gifts._default_special_drawer)
+	Match.restore_default_special_drawer()
 	DebugMode.clear_override_for_test()
 	Match.abort_match()
 	SnapshotSync.end_match()
@@ -64,12 +63,13 @@ func _run_countdown() -> void:
 		Match._process(1.0 / Engine.physics_ticks_per_second)
 
 
-## Bypasses OS.get_cmdline_user_args() (there is no setter to fake it with —
-## see game/main/Main.gd's own DECISION on _start_sandbox_match_with_args()) with
-## a manufactured argument list, the same seam autoload/Net.gd's
-## _apply_command_line_args() uses for the same reason.
+## The menu entry with the player count the `players=` argument would give: the
+## exported sandbox_config's default_player_count.
 func _start_sandbox(player_count: int) -> void:
-	_main._sandbox_flow_port().call(&"start_sandbox_match_with_args", PackedStringArray(["sandbox", "players=%d" % player_count]))
+	var preset: SandboxConfig = _main.sandbox_config.duplicate(true) as SandboxConfig
+	preset.default_player_count = player_count
+	_main.sandbox_config = preset
+	_main.start_sandbox_from_menu()
 
 
 ## Every live Sandbox node under Main: after a rebuild the old one may still be
@@ -80,6 +80,41 @@ func _sandbox_nodes() -> Array[Node]:
 		if child is Sandbox and not child.is_queued_for_deletion():
 			found.append(child)
 	return found
+
+
+## The first live (not queued for deletion) node of a class under Main.
+func _first_live(type_name: StringName) -> Node:
+	for node: Node in _main.find_children("*", type_name, true, false):
+		if not node.is_queued_for_deletion():
+			return node
+	return null
+
+
+func _sandbox() -> Sandbox:
+	return _first_live(&"Sandbox") as Sandbox
+
+
+func _local_player() -> LocalPlayer:
+	return _first_live(&"LocalPlayer") as LocalPlayer
+
+
+func _main_menu() -> MainMenu:
+	return _first_live(&"MainMenu") as MainMenu
+
+
+func _lobby() -> Lobby:
+	return _first_live(&"Lobby") as Lobby
+
+
+func _field() -> Field:
+	return _main.get_node("Field") as Field
+
+
+## The slot the local controller acts for, as it publishes it to the held view
+## every frame (the HUD and perching birds read the same store).
+func _controller_slot() -> int:
+	await get_tree().process_frame
+	return MatchContext.current().local_held().slot_id
 
 
 func _hud_count() -> int:
@@ -111,22 +146,22 @@ func test_leaving_a_sandbox_leaves_no_local_player_no_extras_node_and_the_launch
 		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
 		"fixture: exactly one local-held ghost while the sandbox is live"
 	)
-	var rig: CameraRig = _main._camera_rig as CameraRig
+	var rig: CameraRig = _main.get_node("CameraRig") as CameraRig
 	rig.zoom_continuous(40.0)
 	rig.set_follow_position(Vector3(12.0, 3.0, -7.0))
 	assert_ne(rig.get_distance(), fresh.get_distance(), "fixture: the player zoomed away from the launch view")
 
-	_main._on_pause_leave_requested()
+	(_first_live(&"PauseMenu") as PauseMenu).leave_match_requested.emit()
 	await get_tree().process_frame
 
-	assert_null(_main._local_player, "leaving a sandbox must leave no local player behind")
+	assert_null(_local_player(), "leaving a sandbox must leave no local player behind")
 	assert_eq(
 		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0,
 		"leaving a sandbox must free its PlayerController/GhostPreview subtree"
 	)
 	assert_eq(_sandbox_nodes().size(), 0, "no extras node survives the leave")
-	assert_null(_main._sandbox, "the sandbox instance itself must be freed and nulled")
-	assert_not_null(_main._main_menu, "leaving must show the main menu")
+	assert_null(_sandbox(), "the sandbox instance itself must be freed and nulled")
+	assert_not_null(_main_menu(), "leaving must show the main menu")
 	# ROOT CAUSE pin (Main._on_pause_leave_requested): a controller freed late
 	# wrote its follow position back over the reset, so the menu showed a stale camera.
 	assert_almost_eq(rig.get_distance(), fresh.get_distance(), 0.0001, "the menu shows the launch zoom")
@@ -156,15 +191,15 @@ func test_sandbox_flag_builds_an_offline_world_with_n_slots() -> void:
 	assert_true(Match.config.sandbox, "the sandbox config flag is set")
 	assert_true(Match.config.sandbox, "relaxed rules, one meaning")
 	assert_eq(Match.config.ai_count, 0)
-	assert_not_null(_main._sandbox, "Main built a Sandbox instance")
-	assert_true(_main._sandbox is Sandbox)
-	assert_not_null(_main._debug_overlay, "F3's net debug overlay is available offline too")
-	assert_eq(_main._field.home_flags().size(), 3, "one home flag per sandbox slot")
+	assert_not_null(_sandbox(), "Main built a Sandbox instance")
+	assert_true(_sandbox() is Sandbox)
+	assert_not_null(_first_live(&"NetDebugOverlay"), "F3's net debug overlay is available offline too")
+	assert_eq(_field().home_flags().size(), 3, "one home flag per sandbox slot")
 
 
 func test_sandbox_never_reaches_the_lobby() -> void:
 	_start_sandbox(2)
-	assert_null(_main._lobby, "sandbox never opens a lobby (game/main/Main.gd's early return)")
+	assert_null(_lobby(), "sandbox never opens a lobby (game/main/Main.gd's early return)")
 	assert_true(Net.is_offline(), "sandbox never calls Net.host_game()/join_game()")
 
 
@@ -173,16 +208,16 @@ func test_sandbox_never_reaches_the_lobby() -> void:
 func test_sandbox_next_slot_cycles_the_acting_slot_and_wraps() -> void:
 	_start_sandbox(3)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 	assert_eq(sandbox.active_slot(), 0, "Match._begin_playing() seeds slot 0 first")
-	assert_eq(_main._local_player.controller()._active_slot, 0)
+	assert_eq(await _controller_slot(), 0)
 
 	var event: InputEventKey = _key_press(KEY_TAB)
 	assert_true(event.is_action_pressed(&"sandbox_next_slot"), "Tab should map to sandbox_next_slot")
 
 	sandbox._unhandled_input(event)
 	assert_eq(sandbox.active_slot(), 1)
-	assert_eq(_main._local_player.controller()._active_slot, 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
+	assert_eq(await _controller_slot(), 1, "PlayerController.set_sandbox_slot() actually moved the acting slot")
 
 	sandbox._unhandled_input(event)
 	sandbox._unhandled_input(event)
@@ -227,12 +262,12 @@ func test_placements_never_lock_while_the_feed_timer_is_paused() -> void:
 func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 
 	var reason: StringName = Match.request_place(0, Match.default_ghost_origin(0), 0, Quaternion.IDENTITY, false)
 	assert_eq(reason, PlacementRules.REASON_OK, "fixture: a block actually lands before the reset")
 	assert_gt(Match.registry().all_blocks().size(), 0)
-	sandbox._cycle_active_slot()
+	sandbox._unhandled_input(_key_press(KEY_TAB))
 	assert_eq(sandbox.active_slot(), 1, "fixture: move off slot 0 so the reset's re-seed is visible")
 
 	var event: InputEventKey = _key_press(KEY_F5)
@@ -241,9 +276,9 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 
 	assert_eq(Match.registry().all_blocks().size(), 0, "a freshly reset match has spawned nothing yet")
 	assert_eq(Match.slot_count(), 2, "the same config's player count survives the reset")
-	sandbox = _main._sandbox  # F5 rebuilds the world: Main now holds the new node
+	sandbox = _sandbox()  # F5 rebuilds the world: Main now holds the new node
 	assert_eq(sandbox.active_slot(), 0, "reset re-seeds the active slot")
-	assert_eq(_main._field.home_flags().size(), 2, "flags are rebuilt for the same config")
+	assert_eq(_field().home_flags().size(), 2, "flags are rebuilt for the same config")
 	assert_not_null(Match.raster(), "territory is rebuilt")
 
 
@@ -262,7 +297,7 @@ const _EXPECTED_ROSTER_ORDER: PackedStringArray = [
 func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_off() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 	assert_eq(sandbox.forced_special(), &"", "off by default")
 
 	var event: InputEventKey = _key_press(KEY_F9)
@@ -273,10 +308,10 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 		assert_eq(sandbox.forced_special(), StringName(expected_id))
 		if expected_id == "glue":
 			# glue applies on claim as charges, not a queued piece.
-			assert_gt(Match._gifts.glue_drops_left(sandbox.active_slot()), 0, "forced glue grants charges")
+			assert_gt(Match.glue_drops_left(sandbox.active_slot()), 0, "forced glue grants charges")
 		else:
 			assert_eq(
-				(Match._gifts._pending_queues[sandbox.active_slot()] as Array)[0], StringName(expected_id),
+				Match.next_special(sandbox.active_slot()), StringName(expected_id),
 				"the forced special must become the active slot's next piece with no crate needed"
 			)
 		assert_eq(Match.held_special(sandbox.active_slot()), &"", "forcing leaves the current piece alone")
@@ -289,7 +324,7 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 func test_sandbox_force_special_installs_a_forced_drawer() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 
 	sandbox.force_special_by_id(&"rocket")
 
@@ -305,7 +340,7 @@ func test_sandbox_force_special_installs_a_forced_drawer() -> void:
 func test_debug_force_next_shape_sets_the_held_shape_and_reissues_the_event() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 	var domino: BlockShape = load("res://config/blocks/domino.tres")
 
 	watch_signals(Events)
@@ -321,7 +356,7 @@ func test_debug_force_next_shape_is_refused_off_sandbox() -> void:
 	var before: BlockShape = Match.held_shape(0)
 
 	Match.config.sandbox = false
-	Match._feed.debug_force_next_shape(0, &"domino")
+	Match.feed().debug_force_next_shape(0, &"domino")
 
 	assert_eq(Match.held_shape(0), before, "a non-sandbox match must refuse the block picker's seam")
 
@@ -329,7 +364,7 @@ func test_debug_force_next_shape_is_refused_off_sandbox() -> void:
 func test_sandbox_pause_physics_hotkey_pauses_the_tree_and_toggles_back() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 
 	var event: InputEventKey = _key_press(KEY_F11)
 	assert_true(event.is_action_pressed(&"sandbox_pause_physics"), "F11 should map to sandbox_pause_physics")
@@ -348,14 +383,13 @@ func test_sandbox_pause_physics_hotkey_pauses_the_tree_and_toggles_back() -> voi
 func test_debug_hotkeys_ignored_when_debug_mode_off() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 	DebugMode.set_override_for_test(false)
 	sandbox._unhandled_input(_key_press(KEY_F10))
-	assert_false(sandbox._slow_motion_active, "F10 is debug-only")
-	var slot_before: int = sandbox._active_slot if "_active_slot" in sandbox else -1
+	assert_false(sandbox.is_slow_motion_active(), "F10 is debug-only")
+	var slot_before: int = sandbox.active_slot()
 	sandbox._unhandled_input(_key_press(KEY_TAB))
-	if slot_before >= 0:
-		assert_ne(sandbox._active_slot, slot_before, "Tab still switches slots")
+	assert_ne(sandbox.active_slot(), slot_before, "Tab still switches slots")
 	DebugMode.set_override_for_test(true)
 	DebugMode.clear_override_for_test()
 
@@ -366,15 +400,15 @@ func test_f5_rebuilds_the_world_exactly_once() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	var old_sandbox: Sandbox = _main._sandbox
-	var old_player: Node = _main._local_player
+	var old_sandbox: Sandbox = _sandbox()
+	var old_player: Node = _local_player()
 	watch_signals(Events)
 
 	_f5(old_sandbox)
 	await get_tree().process_frame
 
 	assert_signal_emit_count(Events, "match_scope_reset", 1, "one rebuild, one scope reset")
-	assert_ne(_main._sandbox, old_sandbox, "F5 attaches a new sandbox")
+	assert_ne(_sandbox(), old_sandbox, "F5 attaches a new sandbox")
 	assert_false(is_instance_valid(old_sandbox), "the old sandbox is gone after a frame")
 	assert_false(is_instance_valid(old_player), "the old local player is gone after a frame")
 	assert_eq(_sandbox_nodes().size(), 1, "exactly one Sandbox")
@@ -382,15 +416,15 @@ func test_f5_rebuilds_the_world_exactly_once() -> void:
 	assert_eq(_hud_count(), 1, "exactly one HUD")
 	assert_eq(Match.slot_count(), 2)
 	assert_true(Match.config.sandbox, "the rebuild keeps the sandbox config")
-	assert_eq(_main._field.home_flags().size(), 2)
+	assert_eq(_field().home_flags().size(), 2)
 
 
 func test_f5_twice_in_a_row_still_leaves_one_of_everything() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	_f5(_main._sandbox)
-	_f5(_main._sandbox)
+	_f5(_sandbox())
+	_f5(_sandbox())
 	await get_tree().process_frame
 	assert_eq(_sandbox_nodes().size(), 1)
 	assert_eq(get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1)
@@ -401,14 +435,14 @@ func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	_main._sandbox._unhandled_input(_key_press(KEY_F9))
-	var forced: StringName = _main._sandbox.forced_special()
+	_sandbox()._unhandled_input(_key_press(KEY_F9))
+	var forced: StringName = _sandbox().forced_special()
 	assert_ne(forced, &"", "fixture: F9 forced a special")
 
-	_f5(_main._sandbox)
+	_f5(_sandbox())
 	await get_tree().process_frame
 
-	assert_eq(_main._sandbox.forced_special(), forced, "the new sandbox is still forcing the same special")
+	assert_eq(_sandbox().forced_special(), forced, "the new sandbox is still forcing the same special")
 	assert_eq(Match._gifts._special_drawer.call(), forced, "every future draw still returns it")
 
 
@@ -416,18 +450,18 @@ func test_slow_motion_and_physics_pause_are_off_after_f5() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	_main._sandbox._unhandled_input(_key_press(KEY_F10))
-	_main._sandbox._unhandled_input(_key_press(KEY_F11))
-	assert_true(_main._sandbox.is_slow_motion_active(), "fixture: slow motion on")
+	_sandbox()._unhandled_input(_key_press(KEY_F10))
+	_sandbox()._unhandled_input(_key_press(KEY_F11))
+	assert_true(_sandbox().is_slow_motion_active(), "fixture: slow motion on")
 	assert_true(get_tree().paused, "fixture: physics paused")
 
-	_f5(_main._sandbox)
+	_f5(_sandbox())
 	await get_tree().process_frame
 
 	assert_eq(Engine.time_scale, 1.0)
 	assert_false(get_tree().paused)
-	assert_false(_main._sandbox.is_slow_motion_active())
-	assert_false(_main._sandbox.is_physics_paused())
+	assert_false(_sandbox().is_slow_motion_active())
+	assert_false(_sandbox().is_physics_paused())
 
 
 ## The old node's exit must not clobber state the new node sets before the
@@ -436,8 +470,8 @@ func test_the_old_sandbox_leaving_does_not_clobber_the_new_ones_tools() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	_f5(_main._sandbox)
-	var fresh: Sandbox = _main._sandbox
+	_f5(_sandbox())
+	var fresh: Sandbox = _sandbox()
 	fresh._unhandled_input(_key_press(KEY_F10))
 	fresh._unhandled_input(_key_press(KEY_F11))
 	var slowed: float = Engine.time_scale
@@ -455,33 +489,33 @@ func test_the_scoreboard_stays_suppressed_before_and_after_f5() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	assert_true(_main._ensure_scoreboard().suppressed, "suppressed in a sandbox")
+	assert_true((_first_live(&"ScoreboardOverlay") as ScoreboardOverlay).suppressed, "suppressed in a sandbox")
 
-	_f5(_main._sandbox)
+	_f5(_sandbox())
 	await get_tree().process_frame
 
-	assert_true(_main._ensure_scoreboard().suppressed, "still suppressed after a rebuild")
+	assert_true((_first_live(&"ScoreboardOverlay") as ScoreboardOverlay).suppressed, "still suppressed after a rebuild")
 
 
 func test_tab_still_cycles_slots_after_f5_and_the_hud_follows() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(3)
 	_run_countdown()
-	_f5(_main._sandbox)
+	_f5(_sandbox())
 	await get_tree().process_frame
 	_run_countdown()
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = _sandbox()
 	assert_eq(sandbox.active_slot(), 0, "the rebuild re-seeds slot 0")
 
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 
 	assert_eq(sandbox.active_slot(), 1)
-	assert_eq(_main._local_player.controller()._active_slot, 1, "the controller follows")
-	assert_eq(_main._local_player.hud()._active_slot, 1, "the HUD follows")
+	assert_eq(await _controller_slot(), 1, "the controller follows")
+	assert_eq(_local_player().hud()._active_slot, 1, "the HUD follows")
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	assert_eq(sandbox.active_slot(), 0, "wraps")
-	assert_eq(_main._local_player.hud()._active_slot, 0)
+	assert_eq(_local_player().hud()._active_slot, 0)
 
 
 ## A sandbox F5 resets the camera like any rebuild.
@@ -489,14 +523,15 @@ func test_f5_resets_the_camera_like_any_rebuild() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	var rig: CameraRig = _main._camera_rig as CameraRig
+	var rig: CameraRig = _main.get_node("CameraRig") as CameraRig
 	var start_distance: float = rig.get_distance()
 	var start_yaw: float = rig.get_yaw()
 	rig.zoom_continuous(40.0)
-	rig._yaw += 1.3
+	rig.set_home_view(Vector3(0.0, 0.0, 30.0))
 	assert_ne(rig.get_distance(), start_distance, "fixture: the player zoomed")
+	assert_ne(rig.get_yaw(), start_yaw, "fixture: the player orbited")
 
-	_f5(_main._sandbox)
+	_f5(_sandbox())
 	await get_tree().process_frame
 	_run_countdown()
 
@@ -509,7 +544,7 @@ func test_f5_resets_the_camera_like_any_rebuild() -> void:
 func test_a_resting_block_freezes_to_static_in_the_sandbox() -> void:
 	_start_sandbox(2)
 	_run_countdown()
-	var manager: StableBlockManager = _main._stable_block_manager
+	var manager: StableBlockManager = _first_live(&"StableBlockManager") as StableBlockManager
 	assert_not_null(manager, "the one world builder makes the stable-block manager for the sandbox too")
 	var quick: PhysicsTuning = manager.tuning.duplicate(true) as PhysicsTuning
 	quick.stable_freeze_delay_s = 0.5
