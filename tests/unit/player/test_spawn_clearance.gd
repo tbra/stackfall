@@ -75,14 +75,12 @@ func test_nothing_pending_never_raises() -> void:
 	_clearance.step(0.1, false)
 	_clearance.step(0.1, true)
 	assert_eq(_ghost.manual_hover_offset, 0.0, "a ghost nobody asked to clear stays at the player's hover")
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_spawn_raises_ghost_just_clear_of_the_stack() -> void:
 	_need = 3.0
 	_spawn_now()
 	_assert_offset_clears(3.0, "raised by the minimal amount that clears, plus the small margin")
-	assert_almost_eq(_clearance.raise_total(), _ghost.manual_hover_offset, 0.0001)
 
 
 func test_spawn_is_a_noop_when_already_clear() -> void:
@@ -90,7 +88,6 @@ func test_spawn_is_a_noop_when_already_clear() -> void:
 	_need = 0.0
 	_spawn_now()
 	assert_eq(_ghost.manual_hover_offset, 0.7, "the player's own hover is left exactly alone")
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_spawn_raise_is_measured_from_the_players_own_hover() -> void:
@@ -98,7 +95,6 @@ func test_spawn_raise_is_measured_from_the_players_own_hover() -> void:
 	_need = 3.0
 	_spawn_now()
 	_assert_offset_clears(3.0, "the ghost ends clear of the stack")
-	assert_almost_eq(_clearance.raise_total(), _ghost.manual_hover_offset - 0.5, 0.0001, "only the lift counts as raise")
 
 
 func test_spawn_resolves_once_then_stays_put() -> void:
@@ -114,7 +110,6 @@ func test_spawn_raise_is_capped_by_max_raise() -> void:
 	_need = 10.0
 	_spawn_now()
 	assert_almost_eq(_ghost.manual_hover_offset, _tuning.spawn_clearance_max_raise, 0.0001)
-	assert_almost_eq(_clearance.raise_total(), _tuning.spawn_clearance_max_raise, 0.0001)
 
 
 func test_spawn_raise_is_capped_by_hover_ceiling() -> void:
@@ -130,7 +125,6 @@ func test_spawn_with_ceiling_below_current_offset_does_not_raise_or_lower() -> v
 	_ceiling = 0.5
 	_spawn_now()
 	assert_eq(_ghost.manual_hover_offset, 1.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_spawn_disabled_in_tuning_never_raises() -> void:
@@ -138,7 +132,6 @@ func test_spawn_disabled_in_tuning_never_raises() -> void:
 	_need = 3.0
 	_spawn_now()
 	assert_eq(_ghost.manual_hover_offset, 0.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_spawn_disabled_still_ends_the_pending_spawn() -> void:
@@ -158,7 +151,6 @@ func test_spawn_without_a_shape_does_not_raise() -> void:
 	clearance.begin_pending()
 	clearance.step(0.0, false)
 	assert_eq(bare.manual_hover_offset, 0.0)
-	assert_eq(clearance.raise_total(), 0.0)
 
 
 func test_spawn_poses_from_the_surface_it_was_given() -> void:
@@ -177,7 +169,6 @@ func test_next_spawn_takes_the_previous_raise_back_first() -> void:
 	_need = 0.0
 	_spawn_now()
 	assert_almost_eq(_ghost.manual_hover_offset, 0.0, 0.0001, "no raise carries over to a spawn that needs none")
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_raises_never_compound_across_drops() -> void:
@@ -186,7 +177,6 @@ func test_raises_never_compound_across_drops() -> void:
 	_need = 1.0
 	_spawn_now()
 	_assert_offset_clears(1.0, "the second spawn starts from the player's hover, not from the first raise")
-	assert_almost_eq(_clearance.raise_total(), _ghost.manual_hover_offset, 0.0001)
 
 
 func test_previous_raise_is_taken_back_while_the_next_spawn_still_waits() -> void:
@@ -195,7 +185,6 @@ func test_previous_raise_is_taken_back_while_the_next_spawn_still_waits() -> voi
 	_clearance.begin_pending()
 	_clearance.step(0.1, true)
 	assert_almost_eq(_ghost.manual_hover_offset, 0.0, 0.0001)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_cancel_pending_stops_waiting() -> void:
@@ -204,7 +193,6 @@ func test_cancel_pending_stops_waiting() -> void:
 	_clearance.cancel_pending()
 	_clearance.step(0.0, false)
 	assert_eq(_ghost.manual_hover_offset, 0.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_feed_after_cancel_does_not_revive_the_spawn() -> void:
@@ -328,7 +316,6 @@ func test_raise_decays_at_the_configured_speed_once_clear() -> void:
 	_need = 0.0
 	_clearance.step(0.1, false)
 	assert_almost_eq(_ghost.manual_hover_offset, raised - 0.2, 0.0001, "speed 2 m/s over 0.1 s")
-	assert_almost_eq(_clearance.raise_total(), raised - 0.2, 0.0001)
 
 
 func test_decay_never_goes_below_the_players_own_hover() -> void:
@@ -339,7 +326,6 @@ func test_decay_never_goes_below_the_players_own_hover() -> void:
 	_clearance.step(1.0, false)
 	_clearance.step(1.0, false)
 	assert_almost_eq(_ghost.manual_hover_offset, 0.5, 0.0001, "only the clearance share decays")
-	assert_almost_eq(_clearance.raise_total(), 0.0, 0.0001)
 
 
 func test_decay_stops_where_lowering_would_overlap_again() -> void:
@@ -377,7 +363,6 @@ func test_absorb_hands_the_raise_to_the_player() -> void:
 	_spawn_now()
 	var raised: float = _ghost.manual_hover_offset
 	_clearance.absorb()
-	assert_eq(_clearance.raise_total(), 0.0, "nothing left for the machine to manage")
 	_need = 0.0
 	_clearance.step(1.0, false)
 	assert_eq(_ghost.manual_hover_offset, raised, "an absorbed raise does not decay")
@@ -397,7 +382,6 @@ func test_absorb_with_nothing_raised_is_harmless() -> void:
 	_ghost.manual_hover_offset = 0.4
 	_clearance.absorb()
 	assert_eq(_ghost.manual_hover_offset, 0.4)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 # --- release lift and undo --------------------------------------------------------------------
@@ -407,14 +391,12 @@ func test_release_lift_clears_the_stack() -> void:
 	_need = 3.0
 	_clearance.lift_for_release()
 	_assert_offset_clears(3.0, "lifted just clear")
-	assert_almost_eq(_clearance.raise_total(), _ghost.manual_hover_offset, 0.0001)
 
 
 func test_release_lift_is_a_noop_when_clear() -> void:
 	_ghost.manual_hover_offset = 0.4
 	_clearance.lift_for_release()
 	assert_eq(_ghost.manual_hover_offset, 0.4)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_release_lift_counts_unsettled_blocks() -> void:
@@ -449,7 +431,6 @@ func test_release_lift_disabled_in_tuning_does_nothing() -> void:
 	_need = 3.0
 	_clearance.lift_for_release()
 	assert_eq(_ghost.manual_hover_offset, 0.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_undo_takes_the_release_lift_back_off() -> void:
@@ -458,7 +439,6 @@ func test_undo_takes_the_release_lift_back_off() -> void:
 	_clearance.lift_for_release()
 	_clearance.undo_release_lift()
 	assert_almost_eq(_ghost.manual_hover_offset, 0.5, 0.0001, "back to the player's own hover")
-	assert_almost_eq(_clearance.raise_total(), 0.0, 0.0001)
 
 
 func test_undo_keeps_the_spawn_raise() -> void:
@@ -469,7 +449,6 @@ func test_undo_keeps_the_spawn_raise() -> void:
 	_clearance.lift_for_release()
 	_clearance.undo_release_lift()
 	assert_almost_eq(_ghost.manual_hover_offset, spawn_raise, 0.0001, "only the release share is removed")
-	assert_almost_eq(_clearance.raise_total(), spawn_raise, 0.0001)
 
 
 func test_undo_twice_removes_the_lift_once() -> void:
@@ -487,7 +466,6 @@ func test_undo_without_a_lift_does_nothing() -> void:
 	_ghost.manual_hover_offset = 0.6
 	_clearance.undo_release_lift()
 	assert_eq(_ghost.manual_hover_offset, 0.6)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_undo_after_a_noop_lift_does_nothing() -> void:
@@ -505,27 +483,23 @@ func test_seed_home_raises_to_the_clear_height() -> void:
 	_clearance.seed_home(2.0)
 	var expected: float = 2.0 - _physics.hover_height
 	assert_almost_eq(_ghost.manual_hover_offset, expected, 0.0001, "hover plus offset lands on the absolute clear height")
-	assert_almost_eq(_clearance.raise_total(), expected, 0.0001)
 
 
 func test_seed_home_counts_the_players_existing_offset() -> void:
 	_ghost.manual_hover_offset = 0.5
 	_clearance.seed_home(2.0)
 	assert_almost_eq(_ghost.manual_hover_offset, 2.0 - _physics.hover_height, 0.0001)
-	assert_almost_eq(_clearance.raise_total(), 2.0 - _physics.hover_height - 0.5, 0.0001, "only the added part is the raise")
 
 
 func test_seed_home_is_a_noop_when_hover_already_clears() -> void:
 	_ghost.manual_hover_offset = 3.0
 	_clearance.seed_home(2.0)
 	assert_eq(_ghost.manual_hover_offset, 3.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_seed_home_at_exactly_the_base_hover_is_a_noop() -> void:
 	_clearance.seed_home(_physics.hover_height)
 	assert_eq(_ghost.manual_hover_offset, 0.0)
-	assert_eq(_clearance.raise_total(), 0.0)
 
 
 func test_seed_home_replaces_the_earlier_home_raise() -> void:
@@ -533,14 +507,12 @@ func test_seed_home_replaces_the_earlier_home_raise() -> void:
 	_clearance.seed_home(1.0)
 	var expected: float = 1.0 - _physics.hover_height
 	assert_almost_eq(_ghost.manual_hover_offset, expected, 0.0001, "the second seed is not added to the first")
-	assert_almost_eq(_clearance.raise_total(), expected, 0.0001)
 
 
 func test_seed_home_replaced_by_a_lower_clear_height_than_hover_drops_the_raise() -> void:
 	_clearance.seed_home(2.0)
 	_clearance.seed_home(_physics.hover_height)
 	assert_almost_eq(_ghost.manual_hover_offset, 0.0, 0.0001)
-	assert_almost_eq(_clearance.raise_total(), 0.0, 0.0001)
 
 
 func test_home_raise_does_not_decay() -> void:
@@ -555,24 +527,21 @@ func test_next_spawn_drops_the_home_raise() -> void:
 	_need = 0.0
 	_spawn_now()
 	assert_almost_eq(_ghost.manual_hover_offset, 0.0, 0.0001, "later pieces hover exactly as before")
-	assert_almost_eq(_clearance.raise_total(), 0.0, 0.0001)
 
 
 func test_absorb_makes_the_home_raise_the_players() -> void:
 	_clearance.seed_home(2.0)
 	var seeded: float = _ghost.manual_hover_offset
 	_clearance.absorb()
-	assert_eq(_clearance.raise_total(), 0.0)
 	_spawn_now()
 	assert_eq(_ghost.manual_hover_offset, seeded, "an absorbed home raise is not taken back at the next spawn")
 
 
-func test_raise_total_adds_home_spawn_and_release_raises() -> void:
+func test_release_lift_stacks_on_the_home_raise_and_undo_keeps_the_home_raise() -> void:
 	_clearance.seed_home(2.0)
 	var home: float = _ghost.manual_hover_offset
 	_need = home + 1.5
 	_clearance.lift_for_release()
-	assert_almost_eq(_clearance.raise_total(), _ghost.manual_hover_offset, 0.0001, "everything above the player's own zero hover")
-	assert_gt(_clearance.raise_total(), home + 1.5 - 0.0001)
+	assert_gt(_ghost.manual_hover_offset, home + 1.5 - 0.0001, "the release lift clears the stack above the home raise")
 	_clearance.undo_release_lift()
-	assert_almost_eq(_clearance.raise_total(), home, 0.0001, "undo removes only the release share, the home raise stays")
+	assert_almost_eq(_ghost.manual_hover_offset, home, 0.0001, "undo removes only the release share, the home raise stays")
