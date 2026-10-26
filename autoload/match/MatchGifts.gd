@@ -678,9 +678,6 @@ func _world_at(point: Vector2, height: float) -> Vector3:
 	return field.world_from_disk_local(point, height) if field != null else Vector3(point.x, height, point.y)
 
 
-## Host and client use the same time/id-derived arc (GiftFlight.world_position); no extra
-## wire data or random state is needed. Clients begin on event receipt, so their visual can
-## trail the host by transport latency; only the host resolves airborne touch.
 ## A copy safe for minimap and network consumers. Position is host-authored.
 func gift_state(gift_id: int) -> Dictionary:
 	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
@@ -698,6 +695,9 @@ func gift_states() -> Array[Dictionary]:
 	return result
 
 
+## Host and client use the same time/id-derived arc (GiftFlight.world_position); no extra
+## wire data or random state is needed. Clients begin on event receipt, so their visual can
+## trail the host by transport latency; only the host resolves airborne touch.
 ## Runs only on host physics ticks. Sorted ids and slots make contention stable.
 func tick_host(delta: float) -> void:
 	if not _match._is_host():
@@ -1132,9 +1132,9 @@ func reset() -> void:
 	_match._feed._next_gift_shapes.clear()
 	_match._feed._staged_gift_shapes.clear()
 	_match._feed._held_is_gift.clear()
-	for node: GiftCrate in _crate_nodes.values():
+	for node: Object in _crate_nodes.values():
 		if is_instance_valid(node):
-			node.queue_free()
+			(node as GiftCrate).queue_free()
 	_crate_nodes.clear()
 	_crates.clear()
 	_pending_queues.clear()
