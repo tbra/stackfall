@@ -122,9 +122,7 @@ var _stats: RefCounted = null
 
 ## Host-scheduled weather events. See autoload/match/MatchWeather.gd.
 var _weather: RefCounted = null
-var _cat: RigidBody3D = null  # a CatController
 var _gift_fx: Node = null  # a GiftFxPresenter
-var _cat_serial: int = 0
 
 ## The MatchContext port world code reads (game/world/MatchContext.gd). Installed first thing in
 ## _ready(); uninstalled on PREDELETE so a freed Match never leaves a dangling static.
@@ -203,80 +201,41 @@ func late_activate() -> void:
 	set_physics_process(true)
 
 
+func _cat_session() -> CatSession:
+	return _gifts.cat() as CatSession
+
+
+# SHORTCUT: forwarders to MatchGifts.cat(), upgrade when P7 V1 typing lets the ports call the session directly
 func active_cat() -> RigidBody3D:
-	return _cat if is_instance_valid(_cat) else null
+	return _cat_session().active() if _gifts != null else null
 
 
 func start_cat(owner_slot: int, position: Vector3, effect: Resource) -> bool:
-	if not _is_host() or state() != State.PLAYING or effect == null or field() == null:
-		return false
-	if owner_slot < 0 or owner_slot >= slot_count() or not position.is_finite():
-		return false
-	if blocks_parent() == null or blocks_parent().get_child_count() >= effect.max_active_blocks:
-		return false
-	var point: Vector2 = field().disk_local_from_world(position)
-	if not field().map_def.shape_contains(point):
-		return false
-	if active_cat() != null:
-		end_cat(_cat.activation_id)
-	_cat_serial += 1
-	_cat = LateScripts.script(LateScripts.CAT_CONTROLLER).new()
-	_cat.configure(_cat_serial, owner_slot,
-		field().world_from_disk_local(point, effect.body_radius_m),
-		effect.duration_s, effect.speed_mps, effect.target_range_m,
-		effect.body_radius_m, effect.push_impulse, true)
-	add_child(_cat)
-	Events.cat_started.emit(_cat_serial, owner_slot, _cat.global_position, effect.duration_s)
-	return true
+	return _gifts != null and _cat_session().start(owner_slot, position, effect)
 
 
 func set_cat_target(slot_id: int, point: Vector3) -> bool:
-	var cat: RigidBody3D = active_cat()
-	if not _is_host() or cat == null or cat.owner_slot != slot_id or not is_live(state()):
-		return false
-	return cat.set_target(point)
+	return _gifts != null and _cat_session().set_target(slot_id, point)
 
 
 func apply_replicated_cat_start(id: int, slot_id: int, position: Vector3, duration: float) -> bool:
-	if _is_host() or id <= _cat_serial or slot_id < 0 or slot_id >= slot_count():
-		return false
-	if not position.is_finite() or not is_finite(duration) or duration <= 0.0:
-		return false
-	if active_cat() != null:
-		_cat.queue_free()
-	_cat_serial = id
-	# DECISION: the cat's SpecialDef is read dynamically so Match does not name SpecialDef/CatEffect.
-	var cat_def: Resource = load(LateScripts.CAT_RESOURCE) as Resource
-	var effect: Resource = cat_def.get(&"effect") as Resource
-	_cat = LateScripts.script(LateScripts.CAT_CONTROLLER).new()
-	_cat.configure(id, slot_id, position, duration, effect.speed_mps,
-		effect.target_range_m, effect.body_radius_m, effect.push_impulse, false)
-	add_child(_cat)
-	Events.cat_started.emit(id, slot_id, position, duration)
-	return true
+	return _gifts != null and _cat_session().apply_replicated_start(id, slot_id, position, duration)
 
 
 func apply_replicated_cat_state(id: int, position: Vector3, velocity: Vector3,
 		point: Vector3, remaining: float) -> void:
-	var cat: RigidBody3D = active_cat()
-	if not _is_host() and cat != null and cat.activation_id == id and is_finite(remaining):
-		cat.apply_snapshot(position, velocity, point, remaining)
+	if _gifts != null:
+		_cat_session().apply_replicated_state(id, position, velocity, point, remaining)
 
 
 func end_cat(id: int) -> void:
-	var cat: RigidBody3D = active_cat()
-	if cat == null or cat.activation_id != id:
-		return
-	cat.queue_free()
-	_cat = null
-	Events.cat_ended.emit(id)
+	if _gifts != null:
+		_cat_session().end(id)
 
 
 func _on_cat_match_state_changed(_old: int, next: int) -> void:
 	if is_resetting(next):
-		var cat: RigidBody3D = active_cat()
-		if cat != null:
-			end_cat(cat.activation_id)
+		_cat_session().reset()
 
 
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
@@ -367,10 +326,7 @@ func _is_host() -> bool:
 
 func start_match(match_config: MatchConfig) -> void:
 	_ensure_active()
-	var previous_cat: RigidBody3D = active_cat()
-	if previous_cat != null:
-		end_cat(previous_cat.activation_id)
-	_cat_serial = 0
+	_cat_session().reset()
 	_territory_cache_enabled = true
 	# A forced-special drawer (Sandbox / gift demo) must not
 	# leak into a later real match. Sandbox installs its drawer after start,
@@ -384,10 +340,7 @@ func start_match(match_config: MatchConfig) -> void:
 func abort_match() -> void:
 	if not _late_active:
 		return
-	var previous_cat: RigidBody3D = active_cat()
-	if previous_cat != null:
-		end_cat(previous_cat.activation_id)
-	_cat_serial = 0
+	_cat_session().reset()
 	_lifecycle.abort_match()
 
 

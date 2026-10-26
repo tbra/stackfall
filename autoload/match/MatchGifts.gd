@@ -12,6 +12,7 @@ extends RefCounted
 ## spawns anything itself.
 
 var _match: MatchAutoload = null
+var _cat: CatSession = null
 var _gift_config: GiftConfig = preload("res://config/gifts/gift_config.tres")
 var _territory_tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 var _physics_tuning: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
@@ -128,6 +129,8 @@ var _crate_prewarmed: bool = false
 ## setup) moves that cost out of the match. Once per process; nothing is added to the tree.
 func setup(match_ref: MatchAutoload) -> void:
 	_match = match_ref
+	_cat = CatSession.new()
+	_cat.setup(match_ref, match_ref)
 	if not _crate_prewarmed:
 		_crate_prewarmed = true
 		var visual: Node3D = GiftModelTable.shared().build_crate_visual()
@@ -145,6 +148,11 @@ func _on_player_eliminated_clear_glue(slot_id: int, _team_id: int) -> void:
 		return
 	_glue_drops.erase(slot_id)
 	_publish_glue_charges(slot_id)
+
+
+## The one cat session of the match.
+func cat() -> CatSession:
+	return _cat
 
 
 ## The default drawer: always PENDING_SPECIAL_ID, until the real weighted
