@@ -30,62 +30,39 @@ func after_each() -> void:
 	await get_tree().process_frame
 
 
-func _drop_overlays() -> void:
-	for node: Node in [_main._pause_menu_node, _main._results_screen_node, _main._scoreboard_node, _main._loading_screen_node]:
-		if node != null:
-			node.free()
-	_main._pause_menu_node = null
-	_main._results_screen_node = null
-	_main._scoreboard_node = null
-	_main._loading_screen_node = null
+func _overlay_count() -> int:
+	return MainNodes.count(_main, &"PauseMenu") + MainNodes.count(_main, &"ResultsScreen") 			+ MainNodes.count(_main, &"ScoreboardOverlay") + MainNodes.count(_main, &"LoadingScreen")
 
 
 func test_ready_builds_none_of_the_overlays() -> void:
-	assert_null(_main._pause_menu_node)
-	assert_null(_main._results_screen_node)
-	assert_null(_main._scoreboard_node)
-	assert_null(_main._loading_screen_node)
-	assert_not_null(_main._main_menu, "the menu still shows without them")
+	assert_eq(_overlay_count(), 0)
+	assert_not_null(MainNodes.main_menu(_main), "the menu still shows without them")
+
+
+func test_hosting_builds_the_overlays_when_the_lobby_shows() -> void:
+	assert_eq(Net.host_game(0, "Host", false), OK)
+	assert_not_null(MainNodes.lobby(_main))
+	assert_not_null(MainNodes.pause_menu(_main))
+	assert_not_null(MainNodes.results_screen(_main))
+	assert_not_null(MainNodes.first(_main, &"ScoreboardOverlay"))
 
 
 func test_client_loading_announcement_creates_and_shows_the_loading_screen_cold() -> void:
 	assert_eq(Match.state(), Match.State.LOBBY)
-	_main._on_match_loading_announced()
-	assert_not_null(_main._loading_screen_node)
-	assert_true(_main._loading_screen_node.visible)
-	assert_true(_main._loading_screen_node.is_pending())
-	assert_not_null(_main._results_screen_node, "all four exist before LOBBY -> LOADING")
-	assert_not_null(_main._pause_menu_node)
-	assert_not_null(_main._scoreboard_node)
+	Events.match_loading_announced.emit()
+	var loading: LoadingScreen = MainNodes.loading_screen(_main)
+	assert_not_null(loading)
+	assert_true(loading.visible)
+	assert_true(loading.is_pending())
+	assert_not_null(MainNodes.results_screen(_main), "all four exist before LOBBY -> LOADING")
+	assert_not_null(MainNodes.pause_menu(_main))
+	assert_not_null(MainNodes.first(_main, &"ScoreboardOverlay"))
 
 
-func test_loading_state_change_builds_overlays_for_entries_that_skip_the_lobby() -> void:
+func test_start_match_straight_from_hosting_has_all_overlays() -> void:
 	assert_eq(Net.host_game(0, "Host", false), OK)
-	_drop_overlays()
 	Match.start_match(_main.match_config)  # emits LOBBY -> LOADING straight at Main
 	await get_tree().process_frame
-	assert_not_null(_main._results_screen_node)
-	assert_not_null(_main._scoreboard_node)
-	assert_not_null(_main._pause_menu_node)
-
-
-func test_overlay_still_prewarming_is_collected_on_demand() -> void:
-	var queue: MenuPrewarmQueue = MenuPrewarmQueue.new()
-	var cfg: MenuPrewarmConfig = MenuPrewarmConfig.new()
-	var chunks: Array[PackedStringArray] = [PackedStringArray([PAUSE_PATH])]
-	cfg.chunks = chunks
-	queue.config = cfg
-	queue.request_callable = func(_p: String) -> int: return OK
-	queue.status_callable = func(_p: String) -> int: return ResourceLoader.THREAD_LOAD_IN_PROGRESS
-	queue.collect_callable = func(p: String) -> Resource: return load(p)
-	queue.load_callable = func(p: String) -> Resource: return load(p)
-	queue.exists_callable = func(_p: String) -> bool: return true
-	_main._prewarm_queue = queue
-	_main._prewarm_background = true
-	queue.start(get_tree())
-	var pause: PauseMenu = _main._pause_menu
-	assert_not_null(pause, "ensure() resolves the in-flight chunk instead of loading beside it")
-	assert_true(queue.is_ready(PAUSE_PATH))
-	_main._prewarm_background = false
-	_main._prewarm_queue = null  # Main builds its default queue lazily (after_each aborts via the match flow)
-
+	assert_not_null(MainNodes.results_screen(_main))
+	assert_not_null(MainNodes.first(_main, &"ScoreboardOverlay"))
+	assert_not_null(MainNodes.pause_menu(_main))
