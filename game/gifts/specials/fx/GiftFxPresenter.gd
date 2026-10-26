@@ -3,39 +3,16 @@ extends Node
 ## Central dispatcher for per-gift client visuals.
 ##
 ## Owned by Match. Subscribes once to Events.special_triggered (every peer gets
-## the replicated event) and routes it by def id to a builder Callable
-## `(block: Block, def: SpecialDef, position: Vector3) -> void`. `block` is the
-## carrier looked up by net id and may be null (already despawned); handlers
-## must tolerate that. Unknown def ids and non-finite positions are ignored.
-## Add new gift visuals with `register`.
+## the replicated event) and asks the def's effect to `build_client_fx`. `block` is the
+## carrier looked up by net id and may be null (already despawned). Unknown def ids and
+## non-finite positions are ignored.
 ##
 ## Depends on: Events, MatchContext, SpecialDef, Block
 
 const PAINTBALL_ID: StringName = &"paintball"
-const BLACK_HOLE_ID: StringName = &"black_hole"
-const BOMB_ID: StringName = &"bomb"
-const ROCKET_ID: StringName = &"rocket"
-const VOLCANO_ID: StringName = &"volcano"
-const PROPELLER_ID: StringName = &"propeller"
-const FREEZE_ID: StringName = &"freeze"
-const EXPLOSION_TUNING: GiftExplosionFxTuning = preload("res://config/gifts/specials/fx/gift_explosion_fx_tuning.tres")
-const FREEZE_TUNING: FreezeFxTuning = preload("res://config/gifts/specials/fx/freeze_fx_tuning.tres")
-
-var _handlers: Dictionary = {}
-## Owner slot of the trigger being dispatched (-1 unknown): the carrier's owner, or for an
-## in-place activation the slot MatchGiftActivation encodes in the net id. For handlers
-## that tint by team (the Propeller balloon).
-var _trigger_slot: int = -1
 
 
 func _ready() -> void:
-	register(PAINTBALL_ID, _build_paintball)
-	register(BLACK_HOLE_ID, _build_black_hole)
-	register(BOMB_ID, _build_explosion)
-	register(ROCKET_ID, _build_explosion)
-	register(VOLCANO_ID, _build_volcano)
-	register(PROPELLER_ID, _build_propeller)
-	register(FREEZE_ID, _build_freeze)
 	connect_events()
 
 
@@ -90,97 +67,16 @@ func connect_events() -> void:
 		Events.special_triggered.connect(on_special_triggered)
 
 
-func register(def_id: StringName, handler: Callable) -> void:
-	_handlers[def_id] = handler
-
-
-## Receives special_triggered events and dispatches to the handler for `def_id`.
+## Receives special_triggered events and asks the def's effect to draw its visual.
 func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, _chain_depth: int) -> void:
-	if not position.is_finite() or not _handlers.has(def_id):
+	if not position.is_finite():
 		return
-	var handler: Callable = _handlers[def_id] as Callable
-	if not handler.is_valid():
+	var def: SpecialDef = SpecialDef.find_by_id(def_id)
+	if def == null or def.effect == null:
 		return
 	var block: Block = null
 	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
 	if registry != null:
 		block = registry.block_for_net_id(net_id)
-	_trigger_slot = block.owner_slot if block != null else SpecialIds.in_place_slot(net_id)
-	handler.call(block, SpecialDef.find_by_id(def_id), position)
-	_trigger_slot = -1
-
-
-## Paintball: expanding colour shell tinted by the thrower's slot.
-func _build_paintball(block: Block, _def: SpecialDef, position: Vector3) -> void:
-	var ctx: MatchContext = MatchContext.current()
-	var parent: Node3D = ctx.blocks_parent()
-	if parent == null or block == null or block.owner_slot < 0 or block.owner_slot >= ctx.slot_count():
-		return
-	var splash: PaintballSplash = PaintballSplash.new()
-	splash.bind_to_match = true
-	DiscAnchor.attach(splash, position, parent)
-	splash.setup(ctx.slot(block.owner_slot).color)
-
-
-## Black hole: every peer draws the placeholder disc; the
-## pull itself is host-only physics.
-func _build_black_hole(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = MatchContext.current().blocks_parent()
-	var effect: BlackHoleEffect = def.effect as BlackHoleEffect if def != null else null
-	if parent == null or effect == null:
-		return
-	var visual: BlackHoleVisual = BlackHoleVisual.new()
-	visual.bind_to_match = true
-	DiscAnchor.attach(visual, position, parent)
-	visual.setup(effect.visual_radius_m, effect.lifetime_s)
-
-
-## Bomb and Rocket: a CartoonBlast (flash, toon fireballs, shock ring,
-## debris, dust) sized by the blast radius. Rides the replicated special_triggered, so
-## every peer sees it; hangs under the Field so it rides a tilt. Visual only, frees itself.
-func _build_explosion(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = MatchContext.current().blocks_parent()
-	var blast: ExplosionTuning = null
-	if def != null:
-		var bomb: BombEffect = def.effect as BombEffect
-		var rocket: RocketEffect = def.effect as RocketEffect
-		if bomb != null:
-			blast = bomb.blast
-		elif rocket != null:
-			blast = rocket.blast
-	if parent == null or blast == null or not parent.is_inside_tree():
-		return
-	var effect: CartoonBlast = CartoonBlast.new()
-	DiscAnchor.attach(effect, position, parent)
-	effect.setup(EXPLOSION_TUNING, blast.radius_m, hash(position))
-
-
-## Volcano: clients draw the same cone without a physics body; the
-## host already has the real structure (build_client_visual returns null there).
-func _build_volcano(block: Block, def: SpecialDef, position: Vector3) -> void:
-	var effect: VolcanoEffect = def.effect as VolcanoEffect if def != null else null
-	if effect == null:
-		return
-	VolcanoStructure.build_client_visual(effect, position, block.owner_slot if block != null else -1)
-
-
-## Propeller: clients draw the party balloon clipped to the disc at the drop point
-## without a carrier body, in the owner's colour; the host already has the real stand
-## (build_client_visual returns null there).
-func _build_propeller(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var effect: PropellerEffect = def.effect as PropellerEffect if def != null else null
-	if effect == null:
-		return
-	PropellerStand.build_client_visual(effect, position, _trigger_slot)
-
-
-## Freeze: an ice-shard burst with a frost ring grown to the freeze radius.
-## Every peer draws it from the replicated trigger; the freeze itself is host physics.
-func _build_freeze(_block: Block, def: SpecialDef, position: Vector3) -> void:
-	var parent: Node3D = MatchContext.current().blocks_parent()
-	var effect: FreezeEffect = def.effect as FreezeEffect if def != null else null
-	if parent == null or effect == null or not parent.is_inside_tree():
-		return
-	var burst: FreezeBurst = FreezeBurst.new()
-	DiscAnchor.attach(burst, position, parent)
-	burst.setup(FREEZE_TUNING, effect.freeze_radius_m, hash(position))
+	var owner_slot: int = block.owner_slot if block != null else SpecialIds.in_place_slot(net_id)
+	def.effect.build_client_fx(MatchContext.current(), block, position, owner_slot)

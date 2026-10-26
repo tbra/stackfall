@@ -611,16 +611,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/BlackHoleEffect.gd:build_client_fx",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/BombEffect.gd:build_client_fx",
-   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
    "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (Bontago-di0.12) replaces the BotController radius scan; that bead removes this entry"
   },
@@ -633,11 +623,6 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/CatController.gd:set_target",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/FreezeEffect.gd:build_client_fx",
-   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
   },
   {
    "id": "test-only-func",
@@ -661,11 +646,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:build_client_fx",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter calls it; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/PaintballEffect.gd:effect_radius_m",
    "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
   },
@@ -681,18 +661,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/PropellerEffect.gd:build_client_fx",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/RocketEffect.gd:apply_launch",
    "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:build_client_fx",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Ipresenter removes this entry"
   },
   {
    "id": "test-only-func",
@@ -721,11 +691,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:build_client_fx",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (Bontago-di0.12) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
   },
@@ -746,18 +711,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/VolcanoEffect.gd:build_client_fx",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
    "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/fx/CartoonBlast.gd:spawn",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iquake (BombEffect) and P6-Irocket call it, and P6-Ipresenter drops _build_explosion; Ipresenter removes this entry"
   },
   {
    "id": "test-only-func",
