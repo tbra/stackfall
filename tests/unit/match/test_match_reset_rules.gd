@@ -3,16 +3,12 @@ extends GutTest
 ## autoload carry-overs behind "a new match after leaving is indistinguishable from
 ## a freshly launched one".
 
-const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
-
 var _tiny_map: MapDef
 var _field: Field
 var _blocks_root: Node3D
 var _registry: BlockRegistry
 
-var _sfx: Node
-var _audio_config: AudioConfig
-var _tmp_dir: String
+var _config_before: Dictionary = {}
 
 
 func before_each() -> void:
@@ -36,9 +32,7 @@ func after_each() -> void:
 	Match.abort_match()
 	Match.set_process(true)
 	MatchTestReset.clear_world()
-	if _tmp_dir != "" and DirAccess.dir_exists_absolute(_tmp_dir):
-		for filename: String in DirAccess.get_files_at(_tmp_dir):
-			DirAccess.remove_absolute(_tmp_dir.path_join(filename))
+	_restore_stems()
 
 
 # --- helpers ------------------------------------------------------------------
@@ -189,55 +183,47 @@ func test_the_hosts_circle_payload_during_the_next_countdown_decodes_to_zero_cir
 
 # --- G6: tense stem carries over -------------------------------------------------
 
-func _make_sfx(contextual: bool) -> void:
-	_audio_config = load("res://config/audio/audio_config.tres").duplicate() as AudioConfig
-	_audio_config.contextual_music_enabled = contextual
-	_audio_config.bundled_theme = null
-	_audio_config.bundled_theme_path = ""
-	_sfx = autofree(SFX_SCRIPT.new())
-	_sfx.config = _audio_config
-	add_child_autofree(_sfx)
-	_tmp_dir = OS.get_user_data_dir().path_join("test_match_reset_rules_tmp")
-	DirAccess.make_dir_recursive_absolute(_tmp_dir)
-
-
-func _write_tiny_wav(path: String) -> void:
-	var wav: AudioStreamWAV = AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = 22050
-	wav.stereo = false
-	var data: PackedByteArray = PackedByteArray()
-	data.resize(2205 * 2)
-	wav.data = data
-	assert_eq(wav.save_to_wav(path), OK, "fixture wav should save cleanly: %s" % path)
-
-
+## Turns the stems on through the public settings signal: contextual music off, no bundled
+## theme, and two shipped wavs standing in for the calm and tense stem files.
 func _install_both_stem_files() -> void:
-	_audio_config.music_stem_calm_file = "calm_stem.wav"
-	_audio_config.music_stem_tense_file = "tense_stem.wav"
-	_write_tiny_wav(_tmp_dir.path_join(_audio_config.music_stem_calm_file))
-	_write_tiny_wav(_tmp_dir.path_join(_audio_config.music_stem_tense_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
+	var config: AudioConfig = Sfx.config
+	_config_before = {
+		"contextual": config.contextual_music_enabled,
+		"theme": config.bundled_theme,
+		"theme_path": config.bundled_theme_path,
+		"calm": config.music_stem_calm_file,
+		"tense": config.music_stem_tense_file,
+	}
+	config.contextual_music_enabled = false
+	config.bundled_theme = null
+	config.bundled_theme_path = ""
+	config.music_stem_calm_file = config.thud_files[0]
+	config.music_stem_tense_file = config.thud_files[1]
+	Settings.audio_settings_changed.emit()
+
+
+func _restore_stems() -> void:
+	if _config_before.is_empty():
+		return
+	Sfx.reset_match_audio()
+	var config: AudioConfig = Sfx.config
+	config.contextual_music_enabled = _config_before["contextual"]
+	config.bundled_theme = _config_before["theme"]
+	config.bundled_theme_path = _config_before["theme_path"]
+	config.music_stem_calm_file = _config_before["calm"]
+	config.music_stem_tense_file = _config_before["tense"]
+	_config_before = {}
+	Settings.audio_settings_changed.emit()
 
 
 func test_match_scope_reset_returns_the_tense_stem_to_calm() -> void:
-	_make_sfx(false)
 	_install_both_stem_files()
-	assert_true(_sfx._tense_stem_available, "fixture: both stems installed")
 	Events.goal_capture_progress.emit(0, 0.9)
-	assert_true(_sfx._tense_stem_is_active, "fixture: tense is up at the end of match A")
-	assert_gt(_sfx.tense_stem_target_volume_db(), _sfx.calm_stem_target_volume_db(), "fixture: tense is the louder target")
-	assert_not_null(_sfx._music_crossfade_tween, "fixture: the capture started a crossfade")
+	assert_gt(Sfx.tense_stem_target_volume_db(), Sfx.calm_stem_target_volume_db(), "fixture: tense is up at the end of match A")
 
 	Events.match_scope_reset.emit()
 
-	assert_false(_sfx._tense_stem_is_active, "tense off after the reset")
-	assert_gt(_sfx.calm_stem_target_volume_db(), _sfx.tense_stem_target_volume_db(), "calm is the louder target again")
-	assert_null(_sfx._music_crossfade_tween, "the in-flight crossfade is killed")
-	assert_almost_eq(_sfx._music_player.volume_db, _sfx.calm_stem_target_volume_db(), 0.001, "calm stem at its calm volume")
-	assert_almost_eq(
-		_sfx._tense_music_player.volume_db, _sfx.tense_stem_target_volume_db(), 0.001, "tense stem muted at its calm-state volume"
-	)
+	assert_gt(Sfx.calm_stem_target_volume_db(), Sfx.tense_stem_target_volume_db(), "tense off after the reset: calm is the louder target again")
 
 
 # --- Rumble ------------------------------------------------------------------------

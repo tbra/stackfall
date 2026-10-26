@@ -2,8 +2,7 @@ extends GutTest
 ## autoload/Screenshots.gd: F12/gamepad screenshot capture. Uses a fresh Screenshots instance pointed at a temp
 ## user:// folder (output_dir_override) rather than the real "Screenshots"
 ## autoload singleton, so these tests never touch res://docs or a shared
-## user:// path -- same pattern as tests/unit/audio/test_sfx.gd's
-## set_root_dir_for_test and test_tuning_panel.gd's synthetic key events.
+## user:// path -- same pattern as test_tuning_panel.gd's synthetic key events.
 ##
 ## Headless note (brief): get_viewport().get_texture().get_image()
 ## can come back empty in this headless run (no real render target), so every
