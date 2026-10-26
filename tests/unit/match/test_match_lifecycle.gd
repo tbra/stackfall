@@ -42,7 +42,7 @@ func before_each() -> void:
 	_tiny_map.field_radius = 20.0
 	(_main.get_node("Field") as Field).map_def = _tiny_map
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	assert_not_null(MainNodes.main_menu(_main), "fixture: Main boots to the main menu with no command-line flags")
 	_saved_gravity_multiplier = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier
 
 
@@ -66,7 +66,7 @@ func _take_port() -> int:
 func _host() -> void:
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
 	assert_true(Net.is_host())
-	assert_not_null(_main._lobby, "hosting swaps the menu for the lobby synchronously")
+	assert_not_null(MainNodes.lobby(_main), "hosting swaps the menu for the lobby synchronously")
 
 
 func _config(player_count: int) -> MatchConfig:
@@ -82,9 +82,9 @@ func _config(player_count: int) -> MatchConfig:
 	return config
 
 
-## What ui/lobby/Lobby.gd's start_requested does on the host.
+## What the host does once the Lobby's start_requested pre-roll is over: start the match.
 func _start(player_count: int) -> void:
-	_main._on_lobby_start_requested(_config(player_count))
+	Match.start_match(_config(player_count))
 
 
 func _run_countdown() -> void:
@@ -122,11 +122,11 @@ func _debug_overlays() -> int:
 
 
 func _overlay_raster() -> TerritoryRaster:
-	return _main._field.overlay()._raster
+	return (_main.get_node("Field") as Field).overlay()._raster
 
 
 func _home_flag_count() -> int:
-	return _main._field.home_flags().size()
+	return (_main.get_node("Field") as Field).home_flags().size()
 
 
 ## How many listeners hang on the bus. Compared across a full
@@ -140,8 +140,8 @@ func _bus_connection_count() -> int:
 
 
 func _assert_one_fresh_world(player_count: int, context: String) -> void:
-	assert_true(_main._world_built, "%s: the world is built" % context)
-	assert_null(_main._lobby, "%s: the lobby is gone" % context)
+	assert_true(MainNodes.world_is_built(_main), "%s: the world is built" % context)
+	assert_null(MainNodes.lobby(_main), "%s: the lobby is gone" % context)
 	assert_eq(_local_players(), 1, "%s: exactly one LocalPlayer" % context)
 	assert_eq(_remote_cursors(), 1, "%s: exactly one RemoteCursors" % context)
 	assert_eq(_debug_overlays(), 1, "%s: exactly one NetDebugOverlay" % context)
@@ -150,7 +150,7 @@ func _assert_one_fresh_world(player_count: int, context: String) -> void:
 	assert_eq(Match.slot_count(), player_count, "%s: the new config's slots" % context)
 	assert_eq(_home_flag_count(), player_count, "%s: one home flag per slot of the new config" % context)
 	assert_true(SnapshotSync.is_running(), "%s: SnapshotSync is running" % context)
-	assert_eq(SnapshotSync._registry, _main._registry, "%s: SnapshotSync is bound to Main's registry" % context)
+	assert_eq(SnapshotSync._registry, _main.get_node("BlockRegistry"), "%s: SnapshotSync is bound to Main's registry" % context)
 
 
 # --- (a) First network start --------------------------------------------------
@@ -182,12 +182,12 @@ func test_leaving_during_play_aborts_the_match_and_tears_the_world_down() -> voi
 	assert_null(Match.raster())
 	assert_null(Match.config)
 	assert_false(SnapshotSync.is_running())
-	assert_false(_main._world_built)
-	assert_null(_main._local_player)
-	assert_null(_main._remote_cursors)
-	assert_null(_main._debug_overlay)
-	assert_not_null(_main._main_menu, "back on the main menu")
-	assert_null(_main._lobby)
+	assert_false(MainNodes.world_is_built(_main))
+	assert_eq(MainNodes.count(_main, &"LocalPlayer"), 0)
+	assert_eq(MainNodes.count(_main, &"RemoteCursors"), 0)
+	assert_eq(MainNodes.count(_main, &"NetDebugOverlay"), 0)
+	assert_not_null(MainNodes.main_menu(_main), "back on the main menu")
+	assert_null(MainNodes.lobby(_main))
 
 	# A stale match used to keep ticking on the menu; an aborted one decides
 	# nothing.
@@ -219,7 +219,7 @@ func test_rehost_after_the_match_ended_and_the_session_closed_builds_a_fresh_wor
 	Net.leave()
 	await _settle()
 	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_false(_main._world_built)
+	assert_false(MainNodes.world_is_built(_main))
 
 	_host()
 	assert_eq(Match.state(), Match.State.LOBBY, "hosting again finds a clean lobby")
@@ -271,7 +271,7 @@ func test_start_match_writes_the_lobbys_gravity_into_the_shared_physics_tuning()
 	var config: MatchConfig = _config(2)
 	config.gravity_multiplier = 1.2
 
-	_main._on_lobby_start_requested(config)
+	Match.start_match(config)
 
 	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 	assert_almost_eq(tuning.gravity_multiplier, 1.75 * 1.2, 0.0001)

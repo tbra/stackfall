@@ -18,15 +18,30 @@ func after_each() -> void:
 	Match.set_process(true)
 
 
-func test_state_change_forwarder_loads_the_flow_before_the_first_reaction() -> void:
-	assert_null(_main._match_flow, "no flow before the first match state change")
-	_main._on_match_state_changed(Match.State.LOBBY, Match.State.LOBBY)
-	assert_not_null(_main._match_flow, "the forwarder ensured the flow")
-	assert_true(_main._match_flow is MainMatchFlow)
-	assert_eq(_main._match_flow.main, _main, "bound to this Main")
+func _config() -> MatchConfig:
+	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
+	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
+	var tiny: MapDef = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
+	tiny.field_radius = 20.0
+	(_main.get_node("Field") as Field).map_def = tiny
+	(config as TinyMapMatchConfig).set_tiny_map(tiny)
+	config.player_count = 2
+	config.rng_seed = 777
+	return config
+
+
+## Behaviour behind the old "the forwarder loaded the flow, bound to this Main" check: the first
+## match state change reaches the match flow, which builds the world as children of this Main.
+func test_the_first_match_start_reaches_the_flow_and_builds_the_world_under_this_main() -> void:
+	assert_false(MainNodes.world_is_built(_main), "no world before the first match state change")
+	Match.start_match(_config())
+	assert_true(MainNodes.world_is_built(_main), "the state change reached the flow, which built the world")
+	assert_not_null(MainNodes.local_player(_main), "the world's LocalPlayer hangs under this Main")
 
 
 func test_end_match_world_without_a_world_is_idempotent_through_the_forwarder() -> void:
-	_main._end_match_world()
-	_main._end_match_world()
-	assert_false(_main._world_built)
+	watch_signals(Events)
+	Events.match_state_changed.emit(Match.State.LOADING, Match.State.LOBBY)
+	Events.match_state_changed.emit(Match.State.LOADING, Match.State.LOBBY)
+	assert_false(MainNodes.world_is_built(_main))
+	assert_signal_emit_count(Events, "match_scope_reset", 2, "every return to LOBBY resets the scope, world or not")

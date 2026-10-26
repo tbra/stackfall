@@ -69,12 +69,12 @@ func _make_main() -> void:
 	_tiny_map.field_radius = 20.0
 	(_main.get_node("Field") as Field).map_def = _tiny_map
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	assert_not_null(MainNodes.main_menu(_main), "fixture: Main boots to the main menu with no command-line flags")
 
 
 func _host() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
-	assert_not_null(_main._lobby, "hosting swaps the menu for the lobby synchronously")
+	assert_not_null(MainNodes.lobby(_main), "hosting swaps the menu for the lobby synchronously")
 
 
 func _config() -> MatchConfig:
@@ -100,10 +100,10 @@ func _host_a_playing_match() -> void:
 	var data: Dictionary = Net.lobby_data().duplicate(true)
 	data["block_timer"] = CUSTOM_BLOCK_TIMER
 	Net.set_lobby_data(data)
-	_main._on_lobby_start_requested(_config())
+	Match.start_match(_config())
 	_run_seconds(Match.COUNTDOWN_SECONDS + 0.2)
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the match is live")
-	assert_true(_main._world_built, "fixture: the match world exists")
+	assert_true(MainNodes.world_is_built(_main), "fixture: the match world exists")
 
 
 ## A real client (the Net autoload joined a loopback host) whose Main mirrors a match the host
@@ -111,16 +111,16 @@ func _host_a_playing_match() -> void:
 func _client_in_a_playing_match() -> void:
 	_make_main()
 	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is a seated client")
-	assert_not_null(_main._lobby, "fixture: joining swaps the menu for the lobby")
+	assert_not_null(MainNodes.lobby(_main), "fixture: joining swaps the menu for the lobby")
 	Match.start_match(_config())
 	Match.apply_replicated_state_change(Match.State.PLAYING)
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the mirrored match is live")
-	assert_true(_main._world_built, "fixture: the match world exists")
+	assert_true(MainNodes.world_is_built(_main), "fixture: the match world exists")
 
 
 ## Pause -> Return to lobby -> OK, the way the host's Main wires it.
 func _host_returns_through_the_pause_menu() -> void:
-	var pause: PauseMenu = _main._pause_menu
+	var pause: PauseMenu = MainNodes.pause_menu(_main)
 	pause._open()
 	assert_true(pause._return_button.visible and not pause._return_button.disabled, "the host's entry is live")
 	pause._on_return_lobby_pressed()
@@ -236,12 +236,12 @@ func test_host_return_puts_the_session_back_in_its_lobby() -> void:
 	_host_returns_through_the_pause_menu()
 
 	assert_eq(Match.state(), Match.State.LOBBY, "the match is over for everyone")
-	assert_not_null(_main._lobby, "the host is looking at the session lobby")
-	assert_null(_main._main_menu, "not the main menu: the session survives")
-	assert_false(_main._world_built, "the match world is torn down")
+	assert_not_null(MainNodes.lobby(_main), "the host is looking at the session lobby")
+	assert_null(MainNodes.main_menu(_main), "not the main menu: the session survives")
+	assert_false(MainNodes.world_is_built(_main), "the match world is torn down")
 	assert_eq(Net.mode(), Net.Mode.HOST, "still hosting")
-	assert_false(_main._pause_menu.visible)
-	assert_true(_main._pause_menu.suppressed, "the pause overlay is inert in the lobby")
+	assert_false(MainNodes.pause_menu(_main).visible)
+	assert_true(MainNodes.pause_menu(_main).suppressed, "the pause overlay is inert in the lobby")
 	assert_signal_emit_count(Events, "match_scope_reset", 1, "the match reset hub runs once for the abandoned match")
 	assert_eq(Net.peer_ids(), peers_before, "seats are untouched")
 	assert_eq(Net.slot_of_peer(Net.HOST_PEER_ID), host_slot)
@@ -258,7 +258,7 @@ func test_the_abandoned_match_has_no_winner_and_no_results() -> void:
 	_host_returns_through_the_pause_menu()
 
 	assert_signal_not_emitted(Events, "match_results_ready", "DECISION: ending a match from pause skips results")
-	assert_false(_main._results_screen.visible)
+	assert_false(MainNodes.results_screen(_main).visible)
 	assert_eq(Match.stats().blocks_placed(0), 0, "stats reset like any abort")
 	assert_null(Match.config, "the match's config is gone; the lobby's settings live in Net")
 
@@ -266,15 +266,15 @@ func test_the_abandoned_match_has_no_winner_and_no_results() -> void:
 func test_a_client_request_is_ignored_by_main() -> void:
 	await _client_in_a_playing_match()
 
-	_main._on_pause_return_to_lobby_requested()
+	MainNodes.pause_menu(_main).return_to_lobby_requested.emit()
 
 	assert_eq(Match.state(), Match.State.PLAYING, "only the host ends a match for everyone")
-	assert_true(_main._world_built)
+	assert_true(MainNodes.world_is_built(_main))
 
 
 func test_a_client_mirrors_the_hosts_return_into_its_lobby() -> void:
 	await _client_in_a_playing_match()
-	var pause: PauseMenu = _main._pause_menu
+	var pause: PauseMenu = MainNodes.pause_menu(_main)
 	pause._open()
 	assert_true(pause._return_button.disabled, "client: disabled entry")
 	pause._on_leave_pressed()
@@ -285,9 +285,9 @@ func test_a_client_mirrors_the_hosts_return_into_its_lobby() -> void:
 	Match.apply_replicated_state_change(Match.State.LOBBY)
 
 	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._lobby, "the client lands in the session lobby, not the main menu")
-	assert_null(_main._main_menu)
-	assert_false(_main._world_built)
+	assert_not_null(MainNodes.lobby(_main), "the client lands in the session lobby, not the main menu")
+	assert_null(MainNodes.main_menu(_main))
+	assert_false(MainNodes.world_is_built(_main))
 	assert_false(pause.visible, "its pause menu closes")
 	assert_false(pause._confirm_dialog.visible, "and takes the stale confirmation with it")
 	assert_signal_emit_count(Events, "match_scope_reset", 1, "the client's world is reset once as well")
@@ -296,12 +296,12 @@ func test_a_client_mirrors_the_hosts_return_into_its_lobby() -> void:
 
 func test_offline_return_falls_back_to_the_main_menu() -> void:
 	_make_main()
-	_main.start_sandbox_from_menu()
+	await _main.start_sandbox_from_menu()
 	assert_true(Net.is_offline())
-	assert_eq(_main._pause_menu_context()["return_entry"], PauseMenu.ReturnEntry.HIDDEN)
+	assert_eq(MainNodes.pause_menu(_main).context_provider.call()["return_entry"], PauseMenu.ReturnEntry.HIDDEN)
 
-	_main._on_pause_return_to_lobby_requested()
+	MainNodes.pause_menu(_main).return_to_lobby_requested.emit()
 
 	assert_eq(Match.state(), Match.State.LOBBY)
-	assert_not_null(_main._main_menu, "DECISION: offline has no lobby, so it is Leave match")
-	assert_null(_main._lobby)
+	assert_not_null(MainNodes.main_menu(_main), "DECISION: offline has no lobby, so it is Leave match")
+	assert_null(MainNodes.lobby(_main))

@@ -144,12 +144,12 @@ func _ready() -> void:
 	while Match.state() != Match.State.PLAYING:
 		await get_tree().process_frame
 	_field = _main.get_node("Field") as Field
-	_env = (_main.get("_world_environment") as WorldEnvironment).environment
+	_env = (_main.get_node("WorldEnvironment") as WorldEnvironment).environment
 	RenderingServer.viewport_set_measure_render_time(_render_vp.get_viewport_rid(), true)
 	_apply_sky_state(sky_mode, sky_phase)
 	_spawn_blocks(blocks)
 	await get_tree().create_timer(SETTLE_SECONDS).timeout
-	(_main.get("_sandbox") as Sandbox)._set_block_physics_frozen(true)
+	(MainNodes.first(_main, &"Sandbox") as Sandbox)._set_block_physics_frozen(true)
 	if args.has("--prims-audit"):
 		for i: int in range(3):
 			await get_tree().process_frame
@@ -191,7 +191,7 @@ func _apply_sky_state(sky_mode: String, phase: float) -> void:
 
 
 func _skybox() -> Skybox:
-	return _main.get("_skybox") as Skybox
+	return _main.get_node("Skybox") as Skybox
 
 
 ## The live sky description (the one refresh_sky_def re-applies), or null without a Skybox.
