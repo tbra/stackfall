@@ -6,6 +6,8 @@ extends RefCounted
 var _root_dir: String
 var _streams_by_name: Dictionary = {}
 var _warned_missing: Dictionary = {}
+## Folder existence, probed once (not per impact or cue); release() forgets it.
+var _available: Variant = null
 
 
 func _init(root_dir: String) -> void:
@@ -17,7 +19,9 @@ func root_dir() -> String:
 
 
 func available() -> bool:
-	return DirAccess.dir_exists_absolute(_root_dir)
+	if _available == null:
+		_available = DirAccess.dir_exists_absolute(_root_dir)
+	return _available as bool
 
 
 ## Cached; null (and a one-shot print per name) when missing or not a .wav/.mp3.
@@ -47,3 +51,4 @@ func has_file(filename: String) -> bool:
 
 func release() -> void:
 	_streams_by_name.clear()
+	_available = null
