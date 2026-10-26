@@ -345,3 +345,11 @@ func test_cat_ended_is_emitted_before_a_later_state_listener_sees_the_reset() ->
 	Events.match_state_changed.disconnect(listener)
 	Events.cat_ended.disconnect(ended)
 	assert_eq(seen, ["ended", "state"] as Array[String])
+
+
+func test_a_resetting_state_keeps_the_serial_so_a_stale_id_stays_refused() -> void:
+	_as_client()
+	Match.apply_replicated_cat_start(3, 0, _spot(), DURATION_S)
+	Match.apply_replicated_state_change(Match.State.END)
+	assert_false(Match.apply_replicated_cat_start(3, 0, _spot(), DURATION_S))
+	assert_true(Match.apply_replicated_cat_start(4, 0, _spot(), DURATION_S))

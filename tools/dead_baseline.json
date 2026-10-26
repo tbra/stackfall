@@ -105,11 +105,6 @@
  "allow": [
   {
    "id": "dead-file",
-   "entry": "autoload/match/CatSession.gd",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icat moves the Match cat code here; Icat removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "config/soak/soak_match_authority.tres",
    "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
   },
@@ -595,16 +590,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/CatController.gd:configure",
-   "reason": "Match.gd:253 _cat.configure("
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/CatController.gd:set_target",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
    "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
   },
@@ -842,6 +827,16 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/CatSession.gd:setup",
+   "reason": "MatchGifts.setup (typed call), itself reached from Match.late_activate through the untyped _gifts"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/CatController.gd:configure",
+   "reason": "CatSession.gd start/apply_replicated_start _cat.configure( (the cat is held untyped so the autoload closure does not name CatController)"
   }
  ]
 }
