@@ -174,7 +174,7 @@ func _host_base_y(pose: Transform3D, controller: PlayerController, gift_id: Stri
 	if def == null:
 		return pose.origin.y
 	var origin: Vector3 = _spawn_origin(pose.origin, controller)
-	var faced: Variant = MatchPlacement.launch_facing_basis(def, GiftThrow.mode_for(def), _gift_aim(controller), Vector3.ZERO)
+	var faced: Variant = GiftThrow.launch_facing_basis(def, GiftThrow.mode_for(def), _gift_aim(controller), Vector3.ZERO)
 	if faced == null or GiftThrow.mode_for(def) != GiftThrow.Mode.AIMED:
 		return origin.y
 	var shape: BlockShape = Match.held_shape(HOME_SLOT)
