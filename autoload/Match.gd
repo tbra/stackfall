@@ -235,7 +235,9 @@ func end_cat(id: int) -> void:
 
 func _on_cat_match_state_changed(_old: int, next: int) -> void:
 	if is_resetting(next):
-		_cat_session().reset()
+		var cat: RigidBody3D = active_cat()
+		if cat != null:
+			_cat_session().end(cat.activation_id)
 
 
 ## Gift flight and landed expiry use physics time, independent of territory solve cadence.
