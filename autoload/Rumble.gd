@@ -142,30 +142,22 @@ func _on_player_eliminated(slot_id: int, _team_id: int) -> void:
 
 ## DECISION (autoload/Rumble.gd): the only match-end signal is
 ## match_won(team_id); there is no "you lost" signal, so win/lose is derived per
-## local slot by comparing team_of_slot() the way autoload/Sfx.gd does for a
-## null Match.config (offline sandbox or tutorial: every slot is its own team). Stops any
+## local slot by comparing LocalFeedback.team_of_slot() (identity for a
+## null Match.config: offline sandbox or tutorial, every slot is its own team). Stops any
 ## lingering rumble first, then plays the appropriate pulse.
 func _on_match_won(team_id: int) -> void:
 	stop_all()
-	var slot_count: int = maxi(Match.slot_count(), team_id + 1)
+	var slot_count: int = maxi(MatchContext.current().slot_count(), team_id + 1)
 	for slot_id: int in range(slot_count):
 		# The first HUMAN seat on this machine decides win or
 		# loss; a bot seat (every slot is local offline) never does.
 		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
-		if _team_of_slot(slot_id) == team_id:
+		if LocalFeedback.team_of_slot(slot_id) == team_id:
 			_trigger(config.match_won_weak_magnitude, config.match_won_strong_magnitude, config.match_won_duration_s)
 		else:
 			_trigger(config.match_lost_weak_magnitude, config.match_lost_strong_magnitude, config.match_lost_duration_s)
 		return
-
-
-## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot(): Match.config
-## is null before a match starts.
-func _team_of_slot(slot_id: int) -> int:
-	if Match.config == null:
-		return slot_id
-	return Match.config.team_of_slot(slot_id)
 
 
 func _trigger(weak_magnitude: float, strong_magnitude: float, duration_s: float) -> void:
