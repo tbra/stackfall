@@ -111,7 +111,7 @@ def problem(message):
         return "Verdict must be done, review, partial, blocked, or failed."
     skipped = _skipped_required(_field(report, "checks")) if verdict == "done" else []
     if skipped:
-        return "verdict=done but checks are NOT RUN: %s. Run them, use verdict=partial, or say 'optional' in the entry when the brief marks the check optional." % "; ".join(skipped)[:300]
+        return "verdict=done but checks are NOT RUN: %s. Run them, use verdict=partial, or say 'optional' in the entry when the brief marks the check optional. Omit a check the brief forbids or assigns to another package instead of listing it." % "; ".join(skipped)[:300]
     comment_failed = report["record"].startswith("comment-failed:") and len(report["record"]) > len("comment-failed:")
     record = report["record"].strip()
     record_ok = any(record.startswith("bd:" + one) and _RECORD_TAIL.fullmatch(record[len("bd:" + one):]) is not None for one in ids)
