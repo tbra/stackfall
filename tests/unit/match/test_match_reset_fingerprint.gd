@@ -24,6 +24,7 @@ const HOLE_OPEN_S: float = 30.0
 const TILT_IMPULSE: float = 5.0
 const TILT_STEPS: int = 20
 const TILT_STEP_S: float = 0.05
+const TENSE_PROGRESS: float = 0.9
 const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
 ## Real gaps this test found and that are still open: "<label substring>|<key prefix>" -> what /
@@ -40,6 +41,7 @@ var _mains: Array[Node] = []
 var _map: MapDef
 var _other_map: MapDef
 var _saved_gravity_multiplier: float
+var _saved_stems: Dictionary = {}
 
 
 func before_each() -> void:
@@ -56,6 +58,7 @@ func before_each() -> void:
 	_map.field_radius = TINY_FIELD_RADIUS
 	_other_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_other_map.field_radius = OTHER_FIELD_RADIUS
+	_saved_stems = MatchFingerprint.enable_stems()
 	_saved_gravity_multiplier = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier
 
 
@@ -72,7 +75,8 @@ func after_each() -> void:
 	_mains.clear()
 	Match.set_process(true)
 	(load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier = _saved_gravity_multiplier
-	Sfx._tense_stem_is_active = false
+	MatchFingerprint.restore_stems(_saved_stems)
+	_saved_stems = {}
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -275,7 +279,7 @@ func _play_dirty_a(main: Node) -> void:
 	await _dirty_camera(rig)
 	assert_true(rig.is_peeking(), "fixture: the goal focus is held in a peek")
 	assert_ne(rig.shake_offset(), Vector3.ZERO, "fixture: the disc tilt shakes the camera")
-	Sfx._tense_stem_is_active = true
+	Events.goal_capture_progress.emit(0, TENSE_PROGRESS)
 	await _settle()
 
 
@@ -330,7 +334,7 @@ func test_a_dirtied_main_is_caught_by_the_fingerprint() -> void:
 	var dirtied: Dictionary = MatchFingerprint.capture(main)
 	var found: PackedStringArray = MatchFingerprint.diff(launch, dirtied)
 	var text: String = "\n".join(found)
-	for key: String in ["camera.distance", "sky.overcast", "weather.active_id", "field.puddles_present", "audio.tense_active", "rules.gift_crates"]:
+	for key: String in ["camera.distance", "sky.overcast", "weather.active_id", "field.puddles_present", "audio.tense_target_db", "rules.gift_crates"]:
 		assert_true(text.contains(key), "match A changed %s" % key)
 
 

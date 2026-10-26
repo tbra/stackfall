@@ -476,18 +476,47 @@ static func _capture_globals(main: Node, out: Dictionary) -> void:
 # --- audio ----------------------------------------------------------------------------
 
 static func _capture_audio(out: Dictionary) -> void:
-	out["audio.music_context"] = str(_p(Sfx, &"_music_context"))
-	out["audio.tense_active"] = _bp(Sfx, &"_tense_stem_is_active")
-	var tween: Variant = _p(Sfx, &"_music_crossfade_tween")
-	out["audio.crossfade_live"] = tween is Tween and (tween as Tween).is_valid()
-	# Stem volumes are only a calm/tense switch when the contextual playlist is off; with
-	# it on the envelope owns the volume and moves with the wall clock.
-	if not Sfx.config.contextual_music_enabled:
-		var calm: Variant = _p(Sfx, &"_music_player")
-		var tense: Variant = _p(Sfx, &"_tense_music_player")
-		out["audio.calm_db"] = _r((calm as AudioStreamPlayer).volume_db) if calm is AudioStreamPlayer else 0.0
-		out["audio.tense_db"] = _r((tense as AudioStreamPlayer).volume_db) if tense is AudioStreamPlayer else 0.0
+	# Stem targets are the public view of the calm/tense switch. They only move when the stems
+	# are installed (enable_stems) and the contextual playlist is off; with it on the envelope
+	# owns the volume and moves with the wall clock.
+	# Not fingerprinted (no public observable): the music context and a live crossfade Tween.
+	out["audio.calm_target_db"] = _r(Sfx.calm_stem_target_volume_db())
+	out["audio.tense_target_db"] = _r(Sfx.tense_stem_target_volume_db())
 	out["audio.rumble"] = _v2(Input.get_joy_vibration_strength(RUMBLE_PROBE_DEVICE))
+
+
+## Turns the adaptive stems on through the public settings signal: contextual music off, no
+## bundled theme, two shipped wavs standing in for the calm and tense stem files. Returns the
+## state restore_stems() puts back.
+static func enable_stems() -> Dictionary:
+	var config: AudioConfig = Sfx.config
+	var saved: Dictionary = {
+		"contextual": config.contextual_music_enabled,
+		"theme": config.bundled_theme,
+		"theme_path": config.bundled_theme_path,
+		"calm": config.music_stem_calm_file,
+		"tense": config.music_stem_tense_file,
+	}
+	config.contextual_music_enabled = false
+	config.bundled_theme = null
+	config.bundled_theme_path = ""
+	config.music_stem_calm_file = config.thud_files[0]
+	config.music_stem_tense_file = config.thud_files[1]
+	Settings.audio_settings_changed.emit()
+	return saved
+
+
+static func restore_stems(saved: Dictionary) -> void:
+	if saved.is_empty():
+		return
+	Sfx.reset_match_audio()
+	var config: AudioConfig = Sfx.config
+	config.contextual_music_enabled = saved["contextual"]
+	config.bundled_theme = saved["theme"]
+	config.bundled_theme_path = saved["theme_path"]
+	config.music_stem_calm_file = saved["calm"]
+	config.music_stem_tense_file = saved["tense"]
+	Settings.audio_settings_changed.emit()
 
 
 # --- persistent UI / Main state -------------------------------------------------------
