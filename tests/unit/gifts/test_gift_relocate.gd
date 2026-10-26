@@ -65,9 +65,8 @@ func _start_playing(config: MatchConfig) -> void:
 
 
 func _inject_crate_at(position: Vector2) -> int:
-	var gift_id: int = Match._gifts._next_gift_id
-	Match._gifts._next_gift_id += 1
-	Match._gifts._crates[gift_id] = {"position": position, "age": 0.0, "node": null}
+	var gift_id: int = 1000
+	Match._gifts.apply_replicated_spawn(gift_id, position)
 	return gift_id
 
 
@@ -81,16 +80,16 @@ func test_expired_crate_is_replaced_by_a_new_one_at_least_min_distance_away() ->
 
 	Match._gifts.tick_host(1.5)
 
-	assert_false(Match._gifts._crates.has(old_gift_id), "the expired crate must be removed")
+	assert_true(Match.gift_state(old_gift_id).is_empty(), "the expired crate must be removed")
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [old_gift_id])
-	assert_eq(Match._gifts._crates.size(), 1,
+	assert_eq(Match.gift_states().size(), 1,
 		"exactly one replacement must exist -- the relocated crate counts as the live crate")
 	assert_signal_emitted(Events, "gift_spawned", "the replacement must replicate through the ordinary spawn event")
 
-	var new_gift_id: int = Match._gifts._crates.keys()[0]
+	var new_gift_id: int = int(Match.gift_states()[0]["id"])
 	assert_ne(new_gift_id, old_gift_id, "the replacement must be a new crate, not the same id")
-	var new_position: Vector2 = Match._gifts._crates[new_gift_id]["position"]
-	assert_eq(int(Match._gifts._crates[new_gift_id]["phase"]), MatchGifts.FALLING,
+	var new_position: Vector2 = Match.gift_state(new_gift_id)["position"]
+	assert_eq(int(Match.gift_state(new_gift_id)["phase"]), MatchGifts.FALLING,
 		"an expired landed gift is replaced by a fresh descending gift")
 	assert_ne(new_position, _OLD_POSITION, "the replacement must land somewhere different")
 	assert_gte(new_position.distance_to(_OLD_POSITION), Match._gifts._gift_config.relocate_min_distance_m,

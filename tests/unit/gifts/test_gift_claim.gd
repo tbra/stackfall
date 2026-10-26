@@ -13,9 +13,12 @@ var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
 var _tiny_map: MapDef
+## Injected crates take ids far above any the match itself rolls.
+var _next_injected_id: int = 1000
 
 
 func before_each() -> void:
+	_next_injected_id = 1000
 	Match.set_process(false)
 	Match.abort_match()
 	# A previous script in the same process (Sandbox's forced-special drawer) may have left a custom
@@ -111,9 +114,9 @@ func _step_territory(times: int = 1) -> void:
 ## assumption test_match_flow.gd's _home_world_position() relies on.
 func _inject_crate(slot_id: int) -> int:
 	var home: Vector2 = Match.slot(slot_id).home_position
-	var gift_id: int = Match._gifts._next_gift_id
-	Match._gifts._next_gift_id += 1
-	Match._gifts._crates[gift_id] = {"position": home, "age": 0.0, "node": null}
+	var gift_id: int = _next_injected_id
+	_next_injected_id += 1
+	Match._gifts.apply_replicated_spawn(gift_id, home)
 	return gift_id
 
 
@@ -124,7 +127,7 @@ func test_crate_on_owned_uncontested_cell_is_claimed_and_grants_special() -> voi
 
 	_step_territory()
 
-	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
+	assert_true(Match.gift_state(gift_id).is_empty(), "claimed crate must be removed from the live set")
 	assert_eq(Match.held_special(0), &"", "claim leaves the current held piece ordinary")
 	assert_eq((Match._gifts._pending_queues[0] as Array)[0], MatchGifts.PENDING_SPECIAL_ID)
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
@@ -135,16 +138,16 @@ func test_crate_expires_after_life_s_without_being_claimed() -> void:
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.life_s = 1.0
 	# Off every home flag and off-center, so nobody's home circle claims it.
-	var gift_id: int = Match._gifts._next_gift_id
-	Match._gifts._next_gift_id += 1
-	Match._gifts._crates[gift_id] = {"position": Vector2(19.0, 19.0), "age": 0.0, "node": null}
+	var gift_id: int = _next_injected_id
+	_next_injected_id += 1
+	Match._gifts.apply_replicated_spawn(gift_id, Vector2(19.0, 19.0))
 	watch_signals(Events)
 
 	_step_territory()
-	assert_true(Match._gifts._crates.has(gift_id), "must still be alive before life_s elapses")
+	assert_false(Match.gift_state(gift_id).is_empty(), "must still be alive before life_s elapses")
 	Match._gifts.tick_host(1.5)
 
-	assert_false(Match._gifts._crates.has(gift_id), "expired crate must be removed from the live set")
+	assert_true(Match.gift_state(gift_id).is_empty(), "expired crate must be removed from the live set")
 	assert_eq(Match.held_special(0), &"", "an expired crate must not grant a special")
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [gift_id])
 
@@ -158,7 +161,7 @@ func test_no_spawn_when_gifts_disabled() -> void:
 
 	Match._gifts.on_feed_block_issued(0)
 
-	assert_true(Match._gifts._crates.is_empty(), "gifts_enabled = false must never spawn a crate")
+	assert_true(Match.gift_states().is_empty(), "gifts_enabled = false must never spawn a crate")
 
 
 ## Every claim replaces the one next gift, including when older queue caps
@@ -186,9 +189,9 @@ func test_latest_claim_replaces_the_next_gift_and_all_crates_are_claimed() -> vo
 	assert_eq(Match.pending_special_count(0), 1, "only the latest gift occupies the next slot")
 	assert_eq((Match._gifts._pending_queues[0] as Array)[0], &"special_c")
 	assert_eq(Match.held_special(0), &"", "the current held piece is unchanged")
-	assert_false(Match._gifts._crates.has(gift_id_1), "the first claim must consume its crate")
-	assert_false(Match._gifts._crates.has(gift_id_2), "the second claim must consume its crate")
-	assert_false(Match._gifts._crates.has(gift_id_3), "the latest claim consumes its crate")
+	assert_true(Match.gift_state(gift_id_1).is_empty(), "the first claim must consume its crate")
+	assert_true(Match.gift_state(gift_id_2).is_empty(), "the second claim must consume its crate")
+	assert_true(Match.gift_state(gift_id_3).is_empty(), "the latest claim consumes its crate")
 	assert_signal_emit_count(Events, "gift_claimed", 3)
 
 
@@ -292,7 +295,7 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 	# _start_playing() already ran one window (match start) with the default
 	# GiftConfig/special_frequency; wipe whatever that produced so only the
 	# three calls below are being measured.
-	Match._gifts._crates.clear()
+	var before: int = Match.gift_states().size()
 	Match._gifts._next_gift_id = 0
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
@@ -303,7 +306,7 @@ func test_only_the_lowest_alive_slot_rolls_per_window() -> void:
 	for slot_id: int in range(3):
 		Match._gifts.on_feed_block_issued(slot_id)
 
-	assert_eq(Match._gifts._crates.size(), 1, "exactly one roll must happen across all 3 slots' windows")
+	assert_eq(Match.gift_states().size() - before, 1, "exactly one roll must happen across all 3 slots' windows")
 
 
 ## A client never spawns, claims or expires anything itself -- it only ever
@@ -316,12 +319,13 @@ func test_client_never_spawns_claims_or_expires() -> void:
 	Match._gifts._gift_config.first_gift_delay_s = 0.0
 	Match.config.special_frequency = 100
 	var gift_id: int = _inject_crate(0)
+	var before: int = Match.gift_states().size()
 
 	Match._gifts.on_feed_block_issued(0)
-	assert_eq(Match._gifts._crates.size(), 1, "a client must never spawn a crate of its own")
+	assert_eq(Match.gift_states().size(), before, "a client must never spawn a crate of its own")
 
 	Match._gifts.tick_host(1000.0)
-	assert_true(Match._gifts._crates.has(gift_id), "a client must never claim or expire a crate itself")
+	assert_false(Match.gift_state(gift_id).is_empty(), "a client must never claim or expire a crate itself")
 
 	Match._net_provider = null
 
@@ -336,17 +340,17 @@ func test_net_mirrors_gift_spawned_claimed_and_expired() -> void:
 
 	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [7, Vector2(1.0, 2.0)])
 	assert_signal_emitted_with_parameters(Events, "gift_spawned", [7, Vector2(1.0, 2.0)])
-	assert_true(Match._gifts._crates.has(7))
+	assert_false(Match.gift_state(7).is_empty())
 
 	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [7, 1, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [7, 1, MatchGifts.PENDING_SPECIAL_ID])
 	assert_eq((Match._gifts._pending_queues[1] as Array)[0], MatchGifts.PENDING_SPECIAL_ID)
-	assert_false(Match._gifts._crates.has(7))
+	assert_true(Match.gift_state(7).is_empty())
 
 	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [8, Vector2(3.0, 4.0)])
 	net.net_match_event(MatchWireEvents.GIFT_EXPIRED, [8])
 	assert_signal_emitted_with_parameters(Events, "gift_expired", [8])
-	assert_false(Match._gifts._crates.has(8))
+	assert_true(Match.gift_state(8).is_empty())
 
 
 ## EVENT_SPECIAL_CONSUMED on a client: the host's spend empties the client's
@@ -404,12 +408,12 @@ func test_gift_wire_rejects_malformed_payloads() -> void:
 
 	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [9, Vector2(INF, 0.0)])
 	assert_signal_not_emitted(Events, "gift_spawned")
-	assert_false(Match._gifts._crates.has(9))
+	assert_true(Match.gift_state(9).is_empty())
 
 	# field_radius is 20.0 in this fixture's tiny map (before_each).
 	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [9, Vector2(999.0, 0.0)])
 	assert_signal_not_emitted(Events, "gift_spawned")
-	assert_false(Match._gifts._crates.has(9))
+	assert_true(Match.gift_state(9).is_empty())
 
 	net.net_match_event(MatchWireEvents.GIFT_CLAIMED, [-1, 0, MatchGifts.PENDING_SPECIAL_ID, &"cube"])
 	assert_signal_not_emitted(Events, "gift_claimed")
@@ -483,7 +487,7 @@ func test_only_the_nearest_teammate_holds_the_special_after_a_claim() -> void:
 	var gift_id: int = _inject_crate(0)
 	_step_territory()
 
-	assert_false(Match._gifts._crates.has(gift_id), "claimed crate must be removed from the live set")
+	assert_true(Match.gift_state(gift_id).is_empty(), "claimed crate must be removed from the live set")
 	assert_eq((Match._gifts._pending_queues[0] as Array)[0], MatchGifts.PENDING_SPECIAL_ID, "the nearest teammate gets the next gift")
 	assert_eq(Match.held_special(2), &"", "a teammate who isn't the resolved recipient holds nothing")
 	assert_signal_emitted_with_parameters(Events, "gift_claimed", [gift_id, 0, MatchGifts.PENDING_SPECIAL_ID])
@@ -523,7 +527,7 @@ func test_start_match_restores_default_drawer_after_forced_one() -> void:
 ## skipped roll is not queued, and the usual chance applies afterwards.
 func test_no_gift_spawns_before_first_gift_delay() -> void:
 	_start_playing(_config())
-	Match._gifts._crates.clear()
+	var before: int = Match.gift_states().size()
 	Match._gifts._gift_config = Match._gifts._gift_config.duplicate() as GiftConfig
 	Match._gifts._gift_config.frequency_to_chance_max = 1.0
 	Match._gifts._gift_config.first_gift_delay_s = 10.0
@@ -532,12 +536,12 @@ func test_no_gift_spawns_before_first_gift_delay() -> void:
 
 	for _i: int in range(5):
 		Match._gifts.on_feed_block_issued(0)
-	assert_true(Match._gifts._crates.is_empty(), "no crate in the start grace")
+	assert_eq(Match.gift_states().size(), before, "no crate in the start grace")
 
 	Match._gifts._play_time_s = 9.99
 	Match._gifts.on_feed_block_issued(0)
-	assert_true(Match._gifts._crates.is_empty(), "still inside the grace at 9.99 s")
+	assert_eq(Match.gift_states().size(), before, "still inside the grace at 9.99 s")
 
 	Match._gifts.tick_host(0.02)
 	Match._gifts.on_feed_block_issued(0)
-	assert_eq(Match._gifts._crates.size(), 1, "chance 1.0 spawns once the grace has passed")
+	assert_eq(Match.gift_states().size() - before, 1, "chance 1.0 spawns once the grace has passed")
