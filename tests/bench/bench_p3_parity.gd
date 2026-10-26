@@ -10,7 +10,8 @@ extends Node
 ##   godot --headless --path . res://tests/bench/bench_p3_parity.tscn -- --compare=a.json,b.json [--tol=0.0001]
 ##
 ## Determinism rules (plan 6.1): (a) accumulated input off and the buffer flushed after every tick;
-## (b) wall-clock fields are never recorded (LocalHeldView.updated_msec only under --wallclock, which exists
+## (b) Settings is isolated (a scene under res://tests/ or `-- --agent-probe` gives defaults, never the user's
+## settings.cfg; the scale is recorded in the header and a non-isolated run refuses to start); wall-clock fields are never recorded (LocalHeldView.updated_msec only under --wallclock, which exists
 ## to show that it differs); (c) offline, no peer. Ticks are counted from the first PLAYING tick, so
 ## load-timed world building does not shift the keys.
 
@@ -108,6 +109,11 @@ func _ready() -> void:
 		get_tree().quit(_compare(compare, tol))
 		set_physics_process(false)
 		return
+	if not UserPaths.is_isolated_run():
+		push_error("bench_p3_parity: not an isolated run, Settings would read the user's settings.cfg")
+		get_tree().quit(1)
+		return
+	_record["header.mouse_move_speed_scale"] = _r(Settings.mouse_move_speed_scale())
 	Input.use_accumulated_input = false
 	seed(rng_seed)
 	_clear_input()
