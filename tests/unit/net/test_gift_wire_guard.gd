@@ -230,3 +230,25 @@ func test_an_over_long_id_is_refused_even_when_it_starts_with_a_roster_member() 
 	var padded: String = String(roster[0].id) + "_".repeat(_config.special_id_max_length)
 	assert_false(_guard.special_id_ok(StringName(padded)))
 	assert_false(_guard.special_id_ok(StringName("a".repeat(_config.special_id_max_length + 1))))
+
+
+func test_every_guard_answers_from_the_roster_with_no_state_shared_between_guards() -> void:
+	var other: GiftWireGuard = GiftWireGuard.new()
+	other.bind(_host, _config)
+	var roster: Array[SpecialDef] = SpecialDef.load_all_specials()
+	assert_false(other.special_id_ok(&"not_a_real_special"))
+	for def: SpecialDef in roster:
+		assert_true(other.special_id_ok(def.id), "%s on a second guard" % def.id)
+		assert_true(_guard.special_id_ok(def.id), "%s on the first guard" % def.id)
+	assert_true(other.special_id_ok(SpecialIds.PENDING))
+
+
+func test_special_ids_are_still_accepted_after_the_roster_cache_is_released() -> void:
+	assert_true(_guard.special_id_ok(SpecialIds.PENDING))
+	SpecialDef.release_cache()
+	var fresh: GiftWireGuard = GiftWireGuard.new()
+	fresh.bind(_host, _config)
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		assert_true(_guard.special_id_ok(def.id), "%s on the old guard" % def.id)
+		assert_true(fresh.special_id_ok(def.id), "%s on a new guard" % def.id)
+	assert_false(fresh.special_id_ok(&"not_a_real_special"))

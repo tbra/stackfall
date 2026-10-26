@@ -87,3 +87,54 @@ func test_selectable_specials_exclude_cat_but_load_all_keeps_it() -> void:
 	for def: SpecialDef in selectable:
 		assert_true(def.enabled_by_default)
 		assert_ne(def.id, &"cat")
+
+
+## -- roster memo contract ------------------------------------------------------
+
+func _ids_of(defs: Array[SpecialDef]) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for def: SpecialDef in defs:
+		ids.append(def.id)
+	return ids
+
+
+func test_load_all_specials_gives_the_same_ids_twice() -> void:
+	var first: Array[StringName] = _ids_of(SpecialDef.load_all_specials())
+	var second: Array[StringName] = _ids_of(SpecialDef.load_all_specials())
+	assert_gt(first.size(), 0)
+	assert_eq(second, first)
+
+
+func test_a_mutated_returned_roster_does_not_change_the_next_call() -> void:
+	var expected: Array[StringName] = _ids_of(SpecialDef.load_all_specials())
+	var mine: Array[SpecialDef] = SpecialDef.load_all_specials()
+	mine.clear()
+	mine.append(_make_def(&"intruder"))
+	assert_eq(_ids_of(SpecialDef.load_all_specials()), expected)
+	assert_null(SpecialDef.find_by_id(&"intruder"), "a caller's edit never reaches the lookup")
+	assert_eq(_ids_of(SpecialDef.load_selectable_specials()).has(&"intruder"), false)
+
+
+func test_the_roster_survives_release_cache_unchanged() -> void:
+	var before: Array[StringName] = _ids_of(SpecialDef.load_all_specials())
+	SpecialDef.release_cache()
+	assert_eq(_ids_of(SpecialDef.load_all_specials()), before)
+	for special_id: StringName in before:
+		var found: SpecialDef = SpecialDef.find_by_id(special_id)
+		assert_not_null(found, "%s resolves after a release" % special_id)
+		assert_eq(found.id, special_id)
+
+
+func test_find_by_id_agrees_with_load_all_specials() -> void:
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		assert_eq(SpecialDef.find_by_id(def.id), def, "%s" % def.id)
+	assert_null(SpecialDef.find_by_id(&""))
+	assert_null(SpecialDef.find_by_id(&"not_a_real_special"))
+
+
+func test_selectable_specials_are_the_enabled_subset_of_load_all_in_order() -> void:
+	var expected: Array[StringName] = []
+	for def: SpecialDef in SpecialDef.load_all_specials():
+		if def.enabled_by_default:
+			expected.append(def.id)
+	assert_eq(_ids_of(SpecialDef.load_selectable_specials()), expected)
