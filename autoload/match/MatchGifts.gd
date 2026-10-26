@@ -771,7 +771,7 @@ func _claim_landed(gift_id: int) -> void:
 		_claim_gift(gift_id, team)
 
 
-## Only an accepted host cursor or the local held ghost is eligible.
+## Only an accepted host cursor or the local held view is eligible.
 func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 	var slot: PlayerSlot = _match.slot(slot_id)
 	var shape: BlockShape = _match.held_shape(slot_id)
@@ -793,12 +793,12 @@ func _held_block_touches(slot_id: int, crate_world: Vector3) -> bool:
 			found = true
 	var local_slot: bool = slot_id == _match.active_slot() if Net.is_offline() else Net.is_local_slot(slot_id)
 	if not found and local_slot:
-		var tree: SceneTree = _match.get_tree()
-		var ghost: GhostPreview = tree.get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
-		if ghost != null and ghost.get_shape() == shape:
-			origin = ghost.global_position
-			orientation = ghost.orientation_index
-			free_quat = ghost.free_quaternion
+		# DECISION: read the published view through the MatchContext port, not the scene tree.
+		var held: LocalHeldView = MatchContext.current().local_held()
+		if held.slot_id == slot_id and held.shape == shape:
+			origin = held.origin
+			orientation = held.orientation_index
+			free_quat = held.free_quat
 			found = true
 	if not found or not _match.is_pose_well_formed(origin, orientation, free_quat):
 		return false
