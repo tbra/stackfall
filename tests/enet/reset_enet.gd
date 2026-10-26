@@ -40,10 +40,13 @@ const FILE_NAME: String = "fp_%s.var"
 ## far below a wrong opening phase or a stopped clock.
 const CYCLE_PHASE_TOLERANCE: float = 0.02
 const CYCLE_PLAYING_WAIT_S: float = 2.0
-## DECISION: Client camera derives from interpolated replicated positions; tiny float diffs
-## (1e-4 to 7e-4) are expected on camera keys. Host comparison uses exact tolerance (1e-4).
+## DECISION: The client camera eases toward the interpolated replicated ghost position, so its
+## settled origin carries a residual of a few millimetres that depends on frame timing (a fresh
+## launch alone varies 0.0 to 0.0008 on z, and a loaded run reached 0.0017 against a quiet
+## reference). 0.005 m covers that; a leaked camera, zoom, orbit or seat shows as decimetres to
+## metres. Host comparison stays exact.
 const CLIENT_CAMERA_TOLERANCE: Dictionary = {
-	"camera.": 0.001,
+	"camera.": 0.005,
 }
 
 const HOST_TOLERANCE: Dictionary = {}
