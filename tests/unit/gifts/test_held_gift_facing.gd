@@ -18,7 +18,7 @@ func _ghost_holding(id: StringName) -> GhostPreview:
 
 func _nose_world(ghost: GhostPreview, id: StringName) -> Vector3:
 	var axis: Vector3 = GiftModelTable.shared().entry_for(id).held_nose_axis
-	return (ghost._gift_visual.global_basis * axis).normalized()
+	return (GhostParts.gift_visual(ghost).global_basis * axis).normalized()
 
 
 func test_held_rocket_and_magnet_nose_follows_the_aim_and_is_not_vertical() -> void:
