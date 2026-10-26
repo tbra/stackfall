@@ -171,14 +171,20 @@ func _real_main() -> Node:
 	tiny.field_radius = 20.0
 	(main.get_node("Field") as Field).map_def = tiny
 	add_child_autofree(main)
-	# the real-time pending/ready timeouts (10 s / 20 s) are product
-	# safety nets; a world build on a gate-loaded machine can outlast them and
-	# cancel the overlay mid-test. These flows assert hand-off order, not timeouts.
-	var overlay_tuning: LoadingScreenTuning = (main._loading_screen as LoadingScreen).tuning.duplicate() as LoadingScreenTuning # the preload is shared
+	return main
+
+
+## The real-time pending/ready timeouts (10 s / 20 s) are product safety nets; a world build on a
+## gate-loaded machine can outlast them and cancel the overlay mid-test. These flows assert
+## hand-off order, not timeouts. Main builds its overlays when a session lobby (or the host's
+## announcement) first needs them, so this runs once the test has one.
+func _relax_timeouts(main: Node) -> LoadingScreen:
+	var overlay: LoadingScreen = MainNodes.loading_screen(main)
+	var overlay_tuning: LoadingScreenTuning = overlay.tuning.duplicate() as LoadingScreenTuning # the preload is shared
 	overlay_tuning.pending_timeout_s = FLOW_TIMEOUT_S
 	overlay_tuning.ready_timeout_s = FLOW_TIMEOUT_S
-	(main._loading_screen as LoadingScreen).tuning = overlay_tuning
-	return main
+	overlay.tuning = overlay_tuning
+	return overlay
 
 
 func _flow_config(main: Node) -> MatchConfig:
@@ -195,11 +201,11 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	Match.abort_match()
 	var main: Node = _real_main()
 	assert_eq(Net.host_game(47990, "Hostie"), OK)
+	var overlay: LoadingScreen = _relax_timeouts(main)
 	var states: Array[int] = []
 	var on_state: Callable = func(_from: int, to: int) -> void: states.append(to)
 	Events.match_state_changed.connect(on_state)
-	main._on_lobby_start_pressed(_flow_config(main))
-	var overlay: LoadingScreen = main._loading_screen
+	MainNodes.lobby(main).start_requested.emit(_flow_config(main))
 	assert_true(overlay.visible, "overlay up the moment Start returns")
 	assert_true(overlay.is_pending())
 	assert_eq(Match.state(), Match.State.LOBBY, "world build has not started yet")
@@ -219,24 +225,26 @@ func test_host_start_shows_overlay_before_the_match_starts() -> void:
 	Match.set_process(true)
 
 
+## A client whose first replicated territory lands before the host's COUNTDOWN reaches it: the
+## latch holds, so readiness completes as soon as the loading hand-off runs.
+## (The ordering "territory before the world build finishes" needs a staged build, which only
+## runs with a real display; headless the build is synchronous with the LOADING change.)
 func test_early_client_territory_completes_readiness_after_build() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	var main: Node = _real_main()
 	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is an accepted client")
-	var overlay: LoadingScreen = main._loading_screen
-	overlay.show_for_match(_flow_config(main), _slots(2))
+	var overlay: LoadingScreen = _relax_timeouts(main)
+	Match.start_match(_flow_config(main))
+	assert_true(MainNodes.world_is_built(main), "fixture: the client's world is built")
+	assert_true(overlay.visible, "fixture: the overlay is up for the loading match")
 	Events.territory_replicated.emit(null)
-	assert_true(main._first_territory_ready, "late join keyframe is latched before world build")
-	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
-	await wait_process_frames(2)
-	assert_lt(overlay._progress, overlay.tuning.complete_progress)
-	main._world_built = true
+	Match.apply_replicated_state_change(Match.State.COUNTDOWN)
 	await wait_until(_progress_is(overlay, overlay.tuning.complete_progress), FLOW_TIMEOUT_S, "readiness completes")
 	assert_almost_eq(overlay._progress, overlay.tuning.complete_progress, 0.001)
 	assert_false(overlay._timed_out)
 	overlay.cancel()
-	main._world_built = false
+	Match.abort_match()
 	Net.leave()
 	Match.set_process(true)
 
@@ -245,9 +253,10 @@ func test_client_overlay_appears_on_loading_announcement() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	var main: Node = _real_main()
-	var overlay: LoadingScreen = main._loading_screen
-	assert_false(overlay.visible)
+	var before: LoadingScreen = MainNodes.loading_screen(main)
+	assert_true(before == null or not before.visible, "no overlay up before the announcement")
 	Events.match_loading_announced.emit()
+	var overlay: LoadingScreen = MainNodes.loading_screen(main)
 	assert_true(overlay.visible)
 	assert_true(overlay.is_pending())
 	assert_lt(overlay._progress, 0.1)
@@ -259,11 +268,11 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	Match.abort_match()
 	var main: Node = _real_main()
 	assert_true(await _loopback.join_net_as_client(), "fixture: the Net autoload is an accepted client")
-	var overlay: LoadingScreen = main._loading_screen
+	var overlay: LoadingScreen = _relax_timeouts(main)
 	Events.match_loading_announced.emit()
-	overlay.show_for_match(_flow_config(main), _slots(2))
-	main._world_built = true
-	main._match_flow_port().call(&"_finish_loading_when_ready", main._loading_generation)
+	Match.start_match(_flow_config(main))
+	assert_true(MainNodes.world_is_built(main), "fixture: the client's world is built")
+	Match.apply_replicated_state_change(Match.State.COUNTDOWN)
 	await wait_process_frames(overlay.tuning.stable_frames + 2)
 	assert_true(overlay.visible)
 	assert_lt(overlay._progress, 1.0)
@@ -272,7 +281,7 @@ func test_client_waits_for_replicated_territory_before_ready() -> void:
 	assert_almost_eq(overlay._progress, 1.0, 0.001)
 	overlay.cancel()
 	await wait_process_frames(overlay.tuning.warmup_frames + 2)
-	main._world_built = false
+	Match.abort_match()
 	Net.leave()
 	Match.set_process(true)
 

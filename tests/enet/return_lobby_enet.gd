@@ -81,7 +81,7 @@ func _config() -> MatchConfig:
 
 
 func _pause() -> PauseMenu:
-	return _main.get("_pause_menu") as PauseMenu
+	return MainNodes.pause_menu(_main)
 
 
 func _slots() -> Dictionary:
@@ -96,11 +96,11 @@ func _lobby_problems(slots_before: Dictionary) -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	if Match.state() != Match.State.LOBBY:
 		problems.append("state=%d" % int(Match.state()))
-	if _main.get("_lobby") == null:
+	if MainNodes.lobby(_main) == null:
 		problems.append("no_lobby_screen")
-	if _main.get("_main_menu") != null:
+	if MainNodes.main_menu(_main) != null:
 		problems.append("main_menu_shown")
-	if bool(_main.get("_world_built")):
+	if MainNodes.world_is_built(_main):
 		problems.append("world_still_built")
 	if _pause().visible:
 		problems.append("pause_menu_still_open")
@@ -108,7 +108,7 @@ func _lobby_problems(slots_before: Dictionary) -> PackedStringArray:
 		problems.append("scope_resets=%d" % _scope_resets)
 	if _results_emitted != 0:
 		problems.append("results_emitted=%d" % _results_emitted)
-	if bool((_main.get("_results_screen") as Control).visible):
+	if MainNodes.results_screen(_main).visible:
 		problems.append("results_screen_visible")
 	if _slots() != slots_before:
 		problems.append("seats_changed before=%s after=%s" % [str(slots_before), str(_slots())])
@@ -127,7 +127,7 @@ func _run_host() -> void:
 	data["block_timer"] = CUSTOM_BLOCK_TIMER
 	Net.set_lobby_data(data)
 	var slots_before: Dictionary = _slots()
-	_main.call(&"_on_lobby_start_requested", _config())
+	Match.start_match(_config())
 	if not await _until(func() -> bool: return Match.state() == Match.State.PLAYING, STATE_TIMEOUT_S):
 		_fail("host never reached PLAYING")
 		return
@@ -157,7 +157,7 @@ func _run_host() -> void:
 	# The client has its own checks to run on the replicated LOBBY; then a fresh match
 	# from this lobby must start for both.
 	await _wait(SETTLE_S + SETTLE_S)
-	_main.call(&"_on_lobby_start_requested", _config())
+	Match.start_match(_config())
 	if not await _until(func() -> bool: return Match.state() == Match.State.PLAYING, STATE_TIMEOUT_S):
 		_fail("host never reached PLAYING again")
 		return
