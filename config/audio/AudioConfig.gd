@@ -370,7 +370,7 @@ func files_for_event(event: StringName) -> Array[String]:
 ## Decibel offset for a thud at `speed` m/s, clamped to
 ## [impact_quiet_db_offset, impact_loud_db_offset] regardless of how far
 ## outside [impact_speed_min, impact_speed_loud] `speed` falls. Callers gate
-## playback below impact_speed_min separately (Sfx._on_block_impacted): this
+## playback below impact_speed_min separately (Sfx._on_block_impacted_at): this
 ## function only answers "how loud", never "whether at all".
 func impact_volume_db(speed: float) -> float:
 	var span: float = maxf(impact_speed_loud - impact_speed_min, 0.001)

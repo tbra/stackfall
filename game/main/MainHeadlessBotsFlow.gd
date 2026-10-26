@@ -82,13 +82,13 @@ var _think_cost_file: String = ""
 
 
 func _setup_think_cost(args: PackedStringArray, bots: int) -> void:
-	_think_cost_file = _string_arg(args, THINK_COST_FILE_ARG)
+	_think_cost_file = MatchLaunch.arg_value(args, THINK_COST_FILE_ARG)
 	if _think_cost_file.is_empty():
 		return
-	var mode: int = _mode_arg(args)
+	var mode: int = MatchLaunch.mode_arg(args)
 	var label: String = "mode%d_bots%d" % [mode, bots]
 	BotThinkCostCollector.enable(label, 0)
-	var seconds: String = _string_arg(args, THINK_COST_SECONDS_ARG)
+	var seconds: String = MatchLaunch.arg_value(args, THINK_COST_SECONDS_ARG)
 	var duration: float = float(seconds) if seconds.is_valid_float() else BotThinkCostReport.SHIPPED_TUNING.default_duration_s
 	main_node.get_tree().create_timer(duration).timeout.connect(_on_think_cost_elapsed)
 
@@ -117,16 +117,20 @@ func _on_think_cost_elapsed() -> void:
 ## Builds and starts one headless bot match. With --loop-matches, each match
 ## after the first gets a fresh rng_seed.
 func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
-	var config: MatchConfig = _build_headless_bot_config(bots, args)
+	# DECISION: Net.match_config_override() (--match-config=<path>) replaces the default config as the source.
+	var base_config: MatchConfig = Net.match_config_override()
+	if base_config == null:
+		base_config = main_node.match_config
+	var config: MatchConfig = MatchLaunch.headless_bot_config(base_config, bots, args)
 	main_node._headless_loop_index += 1
-	var has_match_seed: bool = _has_match_seed_arg(args)
+	var has_match_seed: bool = MatchLaunch.has_match_seed_arg(args)
 	if main_node._headless_loop_enabled:
 		# DECISION: match 1 keeps the configured seed when one is
 		# set; every later match draws a fresh positive seed so repeats differ.
 		if has_match_seed:
 			# DECISION: with --match-seed the later loop matches derive their
 			# seeds deterministically from it instead of drawing fresh random ones.
-			config.rng_seed = _derived_loop_seed(_match_seed_arg(args), main_node._headless_loop_index)
+			config.rng_seed = _derived_loop_seed(MatchLaunch.match_seed_arg(args), main_node._headless_loop_index)
 		elif main_node._headless_loop_index > 1 or config.rng_seed < 0:
 			config.rng_seed = randi_range(1, 2147483647)
 		main_node._headless_loop_seed = config.rng_seed
@@ -139,10 +143,7 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 ## `--loop-matches`, same "-"-stripping convention as the other flags.
 func _has_loop_matches_arg(args: PackedStringArray) -> bool:
 	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text == "loop-matches":
+		if raw.lstrip("-") == "loop-matches":
 			return true
 	return false
 
@@ -241,162 +242,13 @@ func _net_is_hosting() -> bool:
 ## `--bots=<n>`, same "-"-stripping/PREFIX convention as the other arg parsers.
 ## 0 when absent (feature off by default).
 func _bots_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "bots="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
+	return int(MatchLaunch.arg_value(args, "bots="))
 
 
 ## `--seconds=<n>`, same convention. 0.0 (unbounded -- the match runs until a
 ## real win condition or the process is killed) when absent.
 func _seconds_arg(args: PackedStringArray) -> float:
-	const PREFIX: String = "seconds="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return float(text.substr(PREFIX.length()))
-	return 0.0
-
-
-## Same "players="-reading loop as MainSandboxFlow._sandbox_player_count(), with a
-## different absent-flag default (0, so `maxi(bots, ...)` reduces to `bots`: every
-## seat is a bot); kept separate because the sandbox default is wrong here.
-func _headless_bot_players_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "players="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
-
-
-## Same lobby-settings-minus-a-few-overrides shape as the hot-seat/sandbox
-## builders: `config.player_count` may be raised past `bots` by `--players=<n2>` to
-## leave human seats idle; `config.sandbox` stays false, so the real timers/cadence
-## and feed/territory/win loop run.
-func _build_headless_bot_config(bots: int, args: PackedStringArray) -> MatchConfig:
-	# DECISION (game/main/Main.gd): Net.match_config_override() (set by
-	# --match-config=<path>, parsed in Net's host branch) replaces `match_config` as
-	# the duplication source here, extending the existing duplicate-then-override
-	# shape. Null (no flag, or a rejected path/type) leaves the default.
-	var base_config: MatchConfig = main_node.match_config
-	if Net.match_config_override() != null:
-		base_config = Net.match_config_override()
-	var config: MatchConfig = base_config.duplicate(true) as MatchConfig
-	config.ai_count = bots
-	config.player_count = maxi(bots, _headless_bot_players_arg(args))
-	config.sandbox = false
-	# DECISION: headless bot matches have no human to wait for,
-	# so they skip the 3-2-1 countdown (harnesses and loops stay fast).
-	config.countdown_seconds = 0.0
-	# DECISION: `--mode=<classic|ctf|elimination|sky>` (or the
-	# GameMode integer) picks the headless bot match's mode; absent keeps the
-	# config's own mode. resolve_game_mode() still falls back for unselectable ids.
-	# DECISION: `--goals=<1..5>` overrides goal_flag_count for headless bot matches.
-	# `--disc-size=<step>` picks the disc-size slider step (0 tiny .. 5 enormous).
-	var disc_step: int = _disc_size_arg(args)
-	if disc_step >= 0:
-		config.disc_size_step = DiscSizeTuning.shared().clamp_step(disc_step)
-
-	var difficulty_override: int = _bot_difficulty_arg(args)
-	if difficulty_override >= 0:
-		config.ai_difficulty = difficulty_override as MatchConfig.AiDifficulty
-		config.slot_ai_difficulties = PackedInt32Array()  # the flag covers every bot slot
-	_apply_bot_difficulty_slots(config, args, bots)
-	if _has_match_seed_arg(args):
-		config.rng_seed = _match_seed_arg(args)
-
-	var goals_override: int = _goals_arg(args)
-	if goals_override > 0:
-		config.goal_flag_count = clampi(goals_override, MatchConfig.GOAL_FLAG_MIN, MatchConfig.GOAL_FLAG_MAX)
-	var mode_override: int = _mode_arg(args)
-	if mode_override >= 0:
-		config.game_mode = MatchConfig.resolve_game_mode(mode_override)
-		config.round_timer_minutes = MatchConfig.clamp_round_timer(config.round_timer_minutes, config.game_mode)
-	# `--round-timer=<minutes>` after the mode override (0 = no round timer, Elimination only;
-	# other modes clamp to their minimum), so harness matches are not bound by the 5-minute default.
-	var timer_override: int = _round_timer_arg(args)
-	if timer_override >= 0:
-		config.round_timer_minutes = MatchConfig.clamp_round_timer(timer_override, config.game_mode)
-	# `--gifts=0` turns gift spawns off (Reach the Sky height measurement); absent = unchanged.
-	if _string_arg(args, "gifts=") == "0":
-		config.gifts_enabled = false
-	# `--weather=0` turns weather off (WeatherMode.OFF); `--weather=1` turns it on (the
-	# CHANGING schedule) only when the configured mode is OFF; absent = unchanged.
-	var weather_arg: String = _string_arg(args, "weather=")
-	if weather_arg == "0":
-		config.weather_mode = MatchConfig.WeatherMode.OFF
-	elif weather_arg == "1" and config.weather_mode == MatchConfig.WeatherMode.OFF:
-		config.weather_mode = MatchConfig.WeatherMode.CHANGING
-	return config
-
-
-## `--round-timer=<minutes>`, -1 when absent or not a non-negative integer (bad values warn).
-func _round_timer_arg(args: PackedStringArray) -> int:
-	var value: String = _string_arg(args, "round-timer=")
-	if value.is_empty():
-		return -1
-	if value.is_valid_int() and int(value) >= 0:
-		return int(value)
-	push_warning("--round-timer=%s is not a non-negative minute count; keeping the configured timer" % value)
-	return -1
-
-
-## `--bot-difficulty-slots=<slot:level,...>` fills config.slot_ai_difficulties for the
-## named bot slots (absolute slot ids); every other slot keeps its current
-## difficulty (--bot-difficulty / config default). Unknown slots or levels warn and are skipped.
-func _apply_bot_difficulty_slots(config: MatchConfig, args: PackedStringArray, bots: int) -> void:
-	var text: String = _string_arg(args, "bot-difficulty-slots=")
-	if text.is_empty():
-		return
-	var first_slot: int = maxi(bots, _headless_bot_players_arg(args)) - bots
-	var levels: PackedInt32Array = PackedInt32Array()
-	for slot_id: int in range(config.player_count):
-		levels.append(int(config.ai_difficulty_for_slot(slot_id)))
-	for part: String in text.split(",", false):
-		var pair: PackedStringArray = part.strip_edges().split(":")
-		var slot_id: int = int(pair[0]) if pair.size() == 2 and pair[0].is_valid_int() else -1
-		if slot_id < first_slot or slot_id >= first_slot + bots or slot_id >= levels.size():
-			push_warning("--bot-difficulty-slots: '%s' is not a bot slot; ignored" % part)
-			continue
-		var level: int = _difficulty_level_from_text(pair[1].to_lower())
-		if level < 0:
-			push_warning("--bot-difficulty-slots: '%s' level is not easy|normal|hard|0..2; ignored" % part)
-			continue
-		levels[slot_id] = level
-	config.slot_ai_difficulties = levels
-
-
-## `--disc-size=<step>`, -1 when absent.
-func _disc_size_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "disc-size="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return -1
-
-
-## `--goals=<n>`, 0 when absent.
-func _goals_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "goals="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(PREFIX):
-			return int(text.substr(PREFIX.length()))
-	return 0
+	return float(MatchLaunch.arg_value(args, "seconds="))
 
 
 ## diagnostics: per team, the most goals it holds in one group, "tN:k/total".
@@ -420,37 +272,6 @@ func _headless_bots_goal_coverage() -> String:
 	for team_id: int in best_per_team:
 		parts.append("t%d:%d/%d" % [team_id, int(best_per_team[team_id]), goals.size()])
 	return "[%s]" % ",".join(parts)
-
-
-## `--mode=<name|id>`, -1 when absent or unrecognised.
-func _mode_arg(args: PackedStringArray) -> int:
-	const PREFIX: String = "mode="
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if not text.begins_with(PREFIX):
-			continue
-		var value: String = text.substr(PREFIX.length()).to_lower()
-		match value:
-			"classic":
-				return MatchConfig.GameMode.CLASSIC
-			"ctf", "capture_the_flag":
-				return MatchConfig.GameMode.CAPTURE_THE_FLAG
-			"elimination":
-				return MatchConfig.GameMode.ELIMINATION
-			"sky", "reach_the_sky":
-				return MatchConfig.GameMode.REACH_THE_SKY
-			"domination":
-				return MatchConfig.GameMode.DOMINATION
-		if value.is_valid_int():
-			var id: int = int(value)
-			if MatchConfig.resolve_game_mode(id) != id:
-				push_warning("--mode=%s is reserved or unselectable; falling back to %d" % [value, MatchConfig.resolve_game_mode(id)])
-			return id
-		push_warning("--mode=%s is not a known mode id; keeping the configured mode" % value)
-		return -1
-	return -1
 
 
 # --- Headless bot match diagnostics ---------
@@ -584,26 +405,6 @@ func _headless_bots_state_name() -> String:
 const LOOP_SEED_STRIDE: int = 7919
 const LOOP_SEED_MAX: int = 2147483647
 
-func _string_arg(args: PackedStringArray, prefix: String) -> String:
-	for raw: String in args:
-		var text: String = raw
-		while text.begins_with("-"):
-			text = text.substr(1)
-		if text.begins_with(prefix):
-			return text.substr(prefix.length())
-	return ""
-
-
-func _has_match_seed_arg(args: PackedStringArray) -> bool:
-	return _string_arg(args, "match-seed=").is_valid_int()
-
-
-## `--match-seed=<int>`, clamped to >= 0 (negative means "random" elsewhere); -1 when absent.
-func _match_seed_arg(args: PackedStringArray) -> int:
-	var text: String = _string_arg(args, "match-seed=")
-	return maxi(int(text), 0) if text.is_valid_int() else -1
-
-
 ## Seed of loop match `index` (1-based) from a base seed: index 1 is the base itself.
 func _derived_loop_seed(base_seed: int, index: int) -> int:
 	if index <= 1:
@@ -611,27 +412,3 @@ func _derived_loop_seed(base_seed: int, index: int) -> int:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = base_seed + index * LOOP_SEED_STRIDE
 	return rng.randi_range(1, LOOP_SEED_MAX)
-
-
-## `--bot-difficulty=`, -1 when absent/unknown (unknown values warn).
-func _bot_difficulty_arg(args: PackedStringArray) -> int:
-	var value: String = _string_arg(args, "bot-difficulty=").to_lower()
-	if value.is_empty():
-		return -1
-	var level: int = _difficulty_level_from_text(value)
-	if level >= 0:
-		return level
-	push_warning("--bot-difficulty=%s is not easy|normal|hard; keeping the configured difficulty" % value)
-	return -1
-
-
-## easy|normal|hard|0..2 (lower case) as an AiDifficulty int, -1 when unknown.
-func _difficulty_level_from_text(value: String) -> int:
-	match value:
-		"easy", "0":
-			return MatchConfig.AiDifficulty.EASY
-		"normal", "1":
-			return MatchConfig.AiDifficulty.NORMAL
-		"hard", "2":
-			return MatchConfig.AiDifficulty.HARD
-	return -1

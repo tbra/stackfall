@@ -366,17 +366,17 @@ func _update_hint(delta: float) -> void:
 
 
 func _is_hint_hovering() -> bool:
-	# Cheap early-out before the per-frame scene-tree group lookup: with no
-	# local human slot (e.g. an all-bot headless host) there is nobody to hint.
+	# Cheap early-out: with no local human slot (e.g. an all-bot headless host)
+	# there is nobody to hint.
 	if _local_watch_slot() < 0:
 		return false
-	var ghost: GhostPreview = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
-	if ghost == null or ghost.get_shape() == null:
+	var held: LocalHeldView = MatchContext.current().local_held()
+	if held.shape == null:
 		return false
 	var field: FieldBody = MatchContext.current().field()
 	if field == null:
 		return false
-	var ghost_local: Vector2 = field.disk_local_from_world(ghost.global_position)
+	var ghost_local: Vector2 = field.disk_local_from_world(held.origin)
 	var crate_local: Vector2 = field.disk_local_from_world(global_position)
 	if ghost_local.distance_to(crate_local) > gift_config.hint_pulse_radius_m:
 		return false

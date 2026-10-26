@@ -28,6 +28,9 @@ const CHECK_PLAYING_S: float = 1.0
 const WEATHER_PHASE_S: float = 5.0
 const SETTLE_S: float = 1.0
 const DIRTY_ZOOM: float = 40.0
+const ORBIT_DRAG_PX: Vector2 = Vector2(-120.0, 150.0)
+const TILT_IMPULSE: float = 5.0
+const FOCUS_ACTION: StringName = &"camera_snap_goal"
 const BLACK_HOLE_POSITION: Vector3 = Vector3(0.0, 1.0, 0.0)
 const CRATE_POINT: Vector2 = Vector2(2.0, 2.0)
 const FILE_NAME: String = "fp_%s.var"
@@ -142,12 +145,22 @@ func _config(weather_mode: int, sky_mode: int) -> MatchConfig:
 
 func _dirty_camera_and_sky() -> void:
 	var rig: CameraRig = _main.get("_camera_rig") as CameraRig
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.snap_enabled = true
+	rig.tuning.focus_hold_threshold_s = 0.0
 	rig.zoom_continuous(DIRTY_ZOOM)
-	rig._yaw += 1.3
-	rig._pitch = deg_to_rad(-72.0)
-	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
-	rig._peek_active = true
-	rig._focus_action = &"camera_snap_goal"
+	var drag: InputEventMouseMotion = InputEventMouseMotion.new()
+	drag.relative = ORBIT_DRAG_PX
+	Input.action_press(&"camera_orbit")
+	rig._unhandled_input(drag)
+	Input.action_release(&"camera_orbit")
+	Match.field().apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	# Hold the goal focus: the rig peeks from the next frame until the action is released.
+	var focus: InputEventAction = InputEventAction.new()
+	focus.action = FOCUS_ACTION
+	focus.pressed = true
+	Input.action_press(FOCUS_ACTION)
+	rig._unhandled_input(focus)
 	var skybox: Skybox = _main.get("_skybox") as Skybox
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(MatchConfig.SKY_ID_SUNSET))
 	Sfx._tense_stem_is_active = true

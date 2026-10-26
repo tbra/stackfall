@@ -12,14 +12,12 @@ extends GutTest
 ##   - a bot's refusal gives nobody feedback.
 ##
 ## These drive the real Match through MatchNet with a faked Net (the same shape
-## as tests/unit/net/test_remote_intent_validation.gd), a fresh Sfx instance on a
-## temp folder (tests/unit/audio/test_sfx.gd's pattern) and the real Rumble autoload
-## with its vibration seam swapped for a recorder. Net's own mode is poked
-## directly (test_sfx.gd's gift_claimed tests' convention) because Sfx and
-## Rumble read the real Net autoload's is_local_slot().
+## as tests/unit/net/test_remote_intent_validation.gd), the real Sfx autoload read through
+## its cue players (SfxChildren) and the real Rumble autoload with its vibration seam swapped
+## for a recorder. Net's own mode is poked directly because Sfx and Rumble read the real Net
+## autoload's is_local_slot().
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
-const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
@@ -32,9 +30,6 @@ var _field: Field
 var _registry: BlockRegistry
 var _fake_net: FakeNet
 var _tiny_map: MapDef
-var _sfx: Node
-var _audio_config: AudioConfig
-var _tmp_dir: String
 var _rumble_enabled_before: bool
 var _rumble_strength_before: float
 var _rumble_calls: Array[Dictionary] = []
@@ -67,17 +62,7 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
-	_audio_config = load("res://config/audio/audio_config.tres").duplicate() as AudioConfig
-	_audio_config.contextual_music_enabled = false
-	_audio_config.bundled_theme = null
-	_audio_config.bundled_theme_path = ""
-	_sfx = autofree(SFX_SCRIPT.new())
-	_sfx.config = _audio_config
-	add_child_autofree(_sfx)
-	_tmp_dir = OS.get_user_data_dir().path_join("test_refusal_feedback_tmp")
-	DirAccess.make_dir_recursive_absolute(_tmp_dir)
-	_write_tiny_wav(_tmp_dir.path_join(_audio_config.rejected_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
+	SfxChildren.stop_all()
 
 	_rumble_calls = []
 	Rumble.start_vibration_fn = Callable(self, "_record_rumble")
@@ -103,8 +88,7 @@ func after_each() -> void:
 	Rumble.start_vibration_fn = Callable(Rumble, "_start_vibration_real")
 	Rumble._last_device_id = Rumble.DEVICE_NONE
 	Rumble._last_family = &""
-	for filename: String in DirAccess.get_files_at(_tmp_dir):
-		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
+	SfxChildren.stop_all()
 	Settings.set_rumble_enabled(_rumble_enabled_before)
 	Settings.set_rumble_strength(_rumble_strength_before)
 
@@ -115,22 +99,8 @@ func _record_rumble(device: int, weak_magnitude: float, strong_magnitude: float,
 	})
 
 
-func _write_tiny_wav(path: String) -> void:
-	var wav: AudioStreamWAV = AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = 22050
-	wav.stereo = false
-	var data: PackedByteArray = PackedByteArray()
-	data.resize(2205 * 2)
-	wav.data = data
-	assert_eq(wav.save_to_wav(path), OK, "fixture wav should save cleanly: %s" % path)
-
-
 func _any_sfx_playing() -> bool:
-	for player: AudioStreamPlayer in _sfx._sfx_players:
-		if player.playing:
-			return true
-	return false
+	return SfxChildren.any_playing()
 
 
 ## The host's intent door for a listen-server host (peer 1, slot 0) with one remote client (peer 2,

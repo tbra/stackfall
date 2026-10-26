@@ -58,6 +58,7 @@
   "core/ai/BotModeGoal.gd",
   "core/audio/ClaimProgressExtrapolator.gd",
   "core/audio/ClaimTensionState.gd",
+  "core/audio/StreamLibrary.gd",
   "core/gifts/GiftWirePhase.gd",
   "core/net/CircleWire.gd",
   "core/net/FloodLimits.gd",
@@ -136,7 +137,7 @@
   "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCapBuilder.gd",
   "game/weather/SnowClientRenderer.gd -> autoload/match/weather/SnowCaps.gd"
  ],
- "largest_scc": 9,
+ "largest_scc": 8,
  "main_closure": [
   "assets/models/gifts/gift_outline.tres",
   "assets/textures/fx/impact_puff/impact_hard.png",
@@ -326,6 +327,7 @@
   "core/ambient/PerchPlanner.gd",
   "core/audio/ClaimProgressExtrapolator.gd",
   "core/audio/ClaimTensionState.gd",
+  "core/audio/StreamLibrary.gd",
   "core/blocks/BlockMeshBuilder.gd",
   "core/blocks/BlockOrientations.gd",
   "core/gifts/GiftThrow.gd",

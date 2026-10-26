@@ -161,3 +161,24 @@ func test_forced_special_finds_arg_among_others() -> void:
 func test_forced_special_absent_is_empty() -> void:
 	assert_eq(MatchLaunch.forced_special_arg(PackedStringArray()), &"")
 	assert_eq(MatchLaunch.forced_special_arg(PackedStringArray(["--sandbox", "--players=3"])), &"")
+
+
+# --- headless_bot_config ----------------------------------------------------
+
+func test_headless_bot_config_reserved_mode_id_falls_back_to_a_selectable_mode() -> void:
+	var reserved: int = 99
+	assert_false(MatchConfig.is_game_mode_selectable(reserved), "fixture: 99 is not a game mode")
+	var config: MatchConfig = MatchLaunch.headless_bot_config(_base(), 2, PackedStringArray(["--mode=%d" % reserved]))
+	assert_not_null(config)
+	if config != null:
+		assert_eq(config.game_mode, MatchConfig.resolve_game_mode(reserved))
+
+
+func test_headless_bot_config_is_independent_of_the_sandbox_player_flag() -> void:
+	var args: PackedStringArray = PackedStringArray(["--bots=3", "--players=6"])
+	var config: MatchConfig = MatchLaunch.headless_bot_config(_base(), 3, args)
+	assert_not_null(config)
+	if config != null:
+		assert_eq(config.player_count, 6)
+		assert_eq(config.ai_count, 3)
+	assert_eq(MatchLaunch.sandbox_player_count(args, null, _preset(-1, 2)), 6, "the sandbox reads the same flag")
