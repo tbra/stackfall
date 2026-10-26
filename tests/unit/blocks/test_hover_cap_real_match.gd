@@ -88,6 +88,19 @@ func _controller() -> PlayerController:
 	return _main._local_player.controller()
 
 
+func _ghost() -> GhostPreview:
+	return _main._local_player.ghost()
+
+
+## ghost_place the way a gamepad A press reaches the controller (the Input Map action).
+func _ghost_place_event() -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = JOY_BUTTON_A
+	event.pressed = true
+	return event
+
+
 func _wheel_up() -> InputEventMouseButton:
 	var centre: Vector2 = get_viewport().get_visible_rect().size * 0.5
 	var event: InputEventMouseButton = InputEventMouseButton.new()
@@ -99,13 +112,12 @@ func _wheel_up() -> InputEventMouseButton:
 
 
 func _trace(label: String) -> void:
-	var controller: PlayerController = _controller()
-	var ghost: GhostPreview = controller._ghost
+	var ghost: GhostPreview = _ghost()
 	var rig: CameraRig = _main._camera_rig
-	gut.p("%s offset=%.2f origin_y=%.2f block_h=%.2f cam_target_y=%.2f frustum=%s state=%s ceiling=%.2f" % [
+	gut.p("%s offset=%.2f origin_y=%.2f block_h=%.2f cam_target_y=%.2f frustum=%s state=%s" % [
 		label, ghost.manual_hover_offset, ghost.global_position.y, ghost.height_above_surface(),
 		rig.get_target().y, rig.get_camera().is_position_in_frustum(ghost.rotated_center_world()),
-		ghost.current_state(), controller._hover_offset_ceiling(),
+		ghost.current_state(),
 	])
 
 
@@ -113,10 +125,10 @@ func _trace(label: String) -> void:
 ## real mouse notch takes: GUI first, then _unhandled_input), one notch per
 ## frame, until the ghost stops rising or `max_notches` run out.
 func _wheel_until_stuck(max_notches: int) -> void:
-	var controller: PlayerController = _controller()
+	var ghost: GhostPreview = _ghost()
 	var stalled: int = 0
 	for i: int in range(max_notches):
-		var before: float = controller._ghost.manual_hover_offset
+		var before: float = ghost.manual_hover_offset
 		Input.parse_input_event(_wheel_up())
 		var release: InputEventMouseButton = _wheel_up()
 		release.pressed = false
@@ -124,7 +136,7 @@ func _wheel_until_stuck(max_notches: int) -> void:
 		await get_tree().process_frame
 		if i % 25 == 0:
 			_trace("notch %d" % i)
-		stalled = stalled + 1 if is_equal_approx(controller._ghost.manual_hover_offset, before) else 0
+		stalled = stalled + 1 if is_equal_approx(ghost.manual_hover_offset, before) else 0
 		if stalled >= 3:
 			break
 	_trace("stopped")
@@ -133,14 +145,15 @@ func _wheel_until_stuck(max_notches: int) -> void:
 func test_wheel_reaches_the_wire_band_and_the_host_accepts_the_placement() -> void:
 	await _start_hosted_match()
 	var controller: PlayerController = _controller()
-	assert_not_null(controller._ghost.get_shape(), "fixture: slot 0 holds a block")
+	var ghost: GhostPreview = _ghost()
+	assert_not_null(ghost.get_shape(), "fixture: slot 0 holds a block")
 	_trace("start")
 	var notches: int = int(ceil(_net_config.pos_max_y / controller.ghost_tuning.hover_wheel_step)) + 10
 	await _wheel_until_stuck(notches)
 
-	var origin_y: float = controller._ghost.global_position.y
+	var origin_y: float = ghost.global_position.y
 	var band_top: float = _net_config.pos_max_y - controller.ghost_tuning.hover_ceiling_margin
-	assert_gte(controller._ghost.manual_hover_offset, REQUIRED_RAISE_M, "the wheel must raise the block past 50 m")
+	assert_gte(ghost.manual_hover_offset, REQUIRED_RAISE_M, "the wheel must raise the block past 50 m")
 	assert_gte(
 		origin_y, band_top - BAND_TOLERANCE_M,
 		"the raise must only stop at the wire band's own ceiling (pos_max_y - hover_ceiling_margin), not at a cap below it (was 60.3 m)"
@@ -149,25 +162,26 @@ func test_wheel_reaches_the_wire_band_and_the_host_accepts_the_placement() -> vo
 
 	var blocks: Node = _main.get_node("BlocksContainer")
 	var blocks_before: int = blocks.get_child_count()
-	var reason: StringName = controller._request_place(false)
-	gut.p("place at origin_y=%.2f reason='%s'" % [origin_y, reason])
-	assert_eq(reason, PlacementRules.REASON_OK, "the host must accept a placement at the top of the raise")
+	watch_signals(Events)
+	controller._unhandled_input(_ghost_place_event())
+	gut.p("place at origin_y=%.2f" % origin_y)
+	assert_signal_not_emitted(Events, "placement_rejected", "the host must accept a placement at the top of the raise")
 	assert_eq(blocks.get_child_count(), blocks_before + 1, "and actually spawn it")
 
 
 func test_held_raise_clears_30m_within_one_block_timer() -> void:
 	await _start_hosted_match()
 	var controller: PlayerController = _controller()
+	var ghost: GhostPreview = _ghost()
 	var step: float = 1.0 / Engine.physics_ticks_per_second
 	var frames: int = int(Match.config.block_timer * Engine.physics_ticks_per_second)
 	Input.action_press(&"hover_raise")
 	for _i: int in range(frames):
-		controller._handle_hover_adjust(step)
-		controller._update_ghost_transform()
+		controller._process(step)
 	Input.action_release(&"hover_raise")
 	_trace("held for one block_timer")
 	assert_gte(
-		controller._ghost.manual_hover_offset, REQUIRED_HELD_RAISE_M,
+		ghost.manual_hover_offset, REQUIRED_HELD_RAISE_M,
 		"holding PageUp / the gamepad raise for one block timer (%.0f s) must lift the block well clear of a tower -- a flat 1 m/s stopped at ~6 m before the auto-drop" % Match.config.block_timer
 	)
 
