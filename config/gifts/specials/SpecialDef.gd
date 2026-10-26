@@ -95,21 +95,25 @@ static func name_from_id(special_id: StringName) -> String:
 	return String(special_id).replace("_", " ").capitalize()
 
 
-## Looks up a roster entry by id (cached); null for unknown/empty ids.
+## The scanned roster, loaded once and shared by every reader (the directory scan and the
+## .tres loads are not free). Cleared by release_cache().
+static var _roster: Array[SpecialDef] = []
+static var _roster_loaded: bool = false
 static var _by_id_cache: Dictionary = {}
 
 
-## Drops the id cache on exit (it pins every def and its held-gift scene).
+## Drops the roster memo on exit (it pins every def and its held-gift scene).
 static func release_cache() -> void:
+	_roster = []
+	_roster_loaded = false
 	_by_id_cache.clear()
 
 
+## Looks up a roster entry by id (memoised); null for unknown/empty ids.
 static func find_by_id(special_id: StringName) -> SpecialDef:
 	if special_id == &"":
 		return null
-	if _by_id_cache.is_empty():
-		for def: SpecialDef in load_all_specials():
-			_by_id_cache[def.id] = def
+	_ensure_roster()
 	return _by_id_cache.get(special_id) as SpecialDef
 
 
@@ -138,10 +142,18 @@ const SPECIALS_DIR: String = "res://config/gifts/specials/"
 ## mirrors config/blocks/BlockShape.gd's load_all_shapes(). Returns an empty array when the
 ## directory holds no .tres; callers must treat that as "no roster", never as an error.
 static func load_all_specials() -> Array[SpecialDef]:
+	_ensure_roster()
+	return _roster.duplicate()
+
+
+static func _ensure_roster() -> void:
+	if _roster_loaded:
+		return
 	var defs: Array[SpecialDef] = []
 	var dir: DirAccess = DirAccess.open(SPECIALS_DIR)
 	if dir == null:
-		return defs
+		_roster_loaded = true
+		return
 	dir.list_dir_begin()
 	var file_name: String = dir.get_next()
 	while file_name != "":
@@ -157,7 +169,10 @@ static func load_all_specials() -> Array[SpecialDef]:
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	defs.sort_custom(_sort_by_id)
-	return defs
+	_roster = defs
+	for def: SpecialDef in defs:
+		_by_id_cache[def.id] = def
+	_roster_loaded = true
 
 
 ## The roster a match may draw from: load_all_specials() minus defs with
