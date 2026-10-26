@@ -71,6 +71,7 @@
    "ui/theme/UiScale.gd:stretch_factor",
    "ui/theme/UiScale.gd:user_factor"
   ],
+  "test-only-var": [],
   "stale-path": [
    "tests/enet/reset_enet.gd: docs/MATCH_RESET_AUDIT.md",
    "tests/support/MatchFingerprint.gd: docs/MATCH_RESET_AUDIT.md",
@@ -112,6 +113,46 @@
    "id": "dead-file",
    "entry": "config/soak/soak_match_load.tres",
    "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/MusicPlaylist.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StingPool.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StreamLibrary.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ilib"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/blocks/GhostSilhouette.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/main/PrewarmLoader.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/GhostSweep.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/InputGate.gd",
+   "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/player/SpawnClearance.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Iclear, which removes this entry"
   },
   {
    "id": "dead-file",
@@ -160,8 +201,83 @@
   },
   {
    "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:active_cat",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:default_ghost_origin",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:feed_seq",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:gift_slot_head",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:held_shape",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:held_special",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:is_release_locked",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:note_aim",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:preview_placement",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:submit_cat_target",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:submit_cursor",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:submit_place",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:submit_throw",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchContextLive.gd:submit_use_gift_slot",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:feed_progress",
    "reason": "live: autoload/Match.gd:732 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchFeed.gd:feed_seq",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
    "id": "test-only-func",
@@ -172,6 +288,16 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:feed_timer_enabled",
    "reason": "live: autoload/Match.gd:816 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchFeed.gd:held_shape",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchFeed.gd:is_release_locked",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
    "id": "test-only-func",
@@ -207,6 +333,16 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:setup",
    "reason": "Match.gd _gifts.setup (Match setup chain)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchPlacement.gd:default_ghost_origin",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchPlacement.gd:note_aim",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
    "id": "test-only-func",
@@ -415,6 +551,21 @@
   },
   {
    "id": "test-only-func",
+   "entry": "config/blocks/BlockShape.gd:cell_centres",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Icells, which removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "config/gifts/GiftModelTable.gd:visual_for",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "config/weather/SnowTuning.gd:melt_cap_after",
    "reason": "SnowEffect.gd:288 (SnowEffect via effect_script)"
   },
@@ -427,6 +578,11 @@
    "id": "test-only-func",
    "entry": "core/ai/BotModeGoal.gd:next_goal_index",
    "reason": "MatchTerritory.gd:423 in bot_mode_goal"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/gifts/GiftThrow.gd:launch_plan",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
    "id": "test-only-func",
@@ -525,6 +681,86 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:await_prewarmed",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:begin",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_script",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:is_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:load_scene",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:menu_shown",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:wants_background",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_done",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_requested",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:on_close_request",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:settle",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/GraphicsApplier.gd:apply",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Igfx"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MainFlowPort.gd:bind_world",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MatchLaunch.gd:headless_bot_config",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ibuild"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
@@ -547,6 +783,76 @@
    "id": "test-only-func",
    "entry": "game/sky/Skybox.gd:start_cycle",
    "reason": "game/debug/AgentProbe.gd:235,244 skybox.call(&start_cycle) (string call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:active_cat",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:default_ghost_origin",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:feed_seq",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:gift_slot_head",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:held_shape",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:held_special",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:is_release_locked",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:note_aim",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:preview_placement",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:submit_cat_target",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:submit_cursor",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:submit_place",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:submit_throw",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/world/MatchContext.gd:submit_use_gift_slot",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
   },
   {
    "id": "test-only-func",
@@ -579,214 +885,24 @@
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
   },
   {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:blocks_container",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
   {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:held_special",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:loader",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
   {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:gift_slot_head",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:preview_placement",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:active_cat",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_place",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_throw",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_use_gift_slot",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_cursor",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:submit_cat_target",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchPlacement.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchPlacement.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/gifts/GiftThrow.gd:launch_plan",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:held_special",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:gift_slot_head",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:preview_placement",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:active_cat",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_place",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_throw",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_use_gift_slot",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_cursor",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:submit_cat_target",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:world_environment",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
   {
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/blocks/GhostSilhouette.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "game/player/GhostSweep.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "game/player/SpawnClearance.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Iclear, which removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "config/blocks/BlockShape.gd:cell_centres",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Icells, which removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "config/gifts/GiftModelTable.gd:visual_for",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "game/player/InputGate.gd",
-   "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
   }
  ]
 }
