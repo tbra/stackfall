@@ -30,9 +30,9 @@ func _controller_for(slot_id: int) -> Array:
 	add_child_autofree(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.ghost_path = ghost.get_path()
 	controller.set_acting_slot(slot_id)
+	add_child_autofree(controller)
 	return [controller, ghost]
 
 

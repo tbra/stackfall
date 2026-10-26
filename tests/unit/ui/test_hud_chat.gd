@@ -88,19 +88,21 @@ func test_typing_keys_do_not_place_or_rotate() -> void:
 	add_child_autofree(ghost)
 	var cube_shape: BlockShape = load("res://config/blocks/cube.tres")
 	ghost.set_shape(cube_shape)
-	var controller: PlayerController = _make_controller()
-	controller._ghost = ghost
-	controller._active_slot = 0
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.held_shapes[0] = cube_shape
-	controller._match = fake_match
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = cube_shape
+	var controller: PlayerController = autofree(PlayerController.new())
+	controller.match_context = context
+	controller.ghost_path = ghost.get_path()
+	controller.set_acting_slot(0)
+	add_child_autofree(controller)
 	chat.panel.open_input()
 	controller._unhandled_input(_action_event(&"rotate_yaw_cw"))
 	controller._unhandled_input(_action_event(&"ghost_place"))
-	assert_eq(fake_match.request_place_calls.size(), 0, "no placement while typing")
+	assert_eq(context.submit_place_calls.size(), 0, "no placement while typing")
+	assert_eq(ghost.orientation_index, 0, "no rotation while typing")
 	chat.panel.close_input(false)
 	controller._unhandled_input(_action_event(&"ghost_place"))
-	assert_eq(fake_match.request_place_calls.size(), 1, "placement works again once chat closes")
+	assert_eq(context.submit_place_calls.size(), 1, "placement works again once chat closes")
 
 
 func test_enter_sends_trimmed_text_and_closes() -> void:
