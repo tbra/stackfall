@@ -41,15 +41,15 @@ var _flash_material: ShaderMaterial = null
 var _ring: FxRing = null
 
 
-## Draws a blast of `radius_m` at `position` under the field (so it rides a tilt) or, with no
+## Draws a blast of `blast.radius_m` at `position` under the field (so it rides a tilt) or, with no
 ## field, under `ctx.blocks_parent()`. Visual only, frees itself; nothing without a parent in the tree.
-static func spawn(ctx: MatchContext, position: Vector3, radius_m: float) -> void:
+static func spawn(ctx: MatchContext, position: Vector3, blast: ExplosionTuning) -> void:
 	var parent: Node3D = ctx.blocks_parent()
-	if parent == null or not parent.is_inside_tree():
+	if parent == null or blast == null or not parent.is_inside_tree():
 		return
-	var blast: CartoonBlast = CartoonBlast.new()
-	DiscAnchor.attach(blast, position, parent)
-	blast.setup(EXPLOSION_TUNING, radius_m, hash(position))
+	var effect: CartoonBlast = CartoonBlast.new()
+	DiscAnchor.attach(effect, position, parent)
+	effect.setup(EXPLOSION_TUNING, blast.radius_m, hash(position))
 
 
 func _init() -> void:
