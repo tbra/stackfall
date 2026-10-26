@@ -56,7 +56,28 @@ func test_picking_a_file_changes_what_the_next_drop_event_plays() -> void:
 	_pick(_option("drop_file"), PICKED_DROP)
 	assert_eq(Sfx.config.drop_file, PICKED_DROP)
 	assert_true((_row(Sfx.config, "drop_file")["name_label"] as Label).text.begins_with(TuningPanel.MODIFIED_MARKER), "modified marker")
-	assert_same(Sfx._pick_stream(AudioConfig.EVENT_DROP), Sfx._load_stream(PICKED_DROP), "next drop resolves the picked stream")
+	SfxChildren.stop_all()
+	assert_true(Sfx.play(AudioConfig.EVENT_DROP), "the next drop event plays")
+	var expected: AudioStreamWAV = AudioStreamWAV.load_from_file("res://assets/audio/sfx/".path_join(PICKED_DROP))
+	assert_true(_playing_wav_data().has(expected.data), "the picked file is what sounds")
+	SfxChildren.stop_all()
+
+
+## Sample data of every match-cue player (the first max_simultaneous children) that is sounding.
+func _playing_wav_data() -> Array[PackedByteArray]:
+	var found: Array[PackedByteArray] = []
+	var seen: int = 0
+	for child: Node in Sfx.get_children():
+		var player: AudioStreamPlayer = child as AudioStreamPlayer
+		if player == null:
+			continue
+		seen += 1
+		if seen > Sfx.config.max_simultaneous:
+			break
+		var wav: AudioStreamWAV = player.stream as AudioStreamWAV
+		if player.playing and wav != null:
+			found.append(wav.data)
+	return found
 
 
 func test_save_reload_and_reset_round_trip() -> void:
