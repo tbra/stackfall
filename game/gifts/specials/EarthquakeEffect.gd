@@ -7,9 +7,17 @@ extends SpecialEffect
 ##
 ## DECISION: SpecialDef.effect is a single Resource instance shared by every
 ## block that draws this special, so this effect keeps NO mutable per-block
-## state (no `var elapsed`). "Seconds since armed" lives in block meta, keyed
-## by START_AGE_META, so two Earthquake blocks keep independent timers.
-const START_AGE_META: StringName = &"earthquake_start_age"
+## state; "seconds since armed" lives in the EffectState from new_state(), so two
+## Earthquake blocks keep independent timers.
+class State:
+	extends EffectState
+	## False until the first armed tick records `start_age`.
+	var started: bool = false
+	var start_age: float = 0.0
+
+	func elapsed(age: float) -> float:
+		return age - start_age
+
 
 ## DiscForce tuning: `duration_s` is the seconds the shake runs before this
 ## special force-triggers on its own (spec 1.6's Earthquake row; no explicit
@@ -32,9 +40,15 @@ func effect_lifetime_s() -> float:
 	return disc_force.duration_s
 
 
-func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
-	if not block.has_meta(START_AGE_META):
-		block.set_meta(START_AGE_META, behavior.age())
+func new_state() -> EffectState:
+	return State.new()
+
+
+func physics_tick(_block: Block, behavior: SpecialBehavior, delta: float) -> void:
+	var state: State = behavior.state() as State
+	if not state.started:
+		state.started = true
+		state.start_age = behavior.age()
 	var field: FieldBody = MatchContext.current().field()
 	# No live Field registered (e.g. an isolated unit test that never called
 	# the Match autoload registering a world): the elapsed-time bookkeeping above still runs
@@ -43,7 +57,7 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	if field == null:
 		return
 	# Sweeping kick; a no-op once `disc_force.duration_s` has passed.
-	var elapsed: float = behavior.age() - float(block.get_meta(START_AGE_META))
+	var elapsed: float = state.elapsed(behavior.age())
 	DiscForce.shake(field, disc_force, elapsed, delta)
 	# Field.apply_tilt_impulse() already no-ops while tilt is disabled
 	# (PHYSICAL_BALANCE/OFF match config, or before any match wires tilt on
@@ -73,11 +87,9 @@ func impact_triggers(_block: Block, _behavior: SpecialBehavior) -> bool:
 	return false
 
 
-func wants_early_trigger(block: Block, behavior: SpecialBehavior) -> bool:
-	if not block.has_meta(START_AGE_META):
-		return false
-	var elapsed: float = behavior.age() - float(block.get_meta(START_AGE_META))
-	return elapsed >= disc_force.duration_s
+func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
+	var state: State = behavior.state() as State
+	return state.started and state.elapsed(behavior.age()) >= disc_force.duration_s
 
 
 ## No-op: the shake already ran, tick by tick, in physics_tick() above.

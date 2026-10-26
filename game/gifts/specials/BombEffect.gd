@@ -18,7 +18,7 @@ extends SpecialEffect
 ## and team-agnostic either way.
 ##
 ## Like every shared SpecialEffect resource this keeps NO per-block state on itself:
-## the one flag it needs lives in block meta.
+## the one flag it needs lives in the EffectState from new_state().
 
 ## Seconds the Bomb blinks before it explodes (plan section 3: 3.0).
 @export var blink_duration_s: float = 3.0
@@ -34,9 +34,11 @@ extends SpecialEffect
 ## (ExplosionFx).
 @export var blast: ExplosionTuning = ExplosionTuning.new()
 
-## block.set_meta() key: the host-side blink was already started for this carrier, so the
-## per-tick fallback below starts it once and a finished blink is not restarted.
-const _BLINK_STARTED_META: StringName = &"bomb_blink_started"
+class State:
+	extends EffectState
+	## The host-side blink was already started for this carrier, so the per-tick fallback
+	## below starts it once and a finished blink is not restarted.
+	var blink_started: bool = false
 
 
 ## Impacts never detonate the Bomb (it explodes on its timer, "regardless of impacts").
@@ -60,11 +62,12 @@ func detaches() -> bool:
 ## Host-side blink fallback: the blink normally starts at spawn on every peer through
 ## GiftBlink.start_for_gift (needs a spawn hook outside this package); until that hook
 ## exists the host's own carrier starts it on its first armed tick, with its age so the
-## blink still ends with the explosion. Idempotent via block meta.
+## blink still ends with the explosion. Idempotent via the state.
 func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
-	if block.has_meta(_BLINK_STARTED_META):
+	var state: State = behavior.state() as State
+	if state.blink_started:
 		return
-	block.set_meta(_BLINK_STARTED_META, true)
+	state.blink_started = true
 	if block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))) == null:
 		GiftBlink.apply(block, blink_period_s, blink_duration_s, blink_tuning, behavior.age())
 
@@ -73,6 +76,19 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 ## blink is shorter than arm_delay waits for arming).
 func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
 	return behavior.age() >= blink_duration_s
+
+
+func new_state() -> EffectState:
+	return State.new()
+
+
+func effect_radius_m() -> float:
+	return blast.radius_m
+
+
+## Every peer draws the blast at the trigger position.
+func build_client_fx(ctx: MatchContext, _block: Block, position: Vector3, _owner_slot: int) -> void:
+	CartoonBlast.spawn(ctx, position, blast)
 
 
 ## Blast every real RigidBody3D within `blast.radius_m` (the Bomb's own body excluded),

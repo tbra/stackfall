@@ -701,6 +701,16 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/BombEffect.gd:build_client_fx",
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (Bontago-di0.12) replaces the BotController radius scan; that bead removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/CatController.gd:configure",
    "reason": "Match.gd:253 _cat.configure("
   },
@@ -708,6 +718,16 @@
    "id": "test-only-func",
    "entry": "game/gifts/specials/CatController.gd:set_target",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/FreezeEffect.gd:build_client_fx",
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/FreezeEffect.gd:effect_radius_m",
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (Bontago-di0.12) replaces the BotController radius scan; that bead removes this entry"
   },
   {
    "id": "test-only-func",
