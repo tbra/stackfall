@@ -5,6 +5,10 @@ extends GutTest
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const CAMERA_RIG_SCENE: PackedScene = preload("res://game/player/CameraRig.tscn")
+const DIRTY_ZOOM: float = 40.0
+const ORBIT_DRAG_PX: Vector2 = Vector2(-120.0, 150.0)
+const TILT_IMPULSE: float = 5.0
+const FOCUS_ACTION: StringName = &"camera_snap_goal"
 const RAIN_TUNING: RainTuning = preload("res://config/weather/rain.tres")
 const SCHEDULE: WeatherScheduleTuning = preload("res://config/weather/weather_schedule.tres")
 
@@ -28,6 +32,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	Input.action_release(FOCUS_ACTION)
+	Input.action_release(&"camera_snap_home")
 	Net.leave()
 	Match.abort_match()
 	SnapshotSync.end_match()
@@ -97,21 +103,39 @@ func _fresh_rig() -> CameraRig:
 	return rig
 
 
-## Everything a played match can leave on the rig: zoom, orbit, a peek, a
-## shake, a queued turn.
+## Everything a played match can leave on the rig, through the inputs and events the game
+## uses: zoom, a mouse orbit drag, the follow pose, a disc-tilt shake, a goal-focus tap (a turn)
+## and then a goal-focus hold that is still peeking. The held action is released in after_each.
 func _dirty(rig: CameraRig) -> void:
-	rig.zoom_continuous(40.0)
-	rig._yaw += 1.3
-	rig._pitch = deg_to_rad(-72.0)
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.snap_enabled = true
+	rig.tuning.focus_hold_threshold_s = 0.0
+	rig.zoom_continuous(DIRTY_ZOOM)
+	var drag: InputEventMouseMotion = InputEventMouseMotion.new()
+	drag.relative = ORBIT_DRAG_PX
+	Input.action_press(&"camera_orbit")
+	rig._unhandled_input(drag)
+	Input.action_release(&"camera_orbit")
 	rig.set_follow_position(Vector3(12.0, 3.0, -7.0))
 	rig.begin_follow_transition()
 	rig.set_local_slot(1)
-	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
-	rig._peek_active = true
-	rig._peek_returning = true
-	rig._focus_action = &"camera_snap_goal"
-	rig._focus_hold_elapsed_s = 5.0
-	rig._goal_cycle_index = 1
+	if Match.field() != null:
+		Match.field().apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	Input.action_press(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(true))
+	Input.action_release(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(false))
+	Input.action_press(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(true))
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _focus_event(pressed: bool) -> InputEventAction:
+	var event: InputEventAction = InputEventAction.new()
+	event.action = FOCUS_ACTION
+	event.pressed = pressed
+	return event
 
 
 func _assert_launch_view(rig: CameraRig, fresh: CameraRig, label: String) -> void:
@@ -139,7 +163,9 @@ func test_a_new_match_after_leaving_starts_from_the_launch_camera_and_a_dry_aren
 	_assert_launch_view(rig, fresh, "first match")
 	var match_yaw: float = rig.get_yaw()
 	assert_ne(match_yaw, 0.0, "fixture: the match start aimed the camera from the home beacon")
-	_dirty(rig)
+	await _dirty(rig)
+	assert_true(rig.is_peeking(), "fixture: the goal focus is held in a peek")
+	assert_ne(rig.shake_offset(), Vector3.ZERO, "fixture: the disc tilt shakes the camera")
 	assert_ne(rig.get_distance(), fresh.get_distance(), "fixture: the player zoomed out")
 
 	_main._on_pause_leave_requested()
@@ -206,8 +232,11 @@ func test_a_lobby_match_after_a_menu_sandbox_has_gamepad_home_focus_again() -> v
 	assert_true(pad_back.is_action_pressed(&"camera_snap_home"), "fixture: Back is camera_snap_home")
 	rig.tuning = rig.tuning.duplicate() as CameraTuning
 	rig.tuning.snap_enabled = true  # snap ships disabled; this covers the suppress flag.
+	rig.tuning.focus_hold_threshold_s = 0.0
 	rig._unhandled_input(pad_back)
-	assert_eq(rig._focus_action, &"camera_snap_home", "pad Back focuses home in the lobby match")
+	Input.action_press(&"camera_snap_home")
+	await _settle()
+	assert_true(rig.is_peeking(), "pad Back focuses home in the lobby match")
 
 
 ## The wetness the puddle shader is fed (0 when no layer or no patches exist).
