@@ -41,16 +41,25 @@ func _spawn_block(field: Field, tuning: PhysicsTuning, x: float, z: float) -> Bl
 	return block
 
 
+## The controller finds its ghost through the exported ghost_path, as LocalPlayer.tscn wires
+## it: a sibling "Ghost" under one holder per controller.
 func _make_controller(ghost_tuning: GhostTuning) -> PlayerController:
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	ghost.name = &"Ghost"
+	holder.add_child(ghost)
 	ghost.set_shape(load("res://config/blocks/cube.tres"))
 
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.ghost_path = NodePath("../Ghost")
 	controller.ghost_tuning = ghost_tuning
+	holder.add_child(controller)
 	return controller
+
+
+func _ghost_of(controller: PlayerController) -> GhostPreview:
+	return controller.get_node(controller.ghost_path) as GhostPreview
 
 
 func _motion(relative: Vector2) -> InputEventMouseMotion:
@@ -66,12 +75,10 @@ func _wheel(button: MouseButton) -> InputEventMouseButton:
 	return event
 
 
-## One simulated frame: the collision clamp, then the raycast/placement
-## update that reads its result -- exactly PlayerController._process()'s own
-## order (see its DECISION comment on why the clamp runs between the two).
+## One engine frame of the controller: the input delivered through _unhandled_input() is
+## clamped against placed blocks and turned into the ghost pose by _process().
 func _advance(controller: PlayerController) -> void:
-	controller._clamp_cursor_collision()
-	controller._update_ghost_transform()
+	controller._process(1.0 / 60.0)
 
 
 func _half_size(tuning: PhysicsTuning) -> float:
@@ -89,7 +96,8 @@ func test_moving_horizontally_into_a_placed_block_stops_short_of_it() -> void:
 	block.sleeping = true
 
 	var controller: PlayerController = _make_controller(ghost_tuning)
-	controller._cursor = Vector3(-2.0, 0.0, 0.0)
+	_advance(controller)
+	controller._unhandled_input(_motion(Vector2(-40.0, 0.0)))  # to x = -2 m at the default sensitivity
 	_advance(controller)
 
 	for _i: int in range(160):
@@ -97,7 +105,7 @@ func test_moving_horizontally_into_a_placed_block_stops_short_of_it() -> void:
 		_advance(controller)
 
 	var half_size: float = _half_size(tuning)
-	var gap: float = (block.global_position.x - half_size) - (controller._ghost.global_position.x + half_size)
+	var gap: float = (block.global_position.x - half_size) - (_ghost_of(controller).global_position.x + half_size)
 	assert_gt(gap, 0.0, "the ghost must never touch or overlap a placed block.")
 	assert_lt(
 		gap, ghost_tuning.ghost_collision_skin + tuning.cube_size,
@@ -126,7 +134,8 @@ func test_moving_parallel_to_a_wall_slides() -> void:
 	block.sleeping = true
 
 	var controller: PlayerController = _make_controller(ghost_tuning)
-	controller._cursor = Vector3(-2.0, 0.0, 0.0)
+	_advance(controller)
+	controller._unhandled_input(_motion(Vector2(-40.0, 0.0)))  # to x = -2 m at the default sensitivity
 	_advance(controller)
 
 	# First press straight into the block (+X) until it stops, exactly like
@@ -137,7 +146,7 @@ func test_moving_parallel_to_a_wall_slides() -> void:
 
 	var half_size: float = _half_size(tuning)
 	var gap_while_pressed: float = (
-		(block.global_position.x - half_size) - (controller._ghost.global_position.x + half_size)
+		(block.global_position.x - half_size) - (_ghost_of(controller).global_position.x + half_size)
 	)
 	assert_gt(gap_while_pressed, 0.0, "fixture: the ghost must be stopped at the block before testing the slide.")
 
@@ -149,11 +158,11 @@ func test_moving_parallel_to_a_wall_slides() -> void:
 		_advance(controller)
 
 	assert_gt(
-		controller._ghost.global_position.z, 2.0,
+		_ghost_of(controller).global_position.z, 2.0,
 		"sliding along the wall (Z, unobstructed) must keep advancing while X stays blocked."
 	)
 	var gap_after_slide: float = (
-		(block.global_position.x - half_size) - (controller._ghost.global_position.x + half_size)
+		(block.global_position.x - half_size) - (_ghost_of(controller).global_position.x + half_size)
 	)
 	assert_lt(
 		gap_after_slide, ghost_tuning.ghost_collision_skin + tuning.cube_size,
@@ -172,7 +181,6 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 	block.sleeping = true
 
 	var controller: PlayerController = _make_controller(ghost_tuning)
-	controller._cursor = Vector3.ZERO
 	_advance(controller)
 
 	var half_size: float = _half_size(tuning)
@@ -180,7 +188,7 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 		controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_UP))
 		_advance(controller)
 	assert_gt(
-		controller._ghost.global_position.y, block.global_position.y + half_size,
+		_ghost_of(controller).global_position.y, block.global_position.y + half_size,
 		"fixture: the ghost should start well above the block once raised."
 	)
 
@@ -188,7 +196,7 @@ func test_lowering_onto_a_block_stops_on_top_of_it() -> void:
 		controller._unhandled_input(_wheel(MOUSE_BUTTON_WHEEL_DOWN))
 		_advance(controller)
 
-	var gap: float = (controller._ghost.global_position.y - half_size) - (block.global_position.y + half_size)
+	var gap: float = (_ghost_of(controller).global_position.y - half_size) - (block.global_position.y + half_size)
 	assert_gt(gap, 0.0, "the ghost must not sink into the block from above.")
 	assert_lt(gap, ghost_tuning.ghost_collision_skin + tuning.cube_size, "the ghost should land right on top, not float far above.")
 

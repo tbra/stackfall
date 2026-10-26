@@ -14,9 +14,10 @@ const _CORNER_SIGNS: Array[Vector3] = [
 ]
 
 
-func _make_ghost(shape_path: String) -> GhostPreview:
+func _make_ghost(shape_path: String, parent: Node = self) -> GhostPreview:
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	ghost.name = &"Ghost"
+	parent.add_child(ghost)
 	ghost.set_shape(load(shape_path))
 	return ghost
 
@@ -77,38 +78,46 @@ func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> 
 # --- Spawn parity: the real placement path spawns exactly what the ghost
 # showed (see MatchPlacement._spawn_block()'s own comment: world_origin/basis
 # straight from the ghost's own global_position/orientation_index/
-# free_quaternion). tests/support/FakeMatch.gd's _spawn() mirrors that
-# exact math, so driving PlayerController._place_ghost_block() through it
-# exercises the real intent -> spawn contract without needing the full Match
-# autoload's territory/feed state. ----------------------------------------
+# free_quaternion). The test spawns a block from the intent the controller sent
+# through the FakeMatchContext with that same math, so a ghost_place press exercises the
+# intent -> spawn contract without the full Match autoload's territory/feed state. ---
 
 func test_spawned_block_matches_the_rotated_ghosts_own_geometry() -> void:
 	var blocks_root: Node3D = autofree(Node3D.new())
 	add_child_autofree(blocks_root)
 
 	var shape: BlockShape = load("res://config/blocks/bar4.tres")
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
 	var ghost: GhostPreview = autofree(GhostPreview.new())
-	add_child_autofree(ghost)
+	ghost.name = &"Ghost"
+	holder.add_child(ghost)
 	ghost.set_shape(shape)
 	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))  # "pitch a bar 90 degrees" (manual step)
 
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.held_shape_by_slot[0] = shape
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
-
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.spawn_parent = blocks_root
-	fake_match.spawn_on_ok = true
-	fake_match.held_shapes[0] = shape
-	controller._match = fake_match
+	controller.ghost_path = NodePath("../Ghost")
+	controller.match_context = context
+	holder.add_child(controller)
+	controller.set_acting_slot(0)
 
 	var surface_point: Vector3 = Vector3(1.5, 3.0, -2.5)
 	ghost.update_placement(surface_point, Vector3.UP)
 	var expected_center_xz: Vector2 = Vector2(ghost.rotated_center_world().x, ghost.rotated_center_world().z)
 	var expected_bottom_y: float = _min_world_y(_rotated_world_corners(ghost))
 
-	controller._place_ghost_block()
+	controller._unhandled_input(_ghost_place_event())
+
+	assert_eq(context.submit_place_calls.size(), 1, "fixture: one ghost_place press sends exactly one intent.")
+	var intent: Dictionary = context.submit_place_calls[0]
+	var placed: Block = BlockFactory.build(shape, ghost.tuning)
+	blocks_root.add_child(placed)
+	placed.global_position = intent["origin"] as Vector3
+	placed.global_transform.basis = (
+		Basis(intent["free_quat"] as Quaternion) * BlockOrientations.get_basis(int(intent["orientation_index"]))
+	)
 
 	assert_eq(blocks_root.get_child_count(), 1, "fixture: the intent should have spawned exactly one block.")
 	var block: Block = blocks_root.get_child(0) as Block
@@ -161,6 +170,15 @@ func _small_map() -> MapDef:
 	return map_def
 
 
+## ghost_place the way a gamepad A press reaches the controller (the Input Map action).
+func _ghost_place_event() -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.device = -1
+	event.button_index = JOY_BUTTON_A
+	event.pressed = true
+	return event
+
+
 func _motion(relative: Vector2) -> InputEventMouseMotion:
 	var event: InputEventMouseMotion = InputEventMouseMotion.new()
 	event.relative = relative
@@ -175,8 +193,8 @@ func _motion(relative: Vector2) -> InputEventMouseMotion:
 ## precisely the case a single fixed world axis (e.g. "pitch about RIGHT")
 ## can never exercise, but a real rotate_drag (whose pitch axis follows
 ## whatever way the camera currently faces) routinely does.
-func _diagonal_rotated_ghost(shape_path: String) -> GhostPreview:
-	var ghost: GhostPreview = _make_ghost(shape_path)
+func _diagonal_rotated_ghost(shape_path: String, parent: Node) -> GhostPreview:
+	var ghost: GhostPreview = _make_ghost(shape_path, parent)
 	ghost.apply_free_rotation_delta(0.0, 0.9, Vector3(1.0, 0.0, 1.0).normalized())
 	return ghost
 
@@ -199,18 +217,20 @@ func test_collision_sweep_stops_the_rendered_rotated_shape_clear_of_a_placed_blo
 	block.sleeping = true
 
 	var ghost_tuning: GhostTuning = GhostTuning.new()
-	var ghost: GhostPreview = _diagonal_rotated_ghost("res://config/blocks/bar3.tres")
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
+	var ghost: GhostPreview = _diagonal_rotated_ghost("res://config/blocks/bar3.tres", holder)
 	var center_offset: Vector3 = ghost.rotated_center_offset()
 	assert_ne(center_offset.x, 0.0, "fixture: the diagonal rotation should give the centre offset a real X component.")
 	assert_ne(center_offset.z, 0.0, "fixture: the diagonal rotation should give the centre offset a real Z component.")
 
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
+	controller.ghost_path = NodePath("../Ghost")
 	controller.ghost_tuning = ghost_tuning
-	controller._cursor = Vector3(-2.0, 0.0, 0.0)
-	controller._clamp_cursor_collision()
-	controller._update_ghost_transform()
+	holder.add_child(controller)
+	controller._process(1.0 / 60.0)
+	controller._unhandled_input(_motion(Vector2(-40.0, 0.0)))  # to x = -2 m at the default sensitivity
+	controller._process(1.0 / 60.0)
 
 	# Pure +X cursor motion (like test_ghost_collision.gd's own pitched-shape
 	# test), same coordinates -- the *rotation*, not the sweep path, is what
@@ -218,8 +238,7 @@ func test_collision_sweep_stops_the_rendered_rotated_shape_clear_of_a_placed_blo
 	# show a Z mismatch between the swept box and the rendered one.
 	for _i: int in range(220):
 		controller._unhandled_input(_motion(Vector2(50.0, 0.0)))
-		controller._clamp_cursor_collision()
-		controller._update_ghost_transform()
+		controller._process(1.0 / 60.0)
 
 	# The actually-rendered boxes (ghost.global_position is what
 	# update_placement() really set, centre-offset and all) must still clear

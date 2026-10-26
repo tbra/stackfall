@@ -84,25 +84,33 @@ func test_goal_zone_is_hatched() -> void:
 	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
 
 
-# --- Controller wiring: the ghost tint follows Match.preview_placement -----
+# --- Controller wiring: the ghost tint follows the context's preview_placement -----
 
 
 func test_controller_applies_preview_result_to_ghost_every_frame() -> void:
+	var holder: Node = Node.new()
+	add_child_autofree(holder)
 	var ghost: GhostPreview = _make_ghost()
+	ghost.name = &"Ghost"
+	ghost.get_parent().remove_child(ghost)
+	holder.add_child(ghost)
+
+	var context: FakeMatchContext = FakeMatchContext.new()
+	context.preview_placement_value = PlacementRules.Result.CONTESTED
 	var controller: PlayerController = autofree(PlayerController.new())
-	add_child_autofree(controller)
-	controller._ghost = ghost
-	controller._active_slot = 0
+	controller.ghost_path = NodePath("../Ghost")
+	controller.match_context = context
+	holder.add_child(controller)
+	controller.set_acting_slot(0)
 
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.next_preview_result = PlacementRules.Result.CONTESTED
-	controller._match = fake_match
-
-	controller._update_ghost_tint()
+	controller._process(1.0 / 60.0)
 
 	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	assert_eq(fake_match.preview_placement_calls.size(), 1)
 
-	fake_match.next_preview_result = PlacementRules.Result.VALID
-	controller._update_ghost_tint()
+	context.preview_placement_value = PlacementRules.Result.VALID
+	controller._process(1.0 / 60.0)
 	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
+
+	context.release_locked_by_slot[0] = true
+	controller._process(1.0 / 60.0)
+	assert_eq(ghost.current_state(), GhostPreview.STATE_LOCKED, "a release-locked slot overrides the legal-spot tint.")
