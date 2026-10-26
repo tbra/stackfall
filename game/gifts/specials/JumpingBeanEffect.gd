@@ -23,8 +23,8 @@ extends SpecialEffect
 ## burns at the kill plane like any other block.
 ##
 ## DECISION: a SpecialDef's `effect` is one shared Resource reused by every block,
-## so this effect keeps no mutable per-block state; the next-hop time lives in
-## block.set_meta(), keyed by a unique StringName, like every timed sibling. The
+## so this effect keeps no mutable per-block state; the hop timers live in a BeanState
+## on the block's SpecialBehavior (SpecialEffect.new_state()). The
 ## RNG that picks hop directions is shared across blocks (not reproducible, and
 ## nothing needs it to be).
 ##
@@ -69,16 +69,18 @@ extends SpecialEffect
 ## 5 s timeout. Looser speed, shorter hold and a 1 s ceiling start the hopping promptly.
 @export var landed: LandedTuning = LandedTuning.new()
 
-## block.set_meta() key: landed-age from which the next hop may start (while grounded).
-## Seeded to first_hop_delay_s, reset to touchdown + hop_interval_s after every hop.
-const _READY_AT_META: StringName = &"bean_ready_at"
-
-## block.set_meta() key: set at take-off, cleared at the next touchdown.
-const _AIRBORNE_META: StringName = &"bean_airborne"
-
-## block.set_meta() key: the horizontal velocity (Vector3) still owed to the current hop,
-## added on the first tick after the vertical kick, once the bean has left the disc.
-const _PENDING_HORIZONTAL_META: StringName = &"bean_pending_horizontal"
+## Per-activation hop state, kept on the SpecialBehavior (the effect resource is shared).
+class BeanState extends EffectState:
+	## Landed-age from which the next hop may start (while grounded): first_hop_delay_s,
+	## then touchdown + hop_interval_s after every hop.
+	var ready_at: float = 0.0
+	## Set at take-off, cleared at the next touchdown.
+	var airborne: bool = false
+	## True while `pending_horizontal` is still owed to the current hop.
+	var has_pending: bool = false
+	## Horizontal velocity owed to the current hop, added on the first tick after the
+	## vertical kick, once the bean has left the disc.
+	var pending_horizontal: Vector3 = Vector3.ZERO
 
 ## Unit-test seam: when valid, replaces the physics contact query (Callable(Block) -> bool),
 ## since a stub Block has no collision to probe. Never set in the shipped def.
@@ -86,6 +88,18 @@ var contact_override: Callable = Callable()
 
 ## Shared across every block using this effect instance (see the class DECISION).
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+
+
+## Fresh hop timers for one activation; the first hop is due first_hop_delay_s after landing.
+func new_state() -> EffectState:
+	var state: BeanState = BeanState.new()
+	state.ready_at = first_hop_delay_s
+	return state
+
+
+## The hop hole's radius.
+func effect_radius_m() -> float:
+	return hole_radius_m
 
 
 ## Waits for LandedProbe (SpecialBehavior) instead of Jolt `sleeping`.
@@ -102,23 +116,23 @@ func effect_lifetime_s() -> float:
 ## its interval since the last landing must have elapsed. A hop due while the bean is still
 ## in the air simply waits for touchdown (flight time can exceed hop_interval_s).
 func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
-	_apply_pending_horizontal(block)
+	var state: BeanState = behavior.state() as BeanState
+	_apply_pending_horizontal(block, state)
 	var elapsed: float = behavior.landed_age()
-	if not block.has_meta(_READY_AT_META):
-		block.set_meta(_READY_AT_META, first_hop_delay_s)
 	var grounded: bool = _is_grounded(block)
-	if grounded and block.has_meta(_AIRBORNE_META) and not block.has_meta(_PENDING_HORIZONTAL_META):
+	if grounded and state.airborne and not state.has_pending:
 		# Touchdown after a hop: the interval counts from here, not from take-off.
-		block.remove_meta(_AIRBORNE_META)
-		block.set_meta(_READY_AT_META, elapsed + hop_interval_s)
-	if not grounded or block.has_meta(_AIRBORNE_META) or block.has_meta(_PENDING_HORIZONTAL_META):
+		state.airborne = false
+		state.ready_at = elapsed + hop_interval_s
+	if not grounded or state.airborne or state.has_pending:
 		return
-	if elapsed >= float(block.get_meta(_READY_AT_META)):
+	if elapsed >= state.ready_at:
 		_hop(block)
+		_kick(block, state)
 	# Bean-side guard (HoleDissolver is not ours): a grounded bean sitting over an open hole
 	# cell would dissolve in it, so kick it out now (no new hole) instead of waiting.
 	elif _is_over_open_hole(block):
-		_kick(block)
+		_kick(block, state)
 
 
 ## True when the bean touches a surface below it and is not moving upward (same downward
@@ -155,12 +169,11 @@ func detonate(_block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> v
 	pass
 
 
-## One hop: punches a hole at the pre-hop position (HolePunch applies the
-## HoleMode.OFF / live-match / host gates), then kicks the bean up; the sideways part
+## A hop's hole: punches it at the pre-hop position (HolePunch applies the HoleMode.OFF /
+## live-match / host gates). physics_tick() then kicks the bean up; the sideways part
 ## follows on the next tick (see _apply_pending_horizontal()).
 func _hop(block: Block) -> void:
 	HolePunch.punch(block.global_position, hole_radius_m, hole_open_s)
-	_kick(block)
 
 
 ## Unit hop bearing in disk-local (x, z). With probability centre_weight: the inward
@@ -176,7 +189,7 @@ static func hop_direction(position_disk: Vector2, rng: RandomNumberGenerator,
 
 
 ## Vertical kick now, horizontal part owed to the next tick.
-func _kick(block: Block) -> void:
+func _kick(block: Block, state: BeanState) -> void:
 	var field: FieldBody = MatchContext.current().field()
 	var position_disk: Vector2 = Vector2.ZERO
 	if field != null:
@@ -195,17 +208,18 @@ func _kick(block: Block) -> void:
 	# kick(), not a bare `linear_velocity =` write: see Block.kick() (a hop kicked
 	# during a residual downward velocity must not read as a damped bounce).
 	block.kick(Vector3.UP * hop_impulse)
-	block.set_meta(_PENDING_HORIZONTAL_META, horizontal)
-	block.set_meta(_AIRBORNE_META, true)
+	state.pending_horizontal = horizontal
+	state.has_pending = true
+	state.airborne = true
 	block.wake()
 
 
 ## Sets the horizontal part of the last hop once the bean is off the ground.
-func _apply_pending_horizontal(block: Block) -> void:
-	if not block.has_meta(_PENDING_HORIZONTAL_META):
+func _apply_pending_horizontal(block: Block, state: BeanState) -> void:
+	if not state.has_pending:
 		return
-	var horizontal: Vector3 = block.get_meta(_PENDING_HORIZONTAL_META) as Vector3
-	block.remove_meta(_PENDING_HORIZONTAL_META)
+	state.has_pending = false
+	var horizontal: Vector3 = state.pending_horizontal
 	# Replaces (not adds to) the sideways speed: hops never accumulate speed, and any
 	# friction/bounce leftover from the take-off tick is discarded.
 	block.kick(Vector3(horizontal.x, block.linear_velocity.y, horizontal.z))

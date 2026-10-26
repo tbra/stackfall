@@ -966,6 +966,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
+   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:build_client_fx",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches it from GiftFxPresenter; Ipresenter removes this entry"
   },
