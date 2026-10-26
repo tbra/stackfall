@@ -18,13 +18,11 @@ extends GutTest
 ## eliminations' breakage) stay on every machine and are not touched here.
 ##
 ## Same fixtures as tests/unit/ui/test_refusal_feedback_local.gd: the real Match
-## through MatchNet with a faked Net, a fresh Sfx on a temp folder, the real
-## Rumble with its vibration seam swapped for a recorder. The Sfx/Rumble hooks
-## are invoked directly (their Events connections are one line each) so no
-## other autoload's reaction to the same signal runs.
+## through MatchNet with a faked Net, the real Sfx autoload read through its cue players
+## (SfxChildren), the real Rumble with its vibration seam swapped for a recorder. Sfx hears
+## Events.gift_claimed as in the game; the Rumble hooks are invoked directly.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
-const SFX_SCRIPT: GDScript = preload("res://autoload/Sfx.gd")
 
 const HOST_PEER: int = 1
 const REMOTE_PEER: int = 2
@@ -40,9 +38,6 @@ var _field: Field
 var _registry: BlockRegistry
 var _fake_net: FakeNet
 var _tiny_map: MapDef
-var _sfx: Node
-var _audio_config: AudioConfig
-var _tmp_dir: String
 var _rumble_enabled_before: bool
 var _rumble_strength_before: float
 var _rumble_calls: Array[Dictionary] = []
@@ -70,17 +65,7 @@ func before_each() -> void:
 	add_child_autofree(_registry)
 	Match.register_world(_field, _registry, _blocks_root)
 
-	_audio_config = load("res://config/audio/audio_config.tres").duplicate() as AudioConfig
-	_audio_config.contextual_music_enabled = false
-	_audio_config.bundled_theme = null
-	_audio_config.bundled_theme_path = ""
-	_sfx = autofree(SFX_SCRIPT.new())
-	_sfx.config = _audio_config
-	add_child_autofree(_sfx)
-	_tmp_dir = OS.get_user_data_dir().path_join("test_personal_feedback_tmp")
-	DirAccess.make_dir_recursive_absolute(_tmp_dir)
-	_write_tiny_wav(_tmp_dir.path_join(_audio_config.gift_claimed_file))
-	_sfx.set_root_dir_for_test(_tmp_dir)
+	SfxChildren.stop_all()
 
 	_rumble_calls = []
 	Rumble.start_vibration_fn = Callable(self, "_record_rumble")
@@ -99,8 +84,7 @@ func after_each() -> void:
 	Rumble.start_vibration_fn = Callable(Rumble, "_start_vibration_real")
 	Rumble._last_device_id = Rumble.DEVICE_NONE
 	Rumble._last_family = &""
-	for filename: String in DirAccess.get_files_at(_tmp_dir):
-		DirAccess.remove_absolute(_tmp_dir.path_join(filename))
+	SfxChildren.stop_all()
 	Settings.set_rumble_enabled(_rumble_enabled_before)
 	Settings.set_rumble_strength(_rumble_strength_before)
 
@@ -111,22 +95,8 @@ func _record_rumble(device: int, weak_magnitude: float, strong_magnitude: float,
 	})
 
 
-func _write_tiny_wav(path: String) -> void:
-	var wav: AudioStreamWAV = AudioStreamWAV.new()
-	wav.format = AudioStreamWAV.FORMAT_16_BITS
-	wav.mix_rate = 22050
-	wav.stereo = false
-	var data: PackedByteArray = PackedByteArray()
-	data.resize(2205 * 2)
-	wav.data = data
-	assert_eq(wav.save_to_wav(path), OK, "fixture wav should save cleanly: %s" % path)
-
-
 func _any_sfx_playing() -> bool:
-	for player: AudioStreamPlayer in _sfx._sfx_players:
-		if player.playing:
-			return true
-	return false
+	return SfxChildren.any_playing()
 
 
 ## A listen-server host (peer 1, slot 0) with one remote client (peer 2, slot 1).
@@ -241,11 +211,11 @@ func test_a_bots_gift_claim_never_chimes_for_the_human_offline() -> void:
 	_start_playing(2, 1)
 	assert_true(Match.slot(1).is_bot, "fixture: slot 1 is the bot")
 
-	_sfx._on_gift_claimed(GIFT_ID, 1, SOME_SPECIAL)
+	Events.gift_claimed.emit(GIFT_ID, 1, SOME_SPECIAL)
 
 	assert_false(_any_sfx_playing(), "offline bot claim (every team-of-one is on its own team)")
 
-	_sfx._on_gift_claimed(GIFT_ID, HOST_SLOT, SOME_SPECIAL)
+	Events.gift_claimed.emit(GIFT_ID, HOST_SLOT, SOME_SPECIAL)
 
 	assert_true(_any_sfx_playing(), "the human's own claim still chimes")
 
@@ -258,10 +228,10 @@ func test_a_teammates_claim_still_chimes_team_wide() -> void:
 	config.team_mode = MatchConfig.TeamMode.TEAMS_2
 	_run_to_playing(config)
 
-	_sfx._on_gift_claimed(GIFT_ID, 1, SOME_SPECIAL)
+	Events.gift_claimed.emit(GIFT_ID, 1, SOME_SPECIAL)
 	assert_false(_any_sfx_playing(), "host (team 0), the other team's claim")
 
-	_sfx._on_gift_claimed(GIFT_ID, 2, SOME_SPECIAL)
+	Events.gift_claimed.emit(GIFT_ID, 2, SOME_SPECIAL)
 	assert_true(_any_sfx_playing(), "host (team 0), its teammate's claim")
 
 
