@@ -391,9 +391,9 @@ func _process(delta: float) -> void:
 	if match_provider.has_method(&"feed_time_left"):
 		set_feed_seconds(float(match_provider.feed_time_left(_active_slot)))
 	var tower_m: float = match_provider.max_height_for_slot(_active_slot)
-	var held: GhostPreview = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as GhostPreview
-	if held != null and held.get_shape() != null:
-		set_tower_and_block_height(tower_m, held.height_above_surface())
+	var held: LocalHeldView = MatchContext.current().local_held()
+	if held.shape != null:
+		set_tower_and_block_height(tower_m, held.height_above_surface)
 	else:
 		set_height(tower_m)
 	set_locked(bool(match_provider.is_release_locked(_active_slot)))

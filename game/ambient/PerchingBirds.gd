@@ -539,10 +539,9 @@ func _cursor_points() -> PackedVector3Array:
 	var points: PackedVector3Array = PackedVector3Array()
 	for cursor: Variant in _cursors.values():
 		points.append(cursor as Vector3)
-	if is_inside_tree():
-		var ghost: Node3D = get_tree().get_first_node_in_group(GhostPreview.LOCAL_HELD_GROUP) as Node3D
-		if ghost != null and ghost.is_visible_in_tree():
-			points.append(ghost.global_position)
+	var held: LocalHeldView = MatchContext.current().local_held()
+	if held.shape != null and held.visible:
+		points.append(held.origin)
 	return points
 
 
