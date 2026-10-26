@@ -50,7 +50,7 @@ func _build_sfx() -> void:
 	_sfx = autofree(SFX_SCRIPT.new())
 	_sfx.config = _config
 	add_child_autofree(_sfx)
-	_sfx.set_root_dir_for_test(_dir)
+	_sfx._library = StreamLibrary.new(_dir)
 	_sfx._claim_test_local_team = MINE
 	_sfx._claim_test_live = true
 
