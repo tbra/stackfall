@@ -711,6 +711,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
+   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/MagnetEffect.gd:effect_radius_m",
    "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
   },
