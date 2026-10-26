@@ -595,38 +595,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/MagnetEffect.gd:faces_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/MagnetEffect.gd:launch_facing",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:apply_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace calls it; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/PaintballEffect.gd:effect_radius_m",
    "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:faces_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:launch_facing",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:apply_launch",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
   },
   {
    "id": "test-only-func",
@@ -635,43 +605,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:faces_launch",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:launch_facing",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:may_aim_upward",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:apply_launch",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace replaces MatchPlacement._apply_aim_direction; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (Bontago-di0.12) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:faces_launch",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:launch_facing",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:may_aim_upward",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
   },
   {
    "id": "test-only-func",

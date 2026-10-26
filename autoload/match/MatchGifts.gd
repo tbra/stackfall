@@ -309,7 +309,7 @@ func request_use_gift_slot(slot_id: int) -> bool:
 		return false
 	# The shared host/live/slot/home/turn/held-shape preamble (the same
 	# one-actor-at-a-time gate request_place uses: off-turn seats cannot spend).
-	if _match._placement._intent_gate(slot_id, -1, MatchPlacement.IntentKind.GIFT_USE) != &"":
+	if not _match._placement.can_use_gift_slot(slot_id):
 		return false
 	var special_id: StringName = gift_slot_head(slot_id)
 	if special_id == &"":

@@ -989,7 +989,7 @@ func gift_launch_preview() -> Dictionary:
 		}
 	var direction: Vector3 = forward
 	if not _held_gift_flies_upward():
-		direction = RocketEffect.sanitize_downward_direction(forward)
+		direction = GiftAim.sanitize_downward_direction(forward)
 	return {
 		"origin": origin,
 		"velocity": GiftAim.straight_velocity(direction, special_tuning.gift_throw_speed_mps),
@@ -1025,15 +1025,15 @@ func _held_gift_aim_direction() -> Vector3:
 		return GiftAim.throw_velocity(forward, special_tuning, _throw_range_scale()).normalized()
 	if mode == GiftThrow.Mode.AIMED:
 		if _held_gift_flies_upward():
-			return RocketEffect.sanitize_launch_direction(forward)
-		return RocketEffect.sanitize_downward_direction(forward)
+			return GiftAim.sanitize_launch_direction(forward)
+		return GiftAim.sanitize_downward_direction(forward)
 	return Vector3.ZERO
 
 
 ## Whether the held aimed gift may fly upward (Rocket, Q3); Paintball may not.
 func _held_gift_flies_upward() -> bool:
 	var def: SpecialDef = SpecialDef.find_by_id(match_context.held_special(_acting_slot()))
-	return def != null and def.effect is RocketEffect
+	return def != null and def.effect != null and def.effect.may_aim_upward()
 
 
 ## A slot whose home flag is gone is effectively eliminated.
