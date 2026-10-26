@@ -616,11 +616,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/BlackHoleEffect.gd:effect_radius_m",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:build_client_fx",
    "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P6-Ipresenter dispatches build_client_fx from GiftFxPresenter; Ipresenter removes this entry"
   },
@@ -646,18 +641,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/FreezeEffect.gd:effect_radius_m",
-   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (Bontago-di0.12) replaces the BotController radius scan; that bead removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
    "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/MagnetEffect.gd:effect_radius_m",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
   },
   {
    "id": "test-only-func",

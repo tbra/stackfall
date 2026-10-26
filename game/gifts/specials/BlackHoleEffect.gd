@@ -67,10 +67,6 @@ func detonate(block: Block, _behavior: SpecialBehavior, _chain_depth: int) -> vo
 	DiscAnchor.attach(field, block.global_position, fallback)
 
 
-func effect_radius_m() -> float:
-	return pull_radius_m
-
-
 ## Every peer draws the visual; the pull itself is host-only physics.
 func build_client_fx(ctx: MatchContext, _block: Block, position: Vector3, _owner_slot: int) -> void:
 	var parent: Node3D = ctx.blocks_parent()

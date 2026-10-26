@@ -57,10 +57,6 @@ class FieldRider:
 		body.global_transform = current * local
 
 
-func effect_radius_m() -> float:
-	return freeze_radius_m
-
-
 ## Every peer draws the freeze burst at the trigger position.
 func build_client_fx(ctx: MatchContext, _block: Block, position: Vector3, _owner_slot: int) -> void:
 	var parent: Node3D = ctx.blocks_parent()

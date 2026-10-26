@@ -108,7 +108,7 @@ func test_paintball_converts_only_members_inside_the_splash() -> void:
 	var inside: Block = near if near.global_position.distance_to(glob.global_position) < far.global_position.distance_to(glob.global_position) else far
 	var outside: Block = far if inside == near else near
 	var outside_slot: int = far_slot if outside == far else near_slot
-	effect.detonate(glob, null, 0)
+	effect.detonate(glob, _bound_behavior(glob, effect), 0)
 	assert_eq(inside.owner_slot, glob.owner_slot, "member in the splash converts")
 	assert_eq(outside.owner_slot, outside_slot, "member outside the splash keeps its owner")
 
@@ -147,3 +147,14 @@ func test_black_hole_capture_takes_the_whole_group() -> void:
 	await wait_physics_frames(wait_frames)
 	for member: Block in members:
 		assert_false(is_instance_valid(member) and not member.is_queued_for_deletion(), "member removed")
+
+
+func _bound_behavior(glob: Block, effect: PaintballEffect) -> SpecialBehavior:
+	var def: SpecialDef = SpecialDef.new()
+	def.id = &"paintball"
+	def.effect = effect
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	glob.add_child(behavior)
+	behavior.set_physics_process(false)
+	behavior.bind(glob, def, SpecialTuning.new())
+	return behavior

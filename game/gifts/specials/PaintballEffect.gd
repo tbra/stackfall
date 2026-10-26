@@ -143,10 +143,10 @@ func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
 
 
 func detonate(block: Block, behavior: SpecialBehavior, _chain_depth: int) -> void:
-	var state: PaintballState = behavior.state() as PaintballState if behavior != null else null
+	var state: PaintballState = behavior.state() as PaintballState
 	if block != null:
 		RocketEffect.release_own_exceptions(block)
-	if block != null and state != null and state.launched():
+	if block != null and state.launched():
 		block.gravity_scale = state.carrier_gravity_scale
 	var ctx: MatchContext = MatchContext.current()
 	if block == null or not ctx.has_authority() or ctx.state() != MatchPhase.State.PLAYING:

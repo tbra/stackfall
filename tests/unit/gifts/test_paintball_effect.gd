@@ -56,7 +56,18 @@ func test_host_splash_converts_near_real_collider_but_not_far_block() -> void:
 	await wait_physics_frames(1)
 	var effect: PaintballEffect = PaintballEffect.new()
 	effect.splash_radius_m = 3.5
-	effect.detonate(glob, null, 0)
+	effect.detonate(glob, _bound_behavior(glob, effect), 0)
 	assert_eq(near.owner_slot, 0)
 	assert_eq(far.owner_slot, 1)
 	assert_eq(_registry.block_for_net_id(near.net_id), near)
+
+
+func _bound_behavior(glob: Block, effect: PaintballEffect) -> SpecialBehavior:
+	var def: SpecialDef = SpecialDef.new()
+	def.id = &"paintball"
+	def.effect = effect
+	var behavior: SpecialBehavior = SpecialBehavior.new()
+	glob.add_child(behavior)
+	behavior.set_physics_process(false)
+	behavior.bind(glob, def, SpecialTuning.new())
+	return behavior

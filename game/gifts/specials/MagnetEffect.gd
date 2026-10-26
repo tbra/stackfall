@@ -60,10 +60,6 @@ func launch_facing(_mode: GiftThrow.Mode, _aim_direction: Vector3, throw_velocit
 	return FlightFacing.nose_basis(model_nose_axis, throw_velocity)
 
 
-func effect_radius_m() -> float:
-	return pull.radius_m
-
-
 ## Pulls every enemy Block within pull.radius_m toward this block's own position, every
 ## armed tick, for pull_duration_s seconds from the first tick this runs (no landing gate).
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
