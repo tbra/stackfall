@@ -19,6 +19,7 @@ extends Node
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const HARD_DEADLINE_S: float = 150.0
 const CONNECT_TIMEOUT_S: float = 20.0
+const TENSE_PROGRESS: float = 0.9
 const STATE_TIMEOUT_S: float = 25.0
 const HOST_AND_CLIENT_PEERS: int = 2
 const SEED: int = 777
@@ -163,7 +164,8 @@ func _dirty_camera_and_sky() -> void:
 	rig._unhandled_input(focus)
 	var skybox: Skybox = _main.get("_skybox") as Skybox
 	skybox.set_locked_phase(skybox.sky_def.locked_phase_for(MatchConfig.SKY_ID_SUNSET))
-	Sfx._tense_stem_is_active = true
+	MatchFingerprint.enable_stems()
+	Events.goal_capture_progress.emit(0, TENSE_PROGRESS)
 
 
 # --- host ---------------------------------------------------------------------------------

@@ -100,7 +100,7 @@ func after_each() -> void:
 			main.queue_free()
 	_mains.clear()
 	Match.set_process(true)
-	Sfx._tense_stem_is_active = false
+	Sfx.reset_match_audio()
 	await get_tree().process_frame
 	await get_tree().process_frame
 
