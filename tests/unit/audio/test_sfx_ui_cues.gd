@@ -23,7 +23,7 @@ func _expect_cue(cue: StringName, emit: Callable) -> void:
 	var before: int = sfx._next_ui_player_index
 	emit.call()
 	var stream: AudioStream = _played_stream(sfx, before)
-	assert_same(stream, sfx._load_stream(_config.ui_cue_file(cue)), "cue %s" % cue)
+	assert_same(stream, sfx._library.stream(_config.ui_cue_file(cue)), "cue %s" % cue)
 
 
 func test_lobby_ui_cue_signal_plays_each_cue() -> void:

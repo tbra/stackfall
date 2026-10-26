@@ -64,7 +64,7 @@ FOLDER_SCANS = (
     ("config/gifts/specials/SpecialDef.gd", "config/gifts/specials", False, (".tres",)),  # load_all list_dir
     ("config/weather/WeatherTuning.gd", "config/weather", False, (".tres",)),        # list_dir over WEATHER_DIR
     ("autoload/Settings.gd", "config/graphics/presets", False, (".tres",)),          # PRESETS_DIR loads
-    ("autoload/Sfx.gd", "assets/audio/sfx", True, (".wav", ".ogg", ".mp3")),         # get_files_at(_root_dir)
+    ("autoload/Sfx.gd", "assets/audio/sfx", True, (".wav", ".ogg", ".mp3")),         # get_files_at(_library.root_dir())
     ("ui/hud/HUD.gd", "assets/ui/block_previews", False, (".png",)),                 # "%s.png" % shape.id
 )
 # Letter-bounded (not a word boundary) so identifiers such as compat_mode or legacy_path match too.
