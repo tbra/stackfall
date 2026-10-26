@@ -742,7 +742,7 @@ func _hole_column_result(slot_id: int, disk_xz: Vector2) -> PlacementRules.Resul
 	return PlacementRules.Result.OFF_DISK
 
 
-# SHORTCUT: forwarder for PlayerController.gd:1448, removed when P3-Ithrow-b moves the controller onto launch_plan
+# SHORTCUT: forwarder for PlayerController._release_pose, removed when P3-Ithrow-b moves the controller onto launch_plan
 static func launch_facing_basis(
 	def: SpecialDef, mode: GiftThrow.Mode, aim_direction: Vector3, throw_velocity: Vector3
 ) -> Variant:
