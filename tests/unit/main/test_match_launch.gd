@@ -168,7 +168,7 @@ func test_forced_special_absent_is_empty() -> void:
 func test_headless_bot_config_reserved_mode_id_falls_back_to_a_selectable_mode() -> void:
 	var reserved: int = 99
 	assert_false(MatchConfig.is_game_mode_selectable(reserved), "fixture: 99 is not a game mode")
-	var config: MatchConfig = MatchLaunch.headless_bot_config(PackedStringArray(["--bots=2", "--mode=%d" % reserved]))
+	var config: MatchConfig = MatchLaunch.headless_bot_config(_base(), 2, PackedStringArray(["--mode=%d" % reserved]))
 	assert_not_null(config)
 	if config != null:
 		assert_eq(config.game_mode, MatchConfig.resolve_game_mode(reserved))
@@ -176,7 +176,7 @@ func test_headless_bot_config_reserved_mode_id_falls_back_to_a_selectable_mode()
 
 func test_headless_bot_config_is_independent_of_the_sandbox_player_flag() -> void:
 	var args: PackedStringArray = PackedStringArray(["--bots=3", "--players=6"])
-	var config: MatchConfig = MatchLaunch.headless_bot_config(args)
+	var config: MatchConfig = MatchLaunch.headless_bot_config(_base(), 3, args)
 	assert_not_null(config)
 	if config != null:
 		assert_eq(config.player_count, 6)

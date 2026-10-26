@@ -10,11 +10,9 @@ func _defaults() -> MatchConfig:
 	return load(DEFAULTS_PATH) as MatchConfig
 
 
-## `--bots=<bots>` plus `extra`: the builder reads the bot count from the arguments.
+## `bots` bot seats from the shipped defaults, shaped by the `extra` flags.
 func _build(bots: int, extra: PackedStringArray = PackedStringArray()) -> MatchConfig:
-	var args: PackedStringArray = PackedStringArray(["--bots=%d" % bots])
-	args.append_array(extra)
-	return MatchLaunch.headless_bot_config(args)
+	return MatchLaunch.headless_bot_config(_defaults(), bots, extra)
 
 
 func test_difficulty_flag_sets_every_bot_slot() -> void:
@@ -58,7 +56,7 @@ func test_match_seed_is_deterministic() -> void:
 
 
 func test_flags_accept_any_number_of_leading_dashes_or_none() -> void:
-	var built: MatchConfig = MatchLaunch.headless_bot_config(PackedStringArray(["bots=2", "---match-seed=77"]))
+	var built: MatchConfig = MatchLaunch.headless_bot_config(_defaults(), 2, PackedStringArray(["---match-seed=77"]))
 	assert_not_null(built)
 	if built != null:
 		assert_eq(built.rng_seed, 77, "any number of leading dashes is stripped")
@@ -219,3 +217,13 @@ func test_builder_returns_its_own_copy_and_leaves_the_shared_defaults_alone() ->
 	assert_eq(_defaults().ai_count, before_ai)
 	if first != null and second != null:
 		assert_ne(first, second, "each call returns its own copy")
+
+
+func test_override_config_wins_over_the_default_base() -> void:
+	var override: MatchConfig = _defaults().duplicate(true) as MatchConfig
+	override.block_timer = _defaults().block_timer + 3.0
+	override.rng_seed = 99
+	var config: MatchConfig = MatchLaunch.headless_bot_config(override, 2, PackedStringArray(["--gifts=0"]))
+	assert_eq(config.block_timer, override.block_timer, "the base passed in is the duplication source")
+	assert_eq(config.rng_seed, 99)
+	assert_false(config.gifts_enabled, "flags still apply on top of the override")
