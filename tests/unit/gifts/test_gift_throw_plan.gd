@@ -9,7 +9,6 @@ const ORIGIN: Vector3 = Vector3(3.0, 5.0, -4.0)
 const EPS: float = 0.001
 
 var _tuning: SpecialTuning
-var _physics: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 var _shape: BlockShape
 
 
@@ -142,7 +141,7 @@ func test_paintball_drops_the_upward_part_of_an_upward_aim() -> void:
 	var paintball: PaintballEffect = PaintballEffect.new()
 	var aim: Vector3 = Vector3(0.3, 0.6, -0.8).normalized()
 	var plan: GiftThrow.Plan = _plan(_def(&"gift_paintball", GiftThrow.Mode.AIMED, paintball), GiftThrow.Mode.AIMED, aim)
-	var down: Vector3 = RocketEffect.sanitize_downward_direction(aim)
+	var down: Vector3 = GiftAim.sanitize_downward_direction(aim)
 	if down == Vector3.ZERO:
 		assert_false(plan.faces, "no usable downward direction keeps the upright pose")
 	else:
@@ -167,13 +166,13 @@ func test_aimed_launch_has_no_ballistic_arc_and_flies_along_the_aim_if_it_has_a_
 		assert_true(plan.velocity.normalized().is_equal_approx(aim), str(plan.velocity))
 
 
-func test_aimed_spawn_is_matched_to_the_held_model_when_faced() -> void:
-	var rocket: RocketEffect = RocketEffect.new()
+func test_aimed_faced_spawn_is_the_camera_line_point_the_host_then_muzzle_matches() -> void:
+	# BlockFactory (game/) applies the muzzle match in MatchPlacement.request_throw; the pure plan
+	# stops at the camera line (host-side coverage: test_clearance_parity, muzzle_spawn ENet).
 	var aim: Vector3 = Vector3(0.2, 0.9, -0.3).normalized()
-	var plan: GiftThrow.Plan = _plan(_def(&"gift_rocket", GiftThrow.Mode.AIMED, rocket), GiftThrow.Mode.AIMED, aim)
-	var on_line: Vector3 = GiftAim.spawn_point(ORIGIN, aim, SURFACE_Y, _tuning)
-	var expected: Vector3 = BlockFactory.muzzle_matched_origin(on_line, plan.faced_basis, _shape, _physics, &"gift_rocket")
-	assert_true(plan.spawn_origin.is_equal_approx(expected), "%s vs %s" % [plan.spawn_origin, expected])
+	var plan: GiftThrow.Plan = _plan(_def(&"gift_rocket", GiftThrow.Mode.AIMED, RocketEffect.new()), GiftThrow.Mode.AIMED, aim)
+	assert_true(plan.faces)
+	assert_true(plan.spawn_origin.is_equal_approx(GiftAim.spawn_point(ORIGIN, aim, SURFACE_Y, _tuning)), str(plan.spawn_origin))
 
 
 func test_aimed_spawn_without_a_faced_pose_is_just_the_camera_line_point() -> void:

@@ -48,7 +48,36 @@ static func sanitize_aim(direction: Vector3, tuning: SpecialTuning) -> Vector3:
 	return direction / length
 
 
-## Stub: the full plan lands with the throw wiring; today every call answers a NONE plan.
-static func launch_plan(_def: SpecialDef, _mode: Mode, _aim: Vector3, _origin: Vector3,
-		_surface_y: float, _range_scale: float, _tuning: SpecialTuning, _shape: BlockShape) -> Plan:
-	return Plan.new()
+## How `def` leaves the hand for a camera-aimed release at `origin` (the unit `aim` is already
+## validated by the caller): launch velocity (ballistic THROW scaled by `range_scale`, AIMED left
+## at rest for the effect), spawn point on the camera line (the caller muzzle-matches an AIMED faced gift,
+## BlockFactory being a game/ class) and the faced pose. A malformed aim or a NONE def gives a plan with no launch.
+static func launch_plan(def: SpecialDef, mode: Mode, aim: Vector3, origin: Vector3,
+		surface_y: float, range_scale: float, tuning: SpecialTuning, _shape: BlockShape) -> Plan:
+	var plan: Plan = Plan.new()
+	plan.mode = mode
+	plan.spawn_origin = origin
+	plan.range_scale = range_scale
+	if GiftAim.unit_forward(aim) == Vector3.ZERO or (def != null and mode == Mode.NONE):
+		return plan
+	# An unresolved def (spawns as a plain block) takes the same ballistic throw.
+	var ballistic: bool = def == null or mode == Mode.THROW
+	var speed_cap: float = tuning.throw_max_speed
+	if ballistic:
+		plan.velocity = GiftAim.throw_velocity(aim, tuning, range_scale)
+		speed_cap *= GiftAim.speed_factor(range_scale)
+	plan.velocity = plan.velocity.limit_length(speed_cap)
+	plan.spawn_origin = GiftAim.spawn_point(origin, aim, surface_y, tuning)
+	var faced: Variant = launch_facing_basis(def, mode, aim, plan.velocity)
+	if faced != null:
+		plan.faces = true
+		plan.faced_basis = faced as Basis
+	return plan
+
+
+## The basis a thrown/launched Rocket or Magnet carrier spawns with (nose along its flight line),
+## or null when the gift keeps the upright spawn pose.
+static func launch_facing_basis(def: SpecialDef, mode: Mode, aim: Vector3, velocity: Vector3) -> Variant:
+	if def == null or def.effect == null or not def.effect.faces_launch(mode, aim, velocity):
+		return null
+	return def.effect.launch_facing(mode, aim, velocity)
