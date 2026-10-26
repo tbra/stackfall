@@ -13,9 +13,6 @@ var _config: NetConfig = null
 ## gift_id -> GiftWirePhase value.
 var _phases: Dictionary = {}
 var _spawn_notified: Dictionary = {}
-## Roster ids, built on first use (SpecialDef.load_all_specials is a directory scan).
-var _roster_ids: Dictionary = {}
-var _roster_built: bool = false
 
 
 ## First build and every rebind: refreshes the refs, keeps the phase and notified state.
@@ -30,13 +27,7 @@ func special_id_ok(special_id: StringName) -> bool:
 		return false
 	if special_id == SpecialIds.PENDING:
 		return true
-	if not _roster_built:
-		# The typed Array[SpecialDef] result stays in an untyped Array.
-		var defs: Array = LateScripts.script(LateScripts.SPECIAL_DEF).call(&"load_all_specials")
-		for def: Resource in defs:
-			_roster_ids[StringName(def.get(&"id"))] = true
-		_roster_built = true
-	return _roster_ids.has(special_id)
+	return LateScripts.script(LateScripts.SPECIAL_DEF).call(&"find_by_id", special_id) != null
 
 
 ## Unknown or spawn-only -> falling.
