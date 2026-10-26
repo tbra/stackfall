@@ -59,11 +59,11 @@ func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	assert_eq(Match.blocks_parent().get_child_count(), expected, "opponent towers are pre-placed")
 	var home: Vector2 = Match.slot(0).home_position
 	for i: int in PLACE_ATTEMPTS:
-		if not (Match._gifts._crates as Dictionary).is_empty():
+		if not Match.gift_states().is_empty():
 			break
 		var origin: Vector3 = (_main.get_node("Field") as Field).to_global(Vector3(home.x, 4.0 + PLACE_STEP_HEIGHT_M * float(i % 4), home.y))
 		Match.request_place(0, origin, 0, Quaternion.IDENTITY, false)
-	assert_false((Match._gifts._crates as Dictionary).is_empty(), "at least one gift crate spawned")
+	assert_false(Match.gift_states().is_empty(), "at least one gift crate spawned")
 
 
 ## F5 rebuilds the world; the preset's opponent towers are placed again, once.

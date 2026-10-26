@@ -691,12 +691,24 @@ func _gift_client_fixture() -> MatchNetScript:
 	return _make_net({}, [1], true)
 
 
+## The GiftCrate in the scene tree with this public gift_id, or null.
+func _crate_node(gift_id: int) -> GiftCrate:
+	var pending: Array[Node] = [get_tree().root]
+	while not pending.is_empty():
+		var node: Node = pending.pop_back()
+		var crate: GiftCrate = node as GiftCrate
+		if crate != null and crate.gift_id == gift_id:
+			return crate
+		pending.append_array(node.get_children())
+	return null
+
+
 func test_gift_flight_interpolates_but_waits_for_authoritative_landing() -> void:
 	var net: MatchNetScript = _gift_client_fixture()
 	var origin: Vector3 = Vector3(0, 10, 0)
 	var landing: Vector3 = Vector3(0, 1, 0)
 	net.net_match_event(MatchWireEvents.GIFT_FLIGHT, [101, origin, landing])
-	var node: GiftCrate = Match._gifts._crates[101]["node"]
+	var node: GiftCrate = _crate_node(101)
 	Match._physics_process(0.5)
 	assert_lt(node.global_position.y, origin.y)
 	assert_gt(node.global_position.y, landing.y)
@@ -704,7 +716,7 @@ func test_gift_flight_interpolates_but_waits_for_authoritative_landing() -> void
 	net.net_match_event(MatchWireEvents.GIFT_FLIGHT, [101, origin, landing])
 	net.net_match_event(MatchWireEvents.GIFT_SPAWNED, [101, Vector2.ZERO])
 	assert_eq(Match.gift_state(101)["elapsed"], elapsed, "duplicate must not rewind")
-	assert_same(Match._gifts._crates[101]["node"], node, "legacy event reuses the visual")
+	assert_same(_crate_node(101), node, "legacy event reuses the visual")
 	Match._physics_process(100.0)
 	assert_eq(node.global_position, landing)
 	assert_eq(Match.gift_state(101)["phase"], MatchGifts.FALLING)

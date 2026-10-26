@@ -30,6 +30,10 @@ extends GutTest
 ## re-confirms the claim mechanics themselves are sound end to end through
 ## the exact config shape the bug was reported against.
 
+## A gift id well above any the spawner hands out in these short matches.
+const INJECTED_GIFT_ID: int = 9000
+
+
 var _blocks_root: Node3D
 var _field: Field
 var _registry: BlockRegistry
@@ -91,13 +95,11 @@ func _step_territory(times: int = 1) -> void:
 		Match._gifts.tick_host(step)
 
 
-## Same direct-injection seam test_gift_claim.gd's own _inject_crate() uses
-## (a real crate node is not needed to exercise tick_host() claiming --
-## only its {"position", "age", "node"} entry in MatchGifts._crates).
+## Lands a crate through the client-mirror spawn path (a LANDED crate at age 0
+## with its real node), the same public seam a late-joining client uses.
 func _inject_crate(position: Vector2) -> int:
-	var gift_id: int = Match._gifts._next_gift_id
-	Match._gifts._next_gift_id += 1
-	Match._gifts._crates[gift_id] = {"position": position, "age": 0.0, "node": null}
+	var gift_id: int = INJECTED_GIFT_ID
+	Match._gifts.apply_replicated_spawn(gift_id, position)
 	return gift_id
 
 
@@ -113,7 +115,7 @@ func test_crate_inside_the_human_slots_territory_is_claimed_in_a_bot_hosted_matc
 
 	_step_territory()
 
-	assert_false(Match._gifts._crates.has(gift_id), "a crate inside slot 0's own territory must be claimed")
+	assert_true(Match._gifts.gift_state(gift_id).is_empty(), "a crate inside slot 0's own territory must be claimed")
 	assert_signal_emitted(Events, "gift_claimed")
 	assert_eq(Match.pending_special_count(0), 1)
 
@@ -130,5 +132,5 @@ func test_crate_outside_every_slots_territory_is_not_claimed_in_a_bot_hosted_mat
 
 	_step_territory()
 
-	assert_true(Match._gifts._crates.has(gift_id), "a crate outside every slot's territory must not be claimed")
+	assert_false(Match._gifts.gift_state(gift_id).is_empty(), "a crate outside every slot's territory must not be claimed")
 	assert_signal_not_emitted(Events, "gift_claimed")

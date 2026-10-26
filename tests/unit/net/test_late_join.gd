@@ -202,9 +202,8 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	assert_eq(Match.state(), Match.State.PLAYING, "three teams remain, the match runs on")
 	Match._gifts._queue_claimed_special(3, MatchGifts.PENDING_SPECIAL_ID)
 	assert_true(Match._gifts.grant_glue_drops(1, 3))
-	Match._gifts._spawn_crate_at(Vector2(2.0, 1.0))
-	Match._gifts._spawn_crate_at(Vector2(-3.0, 2.0))
-	(Match._gifts._crates[1] as Dictionary)["phase"] = MatchGifts.LANDED
+	Match._gifts.apply_replicated_spawn(1, Vector2(2.0, 1.0))
+	Match._gifts.apply_replicated_flight(2, Vector3(-3.0, 8.0, 2.0), Vector3(-3.0, 1.0, 2.0))
 
 	# The new joiner takes the lowest open human seat: 2 is eliminated, 3 is free.
 	host_session.slots_by_peer[3] = 3
