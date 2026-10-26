@@ -255,14 +255,16 @@ func _behavior_at(position: Vector3) -> SpecialBehavior:
 	return _make_behavior(block, def)
 
 
-func test_filter_in_range_keeps_only_candidates_within_radius() -> void:
+func test_trigger_others_in_range_triggers_only_candidates_within_radius() -> void:
 	var near: SpecialBehavior = _behavior_at(Vector3(2.0, 0.0, 0.0))
 	var far: SpecialBehavior = _behavior_at(Vector3(20.0, 0.0, 0.0))
 	var self_behavior: SpecialBehavior = _behavior_at(Vector3.ZERO)
-	var candidates: Array[SpecialBehavior] = [near, far]
 
-	var result: Array[SpecialBehavior] = self_behavior._filter_in_range(candidates, Vector3.ZERO, 5.0, 0)
-	assert_eq(result, [near])
+	self_behavior.trigger_others_in_range(Vector3.ZERO, 5.0, 0)
+
+	assert_true(near.is_triggered(), "a special inside the radius is chained")
+	assert_false(far.is_triggered(), "a special outside the radius is left alone")
+	assert_false(self_behavior.is_triggered(), "the caller is never its own chain target")
 
 
 func test_trigger_others_in_range_triggers_survivors_one_depth_deeper() -> void:
@@ -277,3 +279,210 @@ func test_trigger_others_in_range_triggers_survivors_one_depth_deeper() -> void:
 	origin.trigger_others_in_range(Vector3.ZERO, 5.0, 1)
 	assert_true(neighbor.is_triggered())
 	assert_eq(neighbor.chain_depth(), 2)
+
+
+## -- chain order, cap, freed candidates (through real behaviours) --------------------
+
+## Detonating chains into everything within `reach` of the carrier, as the real effects do.
+class ChainEffect:
+	extends SpecialEffect
+	var reach: float = 1.5
+	var order: Array[StringName] = []
+
+	func detonate(block: Block, behavior: SpecialBehavior, chain_depth: int) -> void:
+		order.append(StringName(block.name))
+		behavior.trigger_others_in_range(block.global_position, reach, chain_depth)
+
+
+class CountingState:
+	extends EffectState
+	var marker: int = 7
+
+
+class StatefulEffect:
+	extends SpecialEffect
+
+	func new_state() -> EffectState:
+		return CountingState.new()
+
+
+func _chain_link(effect: SpecialEffect, link_name: String, position: Vector3) -> SpecialBehavior:
+	var block: Block = _make_block(position)
+	block.name = link_name
+	var def: SpecialDef = _make_def()
+	def.effect = effect
+	return _make_behavior(block, def)
+
+
+func test_live_lists_bound_behaviours_in_the_order_they_were_bound() -> void:
+	var third: SpecialBehavior = _behavior_at(Vector3(3.0, 0.0, 0.0))
+	var first: SpecialBehavior = _behavior_at(Vector3(1.0, 0.0, 0.0))
+	var second: SpecialBehavior = _behavior_at(Vector3(2.0, 0.0, 0.0))
+
+	var mine: Array[SpecialBehavior] = []
+	for behavior: SpecialBehavior in SpecialBehavior.live(get_tree()):
+		if behavior == first or behavior == second or behavior == third:
+			mine.append(behavior)
+
+	assert_eq(mine, [third, first, second] as Array[SpecialBehavior])
+
+
+func test_live_excludes_a_freed_behaviour() -> void:
+	var kept: SpecialBehavior = _behavior_at(Vector3.ZERO)
+	var gone: SpecialBehavior = _behavior_at(Vector3(1.0, 0.0, 0.0))
+	var gone_id: int = gone.get_instance_id()
+
+	gone.free()
+
+	var live: Array[SpecialBehavior] = SpecialBehavior.live(get_tree())
+	assert_true(kept in live)
+	for behavior: SpecialBehavior in live:
+		assert_ne(behavior.get_instance_id(), gone_id, "live() never lists the freed behaviour")
+
+
+func test_live_skips_nodes_in_the_group_that_are_not_behaviours() -> void:
+	var impostor: Node = Node.new()
+	impostor.add_to_group(SpecialBehavior.GROUP)
+	add_child_autofree(impostor)
+	var real: SpecialBehavior = _behavior_at(Vector3.ZERO)
+
+	var live: Array[SpecialBehavior] = SpecialBehavior.live(get_tree())
+
+	assert_true(real in live)
+	for behavior: SpecialBehavior in live:
+		assert_ne(behavior.get_instance_id(), impostor.get_instance_id())
+
+
+func test_live_omits_a_behaviour_that_was_never_bound() -> void:
+	var unbound: SpecialBehavior = SpecialBehavior.new()
+	add_child_autofree(unbound)
+	assert_false(unbound in SpecialBehavior.live(get_tree()))
+
+
+func test_chain_triggers_in_binding_order_one_depth_deeper_each_link() -> void:
+	var effect: ChainEffect = ChainEffect.new()
+	var a: SpecialBehavior = _chain_link(effect, "a", Vector3.ZERO)
+	var b: SpecialBehavior = _chain_link(effect, "b", Vector3(1.0, 0.0, 0.0))
+	var c: SpecialBehavior = _chain_link(effect, "c", Vector3(2.0, 0.0, 0.0))
+
+	a.trigger(0)
+
+	assert_eq(effect.order, [&"a", &"b", &"c"] as Array[StringName])
+	assert_eq([a.chain_depth(), b.chain_depth(), c.chain_depth()], [0, 1, 2])
+
+
+func test_chain_stops_extending_at_the_depth_cap_but_the_capped_link_still_detonates() -> void:
+	_tuning.max_chain_depth = 2
+	var effect: ChainEffect = ChainEffect.new()
+	var links: Array[SpecialBehavior] = []
+	for i: int in range(5):
+		links.append(_chain_link(effect, "n%d" % i, Vector3(float(i), 0.0, 0.0)))
+
+	links[0].trigger(0)
+
+	assert_true(links[2].is_triggered(), "the link reached at the cap still detonates")
+	assert_eq(links[2].chain_depth(), 2)
+	assert_false(links[3].is_triggered(), "a detonation at the cap starts no further chain")
+	assert_false(links[4].is_triggered())
+
+
+func test_chain_below_the_cap_reaches_and_at_the_cap_does_not() -> void:
+	var origin: SpecialBehavior = _behavior_at(Vector3.ZERO)
+	var neighbor: SpecialBehavior = _behavior_at(Vector3(1.0, 0.0, 0.0))
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, _tuning.max_chain_depth)
+	assert_false(neighbor.is_triggered(), "chain_depth at max_chain_depth extends nothing")
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, _tuning.max_chain_depth - 1)
+	assert_true(neighbor.is_triggered())
+	assert_eq(neighbor.chain_depth(), _tuning.max_chain_depth)
+
+
+func test_chain_skips_a_special_that_already_triggered() -> void:
+	var effect: ChainEffect = ChainEffect.new()
+	var origin: SpecialBehavior = _chain_link(effect, "o", Vector3.ZERO)
+	var done: SpecialBehavior = _chain_link(effect, "done", Vector3(1.0, 0.0, 0.0))
+	done.trigger(0)
+	effect.order.clear()
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, 3)
+
+	assert_eq(done.chain_depth(), 0, "an already-triggered special keeps its own depth")
+	assert_eq(effect.order.size(), 0, "and detonates no second time")
+
+
+func test_chain_ignores_a_freed_neighbour_and_still_reaches_the_rest() -> void:
+	var origin: SpecialBehavior = _behavior_at(Vector3.ZERO)
+	var gone: SpecialBehavior = _behavior_at(Vector3(1.0, 0.0, 0.0))
+	var alive: SpecialBehavior = _behavior_at(Vector3(2.0, 0.0, 0.0))
+	gone.free()
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, 0)
+
+	assert_true(alive.is_triggered())
+
+
+func test_chain_ignores_non_behaviour_nodes_in_the_group() -> void:
+	var impostor: Node = Node.new()
+	impostor.add_to_group(SpecialBehavior.GROUP)
+	add_child_autofree(impostor)
+	var origin: SpecialBehavior = _behavior_at(Vector3.ZERO)
+	var neighbor: SpecialBehavior = _behavior_at(Vector3(1.0, 0.0, 0.0))
+
+	origin.trigger_others_in_range(Vector3.ZERO, 5.0, 0)
+
+	assert_true(neighbor.is_triggered())
+
+
+## -- def_id() / state() ---------------------------------------------------------------
+
+func test_def_id_is_empty_before_bind_and_the_def_id_after() -> void:
+	var fresh: SpecialBehavior = SpecialBehavior.new()
+	add_child_autofree(fresh)
+	assert_eq(fresh.def_id(), &"")
+
+	var def: SpecialDef = _make_def()
+	def.id = &"probe_special"
+	fresh.bind(_make_block(), def, _tuning)
+
+	assert_eq(fresh.def_id(), &"probe_special")
+
+
+func test_state_is_null_before_bind() -> void:
+	var fresh: SpecialBehavior = SpecialBehavior.new()
+	add_child_autofree(fresh)
+	assert_null(fresh.state())
+
+
+func test_state_is_null_for_a_stateless_effect_and_for_a_def_without_effect() -> void:
+	var plain: SpecialBehavior = _behavior_at(Vector3.ZERO)
+	assert_null(plain.state(), "no effect assigned")
+
+	var def: SpecialDef = _make_def()
+	def.effect = StubEffect.new()
+	var stateless: SpecialBehavior = _make_behavior(_make_block(), def)
+	assert_null(stateless.state(), "an effect whose new_state() is null")
+
+
+func test_state_is_the_effects_state_after_bind() -> void:
+	var def: SpecialDef = _make_def()
+	def.effect = StatefulEffect.new()
+	var behavior: SpecialBehavior = _make_behavior(_make_block(), def)
+
+	var state: EffectState = behavior.state()
+
+	assert_true(state is CountingState)
+	assert_same(behavior.state(), state, "state() keeps returning the one taken at bind")
+
+
+func test_each_bind_takes_a_fresh_state_per_activation() -> void:
+	var def: SpecialDef = _make_def()
+	def.effect = StatefulEffect.new()
+	var first: SpecialBehavior = _make_behavior(_make_block(), def)
+	var second: SpecialBehavior = _make_behavior(_make_block(), def)
+
+	assert_not_same(first.state(), second.state(), "two activations of one shared effect never share state")
+
+	var before: EffectState = first.state()
+	first.bind(first.get_parent() as Block, def, _tuning)
+	assert_not_same(first.state(), before, "re-binding takes a new state")
