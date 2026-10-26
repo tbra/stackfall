@@ -61,3 +61,9 @@ static func forced_special_arg(args: PackedStringArray) -> StringName:
 		if text.begins_with(PREFIX):
 			return StringName(text.substr(PREFIX.length()))
 	return &""
+
+
+## STUB (P7 plan section 2.1): returns null; P7-Ibuild moves the headless bot
+## argument parsing here.
+static func headless_bot_config(_args: PackedStringArray) -> MatchConfig:
+	return null
