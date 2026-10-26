@@ -776,11 +776,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/main/GraphicsApplier.gd:apply",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Igfx"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/main/MainFlowPort.gd:bind_world",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx"
   },
