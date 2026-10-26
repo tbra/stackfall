@@ -368,8 +368,7 @@ static func _capture_rules(out: Dictionary) -> void:
 		_size_of(circles.get("goal_radii")), bool(circles.get("argmax_mode", false)),
 	]
 	out["rules.gift_states"] = Match.gift_states().size()
-	var crates: Variant = _p(Match._gifts, &"_crates")
-	out["rules.gift_crates"] = _size_of(crates)
+	out["rules.gift_crates"] = Match.gift_states().size()
 	out["rules.gift_queues"] = _size_of(_p(Match._gifts, &"_pending_queues"))
 	out["rules.gift_held"] = _size_of(_p(Match._gifts, &"_held_specials"))
 	out["rules.gift_slots"] = _size_of(_p(Match._gifts, &"_gift_slots"))

@@ -165,7 +165,7 @@ func test_real_crate_claim_can_be_thrown_and_activated() -> void:
 
 	Match._gifts._claim_gift(gift_id, Match.slot(0).team_id)
 
-	assert_false(Match._gifts._crates.has(gift_id), "territory claims the spawned crate")
+	assert_true(Match.gift_state(gift_id).is_empty(), "territory claims the spawned crate")
 	assert_eq(Match.held_special(0), &"", "the claim keeps the current held block ordinary")
 	assert_eq(Match.pending_special_count(0), 1, "only the injected crate was claimed")
 	assert_eq(Match.request_place(0, _home_world_position(0), 0, Quaternion.IDENTITY, false), PlacementRules.REASON_OK)
