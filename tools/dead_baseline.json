@@ -797,6 +797,121 @@
    "id": "test-only-func",
    "entry": "config/gifts/GiftModelTable.gd:visual_for",
    "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/MusicPlaylist.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StingPool.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StreamLibrary.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ilib"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/main/PrewarmLoader.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:wants_background",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:begin",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:menu_shown",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:await_prewarmed",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:load_scene",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_script",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:is_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:on_close_request",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:settle",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_requested",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_done",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/GraphicsApplier.gd:apply",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Igfx"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MainFlowPort.gd:bind_world",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/MatchLaunch.gd:headless_bot_config",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ibuild"
+  },
+  {
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:blocks_container",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
+  },
+  {
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:world_environment",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
+  },
+  {
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:loader",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   }
  ]
 }

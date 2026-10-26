@@ -12,3 +12,14 @@ var main: Node3D = null
 
 func bind(main_node: Node3D) -> void:
 	main = main_node
+
+
+## STUB (P7 plan section 2.1): the transitional `main`/`bind()` above stay until P7-Inav.
+signal lobby_requested
+signal menu_requested
+
+var world: MainWorld = null
+
+
+func bind_world(w: MainWorld) -> void:
+	world = w
