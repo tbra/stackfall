@@ -248,10 +248,6 @@ extends Resource
 ## Metres the first block starts back from the home beacon, horizontally away from the field centre (the side the home camera sits on).
 @export var home_spawn_back_offset: float = 2.0
 
-## Ghost tint while PlayerController.is_aiming_throw() is true (GhostPreview.
-## show_throw_hint(), specials only, spec 1.6); distinct from every other tint
-## since it says nothing about where the block would land.
-@export var throw_aim_tint_color: Color = Color(1.0, 0.55, 0.15, 0.75)
 ## How many straight segments ThrowArcPreview's ballistic polyline is divided
 ## into before its landing cutoff can stop it early; higher is smoother but costs
 ## more vertices. Keep throw_arc_max_time_s / this near 0.0625 s so segments

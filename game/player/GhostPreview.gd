@@ -64,11 +64,6 @@ const STATE_VALID: StringName = &"valid"
 const STATE_INVALID: StringName = &"invalid"
 const STATE_HOLE: StringName = &"hole"
 const STATE_LOCKED: StringName = &"locked"
-## Shown while game/player/PlayerController.gd reports is_aiming_throw() true
-## (show_throw_hint()) -- a distinct state from the placement-validity ones above
-## since it says nothing about where the block would land, only that the current
-## gesture is a throw in progress.
-const STATE_THROW: StringName = &"throw"
 
 const HATCH_TEXTURE_SIZE: int = 32
 
@@ -165,7 +160,7 @@ var _footprint_material: StandardMaterial3D
 ## the disc: a single persistent node whose mesh is rebuilt in place every frame.
 var _projection_mesh: MeshInstance3D
 var _projection_material: StandardMaterial3D
-## For tests: the world-space Y span _projection_mesh currently covers (top,
+## The world-space Y span _projection_mesh currently covers (top,
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
@@ -217,10 +212,6 @@ var _last_result: PlacementRules.Result = PlacementRules.Result.VALID
 ## Overrides the validity tint below whenever true, since the lock is about
 ## *when* the piece may drop, not *where* the ghost sits.
 var _locked: bool = false
-## Set by show_throw_hint(); wins over the validity tint but loses to _locked
-## (see _apply_validity_material()), since "aiming a throw" is about the current
-## gesture, not the landing spot.
-var _throw_hint_active: bool = false
 
 ## Projects ghost_tuning.block_projection_color downward over the footprint
 ## hull, from the ghost's own current underside down to the disc, so a placed
@@ -1447,7 +1438,7 @@ func _set_footprint_quad_count(count: int) -> void:
 		extra.queue_free()
 
 
-## For tests: the world-space Y span (top, bottom) of the held shape's whole
+## The world-space Y span (top, bottom) of the held shape's whole
 ## bookkeeping -- Vector2.ZERO when nothing is held or the prism collapsed (see
 ## _update_projection_mesh()'s own guard). `top` is the held shape's current
 ## *highest* point (_rotated_top_offset()); `bottom` is the footprint's landing
@@ -1509,16 +1500,6 @@ func set_locked(locked: bool) -> void:
 	_refresh_materials()
 
 
-## Called every frame by game/player/PlayerController.gd's
-## _drive_throw_visuals() with is_aiming_throw(), so the tint appears/disappears
-## the same frame the drag starts/ends. Reuses _refresh_materials()'s dispatch
-## (only _apply_validity_material() reads _throw_hint_active -- see its priority
-## comment).
-func show_throw_hint(active: bool) -> void:
-	_throw_hint_active = active
-	_refresh_materials()
-
-
 func _refresh_materials() -> void:
 	_apply_validity_material()
 	_apply_gift_tint()
@@ -1527,12 +1508,10 @@ func _refresh_materials() -> void:
 	_apply_projection_material()
 
 
-## For tests: which tint state the ghost is currently showing.
+## Which tint state the ghost is currently showing (STATE_*).
 func current_state() -> StringName:
 	if _locked:
 		return STATE_LOCKED
-	if _throw_hint_active:
-		return STATE_THROW
 	match _last_result:
 		PlacementRules.Result.VALID:
 			return STATE_VALID
@@ -1552,15 +1531,6 @@ func _apply_validity_material() -> void:
 		_material.set_shader_parameter(&"use_hatch", false)
 		_material.set_shader_parameter(
 			&"albedo_color", _with_alpha(ghost_tuning.locked_tint_color, ghost_tuning.ghost_opacity)
-		)
-		return
-	# Throw-aim wins over plain validity (as _locked does above) but loses to
-	# _locked -- an interval-locked piece cannot be released as a throw either,
-	# so that cue must still win.
-	if _throw_hint_active:
-		_material.set_shader_parameter(&"use_hatch", false)
-		_material.set_shader_parameter(
-			&"albedo_color", _with_alpha(ghost_tuning.throw_aim_tint_color, ghost_tuning.ghost_opacity)
 		)
 		return
 	match _last_result:
