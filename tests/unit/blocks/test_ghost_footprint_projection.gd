@@ -17,10 +17,14 @@ func _ghost_with(shape_id: String) -> GhostPreview:
 ## Whether ghost-local XZ `point` lies inside the footprint outline (even-odd over the silhouette loops; only
 ## outer-wound loops fill, as in the footprint mesh).
 func _footprint_contains(ghost: GhostPreview, point: Vector2) -> bool:
-	var loops: Array[PackedVector2Array] = ghost._shape_silhouette_loops()
+	var loops: Array[PackedVector2Array] = GhostParts.silhouette(ghost).loops
 	if loops.is_empty():
 		return false
-	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(ghost._largest_loop(loops))
+	var largest: PackedVector2Array = loops[0]
+	for loop: PackedVector2Array in loops:
+		if _area(loop) > _area(largest):
+			largest = loop
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(largest)
 	var crossings: int = 0
 	for loop: PackedVector2Array in loops:
 		if Geometry2D.is_polygon_clockwise(loop) == outer_clockwise and Geometry2D.is_point_in_polygon(point, loop):
@@ -28,26 +32,22 @@ func _footprint_contains(ghost: GhostPreview, point: Vector2) -> bool:
 	return crossings % 2 == 1
 
 
-## World-space XZ of the footprint hull the quad is built from.
-func _hull_world(ghost: GhostPreview) -> PackedVector2Array:
-	var world: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in ghost._rotated_shape_hull():
-		world.append(Vector2(ghost.global_position.x + point.x, ghost.global_position.z + point.y))
-	return world
-
-
-## Every world-space vertex of the projection prism mesh.
-func _prism_vertices(ghost: GhostPreview) -> PackedVector3Array:
-	var result: PackedVector3Array = PackedVector3Array()
-	if ghost._projection_mesh == null or ghost._projection_mesh.mesh == null:
-		return result
-	var mesh: ArrayMesh = ghost._projection_mesh.mesh as ArrayMesh
-	var offset: Vector3 = ghost._projection_mesh.global_position
-	for surface: int in range(mesh.get_surface_count()):
-		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
-		for v: Vector3 in verts:
-			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
-	return result
+## Total area of the triangles of the (single) footprint quad's mesh.
+func _footprint_mesh_area(ghost: GhostPreview) -> float:
+	var quads: Array[MeshInstance3D] = GhostParts.footprint_quads(ghost)
+	assert_eq(quads.size(), 1, "fixture: one footprint quad")
+	var mesh: ArrayMesh = quads[0].mesh as ArrayMesh
+	assert_not_null(mesh, "fixture: the footprint quad has a mesh")
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var total: float = 0.0
+	for i: int in range(0, indices.size(), 3):
+		var p0: Vector2 = Vector2(verts[indices[i]].x, verts[indices[i]].z)
+		var p1: Vector2 = Vector2(verts[indices[i + 1]].x, verts[indices[i + 1]].z)
+		var p2: Vector2 = Vector2(verts[indices[i + 2]].x, verts[indices[i + 2]].z)
+		total += absf((p1 - p0).cross(p2 - p0)) * 0.5
+	return total
 
 
 func _column_key(ghost: GhostPreview, cell: Vector3) -> Vector2i:
@@ -93,21 +93,22 @@ func test_footprint_matches_cells_for_four_yaws() -> void:
 func test_plus5_footprint_is_not_its_convex_hull() -> void:
 	var ghost: GhostPreview = _ghost_with("plus5")
 	ghost.update_placement(Vector3.ZERO, Vector3.UP)
-	var hull_area: float = _area(_hull_world(ghost))
+	var quads: Array[MeshInstance3D] = GhostParts.footprint_quads(ghost)
+	assert_eq(quads.size(), 1)
+	var hull_area: float = _area(Geometry2D.convex_hull(GhostParts.quad_points_world(quads[0])))
 	var loops_area: float = 0.0
-	for loop: PackedVector2Array in ghost._shape_silhouette_loops():
+	for loop: PackedVector2Array in GhostParts.silhouette(ghost).loops:
 		loops_area += _area(loop)
+	assert_gt(loops_area, 0.0, "fixture: the silhouette has area")
 	assert_lt(loops_area, hull_area * 0.9, "plus footprint must be the five cells, not its octagonal hull")
-	var mesh: ArrayMesh = ghost._footprint_quads[0].mesh as ArrayMesh
-	assert_not_null(mesh)
+	assert_lt(_footprint_mesh_area(ghost), hull_area * 0.9, "the footprint quad itself is the five cells, not their hull")
+	assert_almost_eq(_footprint_mesh_area(ghost), loops_area, 0.01, "the quad covers the silhouette")
 
 
 func test_decal_mask_is_transparent_in_the_concave_notch() -> void:
 	var ghost: GhostPreview = _ghost_with("u5")
-	ghost.update_placement(Vector3(0.0, 0.0, 0.0), Vector3.UP)
-	ghost.global_position.y = 3.0
-	ghost._update_footprint()
-	var texture: ImageTexture = ghost._block_projection_decal.texture_albedo as ImageTexture
+	ghost.update_placement(Vector3(0.0, 3.0, 0.0), Vector3.UP)
+	var texture: ImageTexture = GhostParts.decal(ghost).texture_albedo as ImageTexture
 	assert_not_null(texture)
 	var image: Image = texture.get_image()
 	var solid: int = 0
@@ -150,10 +151,9 @@ func test_walls_stop_on_a_block_under_the_ghost() -> void:
 	add_child_autofree(tower)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	ghost.global_position = Vector3(0.0, 5.0, 0.0)
-	ghost._update_footprint()
+	ghost.update_placement(Vector3(0.0, 4.0, 0.0), Vector3.UP)
 	var lowest: float = INF
-	for vertex: Vector3 in _prism_vertices(ghost):
+	for vertex: Vector3 in GhostParts.prism_vertices(ghost):
 		lowest = minf(lowest, vertex.y)
 	assert_almost_eq(lowest, 2.0, 0.05, "wall bottoms on the tower top (y=2), not the disc")
 
