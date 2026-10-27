@@ -32,7 +32,8 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               (the user says the PC is idle) tools/run_soak.py --idle runs on the temp worktree and the
               step says `soak      ok|REPORT|FAIL|INVALID <SOAK RESULT line>`; without it, `soak      NOT RUN`.
               Report-only: it never fails the batch. Silent when no SOAK_PATHS file changed.
-  6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main);
+  6 ff        fast-forward the main checkout (refuses on dirty touched files or a moved main), then comment
+              the main sha on each --beads issue (merge and sidecar commit messages name no Beads ids);
               with --no-push the merged branches' worktrees are pruned right after (prune_worktrees)
   7 push      git push origin main (separate step), git fetch, verify HEAD == origin/main
   8 close     only after remote verification, per bead: `bd update --assignee stackfall-orchestrator`
@@ -40,7 +41,7 @@ Steps (each step's full output goes to <log-dir>/NN_name.log; stdout stays compa
               (--force-close adds --force to the close for reviewed handoffs held by another agent)
   9 postimport  godot import check in the main checkout
  10 sidecars  if that import generated untracked .import/.uid sidecars whose source file is tracked,
-              commit only those as "Assets: import sidecars for <beads>", push, verify the remote again
+              commit only those as "Assets: import sidecars", push, verify the remote again
 Step 6 also clears the fast-forward blockers: untracked *.uid/*.import files in main that the merge
 result adds with byte-identical content are removed (each logged); if content differs the ff fails
 listing them. Non-sidecar and differing files are never deleted. --no-push / --dry-run stop before 7/10.
@@ -176,6 +177,21 @@ def reassign_args(repo, bead, force):
     if force:
         argv.append("--force")
     return argv
+
+
+def link_args(repo, bead, sha, branches):
+    """bd comment argv recording which main commit integrated the bead. Beads is local-only, so the
+    bead-to-commit link lives there instead of in the public commit message."""
+    text = "Integrated: main %s (merge of %s)" % (sha, ", ".join(branches))
+    return [bd_exe(), "-C", repo, "comments", "add", bead, "--actor", BD_ACTOR, text]
+
+
+def link_beads(ctx, repo, beads, sha, branches, say):
+    """Record the integrating commit on each bead; a failure warns and never fails the batch."""
+    for bead in beads:
+        code, _, log = run_cmd(ctx, "link_" + bead, link_args(repo, bead, sha, branches), repo, GIT_TIMEOUT_S)
+        if code != 0:
+            say("link      warn bd comment on %s failed; log %s" % (bead, log))
 
 
 def close_bead(ctx, repo, bead, reason, force_close):
@@ -349,12 +365,12 @@ def try_resolve_ui_baseline(ctx, wt):
     return None
 
 
-def merge_branches(ctx, wt, branches, beads, say):
+def merge_branches(ctx, wt, branches, say):
     """Merge each branch with --no-ff; a pure-additive hints conflict is auto-resolved, any other
     conflict aborts the merge and raises StepFailed('merge')."""
     for b in branches:
         code, text, _ = git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff",
-                            "-m", merge_subject(b, beads), "-m", MERGE_TRAILER, b)
+                            "-m", merge_subject(b), "-m", MERGE_TRAILER, b)
         if code == 0:
             continue
         files = git(ctx, "conflicts", wt, "diff", "--name-only", "--diff-filter=U")[1].split()
@@ -506,13 +522,9 @@ def issue_lines(text):
 MERGE_TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 
-def merge_subject(branch, beads):
-    """'Merge <branch> (<bead ids>)': the bead whose id (or its suffix) appears in the branch name,
-    else every --beads id, else no parenthesis."""
-    low = branch.lower()
-    hit = [b for b in beads if re.search(r"(?<![a-z0-9])%s(?![a-z0-9])" % re.escape(b.lower().split("-", 1)[-1]), low)]
-    ids = hit[:1] or list(beads)
-    return "Merge %s (%s)" % (branch, ", ".join(ids)) if ids else "Merge " + branch
+def merge_subject(branch):
+    """'Merge <branch>': no Beads ids (public repository: tracked history carries no provenance)."""
+    return "Merge " + branch
 
 
 SIDECAR_SUFFIXES = (".uid", ".import")
@@ -564,7 +576,7 @@ def commit_import_sidecars(ctx, repo, beads):
         return []
     if git(ctx, "sc_add", repo, "add", "--", *files)[0] != 0:
         raise StepFailed("sidecars", "git add failed")
-    msg = "Assets: import sidecars for " + (", ".join(beads) or "batch")
+    msg = "Assets: import sidecars"
     code, text, log = git(ctx, "sc_commit", repo, "commit", "-m", msg, "-m", MERGE_TRAILER, "--only", "--", *files)
     if code != 0:
         raise StepFailed("sidecars", "git commit failed; log " + log)
@@ -678,7 +690,7 @@ def integrate(args, ctx, say, res):
     # 2 merge
     if not getattr(args, "allow_probes", False):
         check_probes(ctx, repo, base, args.branches)
-    merge_branches(ctx, wt, args.branches, args.beads, say)
+    merge_branches(ctx, wt, args.branches, say)
     result = git_out(ctx, "rev_result", wt, "rev-parse", "HEAD")
     res["result"] = result
     say("merge     ok   %d branch(es) -> %s" % (len(args.branches), result[:9]))
@@ -763,6 +775,7 @@ def integrate(args, ctx, say, res):
     if code != 0:
         raise StepFailed("ff", "fast-forward failed: " + text.strip()[:200])
     say("ff        ok   main -> %s" % result[:9])
+    link_beads(ctx, repo, args.beads, result, args.branches, say)
     # 7 push (separate step), then verify the remote
     if args.no_push:
         say("push      skip --no-push (beads not closed)")

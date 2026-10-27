@@ -189,7 +189,7 @@ def merge_all(ctx, wt, branches, say):
     combined side and commits the merge, any other conflict aborts it and raises StepFailed."""
     for b in branches:
         code, text, _ = ib.git(ctx, "merge_" + b.replace("/", "_"), wt, "merge", "--no-ff",
-                               "-m", ib.merge_subject(b, []), "-m", ib.MERGE_TRAILER, b)
+                               "-m", ib.merge_subject(b), "-m", ib.MERGE_TRAILER, b)
         if code == 0:
             continue
         files = ib.git(ctx, "conflicts", wt, "diff", "--name-only", "--diff-filter=U")[1].split()

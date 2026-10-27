@@ -500,16 +500,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(warning_lines)
 
     def test_merge_message_and_trailer(self):
-        self.assertEqual(ib.merge_subject("wt/123.7-x", ["Bontago-123.11", "Bontago-123.7"]), "Merge wt/123.7-x (Bontago-123.7)")
-        self.assertEqual(ib.merge_subject("wt/x", ["B-1", "B-2"]), "Merge wt/x (B-1, B-2)")
-        self.assertEqual(ib.merge_subject("wt/x", []), "Merge wt/x")
+        self.assertEqual(ib.merge_subject("wt/123.7-x"), "Merge wt/123.7-x")
+
+    def test_link_args_record_the_commit_on_the_bead(self):
+        argv = ib.link_args("R", "B-1", "abc123", ["wt/a", "wt/b"])
+        self.assertEqual(argv[1:6], ["-C", "R", "comments", "add", "B-1"])
+        self.assertIn("main abc123 (merge of wt/a, wt/b)", argv[-1])
         fake = Fake()
         run(fake, branches=["wt/b-1"])
         a = [c[1] for c in fake.calls if c[0] == "merge_wt_b-1"][0]
         self.assertIn("--no-ff", a)
         self.assertNotIn("--no-edit", a)
         i = a.index("-m")
-        self.assertEqual(a[i + 1], "Merge wt/b-1 (B-1)")
+        self.assertEqual(a[i + 1], "Merge wt/b-1")
         self.assertEqual(a[i + 2:i + 4], ["-m", ib.MERGE_TRAILER])
         self.assertIn("Claude Opus 5.5", ib.MERGE_TRAILER)
 
@@ -625,7 +628,7 @@ class HintsMergeTests(unittest.TestCase):
         git_run(self.repo, "checkout", "-q", "main")
         out = []
         try:
-            ib.merge_branches(ib.Ctx(self.tmp.name), self.repo, branches, [], out.append)
+            ib.merge_branches(ib.Ctx(self.tmp.name), self.repo, branches, out.append)
         except ib.StepFailed as e:
             return e, out
         return None, out
@@ -737,7 +740,7 @@ class UiBaselineTests(unittest.TestCase):
             out = []
             with mock.patch.object(ib, "run_cmd", fake):
                 try:
-                    ib.merge_branches(ib.Ctx(tmp), repo, ["a", "b"], [], out.append)
+                    ib.merge_branches(ib.Ctx(tmp), repo, ["a", "b"], out.append)
                     err = None
                 except ib.StepFailed as e:
                     err = e

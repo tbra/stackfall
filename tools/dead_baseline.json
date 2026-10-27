@@ -551,7 +551,7 @@
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
-   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (Bontago-di0.12) replaces the BotController radius scan; that bead removes this entry"
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (the P11 bot-swap package) replaces the BotController radius scan; that bead removes this entry"
   },
   {
    "id": "test-only-func",
@@ -561,27 +561,27 @@
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
-   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
+   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (the P11 bot-swap package) replaces the BotController property scan"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/PaintballEffect.gd:effect_radius_m",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (Bontago-di0.12) reads it; Bontago-di0.12 removes this entry"
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (the P11 bot-swap package) reads it; the P11 bot-swap package removes this entry"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/RocketEffect.gd:effect_radius_m",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; Bontago-di0.12 removes this entry"
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; the P11 bot-swap package removes this entry"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (Bontago-di0.12) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (the P11 bot-swap package) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until bead Bontago-di0.12 replaces the BotController property scan; di0.12 removes this entry"
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until the P11 bot-swap package replaces the BotController property scan; di0.12 removes this entry"
   },
   {
    "id": "test-only-func",
