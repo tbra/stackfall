@@ -42,3 +42,6 @@ class _FlatField:
 
 	func surface_y() -> float:
 		return float(source.call())
+
+	func surface_height_at(_world: Vector3) -> float:
+		return float(source.call())

@@ -61,7 +61,7 @@ func try_activate(slot_id: int, def: SpecialDef, disk_origin: Vector2) -> bool:
 	_sequence += 1
 	anchor.set_meta(SEQ_META, _sequence)
 	_match.add_child(anchor)
-	anchor.global_position = field.world_from_disk_local(disk_origin, field.surface_y())
+	anchor.global_position = field.world_from_disk_local(disk_origin, 0.0)
 	# Frozen static and out of the awake set: no physics body, nothing for the settle loop.
 	anchor.request_freeze_static(ANCHOR_FREEZE_REASON)
 	_anchors.append(anchor)
