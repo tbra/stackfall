@@ -117,6 +117,49 @@ func _controller_slot() -> int:
 	return MatchContext.current().local_held().slot_id
 
 
+## The scoreboard row whose "YOU" marker the local HUD shows, -1 for none: what
+## the player sees for which slot the HUD follows (solo teams: row == slot).
+## Keeps the first real claim from replacing a forced drawer with the weighted
+## roster draw (MatchGifts._ensure_special_drawer_installed runs lazily at the
+## first claim and overwrites any drawer installed before it): an id no special
+## has empties the match roster, as test_gift_claim.gd does.
+func _keep_forced_drawer_on_first_claim() -> void:
+	_main.match_config.enabled_specials = [&"__no_special_with_this_id_exists__"]
+
+
+## Claims a crate on slot `slot_id`'s own home flag through the game's claim
+## path and returns the special id it drew (the claim's gift_claimed event).
+func _claim_crate_for_slot(slot_id: int) -> StringName:
+	var drawn: Array[StringName] = []
+	var on_claim: Callable = func(_gift: int, _slot: int, special_id: StringName) -> void:
+		drawn.append(special_id)
+	Events.gift_claimed.connect(on_claim)
+	var gift_id: int = 900 + slot_id
+	Match._gifts.apply_replicated_spawn(gift_id, Match.slot(slot_id).home_position)
+	# One territory solve claims a crate on its owner's own home flag (the step
+	# test_gift_claim.gd drives); Match._process alone defers it to a worker.
+	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	Match._territory._run_territory_step(step)
+	Match._gifts.tick_host(step)
+	Events.gift_claimed.disconnect(on_claim)
+	return drawn[0] if not drawn.is_empty() else &""
+
+
+func _hud_you_row() -> int:
+	var hud: HUD = _local_player().hud()
+	var row: int = -1
+	var markers: Array[Node] = hud.find_children("*", "Label", true, false)
+	var index: int = 0
+	for node: Node in markers:
+		var label: Label = node as Label
+		if label.text != hud.hud_visual_tuning.hud_you_text:
+			continue
+		if label.visible:
+			row = index
+		index += 1
+	return row
+
+
 func _hud_count() -> int:
 	var live: int = 0
 	for hud: Node in _main.find_children("*", "HUD", true, false):
@@ -323,6 +366,7 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 
 
 func test_sandbox_force_special_installs_a_forced_drawer() -> void:
+	_keep_forced_drawer_on_first_claim()
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _sandbox()
@@ -330,7 +374,7 @@ func test_sandbox_force_special_installs_a_forced_drawer() -> void:
 	sandbox.force_special_by_id(&"rocket")
 
 	assert_eq(
-		Match._gifts._special_drawer.call(), &"rocket",
+		_claim_crate_for_slot(0), &"rocket",
 		"while forced, every future draw (a real crate claim included) must return the forced id"
 	)
 
@@ -433,6 +477,7 @@ func test_f5_twice_in_a_row_still_leaves_one_of_everything() -> void:
 
 
 func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
+	_keep_forced_drawer_on_first_claim()
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
@@ -444,7 +489,7 @@ func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
 	await get_tree().process_frame
 
 	assert_eq(_sandbox().forced_special(), forced, "the new sandbox is still forcing the same special")
-	assert_eq(Match._gifts._special_drawer.call(), forced, "every future draw still returns it")
+	assert_eq(_claim_crate_for_slot(0), forced, "every future draw still returns it")
 
 
 func test_slow_motion_and_physics_pause_are_off_after_f5() -> void:
@@ -512,11 +557,11 @@ func test_tab_still_cycles_slots_after_f5_and_the_hud_follows() -> void:
 
 	assert_eq(sandbox.active_slot(), 1)
 	assert_eq(await _controller_slot(), 1, "the controller follows")
-	assert_eq(_local_player().hud()._active_slot, 1, "the HUD follows")
+	assert_eq(_hud_you_row(), 1, "the HUD follows")
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	sandbox._unhandled_input(_key_press(KEY_TAB))
 	assert_eq(sandbox.active_slot(), 0, "wraps")
-	assert_eq(_local_player().hud()._active_slot, 0)
+	assert_eq(_hud_you_row(), 0)
 
 
 ## A sandbox F5 resets the camera like any rebuild.
