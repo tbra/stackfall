@@ -403,7 +403,7 @@ func _sample() -> void:
 	_record[prefix + "ghost.visible"] = int(ghost.visible)
 	_record[prefix + "ghost.tint"] = String(ghost.current_state())
 	_record[prefix + "input_enabled"] = int(_controller.input_enabled)
-	_record[prefix + "rig_blocked"] = int(_rig.is_input_blocked())
+	_record[prefix + "rig_blocked"] = int(_rig.input_gate.is_blocked())
 	_put_transform(prefix + "cam", _rig.get_camera().global_transform)
 	_record[prefix + "cam.fov"] = _r(_rig.get_camera().fov)
 	_record[prefix + "cam.dist"] = _r(_rig.get_distance())
