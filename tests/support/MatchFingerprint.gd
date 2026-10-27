@@ -15,7 +15,7 @@ extends RefCounted
 ##
 ## Headless limits: GPU particles cannot be read, so this sees node/state, not pixels.
 ## Main is read through the scene tree only (child nodes found by script class), never through
-## its private fields; the exceptions are listed at _MAIN_PRIVATE_FLAGS. Other private fields are
+## its private fields. Other objects' private fields are
 ## read through Object.get() so a renamed field shows up as a missing key (null) in the diff
 ## instead of a parse error here.
 
@@ -24,9 +24,6 @@ const ROUND_STEP: float = 0.0001
 const PHYSICS_TUNING_PATH: String = "res://config/physics/physics_tuning.tres"
 const WEATHER_PRESENTER_PATH: NodePath = ^"WeatherNet/WeatherPresenter"
 const BREEZE_PRESENTER_PATH: NodePath = ^"WeatherNet/BreezeNet/BreezePresenter"
-## Main flags with no tree or public observable: the world-build progress and the host's
-## start-click guard. Read through Object.get(); a rename shows up as a diff, not a parse error.
-const MAIN_PRIVATE_FLAGS: Array[StringName] = [&"_world_built", &"_world_building", &"_start_pending"]
 ## Gamepad slot polled for a vibration left running (Rumble.stop_all()).
 const RUMBLE_PROBE_DEVICE: int = 0
 
@@ -524,8 +521,7 @@ static func restore_stems(saved: Dictionary) -> void:
 static func _capture_ui(main: Node, out: Dictionary) -> void:
 	# _first_territory_ready is left out: it is only re-armed by the LOBBY -> LOADING lobby path
 	# and read only inside that path's _finish_loading_when_ready().
-	for flag: StringName in MAIN_PRIVATE_FLAGS:
-		out["ui.main%s" % flag] = _bp(main, flag)
+	out["ui.main_world_built"] = MainNodes.world_is_built(main)
 	# Node holders: the live child of that class under Main (the key keeps the old field name).
 	var holders: Dictionary = {
 		&"_main_menu": "MainMenu", &"_lobby": "Lobby", &"_local_player": "LocalPlayer",

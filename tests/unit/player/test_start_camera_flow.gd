@@ -5,7 +5,7 @@ extends GutTest
 ## moment the ready gate opens, through the countdown and into play, with no
 ## shift at PLAYING. Unlike tests/unit/player/test_start_framing.gd this drives the real
 ## start sequence: the real Main scene hosts, the lobby's start path
-## (Main._on_lobby_start_pressed) starts a vs-bots match, Match runs its own
+## (Lobby.start_requested) starts a vs-bots match, Match runs its own
 ## countdown on real frames, and Main's own loading hand-off
 ## (_finish_loading_when_ready -> CameraRig.begin_start_framing -> fade-out ->
 ## countdown release) runs untouched. The camera pose is traced every frame from
@@ -73,7 +73,7 @@ func _start_vs_bots_match_from_the_lobby() -> void:
 	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
 	await get_tree().process_frame
 	# The lobby's Start button (ui/lobby/Lobby.gd start_requested) lands here.
-	_main._on_lobby_start_pressed(config)
+	MainNodes.lobby(_main).start_requested.emit(config)
 
 
 func _sample(frame: int) -> Dictionary:
@@ -91,10 +91,11 @@ func _sample(frame: int) -> Dictionary:
 		"has_piece": false,
 		"anchor": Vector3.ZERO,
 	}
-	if _main._local_player != null:
-		var ghost: GhostPreview = (_main._local_player.get_node("GhostPreview") as GhostPreview)
+	var local_player: LocalPlayer = MainNodes.local_player(_main)
+	if local_player != null:
+		var ghost: GhostPreview = (local_player.get_node("GhostPreview") as GhostPreview)
 		sample["has_piece"] = ghost.get_shape() != null and ghost.is_visible_in_tree()
-		sample["anchor"] = _main._local_player.controller()._camera_follow_anchor()
+		sample["anchor"] = local_player.controller()._camera_follow_anchor()
 	print("CAMTRACE f=%d state=%d held=%s fading=%s cam=%s target=%s pitch=%.4f dist=%.3f piece=%s anchor=%s" % [
 		frame, sample["state"], sample["held"], sample["fading"], (sample["camera"] as Transform3D).origin,
 		sample["target"], sample["pitch"], sample["distance"], sample["has_piece"], sample["anchor"],
