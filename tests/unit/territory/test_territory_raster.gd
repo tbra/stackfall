@@ -179,6 +179,35 @@ func test_permanent_holes_never_close() -> void:
 	assert_true(_raster.is_hole(cell.x, cell.y))
 
 
+## -- goal zones never hole ---------------------------------------------------
+
+func _goal_zone_hole_check(permanent: bool) -> void:
+	var circles: Array[InfluenceCircle] = [_home(-3.0, 0.0, 0), _home(3.0, 0.0, 1)]
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.5, 0.5)]), 1.0)
+	var inside: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	var outside: Vector2i = _cell_of(Vector2(0.5, 3.5))
+	assert_true(_raster.is_goal_zone(inside.x, inside.y), "Setup: zone covers the cell.")
+	assert_false(_raster.is_goal_zone(outside.x, outside.y), "Setup: far cell is outside.")
+
+	for i: int in range(12):
+		_step(circles, 0.1, permanent)
+	# Pure timer ticks on the unchanged board take the other entry point.
+	for i: int in range(12):
+		_raster.advance_time(0.1, permanent)
+
+	assert_true(_raster.is_contested(inside.x, inside.y), "The zone cell is still contested.")
+	assert_false(_raster.is_hole(inside.x, inside.y), "A goal zone never becomes a hole.")
+	assert_true(_raster.is_hole(outside.x, outside.y), "A contested cell outside it still opens.")
+
+
+func test_a_contested_goal_zone_cell_never_holes_temporary() -> void:
+	_goal_zone_hole_check(TEMPORARY)
+
+
+func test_a_contested_goal_zone_cell_never_holes_permanent() -> void:
+	_goal_zone_hole_check(PERMANENT)
+
+
 ## -- v2 fill: the argmax field -----
 ##
 ## Design note: "Areas of different players never overlap.
@@ -360,6 +389,19 @@ func test_set_goal_zones_marks_exactly_the_cells_within_the_radius() -> void:
 ## test in this file) is what actually closes it hole_open_s later.
 
 const HOLE_OPEN_S: float = 2.0
+
+
+func test_force_hole_cell_refuses_a_goal_zone_cell() -> void:
+	_raster.set_goal_zones(PackedVector2Array([Vector2(0.5, 0.5)]), 1.0)
+	var inside: Vector2i = _cell_of(Vector2(0.5, 0.5))
+	var outside: Vector2i = _cell_of(Vector2(0.5, 5.5))
+
+	_raster.force_hole_cell(inside.x, inside.y, HOLE_OPEN_S, PERMANENT)
+	_raster.force_hole_cell(outside.x, outside.y, HOLE_OPEN_S, PERMANENT)
+
+	assert_false(_raster.is_hole(inside.x, inside.y), "A goal zone is never punched through.")
+	assert_true(_raster.is_hole(outside.x, outside.y), "A cell outside it still opens.")
+	assert_eq(_raster.holes_opened().size(), 1)
 
 
 func test_force_hole_cell_opens_immediately() -> void:

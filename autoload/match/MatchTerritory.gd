@@ -977,7 +977,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 				continue
 			var was_hole: bool = _raster.is_hole(cx, cy)
 			_raster.force_hole_cell(cx, cy, hole_open_s, permanent_holes)
-			if not was_hole:
+			if not was_hole and _raster.is_hole(cx, cy):
 				opened.append(_cell_grid.cell_index(cx, cy))
 
 	_force_dirty = true
@@ -1020,7 +1020,8 @@ func shrink_to_radius(radius_m: float) -> void:
 		if _cell_grid.index_center(index).length() <= radius_m:
 			continue
 		_raster.force_hole_cell(coords.x, coords.y, 0.0, true)
-		opened.append(index)
+		if _raster.is_hole(coords.x, coords.y):
+			opened.append(index)
 
 	_force_dirty = true
 	if opened.size() > 0:
