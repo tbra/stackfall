@@ -693,6 +693,14 @@ func _world_at(point: Vector2, height: float) -> Vector3:
 	return field.world_from_disk_local(point, height) if field != null else Vector3(point.x, height, point.y)
 
 
+## Where the crate node is drawn: the spawn-time arc, shifted toward the live disc surface
+## under its point as it falls (full shift at progress 1.0, and for a landed crate). The flight's
+## own landing stays the spawn-time world value, which the wire and the applier compare.
+func _live_crate_position(flight: GiftFlight, progress: float) -> Vector3:
+	var live: Vector3 = _world_at(flight.position, GiftCrate.CRATE_SIZE.y * 0.5)
+	return flight.world_position(_gift_config, progress) + (live - flight.landing) * clampf(progress, 0.0, 1.0)
+
+
 ## A copy safe for minimap and network consumers. Position is host-authored.
 func gift_state(gift_id: int) -> Dictionary:
 	var flight: GiftFlight = _crates.get(gift_id) as GiftFlight
@@ -731,7 +739,7 @@ func tick_host(delta: float) -> void:
 		var flight: GiftFlight = _crates[gift_id]
 		if flight.phase == FALLING:
 			var progress: float = flight.advance_fall(delta, _gift_config)
-			var world_position: Vector3 = flight.world_position(_gift_config, progress)
+			var world_position: Vector3 = _live_crate_position(flight, progress)
 			var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 			if node != null and is_instance_valid(node):
 				node.global_position = world_position
@@ -749,6 +757,9 @@ func tick_host(delta: float) -> void:
 				Events.gift_landed.emit(gift_id, flight.landing)
 				_claim_landed(gift_id)
 		else:
+			var landed_node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
+			if landed_node != null and is_instance_valid(landed_node):
+				landed_node.global_position = _live_crate_position(flight, 1.0)
 			_claim_landed(gift_id)
 			if not _crates.has(gift_id):
 				continue
@@ -1026,12 +1037,10 @@ func tick_client(delta: float) -> void:
 		return
 	for gift_id: int in _crates.keys():
 		var flight: GiftFlight = _crates[gift_id]
-		if flight.phase != FALLING:
-			continue
-		var progress: float = flight.advance_fall(delta, _gift_config)
+		var progress: float = 1.0 if flight.phase != FALLING else flight.advance_fall(delta, _gift_config)
 		var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 		if node != null and is_instance_valid(node):
-			node.global_position = flight.world_position(_gift_config, progress)
+			node.global_position = _live_crate_position(flight, progress)
 
 
 func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
@@ -1075,7 +1084,7 @@ func apply_replicated_landing(gift_id: int, landing: Vector3) -> void:
 	flight.land(landing)
 	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 	if node != null and is_instance_valid(node):
-		node.global_position = landing
+		node.global_position = _live_crate_position(flight, 1.0)
 		node.set_falling(false)
 
 
