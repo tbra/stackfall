@@ -94,7 +94,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
-		var skip_loading: bool = main_node._mode_extras != null and main_node._mode_extras.skips_loading_screen()
+		var skip_loading: bool = world.mode_extras != null and world.mode_extras.skips_loading_screen()
 		if not skip_loading:
 			_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
 		# DECISION: the 3-2-1 must start once the loading screen
@@ -380,13 +380,13 @@ func _free_inert(node: Node) -> void:
 ## A mode's node goes with its world; the mode itself ends only on a real return to
 ## the lobby, not on the (X -> LOBBY) half of a restart. Inert for a lobby match.
 func _end_mode_extras() -> void:
-	if main_node._mode_extras == null:
+	if world.mode_extras == null:
 		return
-	if main_node._sandbox != null and main_node._scoreboard_node != null:
+	if world.sandbox != null and main_node._scoreboard_node != null:
 		main_node._scoreboard_node.suppressed = false
-	_free_inert(main_node._sandbox)
-	main_node._sandbox = null
-	_free_inert(main_node._tutorial)
-	main_node._tutorial = null
+	_free_inert(world.sandbox)
+	world.sandbox = null
+	_free_inert(world.tutorial)
+	world.tutorial = null
 	if not Match.lifecycle().is_starting_match():
-		main_node._mode_extras = null
+		world.mode_extras = null

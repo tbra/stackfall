@@ -64,8 +64,8 @@ func _launch_sandbox(preset: SandboxConfig, args: PackedStringArray) -> void:
 ## Starts a non-lobby match: the one world builder (MainMatchFlow) does the rest and calls
 ## attach_extras() once the local player exists.
 func launch(config: MatchConfig, extras: ModeExtras) -> void:
-	main_node._mode_extras = extras
-	Match.register_world(main_node._field, main_node._registry, main_node._blocks_container)
+	world.mode_extras = extras
+	Match.register_world(world.field, world.registry, world.blocks_container)
 	Match.start_match(config)
 
 
@@ -74,24 +74,27 @@ func launch(config: MatchConfig, extras: ModeExtras) -> void:
 func attach_extras(extras: ModeExtras, local_player: Node) -> void:
 	var player: LocalPlayer = local_player as LocalPlayer
 	if extras.kind == ModeExtras.Kind.SANDBOX:
-		var sandbox: Sandbox = main_node._load_scene(Main.SANDBOX_SCENE_PATH).instantiate() as Sandbox
-		main_node._sandbox = sandbox
-		main_node.add_child(sandbox)
-		sandbox.attach(player, main_node._camera_rig, main_node._field, extras)
+		var sandbox: Sandbox = world.loader.load_scene(Main.SANDBOX_SCENE_PATH).instantiate() as Sandbox
+		world.sandbox = sandbox
+		world.parent.add_child(sandbox)
+		sandbox.attach(player, world.camera_rig, world.field, extras)
 		# DECISION: no scoreboard in the sandbox; Tab stays sandbox_next_slot.
+		# SHORTCUT: lazy overlay owned by Main, removed by P7-Inav
 		if main_node._scoreboard_node != null:
 			main_node._scoreboard_node.suppressed = true
 	else:
-		var tutorial: Tutorial = main_node._load_scene(Main.TUTORIAL_SCENE_PATH).instantiate() as Tutorial
-		main_node._tutorial = tutorial
-		main_node.add_child(tutorial)
+		var tutorial: Tutorial = world.loader.load_scene(Main.TUTORIAL_SCENE_PATH).instantiate() as Tutorial
+		world.tutorial = tutorial
+		world.parent.add_child(tutorial)
 		tutorial.attach(player)
 		tutorial.finished.connect(on_tutorial_finished)
 		# See PauseMenu's `suppressed` doc: Tutorial owns ui_cancel/Escape for its own quit gesture.
+		# SHORTCUT: lazy overlay owned by Main, removed by P7-Inav
 		main_node._pause_menu.suppressed = true
 
 
 ## Tutorial's `finished` (step 5, END, or its quit gesture): it already aborted the match, so the
 ## world and the Tutorial node are gone or going; only the menu is left to show.
 func on_tutorial_finished() -> void:
+	# SHORTCUT: menu owned by Main, removed by P7-Inav
 	main_node._show_main_menu()
