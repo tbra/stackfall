@@ -77,6 +77,9 @@ var _special_rng_ready: bool = false
 var _crates: Dictionary = {}
 ## gift_id -> GiftCrate visual (absent when no container exists), kept beside _crates.
 var _crate_nodes: Dictionary = {}
+## gift_id -> the flight's landing in disc-local space, taken when the landing was set, so the
+## live disc pose moves it (a level disc maps it back to flight.landing exactly).
+var _landing_local: Dictionary = {}
 
 ## Parallel to Match's slots: each inner array has zero or one next gift.
 ## A new claim replaces its element and never changes the current held piece.
@@ -680,6 +683,7 @@ func _spawn_crate_at(point: Vector2) -> void:
 	var origin: Vector3 = landing + Vector3.UP * _gift_config.drop_height_m
 	var node: GiftCrate = _make_crate_node(point, gift_id)
 	_crates[gift_id] = GiftFlight.new(gift_id, point, origin, landing, FALLING)
+	_remember_landing(gift_id, landing)
 	if node != null:
 		_crate_nodes[gift_id] = node
 		node.global_position = origin
@@ -697,8 +701,15 @@ func _world_at(point: Vector2, height: float) -> Vector3:
 ## under its point as it falls (full shift at progress 1.0, and for a landed crate). The flight's
 ## own landing stays the spawn-time world value, which the wire and the applier compare.
 func _live_crate_position(flight: GiftFlight, progress: float) -> Vector3:
-	var live: Vector3 = _world_at(flight.position, GiftCrate.CRATE_SIZE.y * 0.5)
+	var field: Field = _match.field()
+	var local: Vector3 = _landing_local.get(flight.gift_id, flight.landing)
+	var live: Vector3 = field.to_global(local) if field != null else local
 	return flight.world_position(_gift_config, progress) + (live - flight.landing) * clampf(progress, 0.0, 1.0)
+
+
+func _remember_landing(gift_id: int, landing: Vector3) -> void:
+	var field: Field = _match.field()
+	_landing_local[gift_id] = field.to_local(landing) if field != null else landing
 
 
 ## A copy safe for minimap and network consumers. Position is host-authored.
@@ -981,6 +992,7 @@ func _free_crate_visual(gift_id: int) -> bool:
 	if not _crates.has(gift_id):
 		return false
 	_crates.erase(gift_id)
+	_landing_local.erase(gift_id)
 	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
 	_crate_nodes.erase(gift_id)
 	if node != null and is_instance_valid(node):
@@ -1048,6 +1060,7 @@ func apply_replicated_spawn(gift_id: int, position: Vector2) -> void:
 		return
 	var landing: Vector3 = _world_at(position, GiftCrate.CRATE_SIZE.y * 0.5)
 	_crates[gift_id] = GiftFlight.new(gift_id, position, landing, landing, LANDED)
+	_remember_landing(gift_id, landing)
 	var node: GiftCrate = _make_crate_node(position, gift_id)
 	if node != null:
 		_crate_nodes[gift_id] = node
@@ -1067,6 +1080,7 @@ func apply_replicated_flight(gift_id: int, origin: Vector3, landing: Vector3) ->
 	flight.position = point
 	flight.origin = origin
 	flight.landing = landing
+	_remember_landing(gift_id, landing)
 	flight.phase = FALLING
 	flight.elapsed = 0.0
 	var node: GiftCrate = _crate_nodes.get(gift_id) as GiftCrate
@@ -1157,6 +1171,7 @@ func reset() -> void:
 			(node as GiftCrate).queue_free()
 	_crate_nodes.clear()
 	_crates.clear()
+	_landing_local.clear()
 	_pending_queues.clear()
 	_next_gift_id = 0
 	_play_time_s = 0.0
