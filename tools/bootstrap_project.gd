@@ -587,7 +587,7 @@ func _actions() -> Dictionary:
 	a["hud_toggle"] = [_key(KEY_F8), _pad(JOY_BUTTON_PADDLE4)]
 
 	# DECISION (tools/bootstrap_project.gd): sandbox_force_
-	# special (game/sandbox/Sandbox.gd's F9) is the fifth sandbox-only hotkey, but
+	# special (game/sandbox/Sandbox.gd's section key) is the fifth sandbox-only hotkey, but
 	# PADDLE1-4 above already claim every Xbox Elite/DualSense-class paddle,
 	# and every face/shoulder/stick/D-pad/Back/Start/MISC1 button on a
 	# standard pad is claimed by placement, camera, shell or another sandbox
@@ -595,7 +595,7 @@ func _actions() -> Dictionary:
 	# (DualSense's touchpad click) is the one JoyButton value still free
 	# anywhere in this file -- same debug-only, uncommon-pad tolerance the
 	# PADDLE buttons above already established, not a shipped-game binding.
-	a["sandbox_force_special"] = [_key(KEY_F9), _pad(JOY_BUTTON_TOUCHPAD)]
+	a["sandbox_force_special"] = [_key(KEY_SECTION), _pad(JOY_BUTTON_TOUCHPAD)]
 
 	# DECISION (tools/bootstrap_project.gd, M6 B2): sandbox_slow_motion and
 	# sandbox_pause_physics are the sixth and seventh sandbox-only hotkeys --
@@ -627,12 +627,19 @@ func _actions() -> Dictionary:
 	# press opens the pause menu.
 	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
 
-	# DECISION (tools/bootstrap_project.gd): bot_cost_overlay_toggle is the debug-only F2 bot
+	# DECISION (tools/bootstrap_project.gd): bot_cost_overlay_toggle is the debug-only F9 bot
 	# think cost overlay (ui/debug/PerfBotCostOverlay.gd, gated by game/debug/DebugMode.gd). R3 already belongs to F1 (and
 	# show_scores), so its pad half is the left-stick click, accepted by the overlay only while Back
 	# (camera_snap_home) is held, like F1/F3. L3 is camera_modifier, a hold modifier that only matters
 	# together with camera stick motion, so a Back+L3 press does no harm; a bare L3 press is ignored.
-	a["bot_cost_overlay_toggle"] = [_key(KEY_F2), _pad(JOY_BUTTON_LEFT_STICK)]
+	a["bot_cost_overlay_toggle"] = [_key(KEY_F9), _pad(JOY_BUTTON_LEFT_STICK)]
+
+	# DECISION (tools/bootstrap_project.gd): pose_overlay_toggle is the debug-only F2 pose panel
+	# (ui/debug/PoseOverlay.gd, gated by game/debug/DebugMode.gd). R3 and L3 belong to F1 and F9 and
+	# every other button is taken, so its pad half is D-pad left, accepted by the overlay only while
+	# Back (camera_snap_home) is held, like F1/F3. The one overlap is the F9 bot overlay's own
+	# Back + left/right selector, which only acts while that overlay is shown (debug-only tolerance).
+	a["pose_overlay_toggle"] = [_key(KEY_F2), _pad(JOY_BUTTON_DPAD_LEFT)]
 
 	# --- Gift demo ---------------------------------------------
 	# Only read by game/sandbox/Sandbox.gd while the gift-demo preset is active, so they

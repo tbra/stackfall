@@ -1,5 +1,5 @@
 extends GutTest
-## the F2 bot think cost overlay (ui/debug/PerfBotCostOverlay.gd): debug gate, F2 and pad chord,
+## the F9 bot think cost overlay (ui/debug/PerfBotCostOverlay.gd): debug gate, F9 and pad chord,
 ## collector enable/disable, table content and highlight, selector, client / empty lines.
 
 var _overlay: PerfBotCostOverlay = null
@@ -22,7 +22,7 @@ func after_each() -> void:
 func _f2() -> InputEventKey:
 	var event: InputEventKey = InputEventKey.new()
 	event.device = -1
-	event.physical_keycode = KEY_F2
+	event.physical_keycode = KEY_F9
 	event.pressed = true
 	return event
 
@@ -52,7 +52,7 @@ func test_f2_toggles_only_in_debug_mode() -> void:
 	assert_false(_overlay.is_shown())
 	DebugMode.set_override_for_test(false)
 	_overlay._unhandled_input(_f2())
-	assert_false(_overlay.is_shown(), "debug off: F2 does nothing")
+	assert_false(_overlay.is_shown(), "debug off: F9 does nothing")
 
 
 func test_table_has_every_phase_row_numbers_and_highlight() -> void:

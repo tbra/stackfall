@@ -54,7 +54,7 @@ func test_validation_rejects_bad_values() -> void:
 	assert_ne(ShotTargets.normalize_shot({"target": "nowhere"})["error"], "")
 	assert_ne(ShotTargets.normalize_shot({"target": "lobby", "bogus": 1})["error"], "", "unknown key")
 	assert_ne(ShotTargets.normalize_shot({"target": "lobby", "style": "fancy"})["error"], "")
-	assert_ne(ShotTargets.normalize_shot({"target": "sandbox", "overlays": ["f9"]})["error"], "")
+	assert_ne(ShotTargets.normalize_shot({"target": "sandbox", "overlays": ["f7"]})["error"], "")
 	assert_ne(ShotTargets.normalize_shot({"target": "sandbox", "cam": "1,2"})["error"], "")
 	assert_ne(ShotTargets.normalize_shot({"target": "scene"})["error"], "", "scene needs path")
 	assert_ne(ShotTargets.normalize_shot({"target": "match", "follow": 1})["error"], "", "follow needs watch")

@@ -344,8 +344,8 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 	var sandbox: Sandbox = _sandbox()
 	assert_eq(sandbox.forced_special(), &"", "off by default")
 
-	var event: InputEventKey = _key_press(KEY_F9)
-	assert_true(event.is_action_pressed(&"sandbox_force_special"), "F9 should map to sandbox_force_special")
+	var event: InputEventKey = _key_press(KEY_SECTION)
+	assert_true(event.is_action_pressed(&"sandbox_force_special"), "the section key should map to sandbox_force_special")
 
 	for expected_id: String in _EXPECTED_ROSTER_ORDER:
 		sandbox._unhandled_input(event)
@@ -481,7 +481,7 @@ func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()
-	_sandbox()._unhandled_input(_key_press(KEY_F9))
+	_sandbox()._unhandled_input(_key_press(KEY_SECTION))
 	var forced: StringName = _sandbox().forced_special()
 	assert_ne(forced, &"", "fixture: F9 forced a special")
 

@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/debug/PoseOverlay.gd" id="1_pose"]
+
+[node name="PoseOverlay" type="CanvasLayer"]
+process_mode = 3
+layer = 100
+script = ExtResource("1_pose")
+
+[node name="Panel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+mouse_filter = 2
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+grow_vertical = 2
+
+[node name="Lines" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="HeldLabel" type="Label" parent="Panel/Lines"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CaptionLabel"
+
+[node name="CameraLabel" type="Label" parent="Panel/Lines"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CaptionLabel"
+
+[node name="TiltLabel" type="Label" parent="Panel/Lines"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_type_variation = &"CaptionLabel"
