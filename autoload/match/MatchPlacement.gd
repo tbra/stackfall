@@ -403,25 +403,22 @@ func request_throw(
 		Events.placement_rejected.emit(slot_id, reason)
 		return reason
 
-	# The map-size range scaling applies to the ballistic THROW only; an AIMED launch
-	# (Rocket/Paintball) keeps the plain throw_max_speed clamp.
-	var speed_cap: float = _special_tuning.throw_max_speed
-	if held_def == null or throw_mode == GiftThrow.Mode.THROW:
-		speed_cap *= GiftAim.speed_factor(_throw_range_scale())
-	var clamped_velocity: Vector3 = launch_velocity.limit_length(speed_cap)
 	# disk_origin is the legality point (the footprint's centre); the body spawns at its pivot.
 	var pivot_disk: Vector2 = disk_origin - centre_shift
 	var world_origin: Vector3 = _match._field.to_global(Vector3(pivot_disk.x, local_origin.y, pivot_disk.y))
 	# The throw spawns at the client-sent pose too, so it gets the same host overlap validation (a
-	# manual intent: refused, the special stays in hand, when no lift clears it). The projectile
-	# spawns on the camera line (cursor point moved back along the aim, never below
-	# gift_aim_min_height_m over the surface); territory was validated at the cursor above.
-	world_origin = GiftAim.spawn_point(world_origin, aim_direction, _match._field.surface_y(), _special_tuning)
+	# manual intent: refused, the special stays in hand, when no lift clears it). GiftThrow plans the
+	# launch: the projectile spawns on the camera line (cursor point moved back along the aim, never
+	# below gift_aim_min_height_m over the surface; territory was validated at the cursor above), and
 	# Rocket/Magnet spawn already facing their flight line, so the first replicated pose is never
 	# upright. The overlap/lift check tests that same faced basis (null = upright).
-	var faced: Variant = launch_facing_basis(held_def, throw_mode, aim_direction, clamped_velocity)
-	var overlap_basis: Basis = faced as Basis if faced != null else basis
-	if faced != null and throw_mode == GiftThrow.Mode.AIMED and gift_id != &"":
+	var plan: GiftThrow.Plan = GiftThrow.launch_plan(held_def, throw_mode, aim_direction, world_origin,
+			_match._field.surface_y(), _throw_range_scale(), _special_tuning, shape)
+	var clamped_velocity: Vector3 = plan.velocity
+	world_origin = plan.spawn_origin
+	var faced: Variant = plan.faced_basis if plan.faces else null
+	var overlap_basis: Basis = plan.faced_basis if plan.faces else basis
+	if plan.faces and throw_mode == GiftThrow.Mode.AIMED and gift_id != &"":
 		# the faced body's model must start where the held model is drawn.
 		world_origin = BlockFactory.muzzle_matched_origin(world_origin, overlap_basis, shape, _match._physics_tuning, gift_id)
 	var lifted: Variant = _lift_pose_clear(shape, world_origin, overlap_basis, false, gift_id)
@@ -745,16 +742,11 @@ func _hole_column_result(slot_id: int, disk_xz: Vector2) -> PlacementRules.Resul
 	return PlacementRules.Result.OFF_DISK
 
 
-## the basis a thrown/launched Rocket or Magnet carrier spawns with (nose along
-## its flight line), or null when the gift keeps the upright spawn pose. Pure.
+# SHORTCUT: forwarder for PlayerController._release_pose, removed when P3-Ithrow-b moves the controller onto launch_plan
 static func launch_facing_basis(
 	def: SpecialDef, mode: GiftThrow.Mode, aim_direction: Vector3, throw_velocity: Vector3
 ) -> Variant:
-	if def == null:
-		return null
-	if def.effect != null and def.effect.faces_launch(mode, aim_direction, throw_velocity):
-		return def.effect.launch_facing(mode, aim_direction, throw_velocity)
-	return null
+	return GiftThrow.launch_facing_basis(def, mode, aim_direction, throw_velocity)
 
 
 ## The basis a spawn actually uses: a gift is always upright, a plain block keeps the pose.

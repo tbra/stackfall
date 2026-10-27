@@ -333,6 +333,7 @@
   "core/blocks/BlockMeshBuilder.gd",
   "core/blocks/BlockOrientations.gd",
   "core/blocks/GhostSilhouette.gd",
+  "core/gifts/GiftAim.gd",
   "core/gifts/GiftThrow.gd",
   "core/gifts/GiftWirePhase.gd",
   "core/gifts/ParachuteAnim.gd",
