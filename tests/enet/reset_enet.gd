@@ -191,7 +191,7 @@ func _run_host() -> void:
 
 
 func _host_play_a() -> void:
-	_main._on_lobby_start_requested(_config(MatchConfig.WeatherMode.STORM, MatchConfig.SkyThemeMode.NIGHT))
+	Match.start_match(_config(MatchConfig.WeatherMode.STORM, MatchConfig.SkyThemeMode.NIGHT))
 	if not await _until(func() -> bool: return Match.state() == Match.State.PLAYING, STATE_TIMEOUT_S):
 		_fail("host never reached PLAYING in A")
 		return
@@ -224,7 +224,7 @@ func _host_play_a() -> void:
 
 func _host_play_b() -> void:
 	_captured.clear()
-	_main._on_lobby_start_requested(_config(MatchConfig.WeatherMode.OFF, MatchConfig.SkyThemeMode.DAY))
+	Match.start_match(_config(MatchConfig.WeatherMode.OFF, MatchConfig.SkyThemeMode.DAY))
 	if not await _until(func() -> bool: return _captured.has("playing"), STATE_TIMEOUT_S + COUNTDOWN_S):
 		_fail("host never fingerprinted B (captured=%s)" % [_captured.keys()])
 
@@ -235,7 +235,7 @@ func _host_cycle_scenario() -> void:
 	_cycle_scenario = true
 	Match.abort_match()
 	await _wait(SETTLE_S)
-	_main._on_lobby_start_requested(_config(MatchConfig.WeatherMode.OFF, MatchConfig.SkyThemeMode.CYCLE))
+	Match.start_match(_config(MatchConfig.WeatherMode.OFF, MatchConfig.SkyThemeMode.CYCLE))
 	if not await _until(func() -> bool: return Match.state() == Match.State.PLAYING, STATE_TIMEOUT_S + COUNTDOWN_S):
 		_fail("host never reached PLAYING in the Cycle match")
 		return

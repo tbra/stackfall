@@ -167,7 +167,8 @@ func _reference_lobby_match() -> Dictionary:
 	var main: Node = _new_main()
 	var out: Dictionary = {"menu": MatchFingerprint.capture(main)}
 	_host()
-	main._on_lobby_start_requested(_reference_config())
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(_reference_config())
 	await _settle()
 	_run_seconds(CHECK_COUNTDOWN_S)
 	assert_eq(Match.state(), Match.State.COUNTDOWN, "fixture: still counting down")
