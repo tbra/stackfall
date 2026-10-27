@@ -388,7 +388,7 @@ static func finish_setup(host: Node, vp: SubViewport, main: Node, shot: Dictiona
 	var phase: float = float(shot["time"])
 	var follow: int = int(shot["follow"])
 	if follow >= 0:
-		var spectator: Object = main.get("_spectator") as Object
+		var spectator: Object = _first_of(main, "SpectatorController")
 		if spectator == null:
 			return "follow needs a watch match (no spectator)"
 		for _i: int in range(follow + 1):
@@ -560,7 +560,7 @@ static func _host_lobby(host: Node, main: Node, shot: Dictionary) -> String:
 static func _sandbox(host: Node, main: Node, shot: Dictionary) -> String:
 	var preset: String = str(shot["preset"])
 	var method: StringName = &"start_sandbox_from_menu"
-	var property: String = "_sandbox"
+	var node_class: String = "Sandbox"
 	match preset:
 		"gift_demo":
 			method = &"start_gift_demo_from_menu"
@@ -568,7 +568,7 @@ static func _sandbox(host: Node, main: Node, shot: Dictionary) -> String:
 			method = &"start_tower_topple_from_menu"
 		"tutorial":
 			method = &"start_tutorial_from_menu"
-			property = "_tutorial"
+			node_class = "Tutorial"
 	# The sandbox builds its match from Main's base config: seed a copy for this launch only.
 	var base: MatchConfig = main.get("match_config") as MatchConfig
 	if int(shot["rng_seed"]) != NO_VALUE:
@@ -576,7 +576,7 @@ static func _sandbox(host: Node, main: Node, shot: Dictionary) -> String:
 		seeded.rng_seed = int(shot["rng_seed"])
 		main.set("match_config", seeded)
 	main.call(method)
-	var started: bool = await wait_for(host, func() -> bool: return main.get(property) != null)
+	var started: bool = await wait_for(host, func() -> bool: return _first_of(main, node_class) != null)
 	main.set("match_config", base)
 	if not started:
 		return "%s did not start" % preset
@@ -609,7 +609,7 @@ static func _match(host: Node, main: Node, shot: Dictionary) -> String:
 	if loading != null and loading.ready_gate_armed():
 		await wait_for(host, func() -> bool: return loading.accepts_ready_input())
 		loading.press_ready()
-	if bool(shot["watch"]) and not await wait_for(host, func() -> bool: return main.get("_spectator") != null):
+	if bool(shot["watch"]) and not await wait_for(host, func() -> bool: return _first_of(main, "SpectatorController") != null):
 		return "the watch match built no spectator (is debug mode on?)"
 	if not await wait_for(host, func() -> bool: return Match.state() == Match.State.PLAYING):
 		return "the match did not reach PLAYING within %ds" % int(STATE_WAIT_TIMEOUT_S)
@@ -631,11 +631,17 @@ static func _seed_error(shot: Dictionary) -> String:
 static func return_to_menu(host: Node, main: Node) -> void:
 	Engine.time_scale = DEFAULT_SPEED
 	apply_capture_pin(host.get_tree(), -1.0, -1.0)
-	var tutorial: Object = main.get("_tutorial") as Object
+	var tutorial: Object = _first_of(main, "Tutorial")
 	if tutorial != null:
 		tutorial.call("_end_tutorial")
 	main.call("_on_pause_leave_requested")
 	await settle(host, LONG_SETTLE_FRAMES)
+
+
+## The first direct child of `main` of global class `node_class`, or null (Main's flow fields are private).
+static func _first_of(main: Node, node_class: String) -> Node:
+	var found: Array[Node] = main.find_children("*", node_class, false, false)
+	return null if found.is_empty() else found[0]
 
 
 static func settle(host: Node, frames: int) -> void:
