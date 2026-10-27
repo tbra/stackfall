@@ -27,6 +27,10 @@ extends Node
 ## (SpawnClearance, GhostTuning.spawn_clearance), so the new piece is
 ## not left exactly where the old one just landed.
 
+## Divisor floor (seconds) so a zero hover_wheel_ramp_seconds cannot divide by zero; not a
+## gameplay tunable.
+const _WHEEL_RAMP_MIN_SECONDS: float = 0.001
+
 @export var camera_rig_path: NodePath
 @export var ghost_path: NodePath
 ## The same NodePath pattern as
@@ -75,10 +79,6 @@ var _intent_lock_left: float = 0.0
 ## do anything). -1 until set_acting_slot() or the first Events.turn_changed.
 var _active_slot: int = -1
 
-## Bookkeeping only: both mouse and gamepad move the same _cursor, and
-## _update_ghost_transform() always raycasts straight down from above it. Tests
-## and any future "which device last moved you" UI read this.
-var _using_gamepad_cursor: bool = false
 ## World-space cursor the ghost's placement ray casts down from. Both mouse
 ## motion (_move_cursor_from_mouse) and the gamepad's left stick
 ## (_update_gamepad_cursor) move it directly -- "the mouse positions the
@@ -395,7 +395,7 @@ func _process_input(delta: float) -> void:
 			return
 	_intent_lock_left = maxf(_intent_lock_left - delta, 0.0)
 	_update_gamepad_cursor(delta)
-	_update_throw_aim(delta)
+	_drive_throw_visuals()
 	_clamp_cursor_collision()
 	_update_ghost_transform()
 	# Must run after _update_ghost_transform() above (so the overlap test sees the
@@ -530,7 +530,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
-		_using_gamepad_cursor = false
 		if Input.is_action_pressed(&"rotate_drag"):
 			# A continuous rotation, unlike rotation_mode's 90 degree snap grid below
 			# (spec 1.4 "Rotate block (hold + drag)" [ORIGINAL]).
@@ -563,7 +562,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			# the rotation-mode key, the movement keys change the orientation
 			# of the block" -- mouse motion is this device's "movement keys".
 			_accumulate_rotation_drag(motion.relative, ghost_tuning.block_rotation_sensitivity)
-		elif Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
+		elif _camera_orbit_held():
 			pass  # CameraRig._unhandled_input consumes this motion to orbit (either hold works).
 		elif Input.is_action_pressed(&"lock_vertical"):
 			pass  # "Locks block to vertical movement only": ignore XZ motion; the wheel still changes height.
@@ -667,7 +666,7 @@ func _apply_step(new_index: int) -> void:
 ## orbiting), so the wheel handler above routes to _zoom_camera() instead of
 ## _step_hover().
 func _camera_orbit_held() -> bool:
-	return Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit")
+	return _camera_rig != null and _camera_rig.is_orbiting()
 
 
 func _zoom_camera(direction: float) -> void:
@@ -692,7 +691,7 @@ func _wheel_step_multiplier(direction: float) -> float:
 		_wheel_scroll_seconds = 0.0
 	_wheel_last_direction = signf(direction)
 	_wheel_idle_seconds = 0.0
-	var ramp: float = clampf(_wheel_scroll_seconds / maxf(ghost_tuning.hover_wheel_ramp_seconds, 0.001), 0.0, 1.0)
+	var ramp: float = clampf(_wheel_scroll_seconds / maxf(ghost_tuning.hover_wheel_ramp_seconds, _WHEEL_RAMP_MIN_SECONDS), 0.0, 1.0)
 	return lerpf(1.0, maxf(ghost_tuning.hover_wheel_max_multiplier, 1.0), ramp)
 
 
@@ -904,10 +903,6 @@ func _camera_forward() -> Vector3:
 ## no drag) for gifts whose GiftThrow.shows_preview() is true; Rocket and
 ## Paintball draw none. The previewed launch comes from the same GiftAim
 ## functions the host uses, so the line equals the real flight.
-func _update_throw_aim(_delta: float) -> void:
-	_drive_throw_visuals()
-
-
 func _drive_throw_visuals() -> void:
 	if _ghost != null:
 		_ghost.set_held_aim(_held_gift_aim_direction())
@@ -1323,12 +1318,8 @@ func _update_gamepad_cursor(delta: float) -> void:
 
 	if Input.is_action_pressed(&"rotation_mode"):
 		if stick.length() > 0.0:
-			_using_gamepad_cursor = true
 			_accumulate_rotation_drag(stick, ghost_tuning.pad_rotation_speed * delta)
 		return
-
-	if stick.length() > 0.0:
-		_using_gamepad_cursor = true
 
 	# scaled by Settings.stick_move_speed_scale() --
 	# the Options menu's "Stick speed" slider (Controls tab) -- on top of the
