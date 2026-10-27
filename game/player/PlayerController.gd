@@ -1108,7 +1108,7 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 ## release at (_release_pose()), with the boxes the host tests for the held piece
 ## (BlockFactory.overlap_probe_centers()/overlap_probe_size(), shared with
 ## MatchPlacement). No ghost_collision_skin inflation here (unlike
-## _sweep_motion()'s clearance gap): this asks "does it overlap right now", not
+## GhostSweep's clearance gap): this asks "does it overlap right now", not
 ## "how much gap should be kept while sliding", so the boxes are used at their
 ## true size.
 func _ghost_overlapping_bodies() -> Array[RigidBody3D]:
@@ -1448,7 +1448,7 @@ func _seed_collision_cursor_if_needed() -> void:
 ## _cursor is the aim point the
 ## *rotated* held shape's own centre sits over (GhostPreview.
 ## update_placement()), not this node's own origin -- so the boxes
-## _sweep_motion() below places at `position + basis * local_center` have to
+## GhostSweep places at `position + basis * local_center` have to
 ## be built from the same cursor-minus-centre-offset point update_placement()
 ## will actually put the ghost's node origin at, or a pitched/rolled shape's
 ## swept boxes would land somewhere the render then doesn't match (this
@@ -1495,145 +1495,18 @@ func _clamp_hover_offset(desired: float) -> float:
 	return current + achieved_delta
 
 
-## The shared box-sweep behind both clamps above: moves the held shape's own
-## collision boxes (GhostPreview.collision_box_local_centers()/
-## collision_half_size(), built the same way BlockFactory.build() would, so
-## the ghost matches the block that will actually spawn) from `from_position`
-## to `to_position` at the ghost's current rotation, and returns the furthest
-## point along that straight line that keeps every box clear of every placed
-## block. DECISION: tries the full motion first, then the X-only and Z-only
-## components of whatever remains, so horizontal motion blocked on one axis
-## still slides along the other; a purely vertical motion (the hover clamp)
-## has zero X/Z remainder, so the slide attempts are a no-op there and it
-## correctly just stops.
+## The shared box-sweep behind both clamps above: GhostSweep slides the held shape's own
+## collision boxes (built the way BlockFactory.build() would, so the ghost matches the block
+## that will spawn) from `from_position` to `to_position` at the ghost's current rotation.
 func _sweep_ghost_position(from_position: Vector3, to_position: Vector3) -> Vector3:
-	var result: Vector3 = from_position + _sweep_motion(from_position, to_position - from_position)
-	var remainder: Vector3 = to_position - result
-	if remainder.length() > 0.0:
-		result += _sweep_motion(result, Vector3(remainder.x, 0.0, 0.0))
-		remainder = to_position - result
-		result += _sweep_motion(result, Vector3(0.0, 0.0, remainder.z))
-	return result
-
-
-## One shape cast per collision box of the held shape, in one direction,
-## returning the safe portion of `motion` (Vector3.ZERO if none of it is
-## clear, unchanged `motion` if all of it is). The swept box is inflated by
-## ghost_tuning.ghost_collision_skin on every side so the returned motion
-## always leaves that much of a gap, rather than letting the ghost visually
-## touch a placed block exactly.
-func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
-	if motion.length() <= 0.0 or _ghost == null:
-		return Vector3.ZERO
-	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
-	if boxes.is_empty():
-		return motion
 	var world: World3D = get_viewport().world_3d
-	if world == null:
-		return motion
-	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
-	var inflated_half: float = _ghost.collision_half_size() + ghost_tuning.ghost_collision_skin
-	var box_shape: BoxShape3D = BoxShape3D.new()
-	box_shape.size = Vector3.ONE * (inflated_half * 2.0)
-	var min_safe_fraction: float = 1.0
-	for local_center: Vector3 in boxes:
-		var world_center: Vector3 = position + _ghost.basis * local_center
-		min_safe_fraction = minf(
-			min_safe_fraction, _cast_one_box(space_state, box_shape, world_center, motion)
-		)
-	return motion * clampf(min_safe_fraction, 0.0, 1.0)
-
-
-## Casts `box_shape` (already inflated by the caller) from `world_center`
-## along `motion`, skipping any collider that isn't a placed block -- see this
-## section's top-of-file DECISION for why type, not collision_mask, is the
-## filter here. Bounded by ghost_tuning.collision_probe_max_bodies, the same
-## bounded-skip idea GhostPreview.raycast_disk_surface() uses, so a pathological pile of
-## non-block colliders in the way can't spin this loop forever. Returns the
-## safe fraction of `motion` (1.0 = fully clear).
-##
-## If `box_shape` already overlaps a placed block right at `world_center` --
-## zero motion -- this returns 1.0 (the full requested motion) without ever
-## calling cast_motion(). The ghost's own baseline hover height
-## (_update_ghost_transform()) deliberately ignores whatever tower sits under
-## the cursor, so a freshly spawned or freshly rotated ghost routinely starts a
-## frame already embedded in a placed block -- raising past it is the only way
-## out, by design (the spawn-clearance logic relies on manual_hover_offset being
-## able to lift the ghost clear of exactly this state). cast_motion() itself,
-## called from a shape that already overlaps a body, reports collisions to a
-## shallow query depth and can come back permanently "unsafe" (0.0) even when
-## `motion` is carrying the box further along its own way out -- a 4-cube tower
-## with a domino held above it froze at manual_hover_offset ~0.6 m forever
-## (tests/unit/player/test_playercontroller_hover_cap.gd), nowhere near the
-## tower's own ~3.4 m top or GhostTuning.hover_manual_max's ceiling, even though
-## every notch kept requesting more upward motion.
-## DECISION (game/player/PlayerController.gd): exempting an
-## already-overlapping box from this frame's block entirely, rather than
-## trying to compute a partial "depenetration" distance, keeps the fix to the
-## one case that regressed (a box that starts this query already embedded)
-## without touching the geometry every other collision case depends on: each of
-## those starts its query from a position that is *not* already overlapping (the
-## ghost approaches a placed block from clear space and this same function's
-## normal cast_motion path below still stops it right at the collision skin's
-## gap), so none of them take this new branch. An embedded box instead advances
-## by exactly the caller's requested `motion` once per query (one wheel notch, or
-## one frame's worth of a held raise/lower key) -- the same rate free space would
-## have given it -- until it re-checks from its new position next call and
-## finds itself finally clear, at which point ordinary blocking resumes.
-func _cast_one_box(
-	space_state: PhysicsDirectSpaceState3D, box_shape: BoxShape3D, world_center: Vector3, motion: Vector3
-) -> float:
-	var start_probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	start_probe.shape = box_shape
-	start_probe.transform = Transform3D(_ghost.basis, world_center)
-	start_probe.collide_with_bodies = true
-	start_probe.collide_with_areas = false
-	start_probe.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
-	for start_overlap: Dictionary in space_state.intersect_shape(start_probe, 8):
-		if start_overlap.get("collider") is RigidBody3D:
-			return 1.0
-
-	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	params.shape = box_shape
-	params.transform = Transform3D(_ghost.basis, world_center)
-	params.motion = motion
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	params.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
-	var exclude: Array[RID] = []
-	var attempts: int = 0
-	while attempts <= ghost_tuning.collision_probe_max_bodies:
-		params.exclude = exclude
-		var cast_result: PackedFloat32Array = space_state.cast_motion(params)
-		var safe_fraction: float = cast_result[0] if cast_result.size() > 0 else 1.0
-		if safe_fraction >= 1.0:
-			return 1.0
-		# DECISION (game/player/PlayerController.gd): probe at cast_motion's *unsafe*
-		# fraction, not its safe one -- `safe_fraction` is deliberately the
-		# point just *before* any contact (zero penetration, often not even
-		# touching yet), so intersect_shape() there can come back empty even
-		# when something genuinely blocked the cast. `unsafe_fraction` is
-		# where the shapes actually first overlap, which is what identifying
-		# the blocker needs.
-		var unsafe_fraction: float = cast_result[1] if cast_result.size() > 1 else safe_fraction
-		var probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-		probe.shape = box_shape
-		probe.transform = Transform3D(_ghost.basis, world_center + motion * unsafe_fraction)
-		probe.collide_with_bodies = true
-		probe.collide_with_areas = false
-		probe.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
-		probe.exclude = exclude
-		var overlaps: Array[Dictionary] = space_state.intersect_shape(probe, 8)
-		var non_block_rids: Array[RID] = []
-		for overlap: Dictionary in overlaps:
-			if overlap.get("collider") is RigidBody3D:
-				return safe_fraction
-			non_block_rids.append(overlap["rid"] as RID)
-		if non_block_rids.is_empty():
-			return 1.0
-		exclude.append_array(non_block_rids)
-		attempts += 1
-	return 0.0
+	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
+	if world == null or boxes.is_empty():
+		return to_position
+	return GhostSweep.new(ghost_tuning).sweep(
+		world.direct_space_state, boxes, _ghost.collision_half_size(), _ghost.basis,
+		from_position, to_position
+	)
 
 
 ## Match names the shape it issues by id (Events.feed_block_issued); the ghost
