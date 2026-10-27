@@ -282,6 +282,144 @@ func test_probes_sit_just_inside_the_silhouette_next_to_their_piece() -> void:
 			assert_true(_inside(result.probes[i], result.loops), "%s piece %d: probe is inside the outline" % [shape_id, i])
 
 
+# --- hand-built meshes ------------------------------------------------------
+
+## An indexed mesh of the given quads (each an array of four Vector3 corners in order), two triangles each.
+func _quad_mesh(quads: Array) -> Mesh:
+	var verts: PackedVector3Array = PackedVector3Array()
+	var indices: PackedInt32Array = PackedInt32Array()
+	for quad: Array in quads:
+		var base: int = verts.size()
+		for corner: Vector3 in quad:
+			verts.append(corner)
+		indices.append_array(PackedInt32Array([base, base + 1, base + 2, base, base + 2, base + 3]))
+	return _mesh_of(verts, indices)
+
+
+func _mesh_of(verts: PackedVector3Array, indices: PackedInt32Array) -> Mesh:
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
+
+
+## Quad over x0..x1, z 0..1 whose underside is y0 at x0 and y1 at x1.
+func _slab(x0: float, x1: float, y0: float, y1: float) -> Array:
+	return [Vector3(x0, y0, 0.0), Vector3(x1, y1, 0.0), Vector3(x1, y1, 1.0), Vector3(x0, y0, 1.0)]
+
+
+func _build_mesh(mesh: Mesh) -> GhostSilhouette.Result:
+	var meshes: Array[Mesh] = [mesh]
+	return GhostSilhouette.build(meshes, PackedVector3Array([Vector3.ZERO]), Basis.IDENTITY)
+
+
+## The wall pieces lying on the z = 0 outline edge as [x_low, x_high, height_at_low, height_at_high], by x.
+func _front_pieces(result: GhostSilhouette.Result) -> Array[Array]:
+	var pieces: Array[Array] = []
+	for i: int in range(result.wall_heights.size()):
+		var a: Vector2 = result.wall_segments[i * 2]
+		var b: Vector2 = result.wall_segments[i * 2 + 1]
+		if absf(a.y) > EDGE_TOLERANCE or absf(b.y) > EDGE_TOLERANCE:
+			continue
+		if a.x <= b.x:
+			pieces.append([a.x, b.x, result.wall_heights[i].x, result.wall_heights[i].y])
+		else:
+			pieces.append([b.x, a.x, result.wall_heights[i].y, result.wall_heights[i].x])
+	pieces.sort_custom(func(l: Array, r: Array) -> bool: return l[0] < r[0])
+	return pieces
+
+
+func test_single_triangle_gets_walls_on_all_three_edges() -> void:
+	var mesh: Mesh = _mesh_of(
+		PackedVector3Array([Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, 1)]), PackedInt32Array([0, 1, 2])
+	)
+	var result: GhostSilhouette.Result = _build_mesh(mesh)
+	assert_eq(result.loops.size(), 1)
+	assert_eq(result.loops[0].size(), 3)
+	assert_almost_eq(_wall_length(result), 2.0 + sqrt(2.0), AREA_TOLERANCE, "a three-vertex outline still gets walls")
+
+
+func test_flat_then_sloped_underside_keeps_the_kink_as_two_pieces() -> void:
+	var result: GhostSilhouette.Result = _build_mesh(_quad_mesh([_slab(0.0, 1.0, 0.0, 0.0), _slab(1.0, 2.0, 0.0, 1.0)]))
+	var pieces: Array[Array] = _front_pieces(result)
+	assert_eq(pieces.size(), 2, "different slopes from the same height are not one quad")
+	if pieces.size() != 2:
+		return
+	assert_almost_eq(float(pieces[0][2]), 0.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[0][3]), 0.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[1][2]), 0.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[1][3]), 1.0, EDGE_TOLERANCE)
+
+
+func test_equal_slope_run_is_one_wall_piece() -> void:
+	var result: GhostSilhouette.Result = _build_mesh(_quad_mesh([
+		_slab(0.0, 1.0, 0.0, 0.0), _slab(1.0, 1.5, 0.0, 0.5), _slab(1.5, 2.0, 0.5, 1.0),
+	]))
+	var pieces: Array[Array] = _front_pieces(result)
+	assert_eq(pieces.size(), 2, "the two collinear slope pieces share one quad")
+	if pieces.size() != 2:
+		return
+	assert_almost_eq(float(pieces[1][0]), 1.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[1][1]), 2.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[1][3]), 1.0, EDGE_TOLERANCE, "the merged quad reaches the far end's height")
+
+
+func test_height_step_at_a_seam_is_two_pieces() -> void:
+	var result: GhostSilhouette.Result = _build_mesh(_quad_mesh([_slab(0.0, 1.0, 0.0, 0.0), _slab(1.0, 2.0, 0.5, 0.5)]))
+	var pieces: Array[Array] = _front_pieces(result)
+	assert_eq(pieces.size(), 2, "a vertical step is not bridged")
+	if pieces.size() != 2:
+		return
+	assert_almost_eq(float(pieces[0][3]), 0.0, EDGE_TOLERANCE)
+	assert_almost_eq(float(pieces[1][2]), 0.5, EDGE_TOLERANCE)
+
+
+func test_touching_cubes_in_a_row_share_one_wall_per_long_edge() -> void:
+	var cube: Mesh = _mesh(_shape("cube"))
+	var step: float = TUNING.cube_size
+	for turn: int in range(4):
+		var meshes: Array[Mesh] = [cube, cube, cube]
+		var offsets: PackedVector3Array = PackedVector3Array([Vector3.ZERO, Vector3(step, 0.0, 0.0), Vector3(2.0 * step, 0.0, 0.0)])
+		var result: GhostSilhouette.Result = GhostSilhouette.build(meshes, offsets, Basis(Vector3.UP, PI * 0.5 * turn))
+		assert_eq(result.wall_heights.size(), 4, "turn %d: a flat 3x1 slab has four walls" % turn)
+
+
+func test_pitched_bar_long_edges_are_one_wall_each() -> void:
+	var result: GhostSilhouette.Result = _build("bar4", Basis(Vector3.RIGHT, deg_to_rad(30.0)))
+	var long_pieces: int = 0
+	for i: int in range(result.wall_heights.size()):
+		var length: float = result.wall_segments[i * 2].distance_to(result.wall_segments[i * 2 + 1])
+		if length > TUNING.cube_size * 1.5:
+			long_pieces += 1
+			assert_almost_eq(length, 4.0 * TUNING.cube_size, EDGE_TOLERANCE, "a long edge is not split per cell")
+	assert_eq(long_pieces, 2, "one wall on each long edge")
+
+
+# --- largest_loop -----------------------------------------------------------
+
+func test_largest_loop_picks_by_area_wherever_the_loops_sit() -> void:
+	var big: PackedVector2Array = PackedVector2Array([Vector2(2, 2), Vector2(0, 2), Vector2(0, 0), Vector2(2, 0)])
+	var small: PackedVector2Array = _square(Vector2.ZERO, Vector2(1.5, 1.5), false)
+	var loops: Array[PackedVector2Array] = [big, small]
+	assert_eq(GhostSilhouette.largest_loop(loops), big)
+	var swapped: Array[PackedVector2Array] = [small, big]
+	assert_eq(GhostSilhouette.largest_loop(swapped), big)
+	var clockwise_big: PackedVector2Array = big.duplicate()
+	clockwise_big.reverse()
+	var mixed: Array[PackedVector2Array] = [small, clockwise_big]
+	assert_eq(GhostSilhouette.largest_loop(mixed), clockwise_big, "winding does not matter")
+
+
+func test_largest_loop_of_equal_areas_is_the_first() -> void:
+	var first: PackedVector2Array = _square(Vector2.ZERO, Vector2.ONE, false)
+	var second: PackedVector2Array = _square(Vector2(5.0, 5.0), Vector2(6.0, 6.0), false)
+	var loops: Array[PackedVector2Array] = [first, second]
+	assert_eq(GhostSilhouette.largest_loop(loops), first)
+
+
 # --- mask raster ------------------------------------------------------------
 
 func _square(low: Vector2, high: Vector2, clockwise: bool) -> PackedVector2Array:
@@ -409,3 +547,9 @@ func test_mask_of_real_silhouette_matches_footprint_area() -> void:
 	assert_gt(expected, 0.0)
 	assert_almost_eq(covered, expected, expected * 0.1, "covered pixel area is within 10% of the outline area")
 	assert_lt(covered, box.size.x * box.size.y * 0.9, "a plus is not its bounding box")
+
+
+func test_mask_ignores_a_loop_wholly_left_of_the_origin() -> void:
+	var loops: Array[PackedVector2Array] = [_square(Vector2(-2.0, 0.0), Vector2(-1.0, 1.0), false)]
+	var image: Image = _mask(loops, Vector2.ZERO, Vector2.ONE)
+	assert_eq(_solid_count(image), 0, "nothing of it lies inside the mask window")
