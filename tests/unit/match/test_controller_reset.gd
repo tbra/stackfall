@@ -337,7 +337,8 @@ func test_a_main_match_after_a_played_one_fingerprints_like_a_fresh_one() -> voi
 	_tiny_map.field_radius = FIELD_RADIUS
 	var reference_main: Node = _new_main()
 	_host()
-	reference_main._on_lobby_start_requested(_main_config())
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(_main_config())
 	var reference: Dictionary = await _fingerprint_b(reference_main)
 	Net.leave()
 	Match.abort_match()
@@ -347,7 +348,8 @@ func test_a_main_match_after_a_played_one_fingerprints_like_a_fresh_one() -> voi
 
 	var main: Node = _new_main()
 	_host()
-	main._on_lobby_start_requested(_main_config())
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(_main_config())
 	await get_tree().process_frame
 	_run(Match.COUNTDOWN_SECONDS + 1.0)
 	assert_eq(Match.state(), Match.State.PLAYING, "fixture: A is playing")
@@ -367,7 +369,8 @@ func test_a_main_match_after_a_played_one_fingerprints_like_a_fresh_one() -> voi
 	assert_eq(Match.state(), Match.State.LOBBY)
 
 	_host()
-	main._on_lobby_start_requested(_main_config())
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(_main_config())
 	var again: Dictionary = await _fingerprint_b(main)
 
 	var found: PackedStringArray = MatchFingerprint.diff(reference, again)
