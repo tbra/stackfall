@@ -15,13 +15,8 @@ var config: MenuPrewarmConfig = null:
 		config = value
 		_rebuild_known()
 
-## Test seams (default to ResourceLoader): request(path) -> Error, status(path) -> ThreadLoadStatus,
-## collect(path) -> Resource (blocks until done), load_sync(path) -> Resource, exists(path) -> bool.
-var request_callable: Callable = Callable()
-var status_callable: Callable = Callable()
-var collect_callable: Callable = Callable()
-var load_callable: Callable = Callable()
-var exists_callable: Callable = Callable()
+## How resources load; tests replace it with a PrewarmLoader subclass.
+var loader: PrewarmLoader = PrewarmLoader.new()
 
 var _known: Dictionary = {}
 var _queue: PackedStringArray = PackedStringArray()
@@ -30,14 +25,6 @@ var _started: bool = false
 var _drained_emitted: bool = false
 ## Strong references: the engine's resource cache only holds weak ones.
 var _loaded: Dictionary = {}
-
-
-func _init() -> void:
-	request_callable = _default_request
-	status_callable = _default_status
-	collect_callable = _default_collect
-	load_callable = _default_load
-	exists_callable = _default_exists
 
 
 ## Interactive path only: begins background loading (headless and flag runs never start it).
@@ -53,7 +40,7 @@ func poll() -> void:
 	if not _started:
 		return
 	if not _in_flight.is_empty():
-		var status: int = status_callable.call(_in_flight)
+		var status: int = loader.status(_in_flight)
 		if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			return
 		if status == ResourceLoader.THREAD_LOAD_LOADED:
@@ -79,7 +66,7 @@ func ensure(path: String) -> Resource:
 	var index: int = _queue.find(path)
 	if index >= 0:
 		_queue.remove_at(index)
-	var resource: Resource = load_callable.call(path) as Resource
+	var resource: Resource = loader.load_now(path)
 	if resource != null:
 		_store(path, resource)
 	return resource
@@ -130,9 +117,9 @@ func _advance() -> void:
 	while _in_flight.is_empty() and not _queue.is_empty():
 		var path: String = _queue[0]
 		_queue.remove_at(0)
-		if _loaded.has(path) or not exists_callable.call(path):
+		if _loaded.has(path) or not loader.exists(path):
 			continue  # already loaded, or the file does not exist: skip
-		if request_callable.call(path) == OK:
+		if loader.request(path):
 			_in_flight = path
 		# else: could not queue; ensure() falls back to a synchronous load.
 	if _in_flight.is_empty() and _queue.is_empty() and _started and not _drained_emitted:
@@ -143,7 +130,7 @@ func _advance() -> void:
 func _collect_in_flight_path() -> void:
 	var path: String = _in_flight
 	_in_flight = ""
-	var resource: Resource = collect_callable.call(path) as Resource
+	var resource: Resource = loader.collect(path)
 	if resource != null:
 		_store(path, resource)
 
@@ -151,23 +138,3 @@ func _collect_in_flight_path() -> void:
 func _store(path: String, resource: Resource) -> void:
 	_loaded[path] = resource
 	path_ready.emit(path)
-
-
-func _default_request(path: String) -> int:
-	return ResourceLoader.load_threaded_request(path)
-
-
-func _default_status(path: String) -> int:
-	return ResourceLoader.load_threaded_get_status(path)
-
-
-func _default_collect(path: String) -> Resource:
-	return ResourceLoader.load_threaded_get(path)
-
-
-func _default_load(path: String) -> Resource:
-	return load(path)
-
-
-func _default_exists(path: String) -> bool:
-	return ResourceLoader.exists(path)

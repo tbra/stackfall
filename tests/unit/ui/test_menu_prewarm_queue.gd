@@ -13,65 +13,19 @@ const FAKE_POLLS_TO_LOAD: int = 2
 const POLL_LIMIT: int = 100
 
 
-class FakeLoader:
-	extends RefCounted
-	var polls_to_load: int = FAKE_POLLS_TO_LOAD
-	var in_flight: Array[String] = []
-	var max_in_flight: int = 0
-	var requests: Array[String] = []
-	var collected: Array[String] = []
-	var sync_loads: Array[String] = []
-	var missing: Array[String] = []
-	var _polls: Dictionary = {}
-
-	func request(path: String) -> int:
-		in_flight.append(path)
-		requests.append(path)
-		_polls[path] = 0
-		max_in_flight = maxi(max_in_flight, in_flight.size())
-		return OK
-
-	func status(path: String) -> int:
-		_polls[path] = int(_polls[path]) + 1
-		if int(_polls[path]) >= polls_to_load:
-			return ResourceLoader.THREAD_LOAD_LOADED
-		return ResourceLoader.THREAD_LOAD_IN_PROGRESS
-
-	func collect(path: String) -> Resource:
-		in_flight.erase(path)
-		collected.append(path)
-		return Resource.new()
-
-	func load_sync(path: String) -> Resource:
-		sync_loads.append(path)
-		return Resource.new()
-
-	func exists(path: String) -> bool:
-		return not missing.has(path)
+func _fake() -> GatedPrewarmLoader:
+	var fake: GatedPrewarmLoader = GatedPrewarmLoader.new()
+	fake.polls_to_load = FAKE_POLLS_TO_LOAD
+	fake.fake_resources = true
+	return fake
 
 
-func _chunks(list: Array) -> Array[PackedStringArray]:
-	var result: Array[PackedStringArray] = []
-	for entry: Variant in list:
-		result.append(PackedStringArray(entry as Array))
-	return result
-
-
-func _make(fake: FakeLoader, chunk_list: Array) -> MenuPrewarmQueue:
-	var cfg: MenuPrewarmConfig = MenuPrewarmConfig.new()
-	cfg.chunks = _chunks(chunk_list)
-	var queue: MenuPrewarmQueue = MenuPrewarmQueue.new()
-	queue.config = cfg
-	queue.request_callable = fake.request
-	queue.status_callable = fake.status
-	queue.collect_callable = fake.collect
-	queue.load_callable = fake.load_sync
-	queue.exists_callable = fake.exists
-	return queue
+func _make(fake: GatedPrewarmLoader, chunk_list: Array) -> MenuPrewarmQueue:
+	return GatedPrewarmLoader.make_queue(fake, chunk_list)
 
 
 func test_requests_are_strictly_serial_and_in_order() -> void:
-	var fake: FakeLoader = FakeLoader.new()
+	var fake: GatedPrewarmLoader = _fake()
 	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A], [PATH_B, PATH_C]])
 	var drained: Array[bool] = [false]
 	queue.drained.connect(func() -> void: drained[0] = true)
@@ -89,7 +43,7 @@ func test_requests_are_strictly_serial_and_in_order() -> void:
 
 
 func test_ensure_of_in_flight_path_collects_it() -> void:
-	var fake: FakeLoader = FakeLoader.new()
+	var fake: GatedPrewarmLoader = _fake()
 	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A], [PATH_B]])
 	queue.start(get_tree())
 	assert_true(queue.has_in_flight())
@@ -103,7 +57,7 @@ func test_ensure_of_in_flight_path_collects_it() -> void:
 
 
 func test_ensure_of_queued_path_dequeues_it() -> void:
-	var fake: FakeLoader = FakeLoader.new()
+	var fake: GatedPrewarmLoader = _fake()
 	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A], [PATH_B], [PATH_C]])
 	queue.start(get_tree())  # PATH_A in flight, B and C queued
 	var resource: Resource = queue.ensure(PATH_C)
@@ -117,7 +71,7 @@ func test_ensure_of_queued_path_dequeues_it() -> void:
 
 
 func test_missing_files_are_skipped_in_the_background() -> void:
-	var fake: FakeLoader = FakeLoader.new()
+	var fake: GatedPrewarmLoader = _fake()
 	fake.missing = [PATH_A]
 	var queue: MenuPrewarmQueue = _make(fake, [[PATH_A, PATH_B]])
 	queue.start(get_tree())

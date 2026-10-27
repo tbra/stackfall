@@ -1,24 +1,25 @@
 class_name PrewarmLoader
 extends RefCounted
-## STUB (P7 plan section 2.1): null-object bodies, nothing wired; the filler package P7-Iload implements it.
 ## Threaded and blocking resource loads behind overridable methods (tests subclass it).
 
 
-func request(_path: String) -> bool:
-	return false
+## True when the threaded request was queued.
+func request(path: String) -> bool:
+	return ResourceLoader.load_threaded_request(path) == OK
 
 
-func status(_path: String) -> ResourceLoader.ThreadLoadStatus:
-	return ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
+func status(path: String) -> ResourceLoader.ThreadLoadStatus:
+	return ResourceLoader.load_threaded_get_status(path)
 
 
-func collect(_path: String) -> Resource:
-	return null
+## Blocks until the threaded request finishes.
+func collect(path: String) -> Resource:
+	return ResourceLoader.load_threaded_get(path)
 
 
-func load_now(_path: String) -> Resource:
-	return null
+func load_now(path: String) -> Resource:
+	return load(path)
 
 
-func exists(_path: String) -> bool:
-	return false
+func exists(path: String) -> bool:
+	return ResourceLoader.exists(path)
