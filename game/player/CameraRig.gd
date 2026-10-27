@@ -153,21 +153,13 @@ var _start_target: Vector3 = Vector3.ZERO
 @onready var _camera: Camera3D = $Camera3D
 
 
-var _pause_open: bool = false
-var _results_open: bool = false
-## the chat input line owns the keyboard.
-var _chat_open: bool = false
+## Shared with PlayerController (set_camera_rig hands it over); this rig outlives matches.
+var input_gate: InputGate = InputGate.new()
 
 
 func _ready() -> void:
 	add_to_group(TUNING_GROUP)
 	Events.special_triggered.connect(_on_special_triggered)
-	Events.pause_menu_opened.connect(_on_pause_menu_opened)
-	Events.pause_menu_closed.connect(_on_pause_menu_closed)
-	Events.chat_input_opened.connect(_on_chat_input_opened)
-	Events.chat_input_closed.connect(_on_chat_input_closed)
-	Events.match_results_ready.connect(_on_match_results_ready)
-	Events.match_scope_reset.connect(_on_match_scope_reset)
 	process_priority = _PROCESS_PRIORITY_AFTER_GHOST
 	# This rig's global_position and its Camera3D child's transform are fully
 	# re-derived every rendered _process() frame from mouse/gamepad input, never from
@@ -208,42 +200,8 @@ func is_orbiting() -> bool:
 	return Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit")
 
 
-## True while the pause menu, the results screen or the chat input is open: orbit,
-## pan, zoom and snap input are all ignored. Driven only by the Events bus
-## (pause_menu_*, chat_input_*, match_results_ready; cleared by match_scope_reset and
-## reset_view()), so no UI node is referenced.
-func is_input_blocked() -> bool:
-	return _pause_open or _results_open or _chat_open
-
-
-func _on_pause_menu_opened() -> void:
-	_pause_open = true
-
-
-func _on_chat_input_opened() -> void:
-	_chat_open = true
-
-
-func _on_chat_input_closed() -> void:
-	_chat_open = false
-
-
-func _on_pause_menu_closed() -> void:
-	_pause_open = false
-
-
-func _on_match_results_ready(_results: Dictionary) -> void:
-	_results_open = true
-
-
-func _on_match_scope_reset() -> void:
-	_chat_open = false
-	_pause_open = false
-	_results_open = false
-
-
 func _unhandled_input(event: InputEvent) -> void:
-	if is_input_blocked():
+	if input_gate.is_blocked():
 		return
 	if _rotate_drag_frozen():
 		# The freeze consumes every camera input (orbit, pan, zoom keys, snap actions)
@@ -318,7 +276,7 @@ func _process(delta: float) -> void:
 	# second job to gate against.
 	var look_x: float = 0.0
 	var look_y: float = 0.0
-	if not is_input_blocked():
+	if not input_gate.is_blocked():
 		look_x = Input.get_action_strength(&"camera_look_right") - Input.get_action_strength(&"camera_look_left")
 		look_y = Input.get_action_strength(&"camera_look_down") - Input.get_action_strength(&"camera_look_up")
 	if look_x != 0.0 or look_y != 0.0:
@@ -365,7 +323,7 @@ func _process(delta: float) -> void:
 		# mode. That's a minor, documented side effect, not a hard bug.
 		var pan_x: float = Input.get_action_strength(&"camera_pan_right") - Input.get_action_strength(&"camera_pan_left")
 		var pan_z: float = Input.get_action_strength(&"camera_pan_back") - Input.get_action_strength(&"camera_pan_forward")
-		if _chat_open:
+		if input_gate.is_blocked_by(InputGate.Blocker.CHAT):
 			# typed W/A/S/D must not pan the free-orbit camera.
 			pan_x = 0.0
 			pan_z = 0.0
@@ -437,9 +395,7 @@ func set_home_view(home_position: Vector3, look_at_position: Vector3 = Vector3.Z
 ## sandbox start), so a lobby match after a sandbox session has gamepad Back =
 ## focus home again.
 func reset_view() -> void:
-	_chat_open = false
-	_pause_open = false
-	_results_open = false
+	input_gate.clear_match_scope()
 	suppress_pad_home_focus = false
 	for tween: Tween in _view_tweens:
 		if tween != null and tween.is_valid():
