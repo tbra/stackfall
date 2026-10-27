@@ -23,6 +23,7 @@ const GIFT_CLAIMED: StringName = &"gift_claimed"
 const GIFT_EXPIRED: StringName = &"gift_expired"
 const SPECIAL_TRIGGERED: StringName = &"special_triggered"
 const SPECIAL_CONSUMED: StringName = &"special_consumed"
+const SPECIAL_LAUNCH_STATE: StringName = &"special_launch_state"
 const GLUE_CHARGES: StringName = &"glue_charges_changed"
 const BLOCK_GLUED: StringName = &"block_glued_changed"
 const BLOCK_OWNER_CHANGED: StringName = &"block_owner_changed"
@@ -67,6 +68,7 @@ const _SHAPES: Dictionary = {
 	GIFT_EXPIRED: [_I],
 	SPECIAL_TRIGGERED: [_I, _SN, _V3, _I],
 	SPECIAL_CONSUMED: [_I, _SN],
+	SPECIAL_LAUNCH_STATE: [_I, _B],
 	GLUE_CHARGES: [_I, _I, _I],
 	BLOCK_GLUED: [_I, _B],
 	BLOCK_OWNER_CHANGED: [_I, _I],

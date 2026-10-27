@@ -5,17 +5,14 @@ extends SpecialEffect
 ## blocks flying away from the centre of the explosion." Impacts never set it off; a
 ## chain trigger from a neighbouring blast still detonates it early.
 ##
-## Timeline: the Bomb blinks for `blink_duration_s` from the moment it is dropped, then
-## ExplosionFx blasts (`behavior.age() >= blink_duration_s` on the host); the blink visual
-## is derived from the same clock on every peer (GiftBlink.start_for_gift, no RPC).
+## Timeline: the Bomb blinks for `blink_duration_s`, then ExplosionFx blasts
+## (`behavior.effect_age() >= blink_duration_s` on the host). A placed Bomb counts from its drop;
+## a thrown one from its first landing contact (SpecialBehavior.starts_on_landing), so nothing blinks
+## or counts down in flight. The blink visual is derived from the same clock on every peer
+## (GiftBlink.start_for_gift, no RPC); see GiftFxPresenter for the thrown case.
 ##
-## DECISION: the clock starts at the drop (spawn), not at landing.
-## Clients cannot see a landing (their copy of the body is frozen kinematic and reports
-## no velocity) and plan section 7 forbids a new RPC, so a landing-anchored timeline
-## would leave the client's blink ending before the host's explosion by the fall time.
-## The spec text ("when dropped ... blinks ..., then explodes") matches. A Bomb still
-## in the air at the end of its blink explodes there; the blast is mass-independent
-## and team-agnostic either way.
+## DECISION: a Bomb that never lands is exploded by the fuse backstop; the blast is
+## mass-independent and team-agnostic.
 ##
 ## Like every shared SpecialEffect resource this keeps NO per-block state on itself:
 ## the one flag it needs lives in the EffectState from new_state().
@@ -69,13 +66,13 @@ func physics_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> voi
 		return
 	state.blink_started = true
 	if block.get_node_or_null(NodePath(String(GiftBlink.DRIVER_NAME))) == null:
-		GiftBlink.apply(block, blink_period_s, blink_duration_s, blink_tuning, behavior.age())
+		GiftBlink.apply(block, blink_period_s, blink_duration_s, blink_tuning, behavior.effect_age())
 
 
 ## The blink is over: explode (SpecialBehavior calls this once armed, so a Bomb whose
 ## blink is shorter than arm_delay waits for arming).
 func wants_early_trigger(_block: Block, behavior: SpecialBehavior) -> bool:
-	return behavior.age() >= blink_duration_s
+	return behavior.effect_age() >= blink_duration_s
 
 
 func new_state() -> EffectState:

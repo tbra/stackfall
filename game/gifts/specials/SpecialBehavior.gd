@@ -23,6 +23,9 @@ const GROUP: StringName = &"specials"
 ## Events.special_triggered from there.
 signal triggered(def_id: StringName, position: Vector3, chain_depth: int)
 
+## Emitted once when a landing-gated (thrown) gift first lands: its effect starts now.
+signal landed
+
 ## Emitted once, host-side, when a gift-bound behavior's
 ## action is complete (a short linger after trigger(), or the hard
 ## max-lifetime backstop for an action that never completes). The block's owning slot
@@ -33,6 +36,11 @@ signal completed(block: Block)
 ## Set by MatchPlacement for a gift-drawn special only. Projectile specials
 ## (Volcano orbs) and plain blocks never set it, so they are never despawned.
 var despawn_when_done: bool = false
+
+## Set by MatchPlacement for a ballistically THROWN gift: its effect (timers, pulls, hops) waits
+## for the first landing, whatever the effect's own needs_landing(); until then only
+## SpecialEffect.flight_tick() runs. A placed or aimed gift keeps its own timing.
+var starts_on_landing: bool = false
 
 var _completed: bool = false
 var _despawn_timer: float = -1.0
@@ -119,6 +127,18 @@ func has_landed() -> bool:
 	return _landed_at_age >= 0.0
 
 
+## Seconds the effect has been running: since landing for a landing-gated effect, else since
+## binding. Effects with a clock use this, never age(), so a thrown gift's clock starts on landing.
+func effect_age() -> float:
+	return landed_age() if _landing_gated() else _age
+
+
+func _landing_gated() -> bool:
+	if _def == null or _def.activates_in_place:
+		return false
+	return starts_on_landing or (_def.effect != null and effect_of(_def).needs_landing())
+
+
 ## Seconds since landing; 0.0 before it.
 func landed_age() -> float:
 	return maxf(_age - _landed_at_age, 0.0) if _landed_at_age >= 0.0 else 0.0
@@ -145,14 +165,13 @@ func advance(delta: float) -> void:
 		# velocity at arming, not a stale sample from before arm_delay elapsed.
 		_prev_linear_velocity = _block.linear_velocity
 	# An in-place activated gift has no falling carrier to wait for.
-	var fx1: SpecialEffect = effect_of(_def)
-	var needs_landing: bool = (
-		_def.effect != null and fx1.needs_landing() and not _def.activates_in_place
-	)
+	var needs_landing: bool = _def.effect != null and _landing_gated()
 	if needs_landing and _landed_at_age < 0.0:
 		_landed_probe.update(_block, delta)
 		if _landed_probe.has_landed():
 			_landed_at_age = _age
+			if starts_on_landing:
+				landed.emit()
 	if _armed:
 		_check_impact()
 	var effect_may_run: bool = not needs_landing or _landed_at_age >= 0.0
@@ -161,6 +180,8 @@ func advance(delta: float) -> void:
 		fx.physics_tick(_block, self, delta)
 		if not _has_triggered and fx.wants_early_trigger(_block, self):
 			trigger(0)
+	elif not _has_triggered and _armed and _def.effect != null:
+		effect_of(_def).flight_tick(_block, self, delta)
 	if not _has_triggered and _age >= _fuse_deadline():
 		trigger(0)
 
@@ -178,7 +199,7 @@ func _fuse_deadline() -> float:
 	if lifetime <= 0.0:
 		return base
 	var margin: float = _tuning.fuse_backstop_margin_s if _tuning != null else 0.0
-	if fx2.needs_landing() and _landed_at_age < 0.0:
+	if _landing_gated() and _landed_at_age < 0.0:
 		return base + lifetime + margin
 	var start: float = _landed_at_age if _landed_at_age >= 0.0 else _def.arm_delay
 	return start + lifetime + margin

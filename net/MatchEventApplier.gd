@@ -71,6 +71,7 @@ func _build_handlers() -> void:
 		MatchWireEvents.GIFT_EXPIRED: _on_gift_expired,
 		MatchWireEvents.SPECIAL_TRIGGERED: _on_special_triggered,
 		MatchWireEvents.SPECIAL_CONSUMED: _on_special_consumed,
+		MatchWireEvents.SPECIAL_LAUNCH_STATE: _on_special_launch_state,
 		MatchWireEvents.GLUE_CHARGES: _on_glue_charges,
 		MatchWireEvents.BLOCK_GLUED: _on_block_glued,
 		MatchWireEvents.BLOCK_OWNER_CHANGED: _on_block_owner_changed,
@@ -327,6 +328,15 @@ func _on_special_triggered(args: Array) -> bool:
 	if chain_depth < 0 or chain_depth > _special_tuning.max_chain_depth:
 		return false
 	Events.special_triggered.emit(net_id, def_id, position, chain_depth)
+	return true
+
+
+## A thrown gift's launch state (thrown / landed) for the client's blink; an effects signal only.
+func _on_special_launch_state(args: Array) -> bool:
+	var net_id: int = args[0]
+	if _block_for(net_id) == null:
+		return false
+	Events.special_launch_state.emit(net_id, args[1])
 	return true
 
 

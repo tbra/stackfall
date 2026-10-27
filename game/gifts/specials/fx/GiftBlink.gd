@@ -49,6 +49,14 @@ static func start_for_gift(block: Block, elapsed_s: float = 0.0) -> bool:
 	return block.get_node_or_null(NodePath(String(DRIVER_NAME))) != null
 
 
+## Removes a running blink (a thrown Bomb waits for its landing). No-op without one.
+static func stop(block: Block) -> void:
+	var driver: Node = block.get_node_or_null(NodePath(String(DRIVER_NAME))) if block != null else null
+	if driver != null:
+		block.remove_child(driver)
+		driver.queue_free()
+
+
 ## Starts (or restarts) the blink on `block`. `elapsed_s` is the blink's age at the
 ## moment of the call (0 for a fresh blink). No-op for a null/freed block or
 ## non-positive timings.
