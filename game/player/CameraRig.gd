@@ -203,6 +203,11 @@ func _apply_default_view() -> void:
 		_update_transform()
 
 
+## True while either orbit hold (RMB camera_orbit, or the C alias camera_mode) is down.
+func is_orbiting() -> bool:
+	return Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit")
+
+
 ## True while the pause menu, the results screen or the chat input is open: orbit,
 ## pan, zoom and snap input are all ignored. Driven only by the Events bus
 ## (pause_menu_*, chat_input_*, match_results_ready; cleared by match_scope_reset and
@@ -248,7 +253,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion:
 		var motion: InputEventMouseMotion = event
-		if Input.is_action_pressed(&"camera_mode") or Input.is_action_pressed(&"camera_orbit"):
+		if is_orbiting():
 			# camera_orbit (RMB) is the primary hold (spec 1.3 "Camera orbit (hold +
 			# drag)"); camera_mode (C) stays wired as the keyboard alias for the same
 			# gesture.
