@@ -49,3 +49,15 @@ static func loading_screen(main: Node) -> LoadingScreen:
 
 static func local_player(main: Node) -> LocalPlayer:
 	return first(main, &"LocalPlayer") as LocalPlayer
+
+
+static func sandbox(main: Node) -> Sandbox:
+	return first(main, &"Sandbox") as Sandbox
+
+
+static func tutorial(main: Node) -> Tutorial:
+	return first(main, &"Tutorial") as Tutorial
+
+
+static func spectator(main: Node) -> SpectatorController:
+	return first(main, &"SpectatorController") as SpectatorController

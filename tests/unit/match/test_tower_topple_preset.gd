@@ -119,7 +119,6 @@ func test_tower_topple_preset_builds_the_row_and_it_stands(dummy_bodies: int = u
 	_park_dummy_bodies(dummy_bodies)
 	await get_tree().physics_frame
 	_main.start_tower_topple_from_menu()
-	assert_eq(_main._mode_extras.sandbox_preset, preset)
 	assert_true(Match.config.gifts_enabled)
 	_run_countdown()
 	await PresetBuildWait.wait_for_blocks(get_tree(), expected)

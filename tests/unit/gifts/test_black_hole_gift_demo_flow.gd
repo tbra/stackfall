@@ -103,7 +103,7 @@ func _place_pile(field: Field) -> Array[Block]:
 	var home: Vector2 = Match.slot(0).home_position
 	var inward: Vector2 = -home.normalized()
 	var side: Vector2 = Vector2(-inward.y, inward.x)
-	var sandbox: Sandbox = _main._sandbox
+	var sandbox: Sandbox = MainNodes.sandbox(_main)
 	for layer: int in PILE_LAYERS:
 		for column: int in PILE_COLUMNS:
 			var spot: Vector2 = _inward(PILE_INWARD_M) + (inward * float(column >> 1) + side * float(column & 1)) * PILE_SPACING_M
@@ -152,7 +152,7 @@ func test_black_hole_released_in_the_gift_demo_dissolves_the_blocks_it_pulls_in(
 		Match.pop_pending_special(0)
 	assert_true(Match.debug_queue_special(0, &"black_hole"), "black hole queued as the next gift")
 	# Like the owner: the queued gift becomes the HELD piece once the current piece is placed.
-	_main._sandbox.force_next_shape(&"cube")
+	MainNodes.sandbox(_main).force_next_shape(&"cube")
 	var feeder: StringName = Match.request_place(0, field.to_global(Vector3(_inward(0.0).x, PILE_DROP_HEIGHT_M, _inward(0.0).y)), 0, Quaternion.IDENTITY, false)
 	_note("feeder place -> %s held_special=%s" % [feeder, Match.held_special(0)])
 	assert_eq(Match.held_special(0), &"black_hole", "the black hole is the held gift")
