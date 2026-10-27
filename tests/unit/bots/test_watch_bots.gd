@@ -65,7 +65,7 @@ func test_watch_match_has_no_local_seat_and_a_bot_per_slot() -> void:
 	assert_not_null(_main._spectator, "the spectator controller stands in for the player")
 	for _i: int in range(PHYSICS_FRAMES):
 		await get_tree().physics_frame
-	assert_eq(get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0, "no local held block")
+	assert_eq(MatchContext.current().local_held().slot_id, -1, "no local held block")
 
 
 func test_player_build_never_builds_a_spectator() -> void:

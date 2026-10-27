@@ -6,7 +6,7 @@ extends Node3D
 ## thrown special before it lands), stepping at a fixed dt (GhostTuning.throw_arc_max_time_s /
 ## throw_arc_sample_count) but stopping at the FIRST sample that reaches the landing surface.
 ##
-## Landing height comes from the optional read-only `field` (game/field/Field.gd):
+## Landing height comes from the optional read-only `field` (game/world/FieldBody.gd):
 ## disk_local_from_world() for "is this XZ still over the disc" and surface_y() for its top
 ## height. That is the disc's own top while the sample is within map_def.field_radius of the
 ## disc center, or GhostTuning.throw_arc_floor_below_disc_m below the disc's surface once it
@@ -71,7 +71,7 @@ func _ready() -> void:
 ## `gravity_scale` multiplies the block gravity (default 1.0 = a thrown block;
 ## 0.0 = the straight gravity-free flight of Rocket/Paintball).
 func sample_arc(
-	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0
+	origin: Vector3, velocity: Vector3, field: FieldBody = null, gravity_scale: float = 1.0
 ) -> PackedVector3Array:
 	var gravity: Vector3 = (
 		Vector3.DOWN
@@ -107,7 +107,7 @@ func sample_arc(
 ## loop bound stops it). `field == null` (the bare-unit-test/no-active-match
 ## case) returns -INF: there is no ground to land on when nothing describes
 ## one, so this never invents a fake floor for that case either.
-func _landing_height_at(point: Vector3, field: Field) -> float:
+func _landing_height_at(point: Vector3, field: FieldBody) -> float:
 	if field == null:
 		return -INF
 	var local_xz: Vector2 = field.disk_local_from_world(point)
@@ -138,7 +138,7 @@ func _landing_point(previous: Vector3, point: Vector3, landing_y: float) -> Vect
 ## forwarded straight to sample_arc(); PlayerController
 ## passes Match.field(), read-only, same as its own _on_placement_relocated().
 func update_arc(
-	origin: Vector3, velocity: Vector3, field: Field = null, gravity_scale: float = 1.0, ring_scale: float = 1.0
+	origin: Vector3, velocity: Vector3, field: FieldBody = null, gravity_scale: float = 1.0, ring_scale: float = 1.0
 ) -> void:
 	var points: PackedVector3Array = sample_arc(origin, velocity, field, gravity_scale)
 	_rebuild_mesh(points)
@@ -217,7 +217,7 @@ func _update_end_ring(point: Vector3, normal: Vector3, ring_scale: float = 1.0) 
 
 
 ## The landing surface normal for `point`: the disc's own up axis while over it, else world up.
-func _surface_normal_at(point: Vector3, field: Field) -> Vector3:
+func _surface_normal_at(point: Vector3, field: FieldBody) -> Vector3:
 	if field == null:
 		return Vector3.UP
 	if field.disk_local_from_world(point).length() <= field.map_definition().field_radius:
