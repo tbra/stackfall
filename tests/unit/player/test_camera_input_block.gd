@@ -38,7 +38,7 @@ func test_right_stick_orbits_when_nothing_is_open() -> void:
 func test_right_stick_does_not_move_camera_while_results_are_open() -> void:
 	var rig: CameraRig = _make_rig()
 	Events.match_results_ready.emit({})
-	assert_true(rig.is_input_blocked())
+	assert_true(rig.input_gate.is_blocked())
 	var yaw_before: float = rig.get_yaw()
 	_push_right_stick(STICK_FULL)
 	Input.flush_buffered_events()
@@ -50,7 +50,7 @@ func test_right_stick_does_not_move_camera_while_results_are_open() -> void:
 func test_pause_menu_blocks_and_releases_camera_input() -> void:
 	var rig: CameraRig = _make_rig()
 	Events.pause_menu_opened.emit()
-	assert_true(rig.is_input_blocked())
+	assert_true(rig.input_gate.is_blocked())
 	Events.pause_menu_closed.emit()
-	assert_false(rig.is_input_blocked())
+	assert_false(rig.input_gate.is_blocked())
 

@@ -76,10 +76,10 @@ func test_chat_open_opens_input_and_blocks_controller_and_camera() -> void:
 	assert_true(chat.panel.is_typing())
 	assert_eq(_opened, 1)
 	assert_false(controller.input_enabled)
-	assert_true(rig.is_input_blocked())
+	assert_true(rig.input_gate.is_blocked())
 	chat.panel.close_input(false)
 	assert_true(controller.input_enabled)
-	assert_false(rig.is_input_blocked())
+	assert_false(rig.input_gate.is_blocked())
 
 
 func test_typing_keys_do_not_place_or_rotate() -> void:

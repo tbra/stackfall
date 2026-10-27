@@ -474,6 +474,7 @@
   "game/player/CameraRig.gd",
   "game/player/CameraRig.tscn",
   "game/player/GhostPreview.gd",
+  "game/player/InputGate.gd",
   "game/sky/CloudSea.gd",
   "game/sky/CloudShadows.gd",
   "game/sky/SkyDomeWriter.gd",

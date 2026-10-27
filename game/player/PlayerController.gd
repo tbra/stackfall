@@ -127,17 +127,14 @@ var _clearance_machine: SpawnClearance
 var _clearance_ghost: GhostPreview
 var _clearance_tuning: GhostTuning
 
-## In-game tuning panel: ui/debug/TuningPanel.gd sets this false
-## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
-## also move the ghost, rotate it, or spend a placement underneath the panel.
-## Defaults true so a bare controller (no panel involved) is enabled.
-var input_enabled: bool = true
-## set by Events.match_results_ready; this controller is freed
-## with the match world, so it never needs clearing.
-var _results_open: bool = false
-## tracked beside input_enabled so closing one blocker never re-enables input under another.
-var _pause_open: bool = false
-var _chat_open: bool = false
+## Pause, chat, results and the tuning panel block input through this gate. A bare
+## controller owns its own; set_camera_rig() swaps in the rig's so both share one.
+var input_gate: InputGate = InputGate.new()
+## True while no blocker holds gameplay input (so dragging a tuning-panel slider can't
+## also move the ghost underneath the panel).
+var input_enabled: bool:
+	get:
+		return not input_gate.is_blocked()
 
 ## gift release is camera-aimed and automatic (no LT/drag state); the held
 ## throwable's arc preview is simply driven every frame by _drive_throw_visuals().
@@ -184,10 +181,6 @@ func _ready() -> void:
 	# input_enabled already has for ui/debug/TuningPanel.gd's toggle.
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
-	# the results screen blocks gameplay input like the pause menu.
-	Events.chat_input_opened.connect(_on_chat_input_opened)
-	Events.chat_input_closed.connect(_on_chat_input_closed)
-	Events.match_results_ready.connect(_on_match_results_ready)
 	Events.match_scope_reset.connect(_on_match_scope_reset)
 
 
@@ -196,6 +189,8 @@ func _ready() -> void:
 ## tree, so it can't be wired by NodePath at scene-author time.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
+	if rig != null:
+		input_gate = rig.input_gate
 	# the rig's match-start framing pivots on the held piece's
 	# spawn anchor (see spawn_camera_anchor()), not on the bare home beacon.
 	if rig != null:
@@ -290,49 +285,24 @@ func enable_mouse_capture() -> void:
 ## are reachable -- physics/simulation itself is never paused (CLAUDE.md's
 ## host-authority model); this only stops the *local* player from acting.
 func _on_pause_menu_opened() -> void:
-	_pause_open = true
-	input_enabled = false
 	if _mouse_capture_enabled:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-## the chat input line owns the keyboard, so every gameplay handler here stops
-## (the same gate pause uses); mouse capture is left alone so the ghost still follows the cursor.
-func _on_chat_input_opened() -> void:
-	_chat_open = true
-	input_enabled = false
-
-
-## Input returns only when neither pause nor the results screen still hold it.
-func _on_chat_input_closed() -> void:
-	_chat_open = false
-	input_enabled = not _pause_open and not _results_open
-
-
-func _on_match_results_ready(_results: Dictionary) -> void:
-	_results_open = true
-	input_enabled = false
-
-
-## Play again / sandbox reset reuse this controller: the results screen is gone,
-## so gameplay input comes back.
-func _on_match_scope_reset() -> void:
-	_chat_open = false
-	if not _results_open:
-		return
-	_results_open = false
-	input_enabled = true
 
 
 ## Mirrors _on_pause_menu_opened() above: restores input and, if this session
 ## ever had mouse capture on, re-captures it exactly as enable_mouse_capture()
 ## originally set it up.
-
-
 func _on_pause_menu_closed() -> void:
-	_pause_open = false
-	input_enabled = not _results_open and not _chat_open
 	if _mouse_capture_enabled:
+		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+## The pause menu does not close itself on a reset, so no pause_menu_closed arrives to hand
+## the cursor back. The gate is cleared here too (idempotent) so the answer does not depend
+## on whether InputGate's own reset handler ran first; a PANEL blocker keeps the cursor free.
+func _on_match_scope_reset() -> void:
+	input_gate.clear_match_scope()
+	if _mouse_capture_enabled and not input_gate.is_blocked():
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 

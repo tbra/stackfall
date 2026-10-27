@@ -101,7 +101,7 @@ func test_input_disabled_still_publishes() -> void:
 	_start_match()
 	_run_countdown()
 	var controller: PlayerController = _make_controller()
-	controller.input_enabled = false
+	controller.input_gate.set_blocker(InputGate.Blocker.PANEL, true)
 	controller._process(FRAME)
 	assert_eq(_view().slot_id, 0, "an input gate does not hide the held piece from readers")
 	assert_not_null(_view().shape)
