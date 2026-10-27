@@ -13,3 +13,9 @@ var world_environment: WorldEnvironment = null
 var skybox: Skybox = null
 var loader: AppLoader = null
 var graphics: GraphicsApplier = null
+
+## State written by one flow and read by another (sandbox flow writes, match flow and Main read).
+## Typed Node: Main must not name Sandbox/Tutorial (compile graph, MainFlowPort.gd).
+var mode_extras: ModeExtras = null
+var sandbox: Node = null
+var tutorial: Node = null

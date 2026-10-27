@@ -585,11 +585,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/main/MainFlowPort.gd:bind_world",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
   },
@@ -652,11 +647,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "test-only-var",
-   "entry": "game/main/MainWorld.gd:blocks_container",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
   {
    "id": "test-only-var",

@@ -92,6 +92,9 @@ var _graphics_applier: GraphicsApplier = null
 
 ## Background prewarm, late activation and scene loading (game/main/AppLoader.gd).
 var _loader: AppLoader = null
+## The one context all flows share, so cross-flow state (sandbox, tutorial, mode extras) has
+## one owner. Built on the first flow request, which is after _ready set the members below.
+var _world: MainWorld = null
 ## The on-demand flows (typed to the light ports).
 var _sandbox_flow: MainSandboxFlowPort = null
 var _headless_bots_flow: MainHeadlessBotsFlowPort = null
@@ -103,12 +106,6 @@ var _local_player: Node = null
 ## the menu; the match flow then builds a SpectatorController instead of a LocalPlayer.
 var _watch_bots_active: bool = false
 var _spectator: Node = null
-var _sandbox: Node = null
-## Built by the sandbox flow's attach_extras() and freed with the match world.
-var _tutorial: Node = null
-## What a non-lobby mode adds to the one match world; null for a lobby match, which
-## keeps every hook below inert. Cleared by the match flow when the session returns to the lobby.
-var _mode_extras: ModeExtras = null
 var _remote_cursors: Node = null
 var _debug_overlay: Node = null
 ## The four overlays (pause menu, results screen, scoreboard, loading screen) are
@@ -364,6 +361,7 @@ func _sandbox_flow_port() -> MainSandboxFlowPort:
 		var flow_script: GDScript = _loader.ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
 		_sandbox_flow = flow_script.new() as MainSandboxFlowPort
 		_sandbox_flow.bind(self)
+		_sandbox_flow.bind_world(_main_world())
 	return _sandbox_flow
 
 
@@ -414,7 +412,23 @@ func _headless_bots_flow_port() -> MainHeadlessBotsFlowPort:
 		var flow_script: GDScript = _loader.ensure_script(HEADLESS_BOTS_FLOW_SCRIPT_PATH)
 		_headless_bots_flow = flow_script.new() as MainHeadlessBotsFlowPort
 		_headless_bots_flow.bind(self)
+		_headless_bots_flow.bind_world(_main_world())
 	return _headless_bots_flow
+
+
+func _main_world() -> MainWorld:
+	if _world == null:
+		_world = MainWorld.new()
+		_world.parent = self
+		_world.field = _field
+		_world.registry = _registry
+		_world.blocks_container = _blocks_container
+		_world.camera_rig = _camera_rig
+		_world.world_environment = _world_environment
+		_world.skybox = _skybox
+		_world.loader = _loader
+		_world.graphics = _graphics_applier
+	return _world
 
 
 func _build_app_loader() -> AppLoader:
@@ -458,7 +472,7 @@ func _ensure_scoreboard() -> ScoreboardOverlay:
 		_scoreboard_node = _load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
 		add_child(_scoreboard_node)
 		# Created while a sandbox is live (the sandbox flow only suppresses an existing one).
-		_scoreboard_node.suppressed = _sandbox != null and is_instance_valid(_sandbox)
+		_scoreboard_node.suppressed = _main_world().sandbox != null and is_instance_valid(_main_world().sandbox)
 	return _scoreboard_node
 
 
@@ -700,9 +714,10 @@ func _on_pause_leave_requested() -> void:
 ## Called by the match flow once the local player is built; the sandbox flow port
 ## attaches the mode's node. Inert for a lobby match.
 func _attach_mode_extras(local_player: Node) -> void:
-	if _mode_extras == null:
+	var extras: ModeExtras = _main_world().mode_extras
+	if extras == null:
 		return
-	_sandbox_flow_port().attach_extras(_mode_extras, local_player)
+	_sandbox_flow_port().attach_extras(extras, local_player)
 
 
 ## What ui/menus/PauseMenu.gd's Return to lobby entry shows, answered here because
@@ -802,6 +817,7 @@ func _match_flow_port() -> MainMatchFlowPort:
 		var flow_script: GDScript = _loader.ensure_script(MATCH_FLOW_SCRIPT_PATH)
 		_match_flow = flow_script.new() as MainMatchFlowPort
 		_match_flow.bind(self)
+		_match_flow.bind_world(_main_world())
 	return _match_flow
 
 
