@@ -47,7 +47,7 @@ func _run_countdown() -> void:
 
 func test_gift_demo_preplaces_blocks_and_gifts_spawn() -> void:
 	_main.start_gift_demo_from_menu()
-	assert_not_null(_main._sandbox, "the gift demo opens the sandbox")
+	assert_not_null(MainNodes.sandbox(_main), "the gift demo opens the sandbox")
 	assert_true(Match.config.sandbox)
 	assert_true(Match.config.gifts_enabled)
 	assert_eq(Match.config.special_frequency, MatchConfig.SPECIAL_FREQUENCY_MAX)
@@ -82,7 +82,7 @@ func test_f5_re_places_the_preset_towers() -> void:
 	key.physical_keycode = KEY_F5
 	key.pressed = true
 	assert_true(key.is_action_pressed(&"sandbox_reset_field"))
-	_main._sandbox._unhandled_input(key)
+	MainNodes.sandbox(_main)._unhandled_input(key)
 	_run_countdown()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -78,5 +78,14 @@ func test_menu_sandbox_never_samples_the_painted_panorama() -> void:
 		var material: ShaderMaterial = sky.environment.sky.sky_material as ShaderMaterial
 		assert_eq(float(material.get_shader_parameter(&"procedural_sea_mix")), 1.0, "painted panorama fully replaced")
 		if step == 1:
-			_main._sandbox._reset_field()
+			_press_reset_field()
 	Match.set_process(false)
+
+
+## F5 through the Input Map, the way a player resets the sandbox field.
+func _press_reset_field() -> void:
+	var key: InputEventKey = InputEventKey.new()
+	key.device = -1
+	key.physical_keycode = KEY_F5
+	key.pressed = true
+	MainNodes.sandbox(_main)._unhandled_input(key)

@@ -158,7 +158,8 @@ func _run_seconds(seconds: float) -> void:
 
 
 func _start(main: Node, config: MatchConfig) -> void:
-	main._on_lobby_start_requested(config)
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(config)
 
 
 ## Fingerprints a started match B at COUNTDOWN + 0.5 s and PLAYING + 1 s.
@@ -287,7 +288,7 @@ func _play_dirty_a(main: Node) -> void:
 func _sandbox_session_and_leave(main: Node) -> void:
 	_seed_main_config(main)
 	main.start_sandbox_from_menu()
-	var sandbox: Sandbox = main.get("_sandbox") as Sandbox
+	var sandbox: Sandbox = MainNodes.sandbox(main)
 	assert_not_null(sandbox, "fixture: the sandbox is live")
 	sandbox._toggle_slow_motion()
 	sandbox._toggle_physics_paused()
