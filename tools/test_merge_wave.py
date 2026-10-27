@@ -62,6 +62,15 @@ class PureRuleTests(unittest.TestCase):
         grown = {"autoload_scc_pairs": [["a/Match.gd", "a/Net.gd"]]}
         self.assertEqual(mw.rising("layers", old, grown), ["autoload_scc_pairs:a/Match.gd a/Net.gd"])
 
+    def test_branch_added_files_only_new_file_entries(self):
+        old = {"largest_scc": 1, "closure": ["a.gd"], "main_closure": [], "l1_exceptions": ["s.gd -> d.gd"],
+               "autoload_scc_pairs": [["x.gd"]]}
+        new = {"largest_scc": 2, "closure": ["a.gd", "n.gd"], "main_closure": ["m.gd"],
+               "l1_exceptions": ["s.gd -> d.gd", "t.gd -> d.gd"], "autoload_scc_pairs": [["x.gd", "y.gd"]]}
+        self.assertEqual(mw.branch_added_files(old, new), ["m.gd", "n.gd", "t.gd"])
+        self.assertEqual(mw.branch_added_files(new, old), [])
+        self.assertEqual(mw.branch_added_files({}, {}), [])
+
     def test_attribution(self):
         files = {"wt/a": {"game/a.gd"}, "wt/b": {"autoload/Net.gd", "game/b.gd"}}
         self.assertEqual(mw.attribute("test-only-func:autoload/Net.gd:report_stats", files), "wt/b")
@@ -193,6 +202,20 @@ class WaveTests(unittest.TestCase):
         self.drop_wave(res)
         err, _ = self.run_wave(["wt/a", "wt/b"], allow_new=["game/n.gd"])
         self.assertIsNone(err)
+
+    def test_branch_own_layer_entry_is_auto_allowed_but_foreign_one_is_not(self):
+        def layers(*closure):
+            return json.dumps({"largest_scc": 1, "closure": list(closure)})
+        self.branch("wt/a", {"game/a.gd": "a2\n", "tools/layer_baseline.json": layers("game/n.gd")})
+        self.branch("wt/b", {"game/b.gd": "b2\n"})
+        lines = []
+        args = argparse.Namespace(repo=str(self.repo), base="main", branches=["wt/a", "wt/b"], branch_name="wt/wave-test",
+                                  allow_new_files=[], worktree_root=str(self.wt_root))
+        mw.wave(args, ib.Ctx(self.tmp.name), lines.append, {})
+        self.assertIn("allow-new game/n.gd (added by wt/a)", lines)
+        # an entry no branch's own diff added (smuggled into the merge) still rises
+        self.assertEqual(mw.branch_allowed(ib.Ctx(self.tmp.name), str(self.repo), "main", ["wt/b"], lines.append), {})
+        self.assertEqual(mw.rising("layers", {"closure": []}, {"closure": ["game/n.gd"]}), ["closure:game/n.gd"])
 
     def test_lint_still_red_after_update_is_attributed(self):
         self.branch("wt/a", {"game/a.gd": "a2\n"})

@@ -13,7 +13,10 @@ lowering updates run, with the merged tree's own lints:
   lint_layers.py --update [--allow-new <file> ...]   lint_dead.py --update-baseline
   lint_magic_numbers.py --update                     lint_shader_uniforms.py --update-baseline
 --allow-new-files names the new files the plan allows into the layer baseline (and only those;
-it also exempts them from the rising check). The wave FAILS when a lint refuses a new finding,
+it also exempts them from the rising check). Each branch's own additions count automatically: the
+closure / main_closure / l1_exceptions entries that `git diff <base>...<branch> -- tools/layer_baseline.json`
+added become --allow-new files (one `allow-new` line per file names its branch); an entry no branch's
+own diff added still fails the rising check. The wave FAILS when a lint refuses a new finding,
 when a baseline entry or count is higher than on --base (the `allow` section is ignored), when a
 lint still reports a finding after its update, or when a changed path belongs to none of the merged
 branches and is not a baseline file. A failure names the branch whose changed files the finding
@@ -108,6 +111,18 @@ def rising(kind, before, after, allow_new=()):
             continue
         hits.append(k)
     return hits
+
+
+def branch_added_files(before, after):
+    """Files the layer baseline `after` (a branch's) adds over `before` (the base's): the path of each
+    new closure / main_closure entry and the source file of each new l1_exceptions entry. SCC data is not
+    a file and is never auto-allowed."""
+    out = set()
+    for key in rising("layers", before, after):
+        field, _, entry = key.partition(":")
+        if field in ("closure", "main_closure", "l1_exceptions"):
+            out.add(entry.split(" -> ")[0])
+    return sorted(out)
 
 
 def attribute(text, branch_files):
@@ -232,6 +247,21 @@ def refresh_baselines(ctx, wt, base, branch_files, allow_new, say):
     say("baselines ok   4 lowering updates, no refusal, no rise, lints green")
 
 
+def branch_allowed(ctx, repo, base, branches, say):
+    """{file: branch} of the layer-baseline entries each branch's own diff against base added."""
+    name = "tools/layer_baseline.json"
+    texts = {}
+    for ref in [base] + list(branches):
+        code, text, _ = ib.git(ctx, "layer_" + ref.replace("/", "_"), repo, "show", "%s:%s" % (ref, name))
+        texts[ref] = json.loads(text) if code == 0 else {}
+    out = {}
+    for b in branches:
+        for f in branch_added_files(texts[base], texts[b]):
+            out.setdefault(f, b)
+            say("allow-new %s (added by %s)" % (f, b))
+    return out
+
+
 def check_scope(ctx, wt, base, branch_files):
     tracked = ib.git_out(ctx, "scope_tracked", wt, "diff", "--no-renames", "--name-only", base).split()
     untracked = ib.git_out(ctx, "scope_untracked", wt, "ls-files", "--others", "--exclude-standard").split()
@@ -256,7 +286,9 @@ def wave(args, ctx, say, res):
     say("worktree  ok   %s @ %s" % (wt, base[:9]))
     branch_files = branch_changes(ctx, repo, base, args.branches)
     merge_all(ctx, wt, args.branches, say)
-    refresh_baselines(ctx, wt, base, branch_files, args.allow_new_files, say)
+    allowed = branch_allowed(ctx, repo, base, args.branches, say)
+    allow_new = list(args.allow_new_files) + [f for f in allowed if f not in args.allow_new_files]
+    refresh_baselines(ctx, wt, base, branch_files, allow_new, say)
     check_scope(ctx, wt, base, branch_files)
     ib.git(ctx, "stage", wt, "add", "--", *REGENERATED)
     if ib.git(ctx, "staged", wt, "diff", "--cached", "--quiet")[0] != 0:
