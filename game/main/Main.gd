@@ -60,7 +60,6 @@ const HEADLESS_BOTS_FLOW_SCRIPT_PATH: String = "res://game/main/MainHeadlessBots
 const SANDBOX_FLOW_SCRIPT_PATH: String = "res://game/main/MainSandboxFlow.gd"
 const MATCH_FLOW_SCRIPT_PATH: String = "res://game/main/MainMatchFlow.gd"
 const LOBBY_SCENE_PATH: String = "res://ui/lobby/Lobby.tscn"
-const LOADING_STATUS_TEXT: String = "Loading..."
 const LOCAL_PLAYER_SCENE_PATH: String = "res://game/main/LocalPlayer.tscn"
 const WATCH_BOTS_OPTIONS_PATH: String = "res://game/main/WatchBotsOptions.gd"
 const SANDBOX_SCENE_PATH: String = "res://game/sandbox/Sandbox.tscn"
@@ -91,20 +90,9 @@ const LOADING_SCREEN_SCENE_PATH: String = "res://ui/menus/LoadingScreen.tscn"
 @onready var _world_environment: WorldEnvironment = $WorldEnvironment
 var _graphics_applier: GraphicsApplier = null
 
-## serial prewarm queue and the on-demand sandbox flow (typed to the light ports).
-var _prewarm_queue: MenuPrewarmQueue = null
-## True while the queue loads behind the menu (interactive launches only;
-## headless, agent-probe and CLI-flag runs keep the synchronous on-demand loads).
-var _prewarm_background: bool = false
-## The menu has been shown once, so _process may advance the queue (the Lobby chunk loads first).
-var _prewarm_polling: bool = false
-var _quit_requested: bool = false
-var _quit_done: bool = false
-## A Loading... click is waiting for its frame; further activations are dropped meanwhile.
-var _click_pending: bool = false
-## Test seams: force the background path under GUT; how a deferred window close quits.
-var force_background_prewarm: bool = false
-var quit_callable: Callable = Callable()
+## Background prewarm, late activation and scene loading (game/main/AppLoader.gd).
+var _loader: AppLoader = null
+## The on-demand flows (typed to the light ports).
 var _sandbox_flow: MainSandboxFlowPort = null
 var _headless_bots_flow: MainHeadlessBotsFlowPort = null
 var _match_flow: MainMatchFlowPort = null
@@ -193,128 +181,7 @@ var _controller_was_handling_input: bool = false
 
 ## the process-wide caches are released as the game scene leaves the tree.
 func _exit_tree() -> void:
-	# never cancel an in-flight threaded load during exit cleanup.
-	if _prewarm_queue != null:
-		_prewarm_queue.collect_in_flight()
 	ExitRelease.release_if_quitting()
-
-
-## A window close once Boot has handed over is a real quit. While the background
-## prewarm owns the close request, the quit waits for the in-flight chunk (the
-## message pump stays alive) and no further chunk starts.
-func _notification(what: int) -> void:
-	if what != NOTIFICATION_WM_CLOSE_REQUEST:
-		return
-	if not quit_callable.is_valid():  # test seam: no real quit
-		QuitFlag.mark()
-	if _prewarm_background:
-		_quit_requested = true
-		_prewarm_queue.halt()
-		if not _prewarm_queue.has_in_flight():
-			_quit_now()
-
-
-func _quit_now() -> void:
-	if _quit_done:
-		return
-	_quit_done = true
-	set_process(false)
-	if quit_callable.is_valid():
-		quit_callable.call()
-	else:
-		Sfx.quit_tree()  # marks QuitFlag, drains audio, then quits
-
-
-## Drives the one serial background loader (one request in flight) once the menu is up.
-func _process(_delta: float) -> void:
-	if not _prewarm_background:
-		return
-	# A close during the splash still finishes the in-flight chunk and quits (menu never shows).
-	if not _prewarm_polling and not _quit_requested:
-		return
-	_prewarm_queue.poll()
-	if _quit_requested:
-		if not _prewarm_queue.has_in_flight():
-			_quit_now()
-		return
-	_activate_late_if_loaded()
-	if not _prewarm_queue.has_in_flight() and _prewarm_queue.is_drained():
-		_ensure_late_active()  # drained: every LateScripts path is loaded, activation is instant
-		_stop_background_prewarm()
-
-
-## True when the queue should load behind the menu: a real window, no CLI flag that implies a
-## synchronous startup. DECISION: an agent-probe run is synchronous (probes expect today's
-## startup order) except `--quit-on-menu`, the boot-timing check, which must measure this path.
-func _wants_background_prewarm() -> bool:
-	if force_background_prewarm:
-		return true
-	if DisplayServer.get_name() == "headless":
-		return false
-	if AgentProbe.is_active() and not AgentProbe.wants_quit_on_menu(OS.get_cmdline_user_args()):
-		return false
-	var cfg: MenuPrewarmConfig = _menu_prewarm_queue().config
-	if cfg == null:
-		return false
-	return not cfg.wants_eager(OS.get_cmdline_user_args())
-
-
-## true once both autoload facades built their late state.
-func _late_active() -> bool:
-	return Match.is_late_active() and MatchNet.is_late_active()
-
-
-## The LateScripts paths the prewarm queue is configured to load (a test queue may omit them).
-func _late_paths_in_queue() -> PackedStringArray:
-	var known: PackedStringArray = _menu_prewarm_queue().config.all_paths() if _menu_prewarm_queue().config != null else PackedStringArray()
-	var result: PackedStringArray = PackedStringArray()
-	for path: String in LateScripts.paths():
-		if known.has(path):
-			result.append(path)
-	return result
-
-
-## Background path: once the queue holds every LateScripts path, activation costs no load.
-func _activate_late_if_loaded() -> void:
-	if _late_active():
-		return
-	for path: String in _late_paths_in_queue():
-		if not _prewarm_queue.is_ready(path):
-			return
-	_ensure_late_active()
-
-
-## Match + MatchNet late_activate (WeatherNet child included) must exist
-## before any session starts or a replicated packet can arrive, so every flow calls this first
-## (idempotent). Blocks only for what the background queue has not delivered yet: the in-flight
-## request is collected (never cancelled), the rest loads synchronously.
-func _ensure_late_active() -> void:
-	if _late_active():
-		return
-	_load_late_paths()
-	LateScripts.activate_autoloads(get_tree())
-
-
-## Collects the in-flight request, then loads every still-missing LateScripts path through the queue.
-func _load_late_paths() -> void:
-	if _prewarm_queue == null:
-		return
-	_prewarm_queue.collect_in_flight()
-	for path: String in _late_paths_in_queue():
-		_prewarm_queue.ensure(path)
-
-
-func _start_background_prewarm() -> void:
-	_prewarm_background = true
-	get_tree().auto_accept_quit = false  # Boot restored it at hand-over; the queue owns close now
-	_prewarm_queue.start(get_tree())  # requests the Lobby chunk (first) while the splash plays
-
-
-func _stop_background_prewarm() -> void:
-	_prewarm_background = false
-	_prewarm_polling = false
-	get_tree().auto_accept_quit = true
-	set_process(false)
 
 
 ## the world roots that stop processing while a menu/lobby holds the render
@@ -334,44 +201,22 @@ func _menu_world_is_live() -> bool:
 	return _world_built or _world_building
 
 
-## Menu hand-off (after the splash, or at once without one): the Lobby chunk is collected first
-## so Host/Join never wait, then the menu shows and the remaining chunks prewarm behind it.
-func _show_main_menu_after_prewarm() -> void:
-	if _quit_requested:  # closed during the splash: never flash the menu up
-		_prewarm_queue.collect_in_flight()
-		_quit_now()
-		return
-	if _prewarm_background:
-		_prewarm_queue.ensure(LOBBY_SCENE_PATH)
-	_show_main_menu()
-	_prewarm_polling = true
+## Menu hand-off (after the splash, or at once without one); the loader collects the Lobby chunk first.
+func _show_main_menu_after_splash() -> void:
+	if _loader.menu_shown(LOBBY_SCENE_PATH):
+		_show_main_menu()
 
 
-## A menu click whose target is still prewarming: shows "Loading...", lets one frame render it,
-## then the caller's ensure() blocks for at most the remaining chunk. No wait once loaded.
-## Returns false when this activation must be dropped (another one is already waiting).
-func _await_prewarmed(paths: PackedStringArray) -> bool:
-	if _click_pending:
-		return false
-	if not _prewarm_background:
-		_ensure_late_active()
-		return true
-	var waiting: bool = not _late_active()
-	for path: String in paths:
-		if not _prewarm_queue.is_ready(path):
-			waiting = true
-	if waiting:
-		if _main_menu != null:
-			_main_menu.show_status(LOADING_STATUS_TEXT)
-		_click_pending = true
-		await get_tree().process_frame
-		_click_pending = false
-	_ensure_late_active()
-	return true
+## A menu activation can ask for the "Loading..." status while its target prewarms.
+func _show_loading_status(text: String) -> void:
+	if _main_menu != null:
+		_main_menu.show_status(text)
 
 
 func _ready() -> void:
 	print(_boot_line())
+
+	_loader = _build_app_loader()
 
 	# Load any saved tuning-panel overrides onto the shared tuning singletons before
 	# anything else in the tree reads them.
@@ -387,9 +232,9 @@ func _ready() -> void:
 	_skybox.republish_ambient()
 
 	# synchronous runs (headless, CLI flags, probes) build the autoloads' late
-	# state now; the interactive path does it behind the menu (_activate_late_if_loaded).
-	if not _wants_background_prewarm():
-		_ensure_late_active()
+	# state now; the interactive path does it behind the menu (AppLoader._process).
+	if not _loader.wants_background():
+		_loader.ensure_late_active()
 
 	# current_graphics_preset() never returns null.
 	# The applier listens to Settings itself; the first apply is explicit.
@@ -432,14 +277,14 @@ func _ready() -> void:
 		Net.init_steam()
 	# interactive launches show the SlopShop splash (with its
 	# jingle) first; headless/CLI entry points go straight to the menu.
-	if _wants_background_prewarm():
-		_start_background_prewarm()
+	if _loader.wants_background():
+		_loader.begin(LOBBY_SCENE_PATH)
 	if SplashScreen.should_show_now():
 		var splash: SplashScreen = SplashScreen.new()
 		add_child(splash)
-		splash.finished.connect(_show_main_menu_after_prewarm)
+		splash.finished.connect(_show_main_menu_after_splash)
 	else:
-		_show_main_menu_after_prewarm()
+		_show_main_menu_after_splash()
 
 	# apply_command_line() calls host_game()/join_game() synchronously when
 	# --host, --headless-host or --join is present, which emits
@@ -485,38 +330,38 @@ func _start_sandbox_match() -> void:
 
 
 func start_sandbox_from_menu() -> void:
-	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
 	sandbox_flow.start_sandbox_from_menu()
 
 
 func start_gift_demo_from_menu() -> void:
-	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
 	sandbox_flow.start_gift_demo_from_menu()
 
 
 func start_tower_topple_from_menu() -> void:
-	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
+	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
 	sandbox_flow.start_tower_topple_from_menu()
 
 
 func start_tutorial_from_menu() -> void:
-	if not await _await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
+	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
 	sandbox_flow.start_tutorial_from_menu()
 
 
 ## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
-## is built lazily here (synchronous path); _start_background_prewarm() owns the background start.
+## is built lazily here (synchronous path); AppLoader.begin() owns the background start.
 func _sandbox_flow_port() -> MainSandboxFlowPort:
 	if _sandbox_flow == null:
-		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
+		var flow_script: GDScript = _loader.ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
 		_sandbox_flow = flow_script.new() as MainSandboxFlowPort
 		_sandbox_flow.bind(self)
 	return _sandbox_flow
@@ -566,17 +411,20 @@ func _on_headless_bots_seconds_elapsed() -> void:
 ## The headless bots flow, loaded through the serial prewarm queue on first use.
 func _headless_bots_flow_port() -> MainHeadlessBotsFlowPort:
 	if _headless_bots_flow == null:
-		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(HEADLESS_BOTS_FLOW_SCRIPT_PATH)
+		var flow_script: GDScript = _loader.ensure_script(HEADLESS_BOTS_FLOW_SCRIPT_PATH)
 		_headless_bots_flow = flow_script.new() as MainHeadlessBotsFlowPort
 		_headless_bots_flow.bind(self)
 	return _headless_bots_flow
 
 
-func _menu_prewarm_queue() -> MenuPrewarmQueue:
-	if _prewarm_queue == null:
-		_prewarm_queue = MenuPrewarmQueue.new()
-		_prewarm_queue.config = load(MENU_PREWARM_CONFIG_PATH) as MenuPrewarmConfig
-	return _prewarm_queue
+func _build_app_loader() -> AppLoader:
+	var loader: AppLoader = AppLoader.new()
+	loader.queue = MenuPrewarmQueue.new()
+	loader.queue.config = load(MENU_PREWARM_CONFIG_PATH) as MenuPrewarmConfig
+	loader.quit = DeferredQuit.new()
+	loader.loading_status_requested.connect(_show_loading_status)
+	add_child(loader)
+	return loader
 
 
 
@@ -663,7 +511,7 @@ func _show_main_menu() -> void:
 ## and no bot preloaded (ai_count 0, one open seat). The lobby remains editable
 ## before Start, while LAN discovery stays off for this local entry point.
 func start_bots_from_menu(player_name: String) -> void:
-	if not await _await_prewarmed(PackedStringArray()):
+	if not await _loader.await_prewarmed(PackedStringArray()):
 		return
 	var err: Error = Net.host_game(0, player_name, false)
 	if err != OK:
@@ -682,7 +530,7 @@ func start_bots_from_menu(player_name: String) -> void:
 func start_watch_bots(options: RefCounted) -> void:
 	if not DebugMode.is_enabled():
 		return
-	if not await _await_prewarmed(PackedStringArray()):
+	if not await _loader.await_prewarmed(PackedStringArray()):
 		return
 	var err: Error = Net.host_game(0, Settings.player_name(), false)
 	if err != OK:
@@ -741,7 +589,7 @@ func _on_net_mode_changed(mode: int) -> void:
 		_show_main_menu()
 	else:
 		# Host/Join/LAN/Steam-invite/CLI all land here before any peer packet is polled.
-		_ensure_late_active()
+		_loader.ensure_late_active()
 		_show_lobby()
 
 
@@ -777,16 +625,15 @@ func _on_lobby_start_requested(config: MatchConfig) -> void:
 ## Rarely used scenes load on first use instead of at parse time. No member keeps
 ## the PackedScene: the resource cache holds it while an instance is alive and
 ## releases it afterwards.
+# SHORTCUT: forwarder for the flows that still call main_node._load_scene, removed by P7-Inav
 func _load_scene(path: String) -> PackedScene:
-	if _prewarm_background and _menu_prewarm_queue().config.all_paths().has(path):
-		return _prewarm_queue.ensure(path) as PackedScene  # never load() beside an in-flight chunk
-	return load(path) as PackedScene
+	return _loader.load_scene(path)
 
 
 ## Threaded prefetch of the match-start scene set so the world build's
 ## _load_scene() calls do not hitch (called while the lobby / loading screen is up).
 func _prefetch_match_scenes() -> void:
-	if _prewarm_background:
+	if _loader.is_background():
 		return  # the serial queue owns these (a second threaded request could hang)
 	for path: String in [LOCAL_PLAYER_SCENE_PATH, REMOTE_CURSORS_SCENE_PATH, NET_DEBUG_OVERLAY_SCENE_PATH]:
 		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_INVALID_RESOURCE:
@@ -952,7 +799,7 @@ func _end_match_world() -> void:
 ## The match flow, loaded through the serial prewarm queue on first use (synchronous path).
 func _match_flow_port() -> MainMatchFlowPort:
 	if _match_flow == null:
-		var flow_script: GDScript = _menu_prewarm_queue().ensure_script(MATCH_FLOW_SCRIPT_PATH)
+		var flow_script: GDScript = _loader.ensure_script(MATCH_FLOW_SCRIPT_PATH)
 		_match_flow = flow_script.new() as MainMatchFlowPort
 		_match_flow.bind(self)
 	return _match_flow
