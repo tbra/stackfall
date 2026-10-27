@@ -25,7 +25,6 @@ func test_context_answers_defaults_while_inactive() -> void:
 	assert_eq(context.slot_count(), 0)
 	assert_null(context.slot(0))
 	assert_eq(context.slot_color(0, Color.RED), Color.RED)
-	assert_eq(context.active_slot(), -1)
 	assert_null(context.raster())
 	assert_null(context.cell_grid())
 	assert_eq(context.glue_drops_left(0), 0)

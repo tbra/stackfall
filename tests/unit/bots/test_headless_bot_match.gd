@@ -1,38 +1,18 @@
 extends GutTest
-## `godot --headless --path . -- --headless-host --bots=<n>`:
-## the cmdline parsers (`_bots_arg()`/`_seconds_arg()`)
-## and `_start_headless_bot_match_with_args()`'s own direct
-## register_world()/start_match() build, which reuses the ordinary networked
-## `_build_match_world()` (Events.match_state_changed is already connected by
-## the time `_ready()` reaches this call -- see that function's own doc) so
-## its bot-controller wiring serves this path too.
+## `godot --headless --path . -- --headless-host --bots=<n>`: the command-line entry builds a real
+## networked bot match through the ordinary world build, with no human to press Start, and refuses
+## to do so when Net never became the host. Observed through Match, Net, the scene tree (MainNodes)
+## and the printed log lines.
 ##
-## Same fixture shape as tests/unit/match/test_match_lifecycle.gd (the real Main
-## scene, a tiny map override so round_medium.tres's own collision build
-## doesn't pay its ~6300-cell cost per test), including that file's own
-## `_host()` (a real Net.host_game() with an incrementing port, no clients):
-## unlike this file's original version, `_start_headless_bot_match_with_args()`
-## now refuses to build a match unless Net actually became the HOST (review
-## finding 1) -- exactly what a real `--headless-host --bots=N`
-## command line has already done, via Net.apply_command_line(), by the time
-## `_ready()` reaches that call. `test_offline_with_bots_is_refused_and_logs_
-## an_error()` below covers the case this guards against: --headless-host's
-## own host_game() call failing to bind and leaving Net at OFFLINE.
+## Same fixture shape as tests/unit/match/test_match_lifecycle.gd: the real Main scene with a tiny
+## map override so round_medium.tres's collision build does not cost ~6300 cells per test.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 
-## game/main/Main.gd has no class_name (a scene root, not a type other code
-## names -- see test_match_lifecycle.gd's matching comment), so the instance
-## is held through a Variant-typed reference.
+## game/main/Main.gd has no class_name (a scene root), so the instance is held through a Variant.
 var _main: Variant = null
-
 var _tiny_map: MapDef
-
-## Well clear of test_net_session.gd's 47800+ and test_match_lifecycle.gd's
-## 47900+ ranges (this file's own comment on those files), incrementing per
-## test the same way, so a port the OS has not released yet can never
-## collide with the next one.
-static var _next_port: int = 48300
+var _capture: PrintCapture = null
 
 
 func before_each() -> void:
@@ -40,6 +20,7 @@ func before_each() -> void:
 	Match.abort_match()
 	SnapshotSync.end_match()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
+	_capture = PrintCapture.start()
 	_main = MAIN_SCENE.instantiate()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_tiny_map.field_radius = 20.0
@@ -50,10 +31,11 @@ func before_each() -> void:
 	tiny_match_config.rng_seed = 90210
 	_main.match_config = tiny_match_config
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
+	assert_not_null(MainNodes.main_menu(_main), "fixture: Main boots to the main menu with no command-line flags")
 
 
 func after_each() -> void:
+	_capture.stop()
 	Net.leave()
 	Match.abort_match()
 	SnapshotSync.end_match()
@@ -62,52 +44,53 @@ func after_each() -> void:
 	await get_tree().process_frame
 
 
-func _take_port() -> int:
-	# Parallel gate shards (tools/full_gate.py) run several Godot processes at
-	# once; a fixed port sequence collided, so ask the OS for a free port.
-	return AgentProbe.free_udp_port()
-
-
-## What a real `--headless-host --bots=<n>` command line has already done by
-## the time `_ready()` reaches `_start_headless_bot_match_with_args()`
-## (Net.apply_command_line() -> host_game()) -- test_match_lifecycle.gd's own
-## `_host()` doc: "opens a listen server with no clients", so nothing here
-## touches the network beyond binding a port.
+## What a real `--headless-host` command line has already done by the time Main reaches the bot
+## match start: a listen server with no clients.
 func _host() -> void:
-	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_true(_main._headless_bots_flow_port().call(&"_net_is_hosting"))
+	assert_eq(Net.host_game(AgentProbe.free_udp_port(), "Hostie"), OK)
+	assert_eq(Net.mode(), Net.Mode.HOST)
 
 
 func _bot_controller_count() -> int:
-	var total: int = 0
-	for child: Node in _main.get_children():
-		if child is BotController:
-			total += 1
-	return total
+	return MainNodes.count(_main, &"BotController")
 
 
-## Two frames, so queue_free()d nodes are actually gone before the next
-## assertion (test_match_lifecycle.gd's own `_settle()` doc: "a Lobby or
-## MainMenu awaiting its free still holds its Events connections for that
-## frame").
+## Two frames, so queue_free()d nodes are actually gone before the next assertion.
 func _settle() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
 
-# --- _bots_arg / _seconds_arg parsing -----------------------------------------
+func test_the_headless_bots_flow_script_loads_on_first_bot_match_only() -> void:
+	var path: String = Main.HEADLESS_BOTS_FLOW_SCRIPT_PATH
+	if ResourceLoader.has_cached(path):
+		pending("an earlier script in this process already cached the flow script; run this script alone")
+		return
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+	assert_true(ResourceLoader.has_cached(path), "the first bot match loads it")
+	assert_eq(_bot_controller_count(), 2, "and the loaded flow built the match")
 
-# --- _start_headless_bot_match_with_args --------------------------------------
 
 
 func test_bots_zero_is_a_no_op() -> void:
 	_main._start_headless_bot_match_with_args(PackedStringArray([]))
 
 	assert_eq(Match.state(), Match.State.LOBBY, "no --bots= means no match starts")
-	assert_false(_main._world_built)
+	assert_false(MainNodes.world_is_built(_main))
 
 
-# --- Review finding 1: refuse a bot match with nobody actually hosting -------
+func test_offline_with_bots_is_refused_and_logs_an_error() -> void:
+	assert_true(Net.is_offline(), "fixture: nobody is hosting")
+
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+
+	assert_push_error("refusing to start a bot match with no host")
+	assert_eq(Match.state(), Match.State.LOBBY, "no match starts without a host")
+	assert_false(MainNodes.world_is_built(_main))
+	assert_eq(_bot_controller_count(), 0)
 
 
 func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_local_player() -> void:
@@ -122,11 +105,10 @@ func test_all_bot_match_reaches_playing_with_n_bot_slots_and_no_local_player() -
 		assert_true(Match.slot(i).is_bot, "slot %d must be a bot" % i)
 
 	assert_eq(_bot_controller_count(), 4, "one BotController per bot slot")
-	assert_null(_main._local_player, "an all-bot match has no local human slot to bind a LocalPlayer/PlayerController to")
+	assert_null(MainNodes.local_player(_main), "an all-bot match has no local human slot to bind a LocalPlayer to")
+	assert_true(MainNodes.world_is_built(_main), "the ordinary networked world build ran")
 
-	# Advance past the countdown so the match is actually PLAYING, not merely
-	# counting down (the literal "8-bot match reaches PLAYING" acceptance
-	# shape, scaled down to 4 for a fast unit test).
+	# Advance past the countdown so the match is actually PLAYING, not merely counting down.
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):
 		Match._process(1.0 / Engine.physics_ticks_per_second)
 	assert_eq(Match.state(), Match.State.PLAYING)
@@ -143,29 +125,55 @@ func test_players_override_leaves_idle_human_seats_and_still_builds_a_local_play
 	assert_true(Match.slot(1).is_bot)
 	assert_true(Match.slot(2).is_bot)
 	assert_eq(_bot_controller_count(), 2)
-	assert_not_null(_main._local_player, "a human seat exists, so LocalPlayer binds Net.local_slot() (0) as usual")
+	assert_not_null(MainNodes.local_player(_main), "a human seat exists, so LocalPlayer binds Net.local_slot() (0) as usual")
 
 
-func test_end_match_world_frees_the_bot_controllers() -> void:
+func test_a_headless_bot_match_skips_the_countdown_and_is_not_a_sandbox() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2"]))
+	await _settle()
+
+	assert_false(Match.config.sandbox, "the real feed/territory/win loop runs")
+	assert_eq(Match.config.countdown_seconds, 0.0, "no human to wait for")
+
+
+func test_the_match_ends_with_its_world_and_frees_the_bot_controllers() -> void:
 	_host()
 	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=4"]))
 	await _settle()
 	var bots: Array = []
-	for child: Node in _main.get_children():
-		if child is BotController:
-			bots.append(child)
+	for child: Node in _main.find_children("*", "BotController", true, false):
+		bots.append(child)
 	assert_eq(bots.size(), 4, "fixture: 4 bots exist before teardown")
 
-	_main._end_match_world()
+	Match.abort_match()
 	await _settle()
 
 	assert_eq(_bot_controller_count(), 0, "no BotController remains after teardown")
-	# Untyped `Variant` on purpose: a freed instance can no longer be assigned
-	# to a typed `Node` loop variable (a bare "Trying to assign invalid
-	# previously freed instance" engine error, not a GDScript exception) --
-	# is_instance_valid() itself works fine on the raw Variant either way.
+	assert_false(MainNodes.world_is_built(_main), "the world is torn down with the match")
+	# Untyped `Variant` on purpose: a freed instance cannot be assigned to a typed `Node` loop variable.
 	for bot: Variant in bots:
 		assert_false(is_instance_valid(bot), "each bot must actually be freed, not merely detached")
 
 
-# --- Review finding 2: HEADLESS_BOTS progress line ----------------------------
+# --- HEADLESS_BOTS / HEADLESS_MATCH output -------------------------------------
+
+
+func test_a_single_match_prints_its_summary_on_end_without_loop_matches() -> void:
+	_host()
+	_main._start_headless_bot_match_with_args(PackedStringArray(["--bots=2", "--mode=elimination", "--round-timer=1"]))
+	await _settle()
+	assert_eq(_capture.lines_starting_with("HEADLESS_MATCH ").size(), 0, "nothing is printed while the match runs")
+	var tick: float = 1.0 / Engine.physics_ticks_per_second
+	for _i: int in range(20):
+		if Match.state() != Match.State.PLAYING:
+			Match._process(tick)
+	assert_eq(Match.state(), Match.State.PLAYING)
+	Match._process(Match.config.round_timer_minutes * 60.0 + 1.0)
+	assert_eq(Match.state(), Match.State.END)
+
+	var lines: PackedStringArray = _capture.lines_starting_with("HEADLESS_MATCH ")
+	assert_eq(lines.size(), 1)
+	assert_true(lines[0].begins_with("HEADLESS_MATCH index=1 "))
+	assert_true(lines[0].contains(" seed=90210 "))
+	assert_true(lines[0].contains(" teams=0,1 "), "one team id per slot")

@@ -120,18 +120,6 @@ static func is_outside_bounds(point: Vector3, bounds: AABB) -> bool:
 	return not bounds.has_point(point)
 
 
-# SHORTCUT: wrappers over GiftAim for MatchPlacement/PlayerController callers, deleted by P6-Iplace
-## The direction the host will actually fly (GiftAim.sanitize_launch_direction).
-static func sanitize_launch_direction(direction: Vector3) -> Vector3:
-	return GiftAim.sanitize_launch_direction(direction)
-
-
-# SHORTCUT: wrappers over GiftAim for MatchPlacement/PlayerController callers, deleted by P6-Iplace
-## The Paintball's launch direction (GiftAim.sanitize_downward_direction).
-static func sanitize_downward_direction(direction: Vector3) -> Vector3:
-	return GiftAim.sanitize_downward_direction(direction)
-
-
 ## Default launch direction without camera input: toward the middle of the field (the
 ## world origin, where game/field/Field.gd sits) pitched `default_pitch_down_deg` below
 ## horizontal, so a Rocket dropped on a stack heads inward and down into the pile.

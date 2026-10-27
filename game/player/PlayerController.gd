@@ -24,7 +24,7 @@ extends Node
 ##
 ## _on_feed_block_issued() seeds the newly issued ghost's hover height above
 ## whatever this controller's last accepted placement spawned
-## (_apply_spawn_clearance(), GhostTuning.spawn_clearance), so the new piece is
+## (SpawnClearance, GhostTuning.spawn_clearance), so the new piece is
 ## not left exactly where the old one just landed.
 
 @export var camera_rig_path: NodePath
@@ -121,52 +121,11 @@ var _collision_cursor_seeded: bool = false
 var _last_hit_point: Vector3 = Vector3.ZERO
 var _last_hit_normal: Vector3 = Vector3.UP
 
-## True from the moment this controller's own _request_place() call is sent (a
-## deliberate click, or a host-only auto-drop) until the outcome is known -- lets
-## _on_feed_block_issued() tell "this feed follows a placement I actually just
-## asked for" apart from the match's very first feed (never preceded by any
-## _request_place() call here) or any other unrelated one. Cleared by
-## _on_placement_rejected() (a manual refusal spawns nothing at all; an auto-drop
-## burn spawns something, but far off the map, not near the cursor -- neither
-## needs the next ghost displaced), and consumed (cleared again) the moment
-## _apply_spawn_clearance() actually uses it, so it can never fire twice for one
-## placement or leak into the next.
-var _pending_spawn_active: bool = false
-## The world-space Y of the *top* of the shape this controller's pending
-## placement is about to occupy -- captured from the held ghost's own
-## GhostPreview.projection_span_y() (already exactly "the shape's own current
-## highest point in world space") at the moment the intent is
-## sent, so _apply_spawn_clearance() can seed the next ghost's hover height
-## just above it once the feed confirms the placement actually happened.
-## Re-captured by _on_placement_relocated() at the relocated spot for an
-## auto-drop the host moved, so this always reflects where the block actually
-## ended up, not just wherever this controller last aimed.
-var _pending_spawn_top_y: float = 0.0
-## seconds since the pending spawn clearance started waiting
-## for the block it would overlap to settle (see _apply_spawn_clearance()).
-var _spawn_settle_elapsed: float = 0.0
-## whether the pending clearance already took back the previous
-## piece's raise and started its settle wait (done once per placement).
-var _spawn_settle_waiting: bool = false
-## whether the host has issued the piece that follows the
-## pending placement (on a client this can lag the request by a round trip).
-var _pending_spawn_fed: bool = false
-
-## How much of _ghost.manual_hover_offset is
-## spawn-clearance raise (see _apply_spawn_clearance()) rather than the
-## player's own hover input. The camera follows the ghost INCLUDING this raise
-## (eased once via CameraRig.begin_follow_transition()); the split exists only
-## so the raise can be taken back off at the next spawn / decayed away, which
-## is what stops it compounding drop after drop.
-var _clearance_raise: float = 0.0
-## Part of the hover offset/_clearance_raise added by the release-time lift
-## (_clear_ghost_before_release()); undone if the host refuses the release.
-var _release_raise: float = 0.0
-## part of _ghost.manual_hover_offset that is the first piece's
-## raise above the home beacon (set_home_position()). Taken back off by the next
-## accepted placement's spawn (_take_back_clearance_raise()) or absorbed by the
-## player's own hover input, so only the very first piece ever carries it.
-var _home_spawn_raise: float = 0.0
+## The held ghost's clearance machine (post-placement raise, release lift, home raise); built
+## for the current ghost and tuning by _clearance().
+var _clearance_machine: SpawnClearance
+var _clearance_ghost: GhostPreview
+var _clearance_tuning: GhostTuning
 
 ## In-game tuning panel: ui/debug/TuningPanel.gd sets this false
 ## while it is open, so dragging a slider or clicking Reset/Save/Copy can't
@@ -241,6 +200,21 @@ func set_camera_rig(rig: CameraRig) -> void:
 	# spawn anchor (see spawn_camera_anchor()), not on the bare home beacon.
 	if rig != null:
 		rig.set_start_anchor_source(spawn_camera_anchor)
+	if _clearance_machine != null:
+		_clearance_machine.set_camera(rig)
+
+
+## The clearance machine for the current ghost and tuning, rebuilt when either was swapped.
+## Call only with a ghost wired.
+func _clearance() -> SpawnClearance:
+	if _clearance_machine == null or _clearance_ghost != _ghost or _clearance_tuning != ghost_tuning:
+		_clearance_ghost = _ghost
+		_clearance_tuning = ghost_tuning
+		_clearance_machine = SpawnClearance.new(
+			_ghost, _ghost_overlapping_bodies, _camera_rig, ghost_tuning, tuning, _hover_offset_ceiling
+		)
+		_clearance_machine.set_surface(_last_hit_point, _last_hit_normal)
+	return _clearance_machine
 
 
 ## Places the ghost at the current cursor -- at match start, the held piece's
@@ -272,31 +246,21 @@ func set_home_position(home_position: Vector3) -> void:
 
 ## The first held piece is seeded on the home flag, but the ghost anchors at the
 ## bare disc surface plus tuning.hover_height, and neither the placement ray nor
-## the spawn-clearance query sees the beacon (Field.PLACEMENT_QUERY_MASK; the
+## the spawn-clearance query sees the beacon (FieldBody.PLACEMENT_QUERY_MASK; the
 ## clearance never runs for the first piece), so the piece would sit inside the
 ## beacon's socket and crystal. Raises the hover offset so the shape's lowest
 ## point clears the beacon top by GhostTuning.home_spawn_beacon_margin; a no-op
 ## if the hover already clears it. The ghost is placed from this offset on its
 ## next _update_ghost_transform(), and the host spawns a released block at the
 ## pose the ghost sends, so no host-side rule changes.
-## DECISION: tracked apart from the player's own hover (_home_spawn_raise) so it
+## DECISION: tracked apart from the player's own hover (SpawnClearance.seed_home()) so it
 ## is dropped at the next spawn / when the player scrolls, and later pieces
 ## hover exactly as before.
 func _seed_home_spawn_raise() -> void:
 	if _ghost == null:
 		return
-	_take_back_home_spawn_raise()
 	# the same rule the host's no-cursor AFK auto-drop uses.
-	var clear_hover: float = ghost_tuning.home_spawn_clear_hover(beacon_visuals)
-	var raise: float = maxf(clear_hover - tuning.hover_height - _ghost.manual_hover_offset, 0.0)
-	_ghost.manual_hover_offset += raise
-	_home_spawn_raise = raise
-
-
-func _take_back_home_spawn_raise() -> void:
-	if _ghost != null and _home_spawn_raise > 0.0:
-		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _home_spawn_raise, 0.0)
-	_home_spawn_raise = 0.0
+	_clearance().seed_home(ghost_tuning.home_spawn_clear_hover(beacon_visuals))
 
 
 ## called once by LocalPlayer.gd/Sandbox.gd (never by a bare unit
@@ -382,7 +346,18 @@ func _countdown_blocks_input() -> bool:
 
 func _process(delta: float) -> void:
 	_process_input(delta)
+	_push_ghost_timers()
 	_publish_held_view()
+
+
+## Feeds the held ghost's glow timer and glue shell every frame, input gates or not.
+func _push_ghost_timers() -> void:
+	if _ghost == null:
+		return
+	var slot: int = _acting_slot()
+	var timed: bool = slot >= 0 and _ghost.get_shape() != null and match_context.feed_timer_enabled()
+	_ghost.set_drop_time_left(match_context.feed_time_left(slot) if timed else -1.0)
+	_ghost.set_glue_charges(match_context.glue_drops_left(slot) if slot >= 0 else 0)
 
 
 ## Publishes the held pose after every early return of _process_input(), so an input gate,
@@ -427,10 +402,10 @@ func _process_input(delta: float) -> void:
 	# *new* piece's shape at the *current* cursor, not a stale pose), and not
 	# synchronously inside the placement's own Events.feed_block_issued handler:
 	# the block that was just spawned has not been through a physics step yet at
-	# that point, so a physics query cannot see it. Self-guards on
-	# _pending_spawn_active, so this is a no-op on every ordinary frame.
-	_apply_spawn_clearance(delta, true)
-	_decay_clearance_raise(delta)
+	# that point, so a physics query cannot see it. SpawnClearance no-ops while no
+	# placement is pending.
+	if _ghost != null:
+		_clearance().step(delta, true)
 	_update_ghost_tint()
 	_handle_hover_adjust(delta)
 	_publish_cursor()
@@ -477,9 +452,9 @@ func _follow_held_piece() -> void:
 ## (config/blocks/*.tres shapes range from 1 cell tall to 3), so following it
 ## would move the camera on every shape swap even when the hover never changed.
 ## A genuine hover change (the wheel, a held raise/lower, or
-## _apply_spawn_clearance()'s raise) still moves this; an ordinary shape swap
+## SpawnClearance's raise) still moves this; an ordinary shape swap
 ## gives zero movement, so CameraRig.begin_follow_transition() only needs
-## calling for that genuine raise (see _apply_spawn_clearance()'s call site).
+## calling for that genuine raise (see SpawnClearance).
 func _camera_follow_anchor() -> Vector3:
 	var center: Vector3 = _ghost.rotated_center_world()
 	# The camera is tied to the held block, raise included.
@@ -729,7 +704,7 @@ func _step_hover(direction: float) -> void:
 		0.0,
 		_hover_offset_ceiling()
 	)
-	_absorb_clearance_raise()
+	_clearance().absorb()
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 	_refresh_ghost_pose()
 
@@ -858,15 +833,13 @@ func _request_place(auto_drop: bool) -> StringName:
 	if auto_drop and _held_gift_mode() != GiftThrow.Mode.NONE:
 		match_context.note_aim(_acting_slot(), _camera_forward())
 	var slot_id: int = _acting_slot()
-	_clear_ghost_before_release()
+	_clearance().lift_for_release()
 	# record what this request is about to occupy *before*
 	# sending it -- on the host this resolves synchronously inside the call
 	# below (Events.placement_rejected/placement_relocated/feed_block_issued
 	# all fire before match_context.submit_place() returns), so this has to be set
 	# first or _on_feed_block_issued() below would see a stale flag.
-	_pending_spawn_active = true
-	_pending_spawn_top_y = _ghost.projection_span_y().x
-	_begin_pending_spawn()
+	_clearance().begin_pending()
 	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
 	return match_context.submit_place(
@@ -882,18 +855,16 @@ func _request_place(auto_drop: bool) -> StringName:
 ## slot/pose arguments, same door (match_context.submit_throw: the wire on a client, Match directly otherwise), same
 ## spawn-clearance bookkeeping for the next ghost. DECISION (game/
 ## PlayerController.gd): a thrown special's shape does not actually stay
-## where _pending_spawn_top_y is captured -- it flies off with `velocity` --
+## where the throw is aimed -- it flies off with `velocity` --
 ## so the next ghost's spawn-clearance nudge is only ever approximate for a
 ## throw (it clears the aim spot, not wherever physics finally lands the
 ## piece). An approximate clearance is still strictly better than none, and
-## _apply_spawn_clearance() already tolerates being wrong (it just
+## SpawnClearance already tolerates being wrong (it just
 ## reseeds hover height, never blocks anything).
 func _request_throw(velocity: Vector3) -> StringName:
 	var slot_id: int = _acting_slot()
-	_clear_ghost_before_release()
-	_pending_spawn_active = true
-	_pending_spawn_top_y = _ghost.projection_span_y().x
-	_begin_pending_spawn()
+	_clearance().lift_for_release()
+	_clearance().begin_pending()
 	if _session().is_client():
 		_intent_lock_left = net_config.intent_ack_timeout
 	return match_context.submit_throw(
@@ -939,7 +910,6 @@ func _update_throw_aim(_delta: float) -> void:
 
 func _drive_throw_visuals() -> void:
 	if _ghost != null:
-		_ghost.show_throw_hint(false)
 		_ghost.set_held_aim(_held_gift_aim_direction())
 	if _arc_preview == null:
 		return
@@ -989,7 +959,7 @@ func gift_launch_preview() -> Dictionary:
 		}
 	var direction: Vector3 = forward
 	if not _held_gift_flies_upward():
-		direction = RocketEffect.sanitize_downward_direction(forward)
+		direction = GiftAim.sanitize_downward_direction(forward)
 	return {
 		"origin": origin,
 		"velocity": GiftAim.straight_velocity(direction, special_tuning.gift_throw_speed_mps),
@@ -1025,15 +995,15 @@ func _held_gift_aim_direction() -> Vector3:
 		return GiftAim.throw_velocity(forward, special_tuning, _throw_range_scale()).normalized()
 	if mode == GiftThrow.Mode.AIMED:
 		if _held_gift_flies_upward():
-			return RocketEffect.sanitize_launch_direction(forward)
-		return RocketEffect.sanitize_downward_direction(forward)
+			return GiftAim.sanitize_launch_direction(forward)
+		return GiftAim.sanitize_downward_direction(forward)
 	return Vector3.ZERO
 
 
 ## Whether the held aimed gift may fly upward (Rocket, Q3); Paintball may not.
 func _held_gift_flies_upward() -> bool:
 	var def: SpecialDef = SpecialDef.find_by_id(match_context.held_special(_acting_slot()))
-	return def != null and def.effect is RocketEffect
+	return def != null and def.effect != null and def.effect.may_aim_upward()
 
 
 ## A slot whose home flag is gone is effectively eliminated.
@@ -1124,258 +1094,33 @@ func _on_feed_block_issued(slot_id: int, shape_id: StringName, _next_shape_id: S
 	if shape != null:
 		_ghost.set_shape(shape)
 		_sync_ghost_gift(slot_id)
-	if _pending_spawn_active:
-		_pending_spawn_fed = true
-	# Does not call _apply_spawn_clearance() here: this handler runs synchronously
+	_clearance().mark_fed()
+	# Does not resolve the clearance here: this handler runs synchronously
 	# inside the placement request that spawned the block (Events dispatch is not
 	# deferred), before this frame's physics step has run, so a physics query here
-	# could never see the block that was just placed. _pending_spawn_active
-	# (already true from _request_place(), still true here) is left alone;
+	# could never see the block that was just placed. The pending spawn
+	# (begun by _request_place()) is left alone;
 	# _process() resolves it next, once the physics world has actually caught up.
 
 
-## Seeds the newly issued ghost's manual_hover_offset just
-## high enough that its own lowest point clears the top of the shape this
-## controller's own last accepted placement actually spawned (spawn_clearance
-## on top of it), so the next held block floats above it instead of rendering
-## inside it -- the existing hover wheel and ghost-vs-placed-block collision
-## sweep (_clamp_hover_offset()) take over normally from there. A no-op on the
-## match's very first feed and after a placement that did not actually spawn
-## anything near the cursor (see _pending_spawn_active's own field comment,
-## both cleared there before this ever runs).
-##
-## It only touches manual_hover_offset when the new shape, at its normal
-## (unraised) hover height, would actually intersect a placed block --
-## otherwise it is a complete no-op, leaving whatever manual_hover_offset the
-## ghost already had (0, or wherever the player had last wheeled it) exactly
-## alone.
-##
-## DECISION (game/player/PlayerController.gd): raises hover height rather than
-## nudging the cursor sideways -- the disk-surface probe already reports the
-## bare disk under any tower, so the only thing wrong with the spawn point is
-## its Y, and reusing that same, already-tested hover path keeps this a
-## one-field change with no new footprint/geometry math.
-##
-## The next piece is issued in the same call that spawns the dropped block, at
-## the very same pose, so a one-shot overlap query would always find the dropped
-## block -- still falling from where the ghost had been -- and raise the new
-## ghost by a whole block height, after which the decay would sink it back: a
-## jump-and-sink on every drop.
-## DECISION: don't count the dropped block until it has settled: while the new
-## ghost overlaps a block that has not settled yet (_is_settled_body()), the
-## check waits -- bounded by GhostTuning.spawn_clearance_settle_timeout_s -- and
-## only then raises, by the minimal amount, if the ghost really is inside a
-## settled block. A block that falls clear of the ghost never raises it. The
-## ghost has no physics body (GhostPreview.tscn is a bare Node3D, its mesh is
-## visual-only), so it never pushes anything. The release-time guard and the
-## host's own lift still count every block, unsettled or not: those protect the
-## real spawn.
-## DECISION: `wait_for_settle` is true from _process() (the real game); the
-## default false resolves at once, for callers that drive the raise itself
-## (minimal raise, camera follow) after one physics step.
-func _apply_spawn_clearance(delta: float = 0.0, wait_for_settle: bool = false) -> void:
-	if not _pending_spawn_active:
-		return
-	if not _spawn_settle_waiting:
-		_spawn_settle_waiting = true
-		# DECISION: the previous piece's raise is taken back off first, so every
-		# spawn starts from the player's own hover and a raise can never compound
-		# across drops.
-		_take_back_clearance_raise()
-	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
-		_end_pending_spawn()
-		return
-	_refresh_ghost_pose()
-	_spawn_settle_elapsed += delta
-	if wait_for_settle and _spawn_settle_elapsed < ghost_tuning.spawn_clearance_settle_timeout_s and (
-		not _pending_spawn_fed or _ghost_overlaps_a_placed_block(true)
-	):
-		return
-	_end_pending_spawn()
-	_raise_ghost_until_clear()
-
-
-var _settle_samples: Dictionary = {}
-
-
-## a new placement request restarts the settle wait.
-func _begin_pending_spawn() -> void:
-	_settle_samples.clear()
-	_spawn_settle_waiting = false
-	_spawn_settle_elapsed = 0.0
-	_pending_spawn_fed = false
-
-
-func _end_pending_spawn() -> void:
-	_settle_samples.clear()
-	_pending_spawn_active = false
-	_spawn_settle_waiting = false
-	_pending_spawn_fed = false
-
-
-## whether a placed body has come to rest. On the physics
-## authority that is Jolt's own sleep (or a static freeze: stable-block
-## freeze, Freeze special); a client's mirrored blocks are always frozen
-## kinematic, so there it is the replicated sleeping flag the snapshot drives
-## into Block.is_contributing_visual().
-func _is_settled_body(body: RigidBody3D) -> bool:
-	var block: Block = body as Block
-	if block == null:
-		return body.sleeping
-	if block.is_freeze_static():
-		return true
-	if block.freeze:
-		return block.is_contributing_visual() or _frozen_body_is_still(block)
-	return block.sleeping
-
-
-## a client's mirrored block is frozen kinematic and
-## is_contributing_visual() is only written when a BlockMesh exists, so it can
-## stay false forever.
-## DECISION: also treat a frozen block as settled once its replicated pose has
-## moved no more than tuning.sleep_linear_threshold * elapsed since the previous
-## process frame it was sampled on (position only, one entry per body; the first
-## sample is "not settled"). Works from the interpolated snapshot pose alone,
-## with or without a mesh. A freed body leaves the overlap query by itself.
-func _frozen_body_is_still(block: Block) -> bool:
-	var id: int = block.get_instance_id()
-	var frame: int = Engine.get_process_frames()
-	var prev: Array = _settle_samples.get(id, [])
-	if not prev.is_empty() and int(prev[0]) == frame:
-		return bool(prev[2])
-	var still: bool = false
-	if not prev.is_empty():
-		var dt: float = maxf(_spawn_settle_elapsed - float(prev[3]), 0.0001)
-		still = block.global_position.distance_to(prev[1] as Vector3) <= tuning.sleep_linear_threshold * dt
-	_settle_samples[id] = [frame, block.global_position, still, _spawn_settle_elapsed]
-	return still
-
-
-## Raises the held ghost by the minimum hover amount that leaves it clear of
-## every placed block; a no-op when it already is. Shared by the post-placement
-## spawn clearance and the release-time guard (_clear_ghost_before_release()).
-##
-## `for_release` lifts are limited only by the hover ceiling, not by
-## spawn_clearance_max_raise.
-## DECISION: the settle wait keeps the held ghost unraised until the previous
-## block rests, so the release-time lift (which protects the real spawn from
-## interpenetrating a placed block) can no longer lean on a raise carried over
-## from the post-placement clearance; capped at max_raise it could not clear a
-## tower taller than that and the host spawned the block inside it.
-func _raise_ghost_until_clear(for_release: bool = false) -> void:
-	if not _ghost_overlaps_a_placed_block():
-		return
-	var base_offset: float = _ghost.manual_hover_offset
-	var cap: float = maxf(_hover_offset_ceiling() - base_offset, 0.0)
-	if not for_release:
-		cap = minf(ghost_tuning.spawn_clearance_max_raise, cap)
-	var raise_amount: float = ClearanceRaise.first_clear_raise(
-			func(r: float) -> bool: return _overlaps_with_offset(base_offset + r),
-			ghost_tuning.spawn_clearance_step, cap, ghost_tuning.spawn_clearance_bisect_steps, ghost_tuning.spawn_clearance)
-	if raise_amount == ClearanceRaise.NOT_CLEARED:
-		raise_amount = cap
-	_ghost.manual_hover_offset = base_offset + raise_amount
-	_clearance_raise += raise_amount
-	_ghost.update_placement(_last_hit_point, _last_hit_normal)
-	if _camera_rig != null and raise_amount > 0.0:
-		# One discontinuous re-target: ease the camera onto the raised ghost.
-		_camera_rig.begin_follow_transition()
-
-
-## The host spawns a released block exactly where the ghost
-## stands and never checks it for overlap, so a pose that interpenetrates a
-## placed block makes Jolt shove the older body out of the way. The
-## post-placement clearance only looks once, before the previous block has
-## replicated/settled (always, on a client), and a rotation is not swept at
-## all. So every release re-checks the pose and lifts it just clear first.
-##
-## DECISION: shares spawn_clearance_enabled with the post-placement raise
-## (the toggle gates only this client-side prediction; the host's overlap
-## validation is unconditional), and runs on the pose that is about to be
-## sent, so what the player sees is what the host spawns.
-func _clear_ghost_before_release() -> void:
-	_release_raise = 0.0
-	if not ghost_tuning.spawn_clearance_enabled or _ghost == null or _ghost.get_shape() == null:
-		return
-	var offset_before: float = _ghost.manual_hover_offset
-	_raise_ghost_until_clear(true)
-	_release_raise = _ghost.manual_hover_offset - offset_before
-
-
-## A refused release spawned nothing, so the
-## predictive lift made for it must not linger on the held ghost.
-func _undo_release_raise() -> void:
-	if _release_raise > 0.0 and _ghost != null:
-		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _release_raise, 0.0)
-		_clearance_raise = maxf(_clearance_raise - _release_raise, 0.0)
-	_release_raise = 0.0
-
-
-## Removes the spawn-clearance share from the hover offset (back to the
-## player's own hover) and forgets it.
-func _take_back_clearance_raise() -> void:
-	if _ghost != null and _clearance_raise > 0.0:
-		_ghost.manual_hover_offset = maxf(_ghost.manual_hover_offset - _clearance_raise, 0.0)
-	_clearance_raise = 0.0
-	_take_back_home_spawn_raise()
-
-
-## Whether the held shape would overlap a placed block with the given total
-## hover offset; leaves the ghost (and its offset) exactly as it was.
-func _overlaps_with_offset(offset: float) -> bool:
-	var saved_offset: float = _ghost.manual_hover_offset
-	_ghost.manual_hover_offset = offset
-	_ghost.update_placement(_last_hit_point, _last_hit_normal)
-	var overlaps: bool = _ghost_overlaps_a_placed_block()
-	_ghost.manual_hover_offset = saved_offset
-	_ghost.update_placement(_last_hit_point, _last_hit_normal)
-	return overlaps
-
-
-## DECISION: the raise decays back to the player's own
-## hover once it is no longer needed -- each frame, lower by
-## spawn_clearance_decay_speed * delta if the ghost would still be clear at that
-## lower pose (the falling just-released block has moved on, or the cursor moved
-## off the tower). Stops the moment lowering would overlap again. Costs nothing
-## while no raise is active. The player's own hover input absorbs the raise
-## instead (_absorb_clearance_raise()).
-func _decay_clearance_raise(delta: float) -> void:
-	if _clearance_raise <= 0.0 or _ghost == null or _ghost.get_shape() == null:
-		return
-	var step: float = minf(ghost_tuning.spawn_clearance_decay_speed * delta, _clearance_raise)
-	if step <= 0.0:
-		return
-	var lowered: float = maxf(_ghost.manual_hover_offset - step, 0.0)
-	if _overlaps_with_offset(lowered):
-		return
-	_ghost.manual_hover_offset = lowered
-	_clearance_raise -= step
-	_refresh_ghost_pose()
-
-
-## The player took over the hover height: whatever raise is left is now theirs.
-func _absorb_clearance_raise() -> void:
-	_clearance_raise = 0.0
-	_home_spawn_raise = 0.0
-
-
+## The placed bodies the held ghost's release pose touches right now, for SpawnClearance.
 ## A stationary (zero-motion) overlap query at the pose the host would test the ghost's
 ## release at (_release_pose()), with the boxes the host tests for the held piece
 ## (BlockFactory.overlap_probe_centers()/overlap_probe_size(), shared with
 ## MatchPlacement). No ghost_collision_skin inflation here (unlike
-## _sweep_motion()'s clearance gap): this asks "does it overlap right now", not
+## GhostSweep's clearance gap): this asks "does it overlap right now", not
 ## "how much gap should be kept while sliding", so the boxes are used at their
-## true size. `unsettled_only` counts only bodies that have not come to rest yet
-## (_is_settled_body()), for the spawn clearance's settle wait.
-func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
+## true size.
+func _ghost_overlapping_bodies() -> Array[RigidBody3D]:
+	var bodies: Array[RigidBody3D] = []
 	var gift_id: StringName = _held_gift_id()
 	var physics: PhysicsTuning = _ghost.tuning
 	var centers: Array[Vector3] = BlockFactory.overlap_probe_centers(_ghost.get_shape(), physics, gift_id) if _ghost.get_shape() != null else []
 	if centers.is_empty():
-		return false
+		return bodies
 	var world: World3D = get_viewport().world_3d
 	if world == null:
-		return false
+		return bodies
 	var pose: Transform3D = _release_pose(gift_id)
 	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
 	var box_shape: BoxShape3D = BoxShape3D.new()
@@ -1386,13 +1131,13 @@ func _ghost_overlaps_a_placed_block(unsettled_only: bool = false) -> bool:
 		params.transform = Transform3D(pose.basis, pose.origin + pose.basis * local_center)
 		params.collide_with_bodies = true
 		params.collide_with_areas = false
-		params.collision_mask = Field.PLACEMENT_QUERY_MASK
+		params.collision_mask = FieldBody.PLACEMENT_QUERY_MASK
 		var overlaps: Array[Dictionary] = space_state.intersect_shape(params, ghost_tuning.collision_probe_max_bodies)
 		for overlap: Dictionary in overlaps:
 			var body: RigidBody3D = overlap.get("collider") as RigidBody3D
-			if body != null and (not unsettled_only or not _is_settled_body(body)):
-				return true
-	return false
+			if body != null:
+				bodies.append(body)
+	return bodies
 
 
 ## The held gift's id (&"" for an ordinary piece).
@@ -1444,12 +1189,11 @@ func _on_placement_rejected(slot_id: int, _reason: StringName) -> void:
 	if slot_id != _acting_slot() or _ghost == null:
 		return
 	_intent_lock_left = 0.0
-	_undo_release_raise()
+	_clearance().undo_release_lift()
 	# neither refusal branch spawned anything near the cursor
 	# (a manual refusal spawns nothing at all; an auto-drop burn spawns
-	# something, but throws it off the map) -- see _pending_spawn_active's own
-	# field comment.
-	_end_pending_spawn()
+	# something, but throws it off the map).
+	_clearance().cancel_pending()
 	_ghost.play_reject_animation()
 
 
@@ -1472,14 +1216,6 @@ func _on_placement_relocated(slot_id: int, point: Vector2) -> void:
 	_last_safe_cursor = _cursor
 	_collision_cursor_seeded = true
 	_update_ghost_transform()
-	if _pending_spawn_active:
-		# the block actually landed here, not at whatever spot
-		# _request_place() captured before the host relocated it -- re-capture
-		# the top height at the now-updated ghost position (still the shape
-		# that was just placed; _on_feed_block_issued() hasn't swapped it yet)
-		# so _apply_spawn_clearance() displaces the next ghost from where the
-		# block truly is.
-		_pending_spawn_top_y = _ghost.projection_span_y().x
 	if _camera_rig != null:
 		# see _camera_follow_anchor()'s own doc comment.
 		_camera_rig.set_follow_position(_camera_follow_anchor())
@@ -1534,7 +1270,7 @@ func _handle_hover_adjust(delta: float) -> void:
 		0.0,
 		_hover_offset_ceiling()
 	)
-	_absorb_clearance_raise()
+	_clearance().absorb()
 	_ghost.manual_hover_offset = _clamp_hover_offset(desired)
 	_refresh_ghost_pose()
 
@@ -1646,7 +1382,7 @@ func _update_ghost_transform() -> void:
 		return
 	var origin: Vector3 = _cursor + Vector3.UP * ghost_tuning.cursor_ray_height
 
-	var hit: Dictionary = _raycast_disk_surface(origin)
+	var hit: Dictionary = _ghost.raycast_disk_surface(origin)
 	var hit_point: Vector3
 	var hit_normal: Vector3
 	if hit.is_empty():
@@ -1663,20 +1399,8 @@ func _update_ghost_transform() -> void:
 
 	_last_hit_point = hit_point
 	_last_hit_normal = hit_normal
+	_clearance().set_surface(hit_point, hit_normal)
 	_ghost.update_placement(hit_point, hit_normal)
-
-
-## Straight down from `origin`, skipping any RigidBody3D (a placed block) so
-## the first hit reported is the disk's own collision (a StaticBody3D, or an
-## AnimatableBody3D on a tilting disk) -- never a tower underneath the
-## cursor. Bounded by ghost_tuning.surface_probe_max_blocks so a very tall (or
-## adversarially deep) stack can't spin this loop forever; past that many
-## skips it just reports a miss, same as an empty query.
-func _raycast_disk_surface(origin: Vector3) -> Dictionary:
-	var space_state: PhysicsDirectSpaceState3D = get_viewport().world_3d.direct_space_state
-	return Field.raycast_disk_surface(
-		space_state, origin, ghost_tuning.placement_ray_length, ghost_tuning.surface_probe_max_blocks
-	)
 
 
 # --- Ghost-vs-placed-block collision (spec 1.4 "Held-block
@@ -1695,7 +1419,7 @@ func _raycast_disk_surface(origin: Vector3) -> Dictionary:
 # zone -- defaults to Godot's layer 1, and project.godot has no [layer_names]
 # section), and adding one would mean editing the project's physics layers
 # (tools/bootstrap_project.gd owns project settings) and rippling into
-# BlockFactory/Field. This is the technique _raycast_disk_surface() above uses
+# BlockFactory/Field. This is the technique GhostPreview.raycast_disk_surface() uses
 # to skip a block when it wants the disk, inverted: skip anything that ISN'T a
 # RigidBody3D (the disk, a future goal-zone Area3D) and only stop for one that
 # is. A dedicated layer would be a follow-up.
@@ -1724,7 +1448,7 @@ func _seed_collision_cursor_if_needed() -> void:
 ## _cursor is the aim point the
 ## *rotated* held shape's own centre sits over (GhostPreview.
 ## update_placement()), not this node's own origin -- so the boxes
-## _sweep_motion() below places at `position + basis * local_center` have to
+## GhostSweep places at `position + basis * local_center` have to
 ## be built from the same cursor-minus-centre-offset point update_placement()
 ## will actually put the ghost's node origin at, or a pitched/rolled shape's
 ## swept boxes would land somewhere the render then doesn't match (this
@@ -1771,145 +1495,18 @@ func _clamp_hover_offset(desired: float) -> float:
 	return current + achieved_delta
 
 
-## The shared box-sweep behind both clamps above: moves the held shape's own
-## collision boxes (GhostPreview.collision_box_local_centers()/
-## collision_half_size(), built the same way BlockFactory.build() would, so
-## the ghost matches the block that will actually spawn) from `from_position`
-## to `to_position` at the ghost's current rotation, and returns the furthest
-## point along that straight line that keeps every box clear of every placed
-## block. DECISION: tries the full motion first, then the X-only and Z-only
-## components of whatever remains, so horizontal motion blocked on one axis
-## still slides along the other; a purely vertical motion (the hover clamp)
-## has zero X/Z remainder, so the slide attempts are a no-op there and it
-## correctly just stops.
+## The shared box-sweep behind both clamps above: GhostSweep slides the held shape's own
+## collision boxes (built the way BlockFactory.build() would, so the ghost matches the block
+## that will spawn) from `from_position` to `to_position` at the ghost's current rotation.
 func _sweep_ghost_position(from_position: Vector3, to_position: Vector3) -> Vector3:
-	var result: Vector3 = from_position + _sweep_motion(from_position, to_position - from_position)
-	var remainder: Vector3 = to_position - result
-	if remainder.length() > 0.0:
-		result += _sweep_motion(result, Vector3(remainder.x, 0.0, 0.0))
-		remainder = to_position - result
-		result += _sweep_motion(result, Vector3(0.0, 0.0, remainder.z))
-	return result
-
-
-## One shape cast per collision box of the held shape, in one direction,
-## returning the safe portion of `motion` (Vector3.ZERO if none of it is
-## clear, unchanged `motion` if all of it is). The swept box is inflated by
-## ghost_tuning.ghost_collision_skin on every side so the returned motion
-## always leaves that much of a gap, rather than letting the ghost visually
-## touch a placed block exactly.
-func _sweep_motion(position: Vector3, motion: Vector3) -> Vector3:
-	if motion.length() <= 0.0 or _ghost == null:
-		return Vector3.ZERO
-	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
-	if boxes.is_empty():
-		return motion
 	var world: World3D = get_viewport().world_3d
-	if world == null:
-		return motion
-	var space_state: PhysicsDirectSpaceState3D = world.direct_space_state
-	var inflated_half: float = _ghost.collision_half_size() + ghost_tuning.ghost_collision_skin
-	var box_shape: BoxShape3D = BoxShape3D.new()
-	box_shape.size = Vector3.ONE * (inflated_half * 2.0)
-	var min_safe_fraction: float = 1.0
-	for local_center: Vector3 in boxes:
-		var world_center: Vector3 = position + _ghost.basis * local_center
-		min_safe_fraction = minf(
-			min_safe_fraction, _cast_one_box(space_state, box_shape, world_center, motion)
-		)
-	return motion * clampf(min_safe_fraction, 0.0, 1.0)
-
-
-## Casts `box_shape` (already inflated by the caller) from `world_center`
-## along `motion`, skipping any collider that isn't a placed block -- see this
-## section's top-of-file DECISION for why type, not collision_mask, is the
-## filter here. Bounded by ghost_tuning.collision_probe_max_bodies, the same
-## bounded-skip idea _raycast_disk_surface() uses, so a pathological pile of
-## non-block colliders in the way can't spin this loop forever. Returns the
-## safe fraction of `motion` (1.0 = fully clear).
-##
-## If `box_shape` already overlaps a placed block right at `world_center` --
-## zero motion -- this returns 1.0 (the full requested motion) without ever
-## calling cast_motion(). The ghost's own baseline hover height
-## (_update_ghost_transform()) deliberately ignores whatever tower sits under
-## the cursor, so a freshly spawned or freshly rotated ghost routinely starts a
-## frame already embedded in a placed block -- raising past it is the only way
-## out, by design (the spawn-clearance logic relies on manual_hover_offset being
-## able to lift the ghost clear of exactly this state). cast_motion() itself,
-## called from a shape that already overlaps a body, reports collisions to a
-## shallow query depth and can come back permanently "unsafe" (0.0) even when
-## `motion` is carrying the box further along its own way out -- a 4-cube tower
-## with a domino held above it froze at manual_hover_offset ~0.6 m forever
-## (tests/unit/player/test_playercontroller_hover_cap.gd), nowhere near the
-## tower's own ~3.4 m top or GhostTuning.hover_manual_max's ceiling, even though
-## every notch kept requesting more upward motion.
-## DECISION (game/player/PlayerController.gd): exempting an
-## already-overlapping box from this frame's block entirely, rather than
-## trying to compute a partial "depenetration" distance, keeps the fix to the
-## one case that regressed (a box that starts this query already embedded)
-## without touching the geometry every other collision case depends on: each of
-## those starts its query from a position that is *not* already overlapping (the
-## ghost approaches a placed block from clear space and this same function's
-## normal cast_motion path below still stops it right at the collision skin's
-## gap), so none of them take this new branch. An embedded box instead advances
-## by exactly the caller's requested `motion` once per query (one wheel notch, or
-## one frame's worth of a held raise/lower key) -- the same rate free space would
-## have given it -- until it re-checks from its new position next call and
-## finds itself finally clear, at which point ordinary blocking resumes.
-func _cast_one_box(
-	space_state: PhysicsDirectSpaceState3D, box_shape: BoxShape3D, world_center: Vector3, motion: Vector3
-) -> float:
-	var start_probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	start_probe.shape = box_shape
-	start_probe.transform = Transform3D(_ghost.basis, world_center)
-	start_probe.collide_with_bodies = true
-	start_probe.collide_with_areas = false
-	start_probe.collision_mask = Field.PLACEMENT_QUERY_MASK
-	for start_overlap: Dictionary in space_state.intersect_shape(start_probe, 8):
-		if start_overlap.get("collider") is RigidBody3D:
-			return 1.0
-
-	var params: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-	params.shape = box_shape
-	params.transform = Transform3D(_ghost.basis, world_center)
-	params.motion = motion
-	params.collide_with_bodies = true
-	params.collide_with_areas = false
-	params.collision_mask = Field.PLACEMENT_QUERY_MASK
-	var exclude: Array[RID] = []
-	var attempts: int = 0
-	while attempts <= ghost_tuning.collision_probe_max_bodies:
-		params.exclude = exclude
-		var cast_result: PackedFloat32Array = space_state.cast_motion(params)
-		var safe_fraction: float = cast_result[0] if cast_result.size() > 0 else 1.0
-		if safe_fraction >= 1.0:
-			return 1.0
-		# DECISION (game/player/PlayerController.gd): probe at cast_motion's *unsafe*
-		# fraction, not its safe one -- `safe_fraction` is deliberately the
-		# point just *before* any contact (zero penetration, often not even
-		# touching yet), so intersect_shape() there can come back empty even
-		# when something genuinely blocked the cast. `unsafe_fraction` is
-		# where the shapes actually first overlap, which is what identifying
-		# the blocker needs.
-		var unsafe_fraction: float = cast_result[1] if cast_result.size() > 1 else safe_fraction
-		var probe: PhysicsShapeQueryParameters3D = PhysicsShapeQueryParameters3D.new()
-		probe.shape = box_shape
-		probe.transform = Transform3D(_ghost.basis, world_center + motion * unsafe_fraction)
-		probe.collide_with_bodies = true
-		probe.collide_with_areas = false
-		probe.collision_mask = Field.PLACEMENT_QUERY_MASK
-		probe.exclude = exclude
-		var overlaps: Array[Dictionary] = space_state.intersect_shape(probe, 8)
-		var non_block_rids: Array[RID] = []
-		for overlap: Dictionary in overlaps:
-			if overlap.get("collider") is RigidBody3D:
-				return safe_fraction
-			non_block_rids.append(overlap["rid"] as RID)
-		if non_block_rids.is_empty():
-			return 1.0
-		exclude.append_array(non_block_rids)
-		attempts += 1
-	return 0.0
+	var boxes: Array[Vector3] = _ghost.collision_box_local_centers()
+	if world == null or boxes.is_empty():
+		return to_position
+	return GhostSweep.new(ghost_tuning).sweep(
+		world.direct_space_state, boxes, _ghost.collision_half_size(), _ghost.basis,
+		from_position, to_position
+	)
 
 
 ## Match names the shape it issues by id (Events.feed_block_issued); the ghost

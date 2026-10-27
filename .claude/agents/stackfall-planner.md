@@ -37,7 +37,9 @@ the Godot best-practices rule in CLAUDE.md, as few deep modules: a feature folde
 one small typed interface that hides most of its code. Split files for parallel ownership
 only behind that interface, never into pass-through facades or forwarders unless the plan
 marks them transitional and names the package that removes them. Cite the real functions and lines you
-read.
+read. Each package brief names its baseline entries: every `lint_dead` `allow` id it adds
+with the package that removes it, and every file it adds to Main's compile closure
+(`lint_layers --allow-new`), or "none".
 
 Plan only what the spec and the bead require: apply "Smallest complete change" in
 CLAUDE.md at package level, reuse existing modules before proposing new ones, and list

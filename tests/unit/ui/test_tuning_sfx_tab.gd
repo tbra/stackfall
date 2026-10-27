@@ -56,7 +56,7 @@ func test_picking_a_file_changes_what_the_next_drop_event_plays() -> void:
 	_pick(_option("drop_file"), PICKED_DROP)
 	assert_eq(Sfx.config.drop_file, PICKED_DROP)
 	assert_true((_row(Sfx.config, "drop_file")["name_label"] as Label).text.begins_with(TuningPanel.MODIFIED_MARKER), "modified marker")
-	assert_same(Sfx._pick_stream(AudioConfig.EVENT_DROP), Sfx._load_stream(PICKED_DROP), "next drop resolves the picked stream")
+	assert_same(Sfx._pick_stream(AudioConfig.EVENT_DROP), Sfx._library.stream(PICKED_DROP), "next drop resolves the picked stream")
 
 
 func test_save_reload_and_reset_round_trip() -> void:

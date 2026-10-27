@@ -1,7 +1,7 @@
 extends Node
 ## Audio for the game's own sound effects and music.
 ## Loads streams at runtime from res://assets/audio/sfx (in the editor) or
-## <exe dir>/assets/effects (exported). HARD CONSTRAINT: third-party
+## <exe dir>/assets/audio/sfx (exported). HARD CONSTRAINT: third-party
 ## copyrighted assets (including the original Bontago's) never enter this
 ## repo. Absent folder: one info print, then every play() is a silent
 ## no-op -- the game runs fine with no sound, the same "supported absence"
@@ -44,13 +44,8 @@ const MSEC_PER_S: float = 1000.0
 
 @export var config: AudioConfig = preload("res://config/audio/audio_config.tres")
 
-var _root_dir: String = ""
-var _available: bool = false
-var _streams_by_filename: Dictionary = {}
-## Disk-music (single-theme / stem) mode cache; independent of the playlist streams.
-var _music_root_dir: String = ""
-var _music_available: bool = false
-var _music_streams_by_filename: Dictionary = {}
+## The effects/music folder and its decoded-stream cache (one root serves both).
+var _library: StreamLibrary = StreamLibrary.new(_resolve_root_dir())
 var _sfx_players: Array[AudioStreamPlayer] = []
 ## pause-proof pool for menu cues (see _build_player_pool).
 const UI_PLAYER_COUNT: int = 4
@@ -71,7 +66,7 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## Adaptive music: the tense stem, on the same bus as _music_player, started in sync with it
 ## whenever both config.music_stem_calm_file and config.music_stem_tense_file
-## resolve to real files under _music_root_dir. Missing tense file: this
+## resolve to real files in the library. Missing tense file: this
 ## player is simply never given a stream and _tense_stem_available stays
 ## false -- single-stream playback through _music_player is untouched, no
 ## error/warning (Skybox.gd's fallback_active pattern).
@@ -138,11 +133,6 @@ var _claim_duck_db: float = 0.0
 var _claim_stream_missing: bool = false
 var _claim_flush_queued: bool = false
 var _claim_last_level: float = 0.0
-## Test seams: null = use Net/Match.
-var _claim_test_local_team: Variant = null
-var _claim_test_live: Variant = null
-var _claim_test_client: Variant = null
-var _claim_test_hold_s: Variant = null
 ## Last applied (volume_db, pitch, duck) targets; an unchanged target makes no tweens.
 var _claim_last_targets: Vector3 = Vector3(MUSIC_STEM_MUTE_DB, 1.0, 0.0)
 ## Client-side extrapolation of a hold between sparse replicated updates.
@@ -152,11 +142,8 @@ var _claim_ext: ClaimProgressExtrapolator = ClaimProgressExtrapolator.new()
 func _ready() -> void:
 	BlockBody.impact_speed_min = config.impact_speed_min
 	BlockBody.impacts_enabled = config.impacts_enabled
-	_root_dir = _resolve_root_dir()
-	_available = DirAccess.dir_exists_absolute(_root_dir)
-	if not _available:
-		print("Sfx: no effects at %s -- game runs silently." % _root_dir)
-	_refresh_music_root_dir()
+	if not _library.available():
+		print("Sfx: no effects at %s -- game runs silently." % _library.root_dir())
 	_build_player_pool()
 	_refresh_tense_stem()
 	_build_claim_layer()
@@ -196,20 +183,13 @@ func _resolve_root_dir() -> String:
 	return OS.get_executable_path().get_base_dir().path_join(AUDIO_SUBDIR)
 
 
-## Disk-music mode reads from the same bundled root as the SFX.
-func _refresh_music_root_dir() -> void:
-	_music_root_dir = _root_dir
-	_music_available = DirAccess.dir_exists_absolute(_music_root_dir)
-	_music_streams_by_filename.clear()
-
-
 ## Settings.audio_settings_changed re-applies the volume of whatever is already
 ## playing -- no restart needed to hear a slider move.
 func _on_audio_settings_changed() -> void:
 	if config.contextual_music_enabled:
 		_apply_playlist_volume()
 		return
-	_refresh_music_root_dir()
+	_library.release()
 	_refresh_tense_stem()
 	if _music_player.playing:
 		_music_player.volume_db = calm_stem_target_volume_db()
@@ -288,7 +268,7 @@ func play(event: StringName) -> bool:
 		return true
 	var player: AudioStreamPlayer = _next_ui_player() if _is_menu_event(event) else _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
@@ -329,7 +309,7 @@ func _pick_stream(event: StringName) -> AudioStream:
 		var bundled: AudioStream = _bundled_theme()
 		if bundled != null:
 			return bundled
-		if not _music_available:
+		if not _library.available():
 			return null
 		# DECISION (autoload/Sfx.gd): only steer music_file's own EVENT_MUSIC
 		# selection toward music_stem_calm_file once a real tense partner exists
@@ -340,44 +320,14 @@ func _pick_stream(event: StringName) -> AudioStream:
 		# music_file/shuffle would otherwise pick, or the two could silently
 		# mismatch.
 		if _tense_stem_available:
-			return _load_stream_from_root(
-				config.music_stem_calm_file, _music_root_dir, _music_streams_by_filename
-			)
-	elif not _available:
+			return _library.stream(config.music_stem_calm_file)
+	elif not _library.available():
 		return null
 	var files: Array[String] = config.files_for_event(event)
 	if files.is_empty():
 		return null
 	var filename: String = files[0] if files.size() == 1 else files[_rng.randi_range(0, files.size() - 1)]
-	if is_music:
-		return _load_stream_from_root(filename, _music_root_dir, _music_streams_by_filename)
-	return _load_stream(filename)
-
-
-func _load_stream(filename: String) -> AudioStream:
-	return _load_stream_from_root(filename, _root_dir, _streams_by_filename)
-
-
-## Shared by _load_stream() (bundled SFX root) and _pick_stream()'s music path
-## (SFX or music root). `cache` is a
-## Dictionary reference (GDScript Dictionaries are reference types), so a hit
-## the caller adds here is visible to the caller's own dict too.
-func _load_stream_from_root(filename: String, root_dir: String, cache: Dictionary) -> AudioStream:
-	var key: String = filename.to_lower()
-	if cache.has(key):
-		return cache[key]
-	var full_path: String = root_dir.path_join(key)
-	if not FileAccess.file_exists(full_path):
-		print("Sfx: expected file missing: %s" % full_path)
-		return null
-	var stream: AudioStream = null
-	if key.ends_with(".wav"):
-		stream = AudioStreamWAV.load_from_file(full_path)
-	elif key.ends_with(".mp3"):
-		stream = AudioStreamMP3.load_from_file(full_path)
-	if stream != null:
-		cache[key] = stream
-	return stream
+	return _library.stream(filename)
 
 
 func _is_menu_event(event: StringName) -> bool:
@@ -398,28 +348,15 @@ func _next_sfx_player() -> AudioStreamPlayer:
 	return player
 
 
-# --- Test seam ---------------------------------------------------------------
-
-## tests/unit/audio/test_sfx.gd points a fresh Sfx instance at a temp folder
-## instead of assets/audio/sfx, so the tests never depend on shipped files.
-func set_root_dir_for_test(path: String) -> void:
-	_root_dir = path
-	_available = DirAccess.dir_exists_absolute(path)
-	_streams_by_filename.clear()
-	_claim_stream_missing = false
-	_refresh_music_root_dir()  # re-derive the bundled-fallback case against the new _root_dir
-	_refresh_tense_stem()
-
-
 # --- Adaptive music -------------------------------------------------------------
 
-## Re-derives _tense_stem_available against the current _music_root_dir.
+## Re-derives _tense_stem_available against the current library.
 ## Requires BOTH config.music_stem_calm_file and config.music_stem_tense_file
 ## to resolve to real files there -- a "calm" stem with no matching "tense"
 ## partner has nothing to crossfade to, so it is treated the same as a
 ## missing tense file (no error either way, just _tense_stem_available
-## staying false). Called whenever _music_root_dir can change (_ready(),
-## _on_audio_settings_changed(), set_root_dir_for_test()).
+## staying false). Called whenever the library can change (_ready(),
+## _on_audio_settings_changed()).
 func _refresh_tense_stem() -> void:
 	var was_available: bool = _tense_stem_available
 	_tense_stem_available = false
@@ -430,19 +367,15 @@ func _refresh_tense_stem() -> void:
 	if config.contextual_music_enabled or _bundled_theme() != null:
 		_tense_stem_is_active = false
 		return
-	if not _music_available:
+	if not _library.available():
 		if was_available:
 			_tense_stem_is_active = false  # the tense stem just disappeared -- fall back to calm
 		return
-	var calm_path: String = _music_root_dir.path_join(config.music_stem_calm_file.to_lower())
-	var tense_path: String = _music_root_dir.path_join(config.music_stem_tense_file.to_lower())
-	if not FileAccess.file_exists(calm_path) or not FileAccess.file_exists(tense_path):
+	if not _library.has_file(config.music_stem_calm_file) or not _library.has_file(config.music_stem_tense_file):
 		if was_available:
 			_tense_stem_is_active = false  # the tense (or its calm partner) just disappeared -- fall back to calm
 		return
-	var stream: AudioStream = _load_stream_from_root(
-		config.music_stem_tense_file, _music_root_dir, _music_streams_by_filename
-	)
+	var stream: AudioStream = _library.stream(config.music_stem_tense_file)
 	if stream == null:
 		return
 	if stream is AudioStreamMP3:
@@ -479,7 +412,7 @@ func _sync_tense_player_with_calm() -> void:
 ## MUSIC_STEM_MUTE_DB to the only music stream that exists and mute it
 ## permanently.
 func calm_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
 		return baseline_db
 	return MUSIC_STEM_MUTE_DB if _tense_stem_is_active else baseline_db
@@ -491,7 +424,7 @@ func calm_stem_target_volume_db() -> float:
 ## _tense_music_player is never given a stream or started while unavailable,
 ## see _refresh_tense_stem()/_sync_tense_player_with_calm()).
 func tense_stem_target_volume_db() -> float:
-	var baseline_db: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
 		return MUSIC_STEM_MUTE_DB
 	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
@@ -606,8 +539,6 @@ func drain_for_quit() -> void:
 
 ## Set once quit_tree() has begun; later requests return at once.
 var _quit_started: bool = false
-## Test seam: replaces get_tree().quit(exit_code) so a test never ends the runner.
-var quit_override: Callable = Callable()
 
 
 ## The one quit helper: marks the quit, drains audio, then quits the tree.
@@ -619,10 +550,7 @@ func quit_tree(exit_code: int = 0) -> void:
 	_quit_started = true
 	QuitFlag.mark()
 	await drain_for_quit()
-	if quit_override.is_valid():
-		quit_override.call(exit_code)
-	else:
-		get_tree().quit(exit_code)
+	get_tree().quit(exit_code)
 
 
 func release_audio() -> void:
@@ -641,8 +569,7 @@ func release_audio() -> void:
 			player.stop()
 			player.stream = null
 	_kill_claim_tweens()
-	_streams_by_filename.clear()
-	_music_streams_by_filename.clear()
+	_library.release()
 	_drop_music_requests()
 
 
@@ -813,7 +740,7 @@ func _start_playlist_track() -> void:
 func _apply_playlist_volume() -> void:
 	if _music_player == null:
 		return
-	var baseline: float = config.music_volume_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + _claim_duck_db + linear_to_db(_music_envelope))
 
 
@@ -836,18 +763,11 @@ func _on_music_finished() -> void:
 func _on_block_impacted_at(speed: float, position: Vector3) -> void:
 	# with no sample root nothing can play (the picks below return
 	# null), so skip the physics surface query too.
-	if speed < config.impact_speed_min or not _available:
+	if speed < config.impact_speed_min or not _library.available():
 		return
 	_play_impact(speed, _classify_surface(position))
 	if _impact_touches_glue():
 		_play_glue_hit()
-
-
-## Speed-only entry kept for callers/tests without a position; treated as the disc.
-func _on_block_impacted(speed: float) -> void:
-	if speed < config.impact_speed_min:
-		return
-	_play_impact(speed, AudioConfig.SURFACE_DISC)
 
 
 ## Block-on-block when the impact point overlaps at least
@@ -895,12 +815,12 @@ func _play_impact(speed: float, surface: StringName) -> void:
 		return
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.impact_volume_db(speed) + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.impact_volume_db(speed), Settings.sfx_volume_db())
 	player.play()
 
 
 func _pick_impact_stream(speed: float, surface: StringName) -> AudioStream:
-	if not _available:
+	if not _library.available():
 		return null
 	var tier: StringName = config.impact_tier(speed)
 	var key: int = _impact_cache_key(surface, tier)
@@ -927,13 +847,13 @@ func _impact_cache_key(surface: StringName, tier: StringName) -> int:
 	return s * IMPACT_TIERS.size() + t
 
 
-## Streams for one set, resolved through _load_stream once and then reused.
+## Streams for one set, resolved through _library.stream once and then reused.
 func _impact_streams(surface: StringName, tier: StringName, key: int) -> Array[AudioStream]:
 	if key >= 0:
-		if not (is_same(_impact_cache_config, config) and _impact_cache_root == _root_dir 				and is_same(_impact_cache_files, config.impact_variation_files)):
+		if not (is_same(_impact_cache_config, config) and _impact_cache_root == _library.root_dir() 				and is_same(_impact_cache_files, config.impact_variation_files)):
 			_impact_stream_cache.clear()
 			_impact_cache_config = config
-			_impact_cache_root = _root_dir
+			_impact_cache_root = _library.root_dir()
 			_impact_cache_files = config.impact_variation_files
 		var cached: Variant = _impact_stream_cache.get(key)
 		if cached != null:
@@ -941,7 +861,7 @@ func _impact_streams(surface: StringName, tier: StringName, key: int) -> Array[A
 	var resolved: Array[AudioStream] = []
 	var complete: bool = true
 	for file: String in config.impact_variation_for(surface, tier):
-		var stream: AudioStream = _load_stream(file)
+		var stream: AudioStream = _library.stream(file)
 		complete = complete and stream != null
 		resolved.append(stream)
 	# A missing file keeps a null entry (retried and reported
@@ -955,14 +875,14 @@ func _impact_streams(surface: StringName, tier: StringName, key: int) -> Array[A
 ## the file is missing.
 func play_ui_cue(cue: StringName) -> bool:
 	var filename: String = config.ui_cue_file(cue)
-	if filename.is_empty() or not _available:
+	if filename.is_empty() or not _library.available():
 		return false
-	var stream: AudioStream = _load_stream(filename)
+	var stream: AudioStream = _library.stream(filename)
 	if stream == null:
 		return false
 	var player: AudioStreamPlayer = _next_ui_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.ui_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.ui_cue_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
@@ -1049,7 +969,7 @@ func _on_gift_flight_spawned(_gift_id: int, _origin: Vector3, _landing: Vector3)
 func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3, _chain_depth: int) -> void:
 	# A timed special's trigger ends its window: its loop (if any) fades out.
 	_fade_out_special_loop(def_id)
-	if _world_replay_silent or not _available:
+	if _world_replay_silent or not _library.available():
 		return
 	var filename: String = config.special_cue_files.get(def_id, "")
 	if filename.is_empty():
@@ -1058,13 +978,13 @@ func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3,
 	var last_msec: int = _last_special_cue_msec.get(def_id, -1)
 	if _within_interval(last_msec, config.special_cue_min_interval_s, now_msec):
 		return
-	var stream: AudioStream = _load_stream(filename)
+	var stream: AudioStream = _library.stream(filename)
 	if stream == null:
 		return
 	_last_special_cue_msec[def_id] = now_msec
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + config.special_cue_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db + config.special_cue_volume_db, Settings.sfx_volume_db())
 	player.play()
 
 
@@ -1077,13 +997,13 @@ func _on_special_triggered(_net_id: int, def_id: StringName, _position: Vector3,
 ## to SpecialEffect (tools/lint_layers.py L3). Magnet's pull_start_delay_s (0 by
 ## default) is inside that lifetime, so a delayed pull would hum early.
 func _on_special_consumed(_slot_id: int, special_id: StringName) -> void:
-	if _world_replay_silent or not _available:
+	if _world_replay_silent or not _library.available():
 		return
 	var filename: String = config.special_loop_files.get(special_id, "")
 	if filename.is_empty():
 		return
 	var seconds: float = _special_active_seconds(special_id)
-	var source: AudioStream = _load_stream(filename)
+	var source: AudioStream = _library.stream(filename)
 	if source == null or seconds <= 0.0:
 		return
 	while _special_loops.size() >= maxi(config.special_loop_max, 1):
@@ -1092,7 +1012,7 @@ func _on_special_consumed(_slot_id: int, special_id: StringName) -> void:
 	add_child(player)
 	player.stream = _looped_copy(source)
 	var target_db: float = (
-		config.sfx_volume_db + config.special_loop_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+		_volume_db(config.sfx_volume_db + config.special_loop_volume_db, Settings.sfx_volume_db())
 	)
 	player.volume_db = MUSIC_STEM_MUTE_DB
 	player.play()
@@ -1188,25 +1108,25 @@ func _within_interval(last_msec: int, interval_s: float, now_msec: int) -> bool:
 
 ## One-shot of an effects-folder file on the SFX pool; false when missing.
 func _play_cue_file(filename: String) -> bool:
-	if filename.is_empty() or not _available:
+	if filename.is_empty() or not _library.available():
 		return false
-	var stream: AudioStream = _load_stream(filename)
+	var stream: AudioStream = _library.stream(filename)
 	if stream == null:
 		return false
 	var player: AudioStreamPlayer = _next_sfx_player()
 	player.stream = stream
-	player.volume_db = config.sfx_volume_db + Settings.master_volume_db() + Settings.sfx_volume_db()
+	player.volume_db = _volume_db(config.sfx_volume_db, Settings.sfx_volume_db())
 	player.play()
 	return true
 
 
-## The F4 SFX tab's file list: the loadable (.wav/.mp3, what _load_stream reads)
+## The F4 SFX tab's file list: the loadable (.wav/.mp3, what the library reads)
 ## files directly inside the effects folder, lowercase, alphabetical. Empty with no assets.
 func effect_files() -> PackedStringArray:
 	var found: PackedStringArray = PackedStringArray()
-	if not _available:
+	if not _library.available():
 		return found
-	for filename: String in DirAccess.get_files_at(_root_dir):
+	for filename: String in DirAccess.get_files_at(_library.root_dir()):
 		var lower: String = filename.to_lower()
 		if lower.ends_with(".wav") or lower.ends_with(".mp3"):
 			found.append(lower)
@@ -1258,28 +1178,24 @@ func _looped_copy(source: AudioStream) -> AudioStream:
 ## The loop bound is `maxi(Match.slot_count(), recipient_slot + 1)`, not just
 ## Match.slot_count(): tests/unit/audio/test_sfx.gd calls this directly with no
 ## match started (slot_count() == 0), where team_of_slot() falls back to
-## identity (see _team_of_slot() below), so this keeps checking at least slot
+## identity (see LocalFeedback.team_of_slot()), so this keeps checking at least slot
 ## recipient_slot itself.
 func _on_gift_claimed(_gift_id: int, recipient_slot: int, _special_id: StringName) -> void:
-	for slot_id: int in range(maxi(Match.slot_count(), recipient_slot + 1)):
+	for slot_id: int in range(maxi(MatchContext.current().slot_count(), recipient_slot + 1)):
 		# A human seat on this machine only -- offline every slot
 		# is local, so a bot claiming on its own team (or a bot teammate) would
 		# otherwise chime for a player who has nothing to do with it.
 		if not LocalFeedback.is_own_human_slot(slot_id):
 			continue
-		if _team_of_slot(slot_id) != _team_of_slot(recipient_slot):
+		if LocalFeedback.team_of_slot(slot_id) != LocalFeedback.team_of_slot(recipient_slot):
 			continue
 		play(AudioConfig.EVENT_GIFT_CLAIMED)
 		return
 
 
-## Null-safe mirror of config/match/MatchConfig.gd's team_of_slot() -- Match.config
-## is null before a match starts (TeamMode.OFF's own "every slot is its own
-## team" fallback), matching ui/hud/HUD.gd's own _team_of_slot() helper.
-func _team_of_slot(slot_id: int) -> int:
-	if Match.config == null:
-		return slot_id
-	return Match.config.team_of_slot(slot_id)
+## Final volume_db: `base_db` plus the master slider and the given channel slider (sfx or music).
+func _volume_db(base_db: float, channel_db: float) -> float:
+	return base_db + Settings.master_volume_db() + channel_db
 
 
 # --- Beacon-claim tension layer ------------------------------
@@ -1304,7 +1220,7 @@ func claim_tension_target_volume_db() -> float:
 	var level: float = _claim_state.level() if _claim_state != null else 0.0
 	if level <= 0.0 or not config.claim_tension_enabled:
 		return MUSIC_STEM_MUTE_DB
-	var baseline: float = config.claim_tension_max_db + Settings.master_volume_db() + Settings.music_volume_db()
+	var baseline: float = _volume_db(config.claim_tension_max_db, Settings.music_volume_db())
 	return clampf(baseline + linear_to_db(level), MUSIC_STEM_MUTE_DB, baseline)
 
 
@@ -1329,20 +1245,16 @@ func claim_tension_level() -> float:
 
 
 func _local_claim_team(team_id: int) -> int:
-	if _claim_test_local_team != null:
-		return int(_claim_test_local_team)
 	# Any human seat driven here that plays for the holding team makes it mine;
 	# otherwise (rival, spectator, bots only) it is the quieter rival flavour.
-	for slot_id: int in range(Match.slot_count()):
-		if LocalFeedback.is_own_human_slot(slot_id) and _team_of_slot(slot_id) == team_id:
+	for slot_id: int in range(MatchContext.current().slot_count()):
+		if LocalFeedback.is_own_human_slot(slot_id) and LocalFeedback.team_of_slot(slot_id) == team_id:
 			return team_id
 	return ClaimTensionState.NO_LOCAL_TEAM
 
 
 func _claim_match_live() -> bool:
-	if _claim_test_live != null:
-		return bool(_claim_test_live)
-	return Match.is_live(Match.state())
+	return MatchPhase.is_live(MatchContext.current().state())
 
 
 func _on_claim_progress(team_id: int, progress: float) -> void:
@@ -1383,15 +1295,11 @@ func _on_claim_match_won(_team_id: int) -> void:
 
 
 func _claim_is_client() -> bool:
-	if _claim_test_client != null:
-		return bool(_claim_test_client)
-	return Net.is_client()
+	return MatchContext.current().net_is_client()
 
 
 func _claim_hold_seconds() -> float:
-	if _claim_test_hold_s != null:
-		return float(_claim_test_hold_s)
-	return Match._territory_tuning.capture_hold
+	return MatchContext.current().capture_hold_seconds()
 
 
 ## A client only hears the capture progress when the territory raster changes
@@ -1486,9 +1394,9 @@ func _apply_claim_duck() -> void:
 
 
 func _start_claim_bed() -> void:
-	if not _available:
+	if not _library.available():
 		return
-	var source: AudioStream = _load_stream(config.claim_tension_file)
+	var source: AudioStream = _library.stream(config.claim_tension_file)
 	if source == null:
 		_claim_stream_missing = true  # silent no-op: do not retry (and log) every step
 		return

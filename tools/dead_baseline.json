@@ -2,7 +2,6 @@
  "checks": {
   "dead-file": [],
   "test-only-func": [
-   "autoload/Sfx.gd:set_root_dir_for_test",
    "autoload/match/BreezeEffect.gd:_active_weather_id",
    "autoload/match/BreezeEffect.gd:_age_and_expire",
    "autoload/match/BreezeEffect.gd:_eligible",
@@ -106,11 +105,6 @@
  "allow": [
   {
    "id": "dead-file",
-   "entry": "autoload/match/CatSession.gd",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): unwired until P6-Icat moves the Match cat code here; Icat removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "config/soak/soak_match_authority.tres",
    "reason": "soak harness MatchConfig: tools/run_soak.py passes it to the headless host as --match-config=res://... (path-loaded by the soak tool)"
   },
@@ -131,28 +125,13 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/audio/StreamLibrary.gd",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ilib"
-  },
-  {
-   "id": "dead-file",
    "entry": "core/blocks/GhostSilhouette.gd",
    "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
   },
   {
    "id": "dead-file",
-   "entry": "game/player/GhostSweep.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isweep, which removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "game/player/InputGate.gd",
    "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
-  },
-  {
-   "id": "dead-file",
-   "entry": "game/player/SpawnClearance.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Iclear, which removes this entry"
   },
   {
    "id": "dead-file",
@@ -596,33 +575,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/CatController.gd:configure",
-   "reason": "Match.gd:253 _cat.configure("
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/CatController.gd:set_target",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): name-ambiguous: CatSession.set_target (a stub until P6-Icat) shares the name, so the typed call no longer resolves; Icat removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
    "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/MagnetEffect.gd:faces_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/MagnetEffect.gd:launch_facing",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:apply_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace calls it; Iplace removes this entry"
   },
   {
    "id": "test-only-func",
@@ -631,63 +585,13 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:faces_launch",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/PaintballEffect.gd:launch_facing",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:apply_launch",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/RocketEffect.gd:effect_radius_m",
    "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; Bontago-di0.12 removes this entry"
   },
   {
    "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:faces_launch",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:launch_facing",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/RocketEffect.gd:may_aim_upward",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P6-Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:apply_launch",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace replaces MatchPlacement._apply_aim_direction; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
    "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (Bontago-di0.12) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:faces_launch",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:launch_facing",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/SpecialEffect.gd:may_aim_upward",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P6-Iplace asks the effect; Iplace removes this entry"
   },
   {
    "id": "test-only-func",
@@ -703,11 +607,6 @@
    "id": "test-only-func",
    "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/MatchLaunch.gd:headless_bot_config",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Ibuild"
   },
   {
    "id": "test-only-func",
@@ -788,6 +687,26 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/CatSession.gd:setup",
+   "reason": "MatchGifts.setup (typed call), itself reached from Match.late_activate through the untyped _gifts"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/gifts/specials/CatController.gd:configure",
+   "reason": "CatSession.gd start/apply_replicated_start _cat.configure( (the cat is held untyped so the autoload closure does not name CatController)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/player/GhostPreview.gd:current_state",
+   "reason": "P3-Idead removed its only game caller (SandboxPanel throw branch); tests still read it; removed by Bontago-di0.4.49 (P3_PLAN orchestrator note)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/player/GhostPreview.gd:projection_span_y",
+   "reason": "P3-Iclear removed its last game caller; removed by Bontago-di0.4.54 after P3-Isil (P3_PLAN orchestrator note)"
   }
  ]
 }

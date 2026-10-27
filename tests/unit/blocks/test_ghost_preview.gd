@@ -12,39 +12,33 @@ func _make_ghost() -> GhostPreview:
 
 ## Footprint quad bookkeeping read off the ghost's own child nodes.
 func _footprint_quad_count(ghost: GhostPreview) -> int:
-	return ghost._footprint_quads.size()
+	return GhostParts.footprint_quads(ghost).size()
 
 
-## The world-space XZ convex hull the footprint quad is built from.
-func _footprint_polygon_world(ghost: GhostPreview) -> PackedVector2Array:
-	var world: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in ghost._rotated_shape_hull():
-		world.append(Vector2(ghost.global_position.x + point.x, ghost.global_position.z + point.y))
-	return world
+## The footprint quad's own outline, in ghost-local XZ (its mesh vertices, back out of world space).
+func _footprint_polygon_local(ghost: GhostPreview) -> PackedVector2Array:
+	var local: PackedVector2Array = PackedVector2Array()
+	var quads: Array[MeshInstance3D] = GhostParts.footprint_quads(ghost)
+	if quads.is_empty():
+		return local
+	for point: Vector2 in GhostParts.quad_points_world(quads[0]):
+		local.append(Vector2(point.x - ghost.global_position.x, point.y - ghost.global_position.z))
+	return local
 
 
 ## Whether the projection prism mesh is currently built (a collapsed prism has a footprint quad but no mesh).
 func _has_projection_mesh(ghost: GhostPreview) -> bool:
-	return ghost._projection_mesh != null and ghost._projection_mesh.mesh != null
+	return GhostParts.has_prism_mesh(ghost)
 
 
 ## Every world-space vertex of the projection prism mesh.
 func _prism_vertices(ghost: GhostPreview) -> PackedVector3Array:
-	var result: PackedVector3Array = PackedVector3Array()
-	if not _has_projection_mesh(ghost):
-		return result
-	var mesh: ArrayMesh = ghost._projection_mesh.mesh as ArrayMesh
-	var offset: Vector3 = ghost._projection_mesh.global_position
-	for surface: int in range(mesh.get_surface_count()):
-		var verts: PackedVector3Array = mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX]
-		for v: Vector3 in verts:
-			result.append(Vector3(v.x + offset.x, v.y, v.z + offset.z))
-	return result
+	return GhostParts.prism_vertices(ghost)
 
 
 ## The silhouette outline loops (ghost-local XZ) the prism walls are built from.
 func _outline_loops(ghost: GhostPreview) -> Array[PackedVector2Array]:
-	return ghost._shape_silhouette_loops()
+	return GhostParts.silhouette(ghost).loops
 
 
 # --- rotated-bottom pivot -----------------------------
@@ -196,7 +190,8 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 	add_child_autofree(ghost)
 	ghost.set_shape(shape)
 
-	var half_size: float = (ghost.tuning.cube_size - ghost.tuning.cube_margin) * 0.5
+	# The footprint follows the rendered shell, so the corners use the visual cube_size box.
+	var half_size: float = ghost.tuning.cube_size * 0.5
 	var pivot: Vector3 = shape.bottom_center()
 	var corner_signs: Array[Vector3] = [
 		Vector3(-1.0, -1.0, -1.0), Vector3(1.0, -1.0, -1.0), Vector3(-1.0, 1.0, -1.0), Vector3(1.0, 1.0, -1.0),
@@ -221,10 +216,10 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 				expected_points.append(Vector2(x, z))
 		var expected_hull: PackedVector2Array = Geometry2D.convex_hull(expected_points)
 		var expected_bbox: Rect2 = _bbox_of(expected_hull)
-		var expected_area: float = _polygon_area(expected_hull)
+		var expected_area: float = float(shape.cells.size()) * ghost.tuning.cube_size * ghost.tuning.cube_size
 
 		assert_eq(_footprint_quad_count(ghost), 1, "the whole L-shape must still show exactly one footprint polygon.")
-		var actual_polygon: PackedVector2Array = _footprint_polygon_world(ghost)
+		var actual_polygon: PackedVector2Array = _footprint_polygon_local(ghost)
 		var actual_bbox: Rect2 = _bbox_of(actual_polygon)
 		assert_true(
 			actual_bbox.position.is_equal_approx(expected_bbox.position),
@@ -234,8 +229,11 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 			actual_bbox.size.is_equal_approx(expected_bbox.size),
 			"bbox size wrong at angle %.3f: got %s expected %s" % [angle, actual_bbox.size, expected_bbox.size]
 		)
+		var silhouette_area: float = 0.0
+		for loop: PackedVector2Array in _outline_loops(ghost):
+			silhouette_area += _polygon_area(loop)
 		assert_almost_eq(
-			_polygon_area(actual_polygon), expected_area, 0.001,
+			silhouette_area, expected_area, 0.001,
 			"a rigid rotation must preserve the whole shape's own footprint area exactly, at any angle."
 		)
 
@@ -293,7 +291,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 
 	assert_eq(_footprint_quad_count(ghost), 1, "one whole-shape footprint, not one per cell.")
 	assert_almost_eq(
-		ghost._footprint_quads[0].global_position.y, disk_surface_point.y + ghost.ghost_tuning.footprint_offset, 0.01,
+		GhostParts.footprint_quads(ghost)[0].global_position.y, disk_surface_point.y + ghost.ghost_tuning.footprint_offset, 0.01,
 		"the footprint must land on the bare disc, never the placed pillar's own top face."
 	)
 

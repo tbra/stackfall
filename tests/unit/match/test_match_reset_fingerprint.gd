@@ -17,11 +17,14 @@ const GUST_RADIUS_M: float = 4.0
 const GUST_DURATION_S: float = 5.0
 const CEILING_FADE_S: float = 20.0
 const DIRTY_ZOOM: float = 40.0
+const ORBIT_DRAG_PX: Vector2 = Vector2(-120.0, 150.0)
+const FOCUS_ACTION: StringName = &"camera_snap_goal"
 const HOLE_RADIUS_M: float = 3.0
 const HOLE_OPEN_S: float = 30.0
 const TILT_IMPULSE: float = 5.0
 const TILT_STEPS: int = 20
 const TILT_STEP_S: float = 0.05
+const TENSE_PROGRESS: float = 0.9
 const CHECKPOINTS: PackedStringArray = ["menu", "countdown", "playing"]
 
 ## Real gaps this test found and that are still open: "<label substring>|<key prefix>" -> what /
@@ -38,6 +41,7 @@ var _mains: Array[Node] = []
 var _map: MapDef
 var _other_map: MapDef
 var _saved_gravity_multiplier: float
+var _saved_stems: Dictionary = {}
 
 
 func before_each() -> void:
@@ -54,10 +58,12 @@ func before_each() -> void:
 	_map.field_radius = TINY_FIELD_RADIUS
 	_other_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
 	_other_map.field_radius = OTHER_FIELD_RADIUS
+	_saved_stems = MatchFingerprint.enable_stems()
 	_saved_gravity_multiplier = (load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier
 
 
 func after_each() -> void:
+	Input.action_release(FOCUS_ACTION)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	Net.leave()
@@ -69,7 +75,8 @@ func after_each() -> void:
 	_mains.clear()
 	Match.set_process(true)
 	(load("res://config/physics/physics_tuning.tres") as PhysicsTuning).gravity_multiplier = _saved_gravity_multiplier
-	Sfx._tense_stem_is_active = false
+	MatchFingerprint.restore_stems(_saved_stems)
+	_saved_stems = {}
 	await get_tree().process_frame
 	await get_tree().process_frame
 
@@ -184,20 +191,40 @@ func _reference_lobby_match(config_factory: Callable) -> Dictionary:
 
 # --- match A: everything a played match can leave behind -------------------------------
 
+## Everything a played match can leave on the rig, through the inputs and events the game
+## uses: zoom, a mouse orbit drag, the follow pose, a disc-tilt shake, a goal-focus tap (a turn
+## tween) and then a goal-focus hold that is still peeking. The held action is released in
+## after_each.
 func _dirty_camera(rig: CameraRig) -> void:
+	rig.tuning = rig.tuning.duplicate() as CameraTuning
+	rig.tuning.snap_enabled = true
+	rig.tuning.focus_hold_threshold_s = 0.0
 	rig.zoom_continuous(DIRTY_ZOOM)
-	rig._yaw += 1.3
-	rig._pitch = deg_to_rad(-72.0)
+	var drag: InputEventMouseMotion = InputEventMouseMotion.new()
+	drag.relative = ORBIT_DRAG_PX
+	Input.action_press(&"camera_orbit")
+	rig._unhandled_input(drag)
+	Input.action_release(&"camera_orbit")
 	rig.set_follow_position(Vector3(12.0, 3.0, -7.0))
 	rig.begin_follow_transition()
 	rig.set_local_slot(1)
-	rig._on_special_triggered(1, &"bomb", Vector3.ZERO, 0)
-	rig._peek_active = true
-	rig._peek_returning = true
-	rig._focus_action = &"camera_snap_goal"
-	rig._focus_hold_elapsed_s = 5.0
-	rig._goal_cycle_index = 1
-	rig._turn_to_face(Vector3.ZERO)
+	if Match.field() != null:
+		Match.field().apply_tilt_impulse(Vector2.RIGHT, TILT_IMPULSE)
+	Input.action_press(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(true))
+	Input.action_release(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(false))
+	Input.action_press(FOCUS_ACTION)
+	rig._unhandled_input(_focus_event(true))
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _focus_event(pressed: bool) -> InputEventAction:
+	var event: InputEventAction = InputEventAction.new()
+	event.action = FOCUS_ACTION
+	event.pressed = pressed
+	return event
 
 
 func _ceiling(main: Node) -> CloudCeiling:
@@ -249,8 +276,10 @@ func _play_dirty_a(main: Node) -> void:
 	for _i: int in range(TILT_STEPS):
 		field._physics_process(TILT_STEP_S)
 	# Camera moves, a held-over music stem, a bumped gravity multiplier.
-	_dirty_camera(rig)
-	Sfx._tense_stem_is_active = true
+	await _dirty_camera(rig)
+	assert_true(rig.is_peeking(), "fixture: the goal focus is held in a peek")
+	assert_ne(rig.shake_offset(), Vector3.ZERO, "fixture: the disc tilt shakes the camera")
+	Events.goal_capture_progress.emit(0, TENSE_PROGRESS)
 	await _settle()
 
 
@@ -262,7 +291,7 @@ func _sandbox_session_and_leave(main: Node) -> void:
 	assert_not_null(sandbox, "fixture: the sandbox is live")
 	sandbox._toggle_slow_motion()
 	sandbox._toggle_physics_paused()
-	_dirty_camera(main.get("_camera_rig") as CameraRig)
+	await _dirty_camera(main.get("_camera_rig") as CameraRig)
 	main._on_pause_leave_requested()
 	await _settle()
 	assert_eq(Engine.time_scale, 1.0, "fixture: the sandbox gave slow motion back")
@@ -305,7 +334,7 @@ func test_a_dirtied_main_is_caught_by_the_fingerprint() -> void:
 	var dirtied: Dictionary = MatchFingerprint.capture(main)
 	var found: PackedStringArray = MatchFingerprint.diff(launch, dirtied)
 	var text: String = "\n".join(found)
-	for key: String in ["camera.distance", "sky.overcast", "weather.active_id", "field.puddles_present", "audio.tense_active", "rules.gift_crates"]:
+	for key: String in ["camera.distance", "sky.overcast", "weather.active_id", "field.puddles_present", "audio.tense_target_db", "rules.gift_crates"]:
 		assert_true(text.contains(key), "match A changed %s" % key)
 
 

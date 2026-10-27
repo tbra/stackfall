@@ -44,14 +44,6 @@ func net_is_client() -> bool:
 	return false
 
 
-func net_is_offline() -> bool:
-	return true
-
-
-func net_local_slot() -> int:
-	return -1
-
-
 func net_is_local_slot(_slot_id: int) -> bool:
 	return false
 
@@ -80,10 +72,6 @@ func slot(_slot_id: int) -> PlayerSlot:
 
 func slot_color(_slot_id: int, fallback: Color = Color.WHITE) -> Color:
 	return fallback
-
-
-func active_slot() -> int:
-	return -1
 
 
 func field() -> FieldBody:

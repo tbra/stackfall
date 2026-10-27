@@ -23,3 +23,11 @@ static func is_own_human_slot(slot_id: int) -> bool:
 		return false
 	var seat: PlayerSlot = Match.slot(slot_id)
 	return seat == null or not seat.is_bot
+
+
+## The team of `slot_id`; null-safe because Match.config is null before a match starts
+## (every slot is then its own team, TeamMode.OFF's fallback).
+static func team_of_slot(slot_id: int) -> int:
+	if Match.config == null:
+		return slot_id
+	return Match.config.team_of_slot(slot_id)

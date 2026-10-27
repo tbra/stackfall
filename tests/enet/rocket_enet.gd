@@ -91,8 +91,8 @@ func net_fire(direction: Vector3) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func net_report(worst_deg: float, samples: int, gone: bool, last_pos: Vector3) -> void:
-	_client_report = {"worst_deg": worst_deg, "samples": samples, "gone": gone, "last": last_pos}
+func net_report(worst_deg: float, samples: int, gone: bool, last_pos: Vector3, pinned_run: int) -> void:
+	_client_report = {"worst_deg": worst_deg, "samples": samples, "gone": gone, "last": last_pos, "pinned_run": pinned_run}
 	_client_done = true
 
 
@@ -134,7 +134,9 @@ func _run_host() -> void:
 	var last: Vector3 = _client_report.get("last", Vector3(INF, INF, INF)) as Vector3
 	var end_err: float = last.distance_to(_explosion)
 	var gone: bool = bool(_client_report.get("gone", false))
-	var clamped: bool = last.y >= RocketEffect.replicable_bounds().end.y - CLAMP_EPSILON_M
+	# A wire clamp holds the pose still on the ceiling for several frames (client report pinned_run);
+	# extrapolation past a detonation below it (max_extrapolation_ms) keeps moving through it.
+	var clamped: bool = int(_client_report.get("pinned_run", 0)) >= MIN_SAMPLES
 	var pass_all: bool = ok and _exploded and _client_done and worst < MAX_NOSE_ERROR_DEG \
 		and samples >= MIN_SAMPLES and gone and end_err < MAX_END_ERROR_M and not clamped
 	print("%s host exploded=%s at=%s client_samples=%d worst_nose_deg=%.2f carrier_gone=%s end_err_m=%.2f" % [
@@ -178,6 +180,9 @@ func _watch_rocket(direction: Vector3) -> void:
 	var last: Vector3 = Vector3.ZERO
 	var prev: Vector3 = body.global_position if found else Vector3.ZERO
 	var net_id: int = body.net_id if found else -1
+	var ceiling: float = RocketEffect.replicable_bounds().end.y
+	var run: int = 0
+	var pinned_run: int = 0
 	while found and is_instance_valid(body) and Match.registry().block_for_net_id(net_id) == body:
 		await get_tree().process_frame
 		if not is_instance_valid(body):
@@ -192,7 +197,12 @@ func _watch_rocket(direction: Vector3) -> void:
 				worst = maxf(worst, error_deg)
 			count += 1
 			prev = body.global_position
+		# Pinned = held at the ceiling itself (a quantization clamp stops the body there); extrapolation
+		# keeps moving, and past a detonation it overshoots the ceiling instead of sitting on it.
+		var held: bool = absf(body.global_position.y - ceiling) <= CLAMP_EPSILON_M and absf(body.global_position.y - last.y) < MIN_MOVE_M
 		last = body.global_position
+		run = run + 1 if held else 0
+		pinned_run = maxi(pinned_run, run)
 	var gone: bool = found and (not is_instance_valid(body) or Match.registry().block_for_net_id(net_id) != body)
-	print("%s client slot=%d samples=%d worst_nose_deg=%.2f gone=%s last=%s" % [TAG, Net.local_slot(), count, worst, gone, last])
-	rpc_id(Net.HOST_PEER_ID, &"net_report", worst, count, gone, last)
+	print("%s client slot=%d samples=%d worst_nose_deg=%.2f gone=%s last=%s pinned_run=%d" % [TAG, Net.local_slot(), count, worst, gone, last, pinned_run])
+	rpc_id(Net.HOST_PEER_ID, &"net_report", worst, count, gone, last, pinned_run)

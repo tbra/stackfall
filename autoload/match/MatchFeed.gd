@@ -82,7 +82,16 @@ func reset() -> void:
 	_feed_expired.clear()
 	_feed_seq.clear()
 	_release_locked.clear()
+	_next_gift_shapes.clear()
+	_staged_gift_shapes.clear()
+	_held_is_gift.clear()
 	_feed_timer_enabled = true
+
+
+## True while a gift-carrying block is being issued: the feed must not roll a
+## fresh gift for it.
+func gift_roll_suppressed() -> bool:
+	return _suppress_gift_roll
 
 
 func setup(match_ref: MatchAutoload) -> void:

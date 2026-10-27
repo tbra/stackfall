@@ -98,6 +98,17 @@ func test_world_position_endpoints() -> void:
 	assert_eq(flight.world_position(_config, 2.5), LANDING, "above one is the landing")
 
 
+func test_world_position_at_full_progress_is_the_exact_landing_with_sway() -> void:
+	# 1 + ((1e-8) - 1) rounds to 0 in single precision, so a lerp at t=1 is not the landing.
+	var origin: Vector3 = Vector3(1.0, 20.0, 1.0)
+	var landing: Vector3 = Vector3(1.0e-8, 10.0, 1.0e-8)
+	var flight: GiftFlight = GiftFlight.new(5, Vector2.ZERO, origin, landing, GiftWirePhase.FALLING)
+	_config.sway_amplitude_m = 2.0
+	flight.elapsed = 1.7
+	assert_eq(flight.world_position(_config, 1.0), landing, "exact landing, not a lerp")
+	assert_eq(flight.world_position(_config, 0.0), origin)
+
+
 func test_world_position_without_sway_is_a_straight_line() -> void:
 	var flight: GiftFlight = _flight()
 	for progress: float in [0.1, 0.25, 0.5, 0.9]:

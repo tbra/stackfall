@@ -65,3 +65,53 @@ func test_downward_direction_rejects_pure_upward_zero_and_non_finite() -> void:
 func test_downward_direction_rejects_remainder_below_minimum() -> void:
 	var tiny: Vector3 = Vector3(GiftAim.MIN_FORWARD_LENGTH * 0.5, 7.0, 0.0)
 	assert_eq(GiftAim.sanitize_downward_direction(tiny), Vector3.ZERO, "upward part dropped leaves a degenerate vector")
+
+
+func _tuning() -> SpecialTuning:
+	var t: SpecialTuning = SpecialTuning.new()
+	t.gift_throw_reference_radius = 40.0
+	t.gift_throw_range_scale_min = 0.5
+	t.gift_throw_range_scale_max = 2.0
+	return t
+
+
+func test_range_scale_is_radius_over_reference() -> void:
+	assert_almost_eq(GiftAim.range_scale(50.0, _tuning()), 1.25, TOL)
+	assert_almost_eq(GiftAim.range_scale(30.0, _tuning()), 0.75, TOL)
+
+
+func test_range_scale_clamps_to_the_tuning_limits() -> void:
+	assert_almost_eq(GiftAim.range_scale(1.0, _tuning()), 0.5, TOL, "tiny field hits the minimum")
+	assert_almost_eq(GiftAim.range_scale(1000.0, _tuning()), 2.0, TOL, "huge field hits the maximum")
+
+
+func test_range_scale_is_one_for_a_non_positive_radius() -> void:
+	assert_eq(GiftAim.range_scale(0.0, _tuning()), 1.0, "zero radius is unscaled, not the clamped minimum")
+	assert_eq(GiftAim.range_scale(-5.0, _tuning()), 1.0)
+
+
+func test_range_scale_is_one_for_a_non_positive_reference() -> void:
+	var t: SpecialTuning = _tuning()
+	t.gift_throw_reference_radius = 0.0
+	assert_eq(GiftAim.range_scale(30.0, t), 1.0, "zero reference is unscaled, not the clamped maximum")
+	t.gift_throw_reference_radius = -4.0
+	assert_eq(GiftAim.range_scale(30.0, t), 1.0)
+
+
+func test_flat_range_is_twice_horizontal_times_vertical_speed_over_gravity() -> void:
+	var t: SpecialTuning = _tuning()
+	var velocity: Vector3 = GiftAim.throw_velocity(Vector3.FORWARD, t, 1.0)
+	var expected: float = 2.0 * Vector2(velocity.x, velocity.z).length() * velocity.y / 9.8
+	assert_gt(expected, 0.0)
+	assert_almost_eq(GiftAim.flat_range(t, 1.0, 9.8), expected, TOL)
+	assert_almost_eq(GiftAim.flat_range(t, 1.0, 19.6), expected * 0.5, TOL, "double gravity halves the range")
+
+
+func test_flat_range_grows_with_range_scale() -> void:
+	var t: SpecialTuning = _tuning()
+	assert_almost_eq(GiftAim.flat_range(t, 2.0, 9.8), GiftAim.flat_range(t, 1.0, 9.8) * 2.0, TOL)
+
+
+func test_flat_range_is_zero_for_non_positive_gravity() -> void:
+	assert_eq(GiftAim.flat_range(_tuning(), 1.0, 0.0), 0.0)
+	assert_eq(GiftAim.flat_range(_tuning(), 1.0, -9.8), 0.0)

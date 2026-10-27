@@ -99,6 +99,14 @@ func test_f5_re_places_the_preset_towers() -> void:
 var _silent_at_placement: Array[bool] = []
 
 
+## Cues that started before the build (match start, an impact on the settling field) are still
+## playing when it begins, and how long they last depends on wall-clock load. Clearing the pool as
+## the silence opens leaves only sounds the pre-placement itself made.
+func _clear_cues_when_silence_opens(active: bool) -> void:
+	if active:
+		SfxChildren.stop_all()
+
+
 ## Connected after Sfx's own handler, so Sfx has already decided whether this placement sounds.
 func _record_silence(_block: RigidBody3D, _shape_id: StringName) -> void:
 	_silent_at_placement.append(not SfxChildren.any_playing())
@@ -110,12 +118,14 @@ func _record_silence(_block: RigidBody3D, _shape_id: StringName) -> void:
 ## for exactly that build, and a real drop afterwards must not be.
 func test_preplaced_blocks_are_silent_but_later_drops_are_not() -> void:
 	SfxChildren.stop_all()
+	Events.world_replay_changed.connect(_clear_cues_when_silence_opens)
 	Events.block_placed.connect(_record_silence)
 	_main.start_gift_demo_from_menu()
 	_run_countdown()
 	await get_tree().process_frame
 	await PresetBuildWait.wait_for_blocks(get_tree(), 1)
 	Events.block_placed.disconnect(_record_silence)
+	Events.world_replay_changed.disconnect(_clear_cues_when_silence_opens)
 	assert_gt(_silent_at_placement.size(), 0, "towers were pre-placed")
 	assert_false(_silent_at_placement.has(false), "every pre-placed block was placed under Sfx silence")
 	var own_block: BlockBody = BlockBody.new()

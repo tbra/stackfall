@@ -34,6 +34,12 @@ func test_free_udp_port_is_in_range_and_bindable() -> void:
 	probe.close()
 
 
+func test_free_udp_port_draws_from_one_slice_per_process() -> void:
+	var first: int = AgentProbe.free_udp_port()
+	var second: int = AgentProbe.free_udp_port()
+	assert_eq((first - AgentProbe.FREE_PORT_MIN) / AgentProbe.FREE_PORT_SLICE, (second - AgentProbe.FREE_PORT_MIN) / AgentProbe.FREE_PORT_SLICE, "both ports come from this process's slice")
+
+
 class FakeRig:
 	extends Node
 	var _yaw: float = 0.0

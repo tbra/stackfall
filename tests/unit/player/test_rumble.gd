@@ -142,3 +142,69 @@ func test_trigger_test_pulse_rumbles_the_last_gamepad() -> void:
 	assert_almost_eq(_calls[0]["weak"], Rumble.config.impact_weak_magnitude, 0.001)
 	assert_almost_eq(_calls[0]["strong"], Rumble.config.impact_strong_magnitude, 0.001)
 
+
+
+# --- LocalFeedback.team_of_slot: the one null-safe slot -> team answer Rumble and Sfx share. ---
+# Called through the script's call() so this file still compiles while the function is absent.
+
+const LOCAL_FEEDBACK: GDScript = preload("res://autoload/match/LocalFeedback.gd")
+
+
+func _team_of_slot(slot_id: int) -> int:
+	return int(LOCAL_FEEDBACK.call(&"team_of_slot", slot_id))
+
+
+func _with_match_config(config: MatchConfig) -> MatchConfig:
+	var prior: MatchConfig = Match.config
+	Match.config = config
+	return prior
+
+
+func test_team_of_slot_is_identity_before_a_match_has_a_config() -> void:
+	var prior: MatchConfig = _with_match_config(null)
+
+	assert_eq(_team_of_slot(0), 0)
+	assert_eq(_team_of_slot(5), 5)
+
+	Match.config = prior
+
+
+func test_team_of_slot_follows_the_match_config_teams() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	var prior: MatchConfig = _with_match_config(config)
+
+	for slot_id: int in range(4):
+		assert_eq(_team_of_slot(slot_id), config.team_of_slot(slot_id), "slot %d" % slot_id)
+	assert_eq(_team_of_slot(0), _team_of_slot(2), "interleaved teams share a team id")
+	assert_ne(_team_of_slot(0), _team_of_slot(1))
+
+	Match.config = prior
+
+
+func test_match_won_by_another_team_rumbles_the_loss_pulse() -> void:
+	var prior: MatchConfig = _with_match_config(null)
+	_use_gamepad()
+
+	Events.match_won.emit(1)
+
+	assert_eq(_calls.size(), 1)
+	assert_almost_eq(_calls[0]["weak"], Rumble.config.match_lost_weak_magnitude, 0.001)
+	assert_almost_eq(_calls[0]["strong"], Rumble.config.match_lost_strong_magnitude, 0.001)
+
+	Match.config = prior
+
+
+func test_match_won_by_my_team_in_team_mode_rumbles_the_win_pulse() -> void:
+	var config: MatchConfig = MatchConfig.new()
+	config.team_mode = MatchConfig.TeamMode.TEAMS_2
+	var prior: MatchConfig = _with_match_config(config)
+	_use_gamepad()
+	var my_team: int = config.team_of_slot(0)
+
+	Events.match_won.emit(my_team)
+
+	assert_eq(_calls.size(), 1)
+	assert_almost_eq(_calls[0]["weak"], Rumble.config.match_won_weak_magnitude, 0.001)
+
+	Match.config = prior

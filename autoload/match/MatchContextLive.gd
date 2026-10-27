@@ -29,14 +29,6 @@ func net_is_client() -> bool:
 	return Net.is_client()
 
 
-func net_is_offline() -> bool:
-	return Net.is_offline()
-
-
-func net_local_slot() -> int:
-	return Net.local_slot()
-
-
 func net_is_local_slot(slot_id: int) -> bool:
 	return Net.is_local_slot(slot_id)
 
@@ -72,12 +64,6 @@ func slot_color(slot_id: int, fallback: Color = Color.WHITE) -> Color:
 	if not _active():
 		return fallback
 	return _match.slot_color(slot_id, fallback)
-
-
-func active_slot() -> int:
-	if not _active():
-		return -1
-	return _match.active_slot()
 
 
 func field() -> FieldBody:
