@@ -190,6 +190,17 @@ func test_offsets_place_each_mesh_and_touching_meshes_merge() -> void:
 	assert_almost_eq(_loops_area(apart.loops), 2.0 * step * step, AREA_TOLERANCE)
 
 
+func test_unindexed_surface_uses_sequential_triangles() -> void:
+	var arrays: Array = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([Vector3(0, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, 1)])
+	var mesh: ArrayMesh = ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var result: GhostSilhouette.Result = _build_mesh(mesh)
+	assert_eq(result.loops.size(), 1, "the unindexed triangle still yields an outline")
+	assert_almost_eq(_loops_area(result.loops), 0.5, AREA_TOLERANCE)
+
+
 func test_no_meshes_gives_an_empty_result() -> void:
 	var meshes: Array[Mesh] = []
 	var result: GhostSilhouette.Result = GhostSilhouette.build(meshes, PackedVector3Array(), Basis.IDENTITY)
