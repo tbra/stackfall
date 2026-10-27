@@ -114,10 +114,9 @@ func _wheel_up() -> InputEventMouseButton:
 func _trace(label: String) -> void:
 	var ghost: GhostPreview = _ghost()
 	var rig: CameraRig = _main._camera_rig
-	gut.p("%s offset=%.2f origin_y=%.2f block_h=%.2f cam_target_y=%.2f frustum=%s state=%s" % [
+	gut.p("%s offset=%.2f origin_y=%.2f block_h=%.2f cam_target_y=%.2f frustum=%s" % [
 		label, ghost.manual_hover_offset, ghost.global_position.y, ghost.height_above_surface(),
 		rig.get_target().y, rig.get_camera().is_position_in_frustum(ghost.rotated_center_world()),
-		ghost.current_state(),
 	])
 
 

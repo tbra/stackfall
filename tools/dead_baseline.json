@@ -595,11 +595,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/player/GhostPreview.gd:current_state",
-   "reason": "P3-Idead removed its only game caller (SandboxPanel throw branch); tests still read it; removed by Bontago-di0.4.49 (P3_PLAN orchestrator note)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },

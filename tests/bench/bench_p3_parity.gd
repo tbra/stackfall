@@ -394,6 +394,23 @@ func _put_transform(key: String, xf: Transform3D) -> void:
 	_put_vector(key + ".bz", xf.basis.z)
 
 
+## The tint name the ghost's body shows, read from its material the way a player sees it: the hatch
+## overlay is the hole state, otherwise the colour picks locked, invalid or valid (the player's colour).
+func _shown_tint(ghost: GhostPreview) -> String:
+	var material: ShaderMaterial = ghost._material
+	if material == null:
+		return ""
+	if material.get_shader_parameter(&"use_hatch") as bool:
+		return "hole"
+	var shown: Color = material.get_shader_parameter(&"albedo_color") as Color
+	var tuning: GhostTuning = ghost.ghost_tuning
+	for entry: Array in [["locked", tuning.locked_tint_color], ["invalid", tuning.invalid_tint_color]]:
+		var color: Color = entry[1] as Color
+		if is_equal_approx(shown.r, color.r) and is_equal_approx(shown.g, color.g) and is_equal_approx(shown.b, color.b):
+			return entry[0] as String
+	return "valid"
+
+
 func _sample() -> void:
 	var prefix: String = "t%04d." % _tick
 	var ghost: GhostPreview = _controller.get_node(_controller.ghost_path) as GhostPreview
@@ -401,7 +418,7 @@ func _sample() -> void:
 	_record[prefix + "ghost.hover"] = _r(ghost.manual_hover_offset)
 	_record[prefix + "ghost.orientation"] = ghost.orientation_index
 	_record[prefix + "ghost.visible"] = int(ghost.visible)
-	_record[prefix + "ghost.tint"] = String(ghost.current_state())
+	_record[prefix + "ghost.tint"] = _shown_tint(ghost)
 	_record[prefix + "input_enabled"] = int(_controller.input_enabled)
 	_record[prefix + "rig_blocked"] = int(_rig.input_gate.is_blocked())
 	_put_transform(prefix + "cam", _rig.get_camera().global_transform)

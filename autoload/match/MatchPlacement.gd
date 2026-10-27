@@ -742,13 +742,6 @@ func _hole_column_result(slot_id: int, disk_xz: Vector2) -> PlacementRules.Resul
 	return PlacementRules.Result.OFF_DISK
 
 
-# SHORTCUT: forwarder for PlayerController._release_pose, removed when P3-Ithrow-b moves the controller onto launch_plan
-static func launch_facing_basis(
-	def: SpecialDef, mode: GiftThrow.Mode, aim_direction: Vector3, throw_velocity: Vector3
-) -> Variant:
-	return GiftThrow.launch_facing_basis(def, mode, aim_direction, throw_velocity)
-
-
 ## The basis a spawn actually uses: a gift is always upright, a plain block keeps the pose.
 func _spawn_basis(gift_id: StringName, requested: Basis) -> Basis:
 	return Basis.IDENTITY if gift_id != &"" else requested

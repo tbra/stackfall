@@ -59,11 +59,6 @@ extends Node3D
 ## framing. The Y correction is independent: bottom_offset still measures from
 ## the fixed origin.
 
-const STATE_VALID: StringName = &"valid"
-const STATE_INVALID: StringName = &"invalid"
-const STATE_HOLE: StringName = &"hole"
-const STATE_LOCKED: StringName = &"locked"
-
 const HATCH_TEXTURE_SIZE: int = 32
 
 ## Ghost variant of game/blocks/BlockFactory.gd's CELL_GRID_SHADER:
@@ -1148,19 +1143,6 @@ func _refresh_materials() -> void:
 	_apply_glow()
 	_apply_footprint_material()
 	_apply_projection_material()
-
-
-## Which tint state the ghost is currently showing (STATE_*).
-func current_state() -> StringName:
-	if _locked:
-		return STATE_LOCKED
-	match _last_result:
-		PlacementRules.Result.VALID:
-			return STATE_VALID
-		PlacementRules.Result.HOLE, PlacementRules.Result.GOAL_ZONE:
-			return STATE_HOLE
-		_:
-			return STATE_INVALID
 
 
 ## Every branch below applies ghost_tuning.ghost_opacity as the material's alpha
