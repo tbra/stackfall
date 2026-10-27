@@ -75,7 +75,7 @@ All input goes through the Input Map (§2.9). Every gameplay action has a keyboa
 Notes:
 - While RT (free rotate) or LT (zoom) is held, the left stick drives only that modifier and the cursor does not move.
 - Focus home / goal (keys 1 / 2, Back / X) is implemented in `game/player/CameraRig.gd` (tap = turn the camera toward the target, hold = peek) but is disabled in the shipped build: `CameraTuning.snap_enabled = false`.
-- Debug-only actions: F1 performance overlay, F2 bot-cost overlay, F3 network overlay, F4 tuning panel, and the sandbox hotkeys F5 to F11 and Tab.
+- Debug-only actions: F1 performance overlay, F2 pose overlay (held block and camera position and rotation, disc tilt), F3 network overlay, F4 tuning panel, F9 bot-cost overlay, and the sandbox hotkeys F5 to F8, F10, F11, Tab and the section key (force a special). The sandbox hint bar lists the live bindings for the active device.
 - Menu actions: `ui_accept`, `ui_cancel`, menu tab previous/next (`[` / `]`, LB / RB), lobby confirm (Enter, Start), add bot (X), advanced rules (Y), lobby options (O, Back).
 - Watch Bots actions: next/previous follow (N, B / shoulders), overview (H, Y), speed (L, D-pad up), pause (P, D-pad down).
 
@@ -157,7 +157,7 @@ Holes are a visual void, not an opening: disc collision stays solid. A block who
 
 | Mode | Gifts | Behavior |
 |---|---|---|
-| Throw | Bomb, Magnet, Hopper | Ballistic arc at `gift_throw_speed_mps` 22 with `gift_throw_up_ratio` 0.35; an arc preview is shown while held |
+| Throw | Bomb, Magnet, Hopper | Ballistic arc at `gift_throw_speed_mps` 22 with `gift_throw_up_ratio` 0.35; an arc preview is shown while held. A thrown gift's effect (countdown, pull, hops) starts at its first landing, not in flight; the host replicates the landing to clients. Dropped gifts start as before |
 | Aimed | Rocket, Paintball | Straight, gravity-free flight along the camera forward |
 | Drop | All others | Released in place; a throw is refused |
 
@@ -166,13 +166,13 @@ Balloon, Black Hole, Earthquake, Stackfall and Volcano activate in place at the 
 | Special | Behavior | Key tunables (`config/gifts/specials/*.tres`) |
 |---|---|---|
 | Rocket | Flies along the camera aim at any angle; detonates on first contact; fuel is a backstop. Explodes like a Bomb | thrust 60 m/s, fuel 3 s, blast radius 7 m |
-| Bomb | Blinks, then explodes, pushing nearby blocks away | blink 3 s, blast radius 8 m, peak 120 m/s |
+| Bomb | Blinks, then explodes, pushing nearby blocks away (thrown: the blink starts on landing) | blink 3 s, blast radius 8 m, peak 120 m/s |
 | Volcano | A volcano rises at the activation point and erupts blocks at random | rise 2 s, erupts 22 s, cone 50°, block cap 600 |
 | Earthquake | Shakes the disc and levels existing tilt | `DiscForce` shake, 4 s |
 | Anvil | Heavy; lands and tilts the disc toward its side | mass 60 |
 | Balloon (id `propeller`) | A team-colour balloon tied to the disc inflates, rises and tilts the disc the opposite way to an Anvil, then pops into confetti | 3 s |
 | Hopper (id `jumping_bean`) | Hops randomly and punches a temporary hole at each take-off (no hole under `HoleMode.OFF`) | hop every 1.8 s, hole radius 2.5 m, lives 24 s |
-| Magnet | Pulls other players' blocks within 8 m toward itself | pull 6 s |
+| Magnet | Pulls other players' blocks within 8 m toward itself (thrown: the pull starts on landing) | pull 6 s |
 | Freeze | Makes the activator's own blocks within 6 m static | 20 s |
 | Glue | Grants five future placements that fuse on contact (below) | 5 charges |
 | Stackfall | Rains ordinary blocks in the activator's color | 28 blocks, 9.5/s, 12 m radius, 30 m height, active-body cap 600 |
