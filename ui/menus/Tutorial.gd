@@ -192,7 +192,7 @@ func _begin_step(index: int) -> void:
 	elif step.completion_signal == SIGNAL_SPECIAL_CONSUMED:
 		# config.scripted_gifts (game/main/MatchLaunch.gd's tutorial_config()) is
 		# what lets this through MatchGifts.debug_queue_special()'s own gate --
-		# see game/sandbox/Sandbox.gd's matching F9 seam for the same contract.
+		# see game/sandbox/Sandbox.gd's matching section-key seam for the same contract.
 		Match.debug_queue_special(TUTORIAL_SLOT, tutorial_config.demo_special_id)
 
 

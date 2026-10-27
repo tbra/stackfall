@@ -31,7 +31,7 @@ var _block_physics_frozen: bool = false
 var _registry_physics_was_enabled: bool = false
 
 ## SpecialDef.load_all_specials()'s own id order, cached once
-## at _ready() rather than re-scanning res://config/gifts/specials/ on every F9
+## at _ready() rather than re-scanning res://config/gifts/specials/ on every section-key press
 ## press -- a plain Array[SpecialDef] there is the roster's authority; this
 ## file only needs the ids, and only ever reads them (never mutates the
 ## roster), so a cached copy cannot drift from a rewrite mid-match (nothing
@@ -39,7 +39,7 @@ var _registry_physics_was_enabled: bool = false
 var _special_roster_ids: Array[StringName] = []
 
 ## -1 is "off"; otherwise an index into _special_roster_ids. sandbox_force_
-## special (F9) cycles this: off -> each id in roster order -> off.
+## special (section key) cycles this: off -> each id in roster order -> off.
 var _forced_special_index: int = -1
 ## The forced id ui/debug/SandboxPanel.gd shows, or &"" when off. Kept alongside
 ## _forced_special_index rather than derived on every panel refresh so a
@@ -149,7 +149,7 @@ func forced_special() -> StringName:
 	return _forced_special_id
 
 
-## Whether the last F9/--force-special apply refused to seed the active
+## Whether the last section-key/--force-special apply refused to seed the active
 ## slot's queue because it was already full. ui/debug/SandboxPanel.gd reads this
 ## every refresh.
 func forced_special_queue_full() -> bool:
@@ -505,17 +505,17 @@ func _spawn_tower() -> void:
 		Match.request_place(_active_slot, drop_origin, 0, Quaternion.IDENTITY, false)
 
 
-# --- sandbox_force_special: F9 -----------------------------------------------
+# --- sandbox_force_special: section key -----------------------------------------------
 #
 # Forces the next drawn special to a fixed id so a tester can
 # exercise each special on demand instead of waiting on the
-# crate roll's RNG (spec 1.6/1.9). F9 cycles off -> each SpecialDef.
+# crate roll's RNG (spec 1.6/1.9). the section key cycles off -> each SpecialDef.
 # load_all_specials() id, in that order -> off; `--force-special=<id>`
 # (game/main/Main.gd) sets the same state at startup. Both converge on
 # _apply_forced_special() below, so the hotkey and the CLI flag can never
 # diverge in behaviour.
 
-## sandbox_force_special (F9 / gamepad): advances _forced_special_index one
+## sandbox_force_special (section key / gamepad): advances _forced_special_index one
 ## step, wrapping "off" (-1) back in after the last roster id -- see this
 ## field's own doc comment for the off/on-roster/off shape.
 func _cycle_forced_special(step: int = 1) -> void:
@@ -571,7 +571,7 @@ func _apply_forced_special() -> void:
 	_push_panel_state()
 
 
-## Keeps the extras current so an F5 rebuild's new attach() reapplies F9.
+## Keeps the extras current so an F5 rebuild's new attach() reapplies the forced special.
 func _remember_forced_special() -> void:
 	if _extras != null:
 		_extras.forced_special = _forced_special_id

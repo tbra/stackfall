@@ -5,7 +5,7 @@ extends RefCounted
 ## allocates no record. It keeps a BotThinkCostReport per bot slot plus an all-bots aggregate (rolling
 ## windows of `window_thinks` when > 0, unbounded when 0).
 ## DECISION: reached through this static registry, not an autoload or a node path, so
-## the F2 overlay and the headless flow both read `BotThinkCostCollector.current()` without wiring.
+## the F9 overlay and the headless flow both read `BotThinkCostCollector.current()` without wiring.
 ## Bots run on the host only: on a client nothing feeds it, current() stays null or has_data() is false.
 
 static var _current: BotThinkCostCollector = null

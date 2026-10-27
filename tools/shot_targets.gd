@@ -13,7 +13,7 @@ extends RefCounted
 ##   match    mode=<name>, bots=B, seats=N, watch=1 (all-bot spectator match), follow=<bot index>,
 ##            difficulty=easy|normal|hard|mixed
 ##   scene    path=res://...tscn   any scene, instanced alone.
-## Setup keys valid for every target: overlays=[f1,f2,f3,f4], f4_tab=<index|title>, hud=0|1,
+## Setup keys valid for every target: overlays=[f1,f2,f3,f4,f9], f4_tab=<index|title>, hud=0|1,
 ## sky=cycle|sunset|dawn|night (cycle runs the day/night cycle, the others lock it at that sky's
 ## phase; anything else is rejected), time=<cycle phase 0..1>, cam=yaw,pitch,dist[,x,y,z], frames=<physics frames to wait>,
 ## speed=<Engine.time_scale while waiting>, name=<file stem>,
@@ -40,7 +40,8 @@ const STYLES: PackedStringArray = ["classic", "tiles", "table", "board"]
 ## Overlay key -> Input Map action that toggles it.
 const OVERLAY_ACTIONS: Dictionary = {
 	"f1": &"perf_overlay_toggle",
-	"f2": &"bot_cost_overlay_toggle",
+	"f2": &"pose_overlay_toggle",
+	"f9": &"bot_cost_overlay_toggle",
 	"f3": &"net_debug_toggle",
 	"f4": &"tuning_panel_toggle",
 }
@@ -246,7 +247,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		var overlays: Variant = _as_string_list(raw["overlays"])
 		for overlay: String in overlays as PackedStringArray:
 			if not OVERLAY_ACTIONS.has(overlay):
-				return _failed(shot, "overlay '%s' must be one of f1,f2,f3,f4" % overlay)
+				return _failed(shot, "overlay '%s' must be one of f1,f2,f3,f4,f9" % overlay)
 		shot["overlays"] = overlays
 	if not str(shot["f4_tab"]).is_empty():
 		var with_f4: PackedStringArray = shot["overlays"]

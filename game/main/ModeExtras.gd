@@ -8,7 +8,7 @@ enum Kind { SANDBOX, TUTORIAL }
 var kind: Kind = Kind.SANDBOX
 ## Gift demo / tower topple preset, or null for a plain sandbox.
 var sandbox_preset: SandboxConfig = null
-## `--force-special=<id>`; also keeps F9 across an F5 rebuild. &"" is off.
+## `--force-special=<id>`; also keeps the forced special across an F5 rebuild. &"" is off.
 var forced_special: StringName = &""
 
 

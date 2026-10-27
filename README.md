@@ -77,7 +77,7 @@ Some gamepad actions share a physical button and are told apart by context or by
 chord; the Options screen lists every binding.
 
 Sandbox adds hotkeys: Tab (next slot), F5 (reset field), F6 (toggle timer), F7 (spawn
-tower), F9 (force a special), F10 (slow motion) and F11 (pause physics).
+tower), the section key (force a special), F10 (slow motion) and F11 (pause physics).
 
 ## Requirements
 

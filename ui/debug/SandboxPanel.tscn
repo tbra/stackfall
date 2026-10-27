@@ -18,7 +18,7 @@ theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="Panel/Layout"]
 layout_mode = 2
-text = "Sandbox debug (F5 reset, F6 timer, F7 tower, F8 overlay, F9 force special, F10 slow-mo, F11 pause physics, Tab slot)"
+text = "Sandbox debug"
 autowrap_mode = 2
 
 [node name="ActiveSlotLabel" type="Label" parent="Panel/Layout"]

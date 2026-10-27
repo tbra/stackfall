@@ -42,13 +42,13 @@ var _ghost: GhostPreview = null
 @onready var _validity_label: Label = %ValidityLabel
 @onready var _shares_label: Label = %SharesLabel
 @onready var _rules_label: Label = %RulesLabel
-## The F9 sandbox_force_special hotkey (game/sandbox/Sandbox.gd).
+## The sandbox_force_special hotkey (game/sandbox/Sandbox.gd).
 @onready var _forced_special_label: Label = %ForcedSpecialLabel
 ## The F10/F11 hotkeys (game/sandbox/Sandbox.gd) and the height record.
 @onready var _slow_motion_label: Label = %SlowMotionLabel
 @onready var _physics_paused_label: Label = %PhysicsPausedLabel
 @onready var _height_record_label: Label = %HeightRecordLabel
-## The block-picker and special-spawn dropdowns: a direct pick alongside the F9 cycle.
+## The block-picker and special-spawn dropdowns: a direct pick alongside the force-special cycle.
 @onready var _block_picker: OptionButton = %BlockPicker
 @onready var _special_picker: OptionButton = %SpecialPicker
 
@@ -188,7 +188,7 @@ func _refresh_rules_mode() -> void:
 	_rules_label.text = "Rules: holes %s" % hole_mode_name
 
 
-## The F9 sandbox_force_special hotkey (and `--force-special=`), from the pushed sandbox state.
+## The sandbox_force_special hotkey (and `--force-special=`), from the pushed sandbox state.
 func _refresh_forced_special() -> void:
 	if not _has_state:
 		_forced_special_label.text = "Forced special: -"
