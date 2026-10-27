@@ -62,7 +62,8 @@ func _config(weather_mode: int) -> MatchConfig:
 
 
 func _start(weather_mode: int) -> void:
-	_main._on_lobby_start_requested(_config(weather_mode))
+	assert_true(Net.is_host(), "fixture: hosting")
+	Match.start_match(_config(weather_mode))
 
 
 ## Match._process() drives the countdown and states; the weather schedule is
@@ -207,11 +208,11 @@ func test_the_scope_reset_signal_fires_once_per_build_and_once_per_teardown() ->
 	watch_signals(Events)
 
 	_start(MatchConfig.WeatherMode.OFF)
-	assert_true(_main._world_built, "fixture: the world was built")
+	assert_true(MainNodes.world_is_built(_main), "fixture: the world was built")
 	assert_signal_emit_count(Events, SCOPE_SIGNAL, 1, "one world build, one reset")
 
 	Match.abort_match()
-	assert_false(_main._world_built, "fixture: the world came down")
+	assert_false(MainNodes.world_is_built(_main), "fixture: the world came down")
 	assert_signal_emit_count(Events, SCOPE_SIGNAL, 2, "the teardown adds exactly one")
 
 

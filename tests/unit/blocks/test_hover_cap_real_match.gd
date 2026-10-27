@@ -85,11 +85,11 @@ func _start_hosted_match() -> void:
 
 
 func _controller() -> PlayerController:
-	return _main._local_player.controller()
+	return MainNodes.local_player(_main).controller()
 
 
 func _ghost() -> GhostPreview:
-	return _main._local_player.ghost()
+	return MainNodes.local_player(_main).ghost()
 
 
 ## ghost_place the way a gamepad A press reaches the controller (the Input Map action).

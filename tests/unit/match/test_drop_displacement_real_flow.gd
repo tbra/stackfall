@@ -76,11 +76,11 @@ func _start_hosted_match() -> void:
 
 
 func _controller() -> PlayerController:
-	return _main._local_player.controller()
+	return MainNodes.local_player(_main).controller()
 
 
 func _ghost() -> GhostPreview:
-	return _main._local_player.ghost()
+	return MainNodes.local_player(_main).ghost()
 
 
 func _field_surface_y() -> float:

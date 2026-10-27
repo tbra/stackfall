@@ -168,7 +168,8 @@ func _row_team_texts(screen: ResultsScreen) -> Dictionary:
 
 func _bot_difficulties() -> Array[int]:
 	var difficulties: Array[int] = []
-	for bot: BotController in _main._bot_controllers:
+	for node: Node in _main.find_children("*", "BotController", true, false):
+		var bot: BotController = node as BotController
 		difficulties.append(int(bot._difficulty))
 	return difficulties
 
@@ -177,7 +178,7 @@ func test_each_bot_controller_gets_its_own_seats_difficulty() -> void:
 	_make_main()
 	_main._match_flow_port().call(&"spawn_bot_controllers", _resolved_config())
 
-	assert_eq(_main._bot_controllers.size(), BOT_COUNT, "one controller per trailing bot slot")
+	assert_eq(MainNodes.count(_main, &"BotController"), BOT_COUNT, "one controller per trailing bot slot")
 	assert_eq(
 		_bot_difficulties(),
 		[MatchConfig.AiDifficulty.EASY, MatchConfig.AiDifficulty.HARD, MatchConfig.AiDifficulty.EASY],
