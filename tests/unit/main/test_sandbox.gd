@@ -142,8 +142,9 @@ func test_leaving_a_sandbox_leaves_no_local_player_no_extras_node_and_the_launch
 	add_child(fresh)
 	_main.start_sandbox_from_menu()
 	_run_countdown()
-	assert_eq(
-		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+	await get_tree().process_frame
+	assert_true(
+		await _controller_slot() >= 0,
 		"fixture: exactly one local-held ghost while the sandbox is live"
 	)
 	var rig: CameraRig = _main.get_node("CameraRig") as CameraRig
@@ -156,7 +157,7 @@ func test_leaving_a_sandbox_leaves_no_local_player_no_extras_node_and_the_launch
 
 	assert_null(_local_player(), "leaving a sandbox must leave no local player behind")
 	assert_eq(
-		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 0,
+		MatchContext.current().local_held().slot_id, -1,
 		"leaving a sandbox must free its PlayerController/GhostPreview subtree"
 	)
 	assert_eq(_sandbox_nodes().size(), 0, "no extras node survives the leave")
@@ -174,8 +175,8 @@ func test_leaving_a_sandbox_leaves_no_local_player_no_extras_node_and_the_launch
 	_run_countdown()
 	await get_tree().process_frame
 
-	assert_eq(
-		get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1,
+	assert_true(
+		await _controller_slot() >= 0,
 		"a fresh sandbox after leaving must still control exactly one local-held block"
 	)
 	assert_eq(_sandbox_nodes().size(), 1)
@@ -412,7 +413,7 @@ func test_f5_rebuilds_the_world_exactly_once() -> void:
 	assert_false(is_instance_valid(old_sandbox), "the old sandbox is gone after a frame")
 	assert_false(is_instance_valid(old_player), "the old local player is gone after a frame")
 	assert_eq(_sandbox_nodes().size(), 1, "exactly one Sandbox")
-	assert_eq(get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1, "exactly one local player")
+	assert_true(await _controller_slot() >= 0, "exactly one local player")
 	assert_eq(_hud_count(), 1, "exactly one HUD")
 	assert_eq(Match.slot_count(), 2)
 	assert_true(Match.config.sandbox, "the rebuild keeps the sandbox config")
@@ -427,7 +428,7 @@ func test_f5_twice_in_a_row_still_leaves_one_of_everything() -> void:
 	_f5(_sandbox())
 	await get_tree().process_frame
 	assert_eq(_sandbox_nodes().size(), 1)
-	assert_eq(get_tree().get_nodes_in_group(GhostPreview.LOCAL_HELD_GROUP).size(), 1)
+	assert_true(await _controller_slot() >= 0)
 	assert_eq(_hud_count(), 1)
 
 

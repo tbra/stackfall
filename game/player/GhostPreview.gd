@@ -97,12 +97,6 @@ const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
-## The group game/player/PlayerController.gd puts its own (local, player-driven)
-## ghost in, so ui/hud/HUD.gd can show that block's height
-## (height_above_surface()) without a node path. Remote peers' ghosts
-## (game/player/RemoteCursors.gd) are never in it.
-const LOCAL_HELD_GROUP: StringName = &"local_held_ghost"
-
 ## The 8 corner signs of a unit box centred on its own local position, used by
 ## _rotated_bottom_offset() to find a rotated shape's true lowest point.
 const _CORNER_SIGNS: Array[Vector3] = BlockShape.CORNER_SIGNS
@@ -1242,8 +1236,8 @@ func _apply_projection_material() -> void:
 # glow_warning_lead_seconds of the forced drop it pulses, the rate ramping from
 # glow_pulse_start_hz to glow_pulse_end_hz. Nothing here touches timers or drops.
 # DECISION: remote ghosts get the steady glow (same material, so
-# it is free and consistent) but never the warning pulse -- only the ghost in
-# LOCAL_HELD_GROUP gets the local slot's timer pushed by its controller.
+# it is free and consistent) but never the warning pulse -- only the local
+# slot's ghost gets the local slot's timer pushed by its controller.
 
 ## Seconds left on the block timer (pushed by the owner), or a negative value when no timer applies.
 var _drop_time_left: float = -1.0

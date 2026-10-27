@@ -157,11 +157,7 @@ func _ready() -> void:
 	_camera_rig = get_node_or_null(camera_rig_path) as CameraRig
 	_ghost = get_node_or_null(ghost_path) as GhostPreview
 	_arc_preview = get_node_or_null(arc_preview_path) as ThrowArcPreview
-	# lets ui/hud/HUD.gd read the local held block's own height
-	# (GhostPreview.height_above_surface()) without a node path -- see
-	# GhostPreview.LOCAL_HELD_GROUP.
 	if _ghost != null:
-		_ghost.add_to_group(GhostPreview.LOCAL_HELD_GROUP)
 		# _process() moves the local ghost every render frame and
 		# CameraRig turns interpolation off, so an interpolated ghost jitters
 		# against the camera. Remote ghosts are not touched.
@@ -888,7 +884,7 @@ func _drive_throw_visuals() -> void:
 	_arc_preview.update_arc(
 		launch["origin"] as Vector3,
 		launch["velocity"] as Vector3,
-		match_context.field() as Field,
+		match_context.field(),
 		float(launch["gravity_scale"]),
 		_throw_range_scale()
 	)
