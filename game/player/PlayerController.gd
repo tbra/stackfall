@@ -181,6 +181,7 @@ func _ready() -> void:
 	# input_enabled already has for ui/debug/TuningPanel.gd's toggle.
 	Events.pause_menu_opened.connect(_on_pause_menu_opened)
 	Events.pause_menu_closed.connect(_on_pause_menu_closed)
+	Events.match_scope_reset.connect(_on_match_scope_reset)
 
 
 ## LocalPlayer.gd calls this after Main builds the shared CameraRig: LocalPlayer.tscn
@@ -291,10 +292,17 @@ func _on_pause_menu_opened() -> void:
 ## Mirrors _on_pause_menu_opened() above: restores input and, if this session
 ## ever had mouse capture on, re-captures it exactly as enable_mouse_capture()
 ## originally set it up.
-
-
 func _on_pause_menu_closed() -> void:
 	if _mouse_capture_enabled:
+		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+
+## The pause menu does not close itself on a reset, so no pause_menu_closed arrives to hand
+## the cursor back. The gate is cleared here too (idempotent) so the answer does not depend
+## on whether InputGate's own reset handler ran first; a PANEL blocker keeps the cursor free.
+func _on_match_scope_reset() -> void:
+	input_gate.clear_match_scope()
+	if _mouse_capture_enabled and not input_gate.is_blocked():
 		AgentProbe.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 
