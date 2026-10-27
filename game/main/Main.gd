@@ -142,27 +142,6 @@ var _bot_controllers: Array[Node] = []
 ## nothing and stays inert.
 var _stable_block_manager: Node = null
 
-## Diagnostics-only cadence of the `HEADLESS_BOTS` progress line printed by
-## _on_headless_bots_report_tick() during a `--headless-host --bots=<n>` match. Not
-## a gameplay tunable, so it stays a const here.
-const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
-
-## Diagnostics-only state for the `HEADLESS_BOTS` progress line: see
-## _start_headless_bots_diagnostics()'s own doc below. Null/0 whenever no
-## headless bot match is running (every other entry point never touches
-## these three).
-var _headless_bots_report_timer: Timer = null
-var _headless_bots_start_msec: int = 0
-var _headless_bots_placements: int = 0
-## `--loop-matches` state. Index 0 = no bot match started yet;
-## _headless_loop_args is the command line the loop restarts from. Only ever
-## armed by _start_headless_bot_match_with_args() with the flag present.
-var _headless_loop_enabled: bool = false
-var _headless_loop_index: int = 0
-var _headless_loop_args: PackedStringArray = PackedStringArray()
-var _headless_loop_seed: int = -1
-var _headless_loop_restart_pending: bool = false
-
 ## True once _build_match_world() has run for the match currently in
 ## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
 ## (should not happen, but a state machine is exactly the place to be
@@ -371,39 +350,20 @@ func _apply_match_sky(config: MatchConfig) -> void:
 	_skybox.configure_match_sky(config)
 
 
-# --- Headless bot match: forwarders ------------------
+# --- Headless bot match ------------------
 #
-# The bodies live in game/main/MainHeadlessBotsFlow.gd, loaded on demand through the prewarm queue;
-# the headless/CLI path stays synchronous. State fields (_headless_*) stay here.
+# The state and handlers live in game/main/MainHeadlessBotsFlow.gd, loaded on demand through the prewarm queue;
+# the headless/CLI path stays synchronous.
 
 func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
 	_headless_bots_flow_port().start_match_with_args(args)
 
 
-func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
-	_headless_bots_flow_port().call(&"_on_headless_loop_state_changed", _from_state, to_state)
-
-
-func _restart_headless_loop_match() -> void:
-	_headless_bots_flow_port().call(&"_restart_headless_loop_match")
-
-
+# SHORTCUT: forwarder for the headless bots flow, removed by P7-Inav
 ## Only a loaded flow can have started diagnostics, so teardown never loads it.
 func _stop_headless_bots_diagnostics() -> void:
 	if _headless_bots_flow != null:
-		_headless_bots_flow.call(&"_stop_headless_bots_diagnostics")
-
-
-func _on_headless_bots_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
-	_headless_bots_flow_port().call(&"_on_headless_bots_block_placed", _block, _shape_id)
-
-
-func _on_headless_bots_report_tick() -> void:
-	_headless_bots_flow_port().call(&"_on_headless_bots_report_tick")
-
-
-func _on_headless_bots_seconds_elapsed() -> void:
-	_headless_bots_flow_port().call(&"_on_headless_bots_seconds_elapsed")
+		_headless_bots_flow.stop_diagnostics()
 
 
 ## The headless bots flow, loaded through the serial prewarm queue on first use.

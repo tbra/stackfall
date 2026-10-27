@@ -1,15 +1,28 @@
 class_name MainHeadlessBotsFlow
 extends MainHeadlessBotsFlowPort
 ## The `--headless-host --bots=<n>` flow, split out of game/main/Main.gd.
-## Main loads this script on demand through MenuPrewarmQueue and keeps a
-## forwarder for every old member name; the state fields (_headless_*) stay on Main because tests
-## and tools read them. DECISION: signal/timer callbacks connect to Main's forwarders so
-## `Signal.is_connected(_main._on_headless_bots_block_placed)` keeps working.
+## Main loads this script on demand through MenuPrewarmQueue; the flow owns its
+## state and connects its own signals and timers.
 
-## The Main node, typed (the port's `main` is the Node3D it binds).
+## Diagnostics-only cadence of the `HEADLESS_BOTS` progress line; not a gameplay tunable.
+const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
+
+## The Main node, typed (the port's `main` is the Node3D it binds); only for `match_config`.
 var main_node: Main:
 	get:
 		return main as Main
+
+## Diagnostics state, null/0 whenever no headless bot match runs.
+var _headless_bots_report_timer: Timer = null
+var _headless_bots_start_msec: int = 0
+var _headless_bots_placements: int = 0
+## `--loop-matches` state. Index 0 = no bot match started yet; the args are the command
+## line the loop restarts from.
+var _headless_loop_enabled: bool = false
+var _headless_loop_index: int = 0
+var _headless_loop_args: PackedStringArray = PackedStringArray()
+var _headless_loop_seed: int = -1
+var _headless_loop_restart_pending: bool = false
 
 ## Physics frame at which the current bot match's diagnostics started (game-time origin).
 var _headless_bots_start_physics_frame: int = 0
@@ -48,13 +61,13 @@ func start_match_with_args(args: PackedStringArray) -> void:
 			"--headless-host --bots=%d: Net never became the host (host_game() likely failed to bind its port) -- refusing to start a bot match with no host." % bots
 		)
 		return
-	Match.register_world(main_node._field, main_node._registry, main_node._blocks_container)
-	main_node._headless_loop_enabled = _has_loop_matches_arg(args)
-	main_node._headless_loop_args = args
-	main_node._headless_loop_index = 0
-	if main_node._headless_loop_enabled:
-		Events.match_state_changed.connect(main_node._on_headless_loop_state_changed)
-	if not main_node._headless_loop_enabled:
+	Match.register_world(world.field, world.registry, world.blocks_container)
+	_headless_loop_enabled = _has_loop_matches_arg(args)
+	_headless_loop_args = args
+	_headless_loop_index = 0
+	if _headless_loop_enabled:
+		Events.match_state_changed.connect(_on_headless_loop_state_changed)
+	if not _headless_loop_enabled:
 		# DECISION: a single (non-loop) match also prints its HEADLESS_MATCH line on
 		# END, so tools/bot_h2h.py can parse winner_team without --loop-matches.
 		Events.match_state_changed.connect(_on_headless_single_state_changed)
@@ -66,7 +79,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	# harness's patience.
 	var seconds: float = _seconds_arg(args)
 	if seconds > 0.0:
-		main_node.get_tree().create_timer(seconds).timeout.connect(main_node._on_headless_bots_seconds_elapsed)
+		world.parent.get_tree().create_timer(seconds).timeout.connect(_on_headless_bots_seconds_elapsed)
 
 
 # --- Hard-bot think cost report: `--bot-think-cost=<file>` ---------------------
@@ -90,7 +103,7 @@ func _setup_think_cost(args: PackedStringArray, bots: int) -> void:
 	BotThinkCostCollector.enable(label, 0)
 	var seconds: String = MatchLaunch.arg_value(args, THINK_COST_SECONDS_ARG)
 	var duration: float = float(seconds) if seconds.is_valid_float() else BotThinkCostReport.SHIPPED_TUNING.default_duration_s
-	main_node.get_tree().create_timer(duration).timeout.connect(_on_think_cost_elapsed)
+	world.parent.get_tree().create_timer(duration).timeout.connect(_on_think_cost_elapsed)
 
 
 func _on_think_cost_elapsed() -> void:
@@ -110,8 +123,7 @@ func _on_think_cost_elapsed() -> void:
 		for line: String in lines:
 			file.store_line(line)
 		file.close()
-	QuitFlag.mark()
-	main_node.get_tree().quit(0)
+	Sfx.quit_tree()
 
 
 ## Builds and starts one headless bot match. With --loop-matches, each match
@@ -122,20 +134,20 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	if base_config == null:
 		base_config = main_node.match_config
 	var config: MatchConfig = MatchLaunch.headless_bot_config(base_config, bots, args)
-	main_node._headless_loop_index += 1
+	_headless_loop_index += 1
 	var has_match_seed: bool = MatchLaunch.has_match_seed_arg(args)
-	if main_node._headless_loop_enabled:
+	if _headless_loop_enabled:
 		# DECISION: match 1 keeps the configured seed when one is
 		# set; every later match draws a fresh positive seed so repeats differ.
 		if has_match_seed:
 			# DECISION: with --match-seed the later loop matches derive their
 			# seeds deterministically from it instead of drawing fresh random ones.
-			config.rng_seed = _derived_loop_seed(MatchLaunch.match_seed_arg(args), main_node._headless_loop_index)
-		elif main_node._headless_loop_index > 1 or config.rng_seed < 0:
+			config.rng_seed = _derived_loop_seed(MatchLaunch.match_seed_arg(args), _headless_loop_index)
+		elif _headless_loop_index > 1 or config.rng_seed < 0:
 			config.rng_seed = randi_range(1, 2147483647)
-		main_node._headless_loop_seed = config.rng_seed
+		_headless_loop_seed = config.rng_seed
 	else:
-		main_node._headless_loop_seed = config.rng_seed
+		_headless_loop_seed = config.rng_seed
 	Match.start_match(config)
 	_start_headless_bots_diagnostics()
 
@@ -152,11 +164,11 @@ func _has_loop_matches_arg(args: PackedStringArray) -> bool:
 ## restart on the next frame (deferred, so the END emit finishes first; the
 ## restart goes END -> LOBBY -> LOADING, which tears the old world down).
 func _on_headless_loop_state_changed(_from_state: int, to_state: int) -> void:
-	if to_state != Match.State.END or main_node._headless_loop_restart_pending:
+	if to_state != Match.State.END or _headless_loop_restart_pending:
 		return
 	print(_headless_match_summary_line())
-	main_node._headless_loop_restart_pending = true
-	main_node._restart_headless_loop_match.call_deferred()
+	_headless_loop_restart_pending = true
+	_restart_headless_loop_match.call_deferred()
 
 
 func _on_headless_single_state_changed(_from_state: int, to_state: int) -> void:
@@ -165,20 +177,20 @@ func _on_headless_single_state_changed(_from_state: int, to_state: int) -> void:
 
 
 func _restart_headless_loop_match() -> void:
-	main_node._headless_loop_restart_pending = false
-	if not main_node._headless_loop_enabled or not _net_is_hosting() or Match.state() != Match.State.END:
+	_headless_loop_restart_pending = false
+	if not _headless_loop_enabled or not _net_is_hosting() or Match.state() != Match.State.END:
 		return
-	_start_headless_loop_match(_bots_arg(main_node._headless_loop_args), main_node._headless_loop_args)
+	_start_headless_loop_match(_bots_arg(_headless_loop_args), _headless_loop_args)
 
 
 ## `timed_out`: the --seconds cap hit with the match still PLAYING; the line then
 ## carries winner_team=-1 and a trailing `timeout=1` (tools/bot_h2h.py counts it as a draw).
 func _headless_match_summary_line(timed_out: bool = false) -> String:
 	var line: String = "HEADLESS_MATCH index=%d mode=%d seed=%d duration=%.1f winner_team=%d placements=%d homes_alive=%d teams=%s" % [
-		main_node._headless_loop_index,
+		_headless_loop_index,
 		Match.config.game_mode if Match.config != null else 0,
-		main_node._headless_loop_seed, _headless_bots_elapsed_s(), -1 if timed_out else Match.winner_team(),
-		main_node._headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
+		_headless_loop_seed, _headless_bots_elapsed_s(), -1 if timed_out else Match.winner_team(),
+		_headless_bots_placements, _headless_bots_homes_alive(), _headless_slot_teams(),
 	]
 	# Appended after `teams=` so the bot_h2h.py regexes keep matching.
 	line += " stats=%s" % _headless_stats_string()
@@ -218,8 +230,9 @@ func _headless_stats_string() -> String:
 ## Bot slots' drawn risk appetites as `slot:value`, comma-separated; before any `timeout=` token.
 func _headless_appetite_string() -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	for bot: BotController in main_node._bot_controllers:
-		parts.append(bot.appetite_report())
+	for child: Node in world.parent.get_children():
+		if child is BotController and not child.is_queued_for_deletion():
+			parts.append((child as BotController).appetite_report())
 	return ",".join(parts)
 
 
@@ -286,32 +299,32 @@ func _headless_bots_goal_coverage() -> String:
 func _start_headless_bots_diagnostics() -> void:
 	# Idempotent: a --loop-matches restart must not double-connect
 	# block_placed or leak a second report Timer.
-	_stop_headless_bots_diagnostics()
-	main_node._headless_bots_start_msec = Time.get_ticks_msec()
+	stop_diagnostics()
+	_headless_bots_start_msec = Time.get_ticks_msec()
 	_headless_bots_start_physics_frame = Engine.get_physics_frames()
-	main_node._headless_bots_placements = 0
+	_headless_bots_placements = 0
 	_peak180.clear()
-	Events.block_placed.connect(main_node._on_headless_bots_block_placed)
-	main_node._headless_bots_report_timer = Timer.new()
-	main_node._headless_bots_report_timer.wait_time = Main.HEADLESS_BOTS_REPORT_INTERVAL_S
-	main_node._headless_bots_report_timer.autostart = true
-	main_node._headless_bots_report_timer.timeout.connect(main_node._on_headless_bots_report_tick)
-	main_node.add_child(main_node._headless_bots_report_timer)
+	Events.block_placed.connect(_on_headless_bots_block_placed)
+	_headless_bots_report_timer = Timer.new()
+	_headless_bots_report_timer.wait_time = HEADLESS_BOTS_REPORT_INTERVAL_S
+	_headless_bots_report_timer.autostart = true
+	_headless_bots_report_timer.timeout.connect(_on_headless_bots_report_tick)
+	world.parent.add_child(_headless_bots_report_timer)
 
 
 ## Torn down from _end_match_world(). Idempotent: a no-op when
 ## _start_headless_bots_diagnostics() never ran (report timer null, block_placed
 ## never connected).
-func _stop_headless_bots_diagnostics() -> void:
-	if Events.block_placed.is_connected(main_node._on_headless_bots_block_placed):
-		Events.block_placed.disconnect(main_node._on_headless_bots_block_placed)
-	if main_node._headless_bots_report_timer != null and is_instance_valid(main_node._headless_bots_report_timer):
-		main_node._headless_bots_report_timer.queue_free()
-	main_node._headless_bots_report_timer = null
+func stop_diagnostics() -> void:
+	if Events.block_placed.is_connected(_on_headless_bots_block_placed):
+		Events.block_placed.disconnect(_on_headless_bots_block_placed)
+	if _headless_bots_report_timer != null and is_instance_valid(_headless_bots_report_timer):
+		_headless_bots_report_timer.queue_free()
+	_headless_bots_report_timer = null
 
 
 func _on_headless_bots_block_placed(_block: RigidBody3D, _shape_id: StringName) -> void:
-	main_node._headless_bots_placements += 1
+	_headless_bots_placements += 1
 
 
 func _on_headless_bots_report_tick() -> void:
@@ -326,14 +339,12 @@ func _on_headless_bots_seconds_elapsed() -> void:
 	print(_headless_bots_done_line())
 	if Match.state() == Match.State.PLAYING:
 		print(_headless_match_summary_line(true))
-	await Sfx.drain_for_quit()
-	QuitFlag.mark()
-	main_node.get_tree().quit(0)
+	Sfx.quit_tree()
 
 
 func _headless_bots_periodic_line() -> String:
 	return "HEADLESS_BOTS t=%.1f wall=%.1f state=%s placements=%d mode=%d homes_alive=%d frontier_gap=%.2f goals=%s" % [
-		_headless_bots_elapsed_s(), _headless_bots_wall_s(), _headless_bots_state_name(), main_node._headless_bots_placements,
+		_headless_bots_elapsed_s(), _headless_bots_wall_s(), _headless_bots_state_name(), _headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 		_headless_bots_frontier_gap(), _headless_bots_goal_coverage(),
 	]
@@ -341,7 +352,7 @@ func _headless_bots_periodic_line() -> String:
 
 func _headless_bots_done_line() -> String:
 	return "HEADLESS_BOTS done t=%.1f wall=%.1f placements=%d mode=%d homes_alive=%d" % [
-		_headless_bots_elapsed_s(), _headless_bots_wall_s(), main_node._headless_bots_placements,
+		_headless_bots_elapsed_s(), _headless_bots_wall_s(), _headless_bots_placements,
 		Match.config.game_mode if Match.config != null else 0, _headless_bots_homes_alive(),
 	]
 
@@ -384,7 +395,7 @@ func _headless_bots_elapsed_s() -> float:
 
 
 func _headless_bots_wall_s() -> float:
-	return float(Time.get_ticks_msec() - main_node._headless_bots_start_msec) / 1000.0
+	return float(Time.get_ticks_msec() - _headless_bots_start_msec) / 1000.0
 
 
 ## Match.State's name for Match.state() (e.g. "PLAYING"), via Dictionary.find_key()
