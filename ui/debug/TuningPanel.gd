@@ -309,12 +309,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+## The gate outlives this panel (it lives on the CameraRig), so a panel open at match end
+## must not leave the next match with PANEL set.
+func _exit_tree() -> void:
+	if is_instance_valid(_controller):
+		_controller.input_gate.set_blocker(InputGate.Blocker.PANEL, false)
+
+
 func _toggle_panel() -> void:
 	visible = not visible
 	if not visible:
 		_free_ui()
 	if _controller != null:
-		_controller.input_enabled = not visible
+		_controller.input_gate.set_blocker(InputGate.Blocker.PANEL, visible)
 	AgentProbe.set_mouse_mode(Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED)
 	if visible:
 		# Reflects anything another system changed on the live resources since this panel last

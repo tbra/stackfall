@@ -115,6 +115,26 @@
   },
   {
    "id": "dead-file",
+   "entry": "core/audio/MusicPlaylist.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StingPool.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/blocks/GhostSilhouette.gd",
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/main/PrewarmLoader.gd",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "dead-file",
    "entry": "game/player/InputGate.gd",
    "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
   },
@@ -465,6 +485,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "core/gifts/GiftThrow.gd:launch_plan",
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "test-only-func",
    "entry": "core/weather/BreezeField.gd:gust_accel",
    "reason": "BreezeEffect.gd:220"
   },
@@ -590,6 +615,66 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:await_prewarmed",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:begin",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:ensure_script",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:is_late_active",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:load_scene",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:menu_shown",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/AppLoader.gd:wants_background",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_done",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:is_requested",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:on_close_request",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/DeferredQuit.gd:settle",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Iload"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/main/MainFlowPort.gd:bind_world",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx"
   },
@@ -666,6 +751,11 @@
   {
    "id": "test-only-var",
    "entry": "game/main/MainWorld.gd:blocks_container",
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
+  },
+  {
+   "id": "test-only-var",
+   "entry": "game/main/MainWorld.gd:loader",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
   {
