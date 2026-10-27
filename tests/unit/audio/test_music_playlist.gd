@@ -257,3 +257,127 @@ func test_release_stops_the_playlist() -> void:
 	playlist.release()
 	assert_eq(playlist.phase(), MusicPlaylist.Phase.STOPPED)
 	assert_eq(playlist.advance(GAP_MAX_S, NO_POSITION, TRACK_S), MusicPlaylist.Step.NONE)
+
+
+func test_start_leaves_stopped_for_the_initial_delay() -> void:
+	var playlist: MusicPlaylist = MusicPlaylist.new(_config, _rng)
+	assert_eq(playlist.phase(), MusicPlaylist.Phase.STOPPED)
+	playlist.start()
+	assert_eq(playlist.phase(), MusicPlaylist.Phase.WAITING)
+	assert_eq(playlist.advance(INITIAL_DELAY_S - 0.5, NO_POSITION, TRACK_S), MusicPlaylist.Step.NONE)
+	assert_eq(playlist.advance(0.5, NO_POSITION, TRACK_S), MusicPlaylist.Step.START_TRACK)
+
+
+func test_start_does_not_disturb_a_waiting_playlist() -> void:
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	playlist.advance(1.5, NO_POSITION, TRACK_S)
+	playlist.start()
+	assert_eq(playlist.advance(0.5, NO_POSITION, TRACK_S), MusicPlaylist.Step.START_TRACK, "the delay was not restarted")
+
+
+func test_start_does_not_disturb_a_playing_track() -> void:
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	_play_first(playlist)
+	playlist.advance(2.0, NO_POSITION, TRACK_S)
+	playlist.start()
+	assert_eq(playlist.phase(), MusicPlaylist.Phase.PLAYING)
+	assert_almost_eq(playlist.envelope(), 0.5, 0.001)
+
+
+func test_start_after_release_waits_again() -> void:
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	playlist.release()
+	playlist.start()
+	assert_eq(playlist.phase(), MusicPlaylist.Phase.WAITING)
+
+
+func test_zero_fade_out_with_zero_elapsed_still_completes_a_switch() -> void:
+	_config.music_fade_out_seconds = 0.0
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	_play_first(playlist)
+	playlist.set_context(&"menu")
+	assert_eq(playlist.advance(0.0, NO_POSITION, TRACK_S), MusicPlaylist.Step.STOP_PLAYER, "no fade: stop at once")
+	assert_eq(playlist.phase(), MusicPlaylist.Phase.WAITING)
+
+
+func test_zero_fade_in_does_not_hide_a_short_track_fade_out() -> void:
+	_config.music_fade_in_seconds = 0.0
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	_play_first(playlist)
+	playlist.advance(0.0, 0.0, 2.0)
+	assert_almost_eq(playlist.envelope(), 0.4, 0.001, "2s track, 5s fade-out, at the start")
+
+
+func test_zero_fade_out_does_not_hide_a_short_track_fade_in() -> void:
+	_config.music_fade_out_seconds = 0.0
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	_play_first(playlist)
+	playlist.advance(0.0, 2.0, 2.0)
+	assert_almost_eq(playlist.envelope(), 0.5, 0.001, "at the track end with no fade-out the fade-in decides")
+
+
+func test_next_track_is_stable_until_the_track_starts() -> void:
+	for rng_seed: int in [1, 2, 3, 4, 5, 6, 7, 8]:
+		_rng.seed = rng_seed
+		var playlist: MusicPlaylist = _begin(&"gameplay")
+		var first: int = playlist.next_track()
+		for _i: int in range(10):
+			assert_eq(playlist.next_track(), first, "prefetch and start agree (seed %d)" % rng_seed)
+
+
+func test_two_track_playlist_alternates() -> void:
+	_config.gameplay_playlist = [_track(), _track()]
+	var playlist: MusicPlaylist = _begin(&"gameplay")
+	var last: int = _play_first(playlist)
+	for _i: int in range(30):
+		playlist.track_finished()
+		playlist.advance(GAP_MAX_S, NO_POSITION, TRACK_S)
+		var index: int = playlist.next_track()
+		assert_ne(index, last, "two tracks never repeat")
+		playlist.track_started(index)
+		last = index
+
+
+func test_every_track_can_be_the_first_pick() -> void:
+	var seen: Dictionary = {}
+	for rng_seed: int in range(40):
+		_rng.seed = rng_seed
+		seen[_begin(&"gameplay").next_track()] = true
+	assert_eq(seen.size(), GAMEPLAY_TRACKS, "all indices reachable")
+
+
+func test_only_usable_track_replays_when_others_failed_to_load() -> void:
+	var usable: AudioStream = _track()
+	_config.gameplay_playlist = [null, usable]
+	var playlist: MusicPlaylist = _begin(&"gameplay")
+	assert_eq(_play_first(playlist), 1)
+	playlist.track_finished()
+	playlist.advance(GAP_MAX_S, NO_POSITION, TRACK_S)
+	assert_eq(playlist.next_track(), 1, "the one usable track may repeat")
+
+
+func test_last_track_is_not_replayed_once_its_stream_is_gone() -> void:
+	_config.gameplay_playlist = [null, _track()]
+	var playlist: MusicPlaylist = _begin(&"gameplay")
+	assert_eq(_play_first(playlist), 1)
+	_config.gameplay_playlist = [null, null]
+	playlist.track_finished()
+	playlist.advance(GAP_MAX_S, NO_POSITION, TRACK_S)
+	assert_eq(playlist.next_track(), -1)
+
+
+func test_last_track_is_not_replayed_once_the_playlist_shrank_past_it() -> void:
+	var playlist: MusicPlaylist = _begin(&"gameplay")
+	var played: int = _play_first(playlist)
+	_config.gameplay_playlist = [null]
+	playlist.track_finished()
+	playlist.advance(GAP_MAX_S, NO_POSITION, TRACK_S)
+	assert_ne(played, -1)
+	assert_eq(playlist.next_track(), -1)
+
+
+func test_zero_fade_in_track_is_full_volume_the_moment_it_starts() -> void:
+	_config.music_fade_in_seconds = 0.0
+	var playlist: MusicPlaylist = _begin(&"lobby")
+	_play_first(playlist)
+	assert_eq(playlist.envelope(), 1.0, "no advance needed")
