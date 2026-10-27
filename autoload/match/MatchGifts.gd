@@ -474,7 +474,7 @@ func pending_special_count(slot_id: int) -> int:
 const DEBUG_GIFT_ID: int = -1
 
 
-## Sandbox-only debug entry point (game/sandbox/Sandbox.gd's F9
+## Sandbox-only debug entry point (game/sandbox/Sandbox.gd's section-key
 ## sandbox_force_special hotkey and `--force-special=`): replaces `slot_id`'s
 ## next gift and emits Events.gift_claimed with DEBUG_GIFT_ID, the same signal
 ## _claim_gift() fires for a real claim, so the HUD/ghost/client mirrors follow
@@ -499,7 +499,7 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 	return true
 
 
-## Sandbox-only reset seam (game/sandbox/Sandbox.gd's F9 hotkey turning back
+## Sandbox-only reset seam (game/sandbox/Sandbox.gd's section-key hotkey turning back
 ## "off"): re-runs the lazy install _ensure_special_drawer_installed() performs
 ## at a match's first real claim. Resets `_roster_ready` first, otherwise the
 ## idempotency guard would make the call a no-op after a forced special's own

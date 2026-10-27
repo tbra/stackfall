@@ -329,7 +329,7 @@ func test_sandbox_reset_field_clears_blocks_and_rebuilds_for_the_same_config() -
 ## config/gifts/specials/ includes the original roster and the enabled remake gifts;
 ## SpecialDef.load_selectable_specials() sorts by id and leaves out disabled gifts
 ## (Cat), so this is the exact cycle
-## order F9 must walk through -- pinned here rather than re-derived from the
+## order the section key must walk through -- pinned here rather than re-derived from the
 ## loader, so a regression in the loader's own sort shows up as a failure
 ## here too, not just in test_special_def.gd.
 const _EXPECTED_ROSTER_ORDER: PackedStringArray = [
@@ -483,7 +483,7 @@ func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
 	_run_countdown()
 	_sandbox()._unhandled_input(_key_press(KEY_SECTION))
 	var forced: StringName = _sandbox().forced_special()
-	assert_ne(forced, &"", "fixture: F9 forced a special")
+	assert_ne(forced, &"", "fixture: the section key forced a special")
 
 	_f5(_sandbox())
 	await get_tree().process_frame

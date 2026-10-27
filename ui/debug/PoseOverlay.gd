@@ -71,16 +71,16 @@ func refresh() -> void:
 	var decimals: int = config.pose_decimals
 	var held: LocalHeldView = MatchContext.current().local_held()
 	_held_label.text = NO_VALUE if held.shape == null else HELD_LINE % [
-		vec_text(held.origin, decimals), vec_text(held_basis(held).get_euler() * RAD_TO_DEG_FACTOR, decimals)]
+		_vec_text(held.origin, decimals), _vec_text(_held_basis(held).get_euler() * RAD_TO_DEG_FACTOR, decimals)]
 	var cam: Node3D = camera if is_instance_valid(camera) else null
 	_camera_label.text = NO_VALUE if cam == null else CAMERA_LINE % [
-		vec_text(cam.global_position, decimals),
-		vec_text(cam.global_basis.orthonormalized().get_euler() * RAD_TO_DEG_FACTOR, decimals)]
+		_vec_text(cam.global_position, decimals),
+		_vec_text(cam.global_basis.orthonormalized().get_euler() * RAD_TO_DEG_FACTOR, decimals)]
 	_tilt_label.text = NO_VALUE if not is_instance_valid(field) else tilt_text(field.global_basis, decimals)
 
 
 ## Pure: the held block's world basis, composed the way GhostPreview does.
-static func held_basis(held: LocalHeldView) -> Basis:
+static func _held_basis(held: LocalHeldView) -> Basis:
 	return Basis(held.free_quat) * BlockOrientations.get_basis(held.orientation_index)
 
 
@@ -89,13 +89,13 @@ static func tilt_text(basis: Basis, decimals: int) -> String:
 	var tilt: Quaternion = basis.orthonormalized().get_rotation_quaternion()
 	var angle_deg: float = rad_to_deg(tilt.get_angle())
 	var axis: Vector3 = tilt.get_axis() if angle_deg > 0.0 else Vector3.UP
-	return TILT_LINE % [number_text(angle_deg, decimals), vec_text(axis, decimals)]
+	return TILT_LINE % [_number_text(angle_deg, decimals), _vec_text(axis, decimals)]
 
 
 ## Fixed decimals; "+ 0.0" turns a negative zero into a plain one.
-static func number_text(value: float, decimals: int) -> String:
+static func _number_text(value: float, decimals: int) -> String:
 	return "%.*f" % [decimals, value + 0.0]
 
 
-static func vec_text(v: Vector3, decimals: int) -> String:
-	return "(%s, %s, %s)" % [number_text(v.x, decimals), number_text(v.y, decimals), number_text(v.z, decimals)]
+static func _vec_text(v: Vector3, decimals: int) -> String:
+	return "(%s, %s, %s)" % [_number_text(v.x, decimals), _number_text(v.y, decimals), _number_text(v.z, decimals)]

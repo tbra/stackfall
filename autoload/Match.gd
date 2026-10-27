@@ -568,7 +568,7 @@ func set_special_drawer(drawer: Callable) -> void:
 	_gifts.set_special_drawer(drawer)
 
 
-## game/sandbox/Sandbox.gd's F9 hotkey turning back "off" -- reinstalls
+## game/sandbox/Sandbox.gd's section-key hotkey turning back "off" -- reinstalls
 ## whatever drawer a real match would be running. See
 ## MatchGifts.restore_default_special_drawer().
 func restore_default_special_drawer() -> void:
@@ -576,7 +576,7 @@ func restore_default_special_drawer() -> void:
 	_gifts.restore_default_special_drawer()
 
 
-## game/sandbox/Sandbox.gd's F9 sandbox_force_special hotkey and
+## game/sandbox/Sandbox.gd's section-key sandbox_force_special hotkey and
 ## `--force-special=` -- appends `special_id` straight onto `slot_id`'s
 ## pending queue with no crate needed, host-only and sandbox-only. See
 ## MatchGifts.debug_queue_special() for the full contract (the cap, the

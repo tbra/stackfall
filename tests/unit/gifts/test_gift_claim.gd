@@ -437,7 +437,7 @@ func test_replicated_claim_with_a_garbage_slot_id_is_ignored() -> void:
 	assert_eq(Match._gifts._pending_queues.size(), before_size, "a garbage slot_id must never grow _pending_queues")
 
 
-# --- debug_queue_special (game/sandbox/Sandbox.gd's F9 hotkey) -------
+# --- debug_queue_special (game/sandbox/Sandbox.gd's section-key hotkey) -------
 
 func test_debug_queue_special_refused_outside_sandbox() -> void:
 	_start_playing(_config_with_no_real_specials())
