@@ -915,11 +915,13 @@ func gift_launch_preview() -> Dictionary:
 	var surface_y: float = field.surface_y() if field != null else _ghost.global_position.y
 	# the arc starts at the held model's visual centre, not the ghost's
 	# bottom-face pivot (which sits below the model).
-	var origin: Vector3 = GiftAim.spawn_point(_held_model_centre(), forward, surface_y, special_tuning)
+	var plan: GiftThrow.Plan = GiftThrow.launch_plan(_held_def(), mode, forward, _held_model_centre(),
+			surface_y, _throw_range_scale(), special_tuning, _ghost.get_shape())
+	var origin: Vector3 = plan.spawn_origin
 	if mode == GiftThrow.Mode.THROW:
 		return {
 			"origin": origin,
-			"velocity": GiftAim.throw_velocity(forward, special_tuning, _throw_range_scale()),
+			"velocity": plan.velocity,
 			"gravity_scale": 1.0,
 		}
 	var direction: Vector3 = forward
@@ -1105,6 +1107,12 @@ func _ghost_overlapping_bodies() -> Array[RigidBody3D]:
 	return bodies
 
 
+## The held gift's definition (null for an ordinary piece).
+func _held_def() -> SpecialDef:
+	var gift_id: StringName = _held_gift_id()
+	return SpecialDef.find_by_id(gift_id) if gift_id != &"" else null
+
+
 ## The held gift's id (&"" for an ordinary piece).
 func _held_gift_id() -> StringName:
 	if _acting_slot() < 0:
@@ -1115,21 +1123,20 @@ func _held_gift_id() -> StringName:
 ## The pose the host overlap-tests this release at: the ghost's, except that an aimed gift
 ## spawns on the camera line (GiftAim.spawn_point) and one launched facing its flight line
 ## (Rocket, Paintball, Magnet) is tested in that faced basis at the muzzle-matched origin, as
-## MatchPlacement.request_throw() does.
+## the host's GiftThrow.launch_plan does.
 func _release_pose(gift_id: StringName) -> Transform3D:
 	var pose: Transform3D = Transform3D(_ghost.basis, _ghost.global_position)
 	var def: SpecialDef = SpecialDef.find_by_id(gift_id) if gift_id != &"" else null
 	var mode: GiftThrow.Mode = GiftThrow.mode_for(def)
 	if def == null or mode == GiftThrow.Mode.NONE:
 		return pose
-	var aim: Vector3 = _camera_forward()
 	var field: FieldBody = match_context.field()
-	pose.origin = GiftAim.spawn_point(pose.origin, aim, field.surface_y() if field != null else pose.origin.y, special_tuning)
-	var velocity: Vector3 = GiftAim.throw_velocity(aim, special_tuning, _throw_range_scale()) if mode == GiftThrow.Mode.THROW else Vector3.ZERO
-	var faced: Variant = MatchPlacement.launch_facing_basis(def, mode, aim, velocity)
-	if faced == null:
+	var plan: GiftThrow.Plan = GiftThrow.launch_plan(def, mode, _camera_forward(), pose.origin,
+			field.surface_y() if field != null else pose.origin.y, _throw_range_scale(), special_tuning, _ghost.get_shape())
+	pose.origin = plan.spawn_origin
+	if not plan.faces:
 		return pose
-	pose.basis = faced as Basis
+	pose.basis = plan.faced_basis
 	if mode == GiftThrow.Mode.AIMED:
 		pose.origin = BlockFactory.muzzle_matched_origin(pose.origin, pose.basis, _ghost.get_shape(), _ghost.tuning, gift_id)
 	return pose
