@@ -125,9 +125,11 @@ static func _collect_rotated_triangles(
 		for surface: int in range(mesh.get_surface_count()):
 			var arrays: Array = mesh.surface_get_arrays(surface)
 			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-			if indices.is_empty():
-				indices = _sequential_indices(verts.size())
+			# An unindexed surface stores null here, which cannot be cast to a packed array.
+			var index_data: Variant = arrays[Mesh.ARRAY_INDEX]
+			var indices: PackedInt32Array = (
+					_sequential_indices(verts.size()) if index_data == null else index_data
+			)
 			for i: int in range(0, indices.size() - 2, _TRIANGLE_VERTICES):
 				var triangle: PackedVector3Array = PackedVector3Array([
 					basis * (local_offset + verts[indices[i]]),
