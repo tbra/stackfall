@@ -15,6 +15,13 @@ func physics_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> v
 	pass
 
 
+## Runs every armed tick while the carrier is still in flight and the effect waits for its
+## landing (needs_landing(), or a thrown gift). Only flight handling such as turning the
+## carrier along its path belongs here, never the effect itself. No-op by default.
+func flight_tick(_block: Block, _behavior: SpecialBehavior, _delta: float) -> void:
+	pass
+
+
 ## Checked by SpecialBehavior._check_impact() right before an impact
 ## (mass * speed-drop >= arm_impulse), once armed and not yet triggered, would
 ## otherwise call trigger(0) this same tick. True by default -- an ordinary

@@ -225,6 +225,11 @@ signal gift_expired(gift_id: int)
 ## clients from here.
 signal special_triggered(net_id: int, def_id: StringName, position: Vector3, chain_depth: int)
 
+## A THROWN gift's launch state: `landed` false the moment it is thrown, true at its first landing
+## contact (when its effect starts). Host-emitted from MatchPlacement; net/MatchNet.gd replicates
+## it (MatchWireEvents.SPECIAL_LAUNCH_STATE) and a client's applier re-emits it here.
+signal special_launch_state(net_id: int, landed: bool)
+
 ## The head of `slot_id`'s pending-special queue was actually
 ## spent -- a place-spawn or a throw (autoload/match/MatchGifts.gd's
 ## pop_pending_special() is the one host-side emit site; a burned auto-drop

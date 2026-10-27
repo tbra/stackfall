@@ -435,7 +435,13 @@ func request_throw(
 	# DECISION: a throw is never a burn -- every earlier return refused anything that would not land
 	# -- so this is always the one call that pops/attaches the pending special (request_place()'s
 	# matching call is conditional).
-	_attach_pending_special(spawned, slot_id)
+	var thrown_behavior: SpecialBehavior = _attach_pending_special(spawned, slot_id)
+	if thrown_behavior != null and throw_mode == GiftThrow.Mode.THROW:
+		# A ballistic throw's effect (countdown, pull, hops) starts at its first landing contact.
+		thrown_behavior.starts_on_landing = true
+		GiftBlink.stop(spawned)
+		Events.special_launch_state.emit(spawned.net_id, false)
+		thrown_behavior.landed.connect(Events.special_launch_state.emit.bind(spawned.net_id, true))
 	if throw_mode == GiftThrow.Mode.AIMED:
 		held_def.effect.apply_launch(spawned, aim_direction)
 
@@ -808,16 +814,17 @@ func _spawn_block(
 ##
 ## Both call sites are host-only, so every attach and every Events.special_triggered forward this
 ## produces happens on the host only.
-func _attach_pending_special(block: Block, slot_id: int) -> void:
+func _attach_pending_special(block: Block, slot_id: int) -> SpecialBehavior:
 	var special_id: StringName = _match.pop_pending_special(slot_id)
 	if special_id == &"":
-		return
+		return null
 	var def: SpecialDef = _resolve_deliverable_special(special_id)
 	if def == null:
-		return
+		return null
 	var behavior: SpecialBehavior = _arm_special_behavior(block, def, _special_tuning)
 	behavior.despawn_when_done = true
 	behavior.completed.connect(_on_gift_completed)
+	return behavior
 
 
 ## host-only (behaviors only exist host-side). Removes a

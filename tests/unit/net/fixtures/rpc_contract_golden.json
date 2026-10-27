@@ -1,7 +1,8 @@
 {
 	"history": {
 		"0.0.3": "ad4042c1e28c26d05675e1e7559b3c76",
-		"0.0.4": "1bc0a7aacc07adfc3743d6c843bded52"
+		"0.0.4": "1bc0a7aacc07adfc3743d6c843bded52",
+		"0.0.5": "a80b89ac4ed91bec8d87dd3325f60671"
 	},
 	"surface": {
 		"constants": {
@@ -36,6 +37,7 @@
 				"qol_feed",
 				"slot_replay",
 				"special_consumed",
+				"special_launch_state",
 				"special_triggered",
 				"state_changed",
 				"turn_changed"

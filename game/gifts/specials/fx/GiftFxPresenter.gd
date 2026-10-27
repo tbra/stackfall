@@ -19,7 +19,9 @@ func _ready() -> void:
 ## The one spawn hook (BlockFactory.apply_gift_visual, which host and clients both run
 ## for a gift carrier): starts the client-derived per-gift visuals. No RPC; each peer
 ## derives them from block.gift_id and its own clock. Visual-only and a no-op for a
-## gift without such a visual.
+## gift without such a visual. A THROWN Bomb blinks only from its landing: the host announces the
+## throw and the landing (Events.special_launch_state) and on_special_launch_state() below stops
+## and starts the blink on every peer.
 static func on_gift_block_spawned(block: Block) -> void:
 	GiftBlink.start_for_gift(block)
 	BeanHopFx.start_for_gift(block)
@@ -65,6 +67,21 @@ static func spawn_paintball_sling(block: Block) -> bool:
 func connect_events() -> void:
 	if not Events.special_triggered.is_connected(on_special_triggered):
 		Events.special_triggered.connect(on_special_triggered)
+	if not Events.special_launch_state.is_connected(on_special_launch_state):
+		Events.special_launch_state.connect(on_special_launch_state)
+
+
+## A thrown gift's launch state on every peer: `landed` false = just thrown (its spawn blink stops,
+## nothing counts down in flight), true = first landing contact (the blink starts).
+func on_special_launch_state(net_id: int, landed: bool) -> void:
+	var registry: BlockRegistry = MatchContext.current().registry() as BlockRegistry
+	var block: Block = registry.block_for_net_id(net_id) if registry != null else null
+	if block == null:
+		return
+	if landed:
+		GiftBlink.start_for_gift(block)
+	else:
+		GiftBlink.stop(block)
 
 
 ## Receives special_triggered events and asks the def's effect to draw its visual.

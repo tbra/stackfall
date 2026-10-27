@@ -61,12 +61,12 @@ func launch_facing(_mode: GiftThrow.Mode, _aim_direction: Vector3, throw_velocit
 
 
 ## Pulls every enemy Block within pull.radius_m toward this block's own position, every
-## armed tick, for pull_duration_s seconds from the first tick this runs (no landing gate).
+## armed tick after landing (a thrown magnet) for pull_duration_s seconds from the first tick this runs.
 func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void:
 	var state: MagnetState = behavior.state() as MagnetState
 	if not state.started():
 		state.start_age = behavior.age()
-	_face_while_airborne(block, state)
+	_face_while_airborne(block, state)  # a dropped magnet turns here; a thrown one in flight_tick()
 	if behavior.age() - state.start_age < pull_start_delay_s:
 		return
 
@@ -88,9 +88,15 @@ func physics_tick(block: Block, behavior: SpecialBehavior, delta: float) -> void
 	RadialPull.pull(space_state, block.global_position, pull, exclude, enemy_only_filter, delta)
 
 
+## The thrown magnet turns along its path while in flight; the pull itself waits for landing
+## (SpecialBehavior.starts_on_landing).
+func flight_tick(block: Block, behavior: SpecialBehavior, _delta: float) -> void:
+	_face_while_airborne(block, behavior.state() as MagnetState)
+
+
 ## While the thrown magnet is still travelling it turns so the pole tips lead along its
 ## velocity (FlightFacing); once it slows below `face_min_speed_mps` it has landed and
-## keeps that pose for good. Runs from the first tick (magnet.tres arm_delay is 0).
+## keeps that pose for good. Runs from flight_tick() (magnet.tres arm_delay is 0).
 func _face_while_airborne(block: Block, state: MagnetState) -> void:
 	if state.facing_done:
 		return

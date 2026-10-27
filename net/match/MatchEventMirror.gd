@@ -52,6 +52,7 @@ func bind(events_source: Node) -> void:
 	events_source.connect(&"gift_expired", on_gift_expired)
 	events_source.connect(&"special_triggered", on_special_triggered)
 	events_source.connect(&"special_consumed", on_special_consumed)
+	events_source.connect(&"special_launch_state", on_special_launch_state)
 	events_source.connect(&"glue_charges_changed", on_glue_charges)
 	events_source.connect(&"block_owner_changed", on_block_owner_changed)
 	events_source.connect(&"block_frozen_changed", on_block_frozen)
@@ -154,6 +155,11 @@ func on_special_triggered(net_id: int, def_id: StringName, position: Vector3, ch
 	if _session.is_host():
 		_host.feed_note_special_triggered()
 		_send(MatchWireEvents.SPECIAL_TRIGGERED, [net_id, def_id, position, chain_depth])
+
+
+func on_special_launch_state(net_id: int, landed: bool) -> void:
+	if _session.is_host():
+		_send(MatchWireEvents.SPECIAL_LAUNCH_STATE, [net_id, landed])
 
 
 func on_special_consumed(slot_id: int, special_id: StringName) -> void:
