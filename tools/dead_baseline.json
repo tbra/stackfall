@@ -115,11 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/blocks/GhostSilhouette.gd",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "game/player/InputGate.gd",
    "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
   },
@@ -157,6 +152,11 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:sudden_death_active",
    "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/CatSession.gd:setup",
+   "reason": "MatchGifts.setup (typed call), itself reached from Match.late_activate through the untyped _gifts"
   },
   {
    "id": "test-only-func",
@@ -465,11 +465,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/gifts/GiftThrow.gd:launch_plan",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/weather/BreezeField.gd:gust_accel",
    "reason": "BreezeEffect.gd:220"
   },
@@ -565,6 +560,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/gifts/specials/CatController.gd:configure",
+   "reason": "CatSession.gd start/apply_replicated_start _cat.configure( (the cat is held untyped so the autoload closure does not name CatController)"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
    "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (Bontago-di0.12) replaces the BotController property scan"
   },
@@ -597,6 +597,11 @@
    "id": "test-only-func",
    "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/player/GhostPreview.gd:current_state",
+   "reason": "P3-Idead removed its only game caller (SandboxPanel throw branch); tests still read it; removed by Bontago-di0.4.49 (P3_PLAN orchestrator note)"
   },
   {
    "id": "test-only-func",
@@ -665,11 +670,6 @@
   },
   {
    "id": "test-only-var",
-   "entry": "game/main/MainWorld.gd:loader",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
-  },
-  {
-   "id": "test-only-var",
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
   },
@@ -677,21 +677,6 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/CatSession.gd:setup",
-   "reason": "MatchGifts.setup (typed call), itself reached from Match.late_activate through the untyped _gifts"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/gifts/specials/CatController.gd:configure",
-   "reason": "CatSession.gd start/apply_replicated_start _cat.configure( (the cat is held untyped so the autoload closure does not name CatController)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/player/GhostPreview.gd:current_state",
-   "reason": "P3-Idead removed its only game caller (SandboxPanel throw branch); tests still read it; removed by Bontago-di0.4.49 (P3_PLAN orchestrator note)"
   }
  ]
 }

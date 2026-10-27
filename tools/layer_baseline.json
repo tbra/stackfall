@@ -467,6 +467,7 @@
   "game/main/MainWorld.gd",
   "game/main/MenuPrewarmQueue.gd",
   "game/main/ModeExtras.gd",
+  "game/main/PrewarmLoader.gd",
   "game/main/QuitFlag.gd",
   "game/main/TuningOverrides.gd",
   "game/net/DiskPoseSmoother.gd",
