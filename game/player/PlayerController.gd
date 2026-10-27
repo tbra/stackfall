@@ -908,10 +908,11 @@ func gift_launch_preview() -> Dictionary:
 		return {}
 	var forward: Vector3 = _camera_forward()
 	var field: FieldBody = match_context.field()
-	var surface_y: float = field.surface_y() if field != null else _ghost.global_position.y
+	var centre: Vector3 = _held_model_centre()
+	var surface_y: float = field.surface_height_at(centre) if field != null else _ghost.global_position.y
 	# the arc starts at the held model's visual centre, not the ghost's
 	# bottom-face pivot (which sits below the model).
-	var plan: GiftThrow.Plan = GiftThrow.launch_plan(_held_def(), mode, forward, _held_model_centre(),
+	var plan: GiftThrow.Plan = GiftThrow.launch_plan(_held_def(), mode, forward, centre,
 			surface_y, _throw_range_scale(), special_tuning, _ghost.get_shape())
 	var origin: Vector3 = plan.spawn_origin
 	if mode == GiftThrow.Mode.THROW:
@@ -1128,7 +1129,7 @@ func _release_pose(gift_id: StringName) -> Transform3D:
 		return pose
 	var field: FieldBody = match_context.field()
 	var plan: GiftThrow.Plan = GiftThrow.launch_plan(def, mode, _camera_forward(), pose.origin,
-			field.surface_y() if field != null else pose.origin.y, _throw_range_scale(), special_tuning, _ghost.get_shape())
+			field.surface_height_at(pose.origin) if field != null else pose.origin.y, _throw_range_scale(), special_tuning, _ghost.get_shape())
 	pose.origin = plan.spawn_origin
 	if not plan.faces:
 		return pose

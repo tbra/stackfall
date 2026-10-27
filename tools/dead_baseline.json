@@ -33,7 +33,7 @@
    "autoload/match/WindEffect.gd:_blocks",
    "autoload/match/WindEffect.gd:_is_host",
    "autoload/match/WindEffect.gd:_owns_physics",
-   "autoload/match/WindEffect.gd:_surface_y",
+   "autoload/match/WindEffect.gd:_surface_y_at",
    "autoload/match/WindEffect.gd:is_exposed",
    "autoload/match/WindEffect.gd:is_stable_frozen",
    "autoload/match/WindEffect.gd:wake_stable_frozen",

@@ -77,6 +77,8 @@ func _blocks() -> Array[Block]:
 	return registry.all_blocks()
 
 
-func _surface_y() -> float:
+## World Y of the live disc under `world`'s XZ (0.0 without a field), so a tilted disc measures each block's
+## height from the ground beneath it.
+func _surface_y_at(world: Vector3) -> float:
 	var field: Field = context.field() as Field if context != null else null
-	return field.surface_y() if field != null else 0.0
+	return field.surface_height_at(world) if field != null else 0.0

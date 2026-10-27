@@ -25,11 +25,19 @@ func map_definition() -> MapDef:
 	return map_def
 
 
-## World Y of the disk's top surface. 0.0 while the disk is flat and centered;
-## the tilt makes this only an approximation and callers that care use
-## world_from_disk_local() instead.
+## World Y of the disk pivot. Not the surface under a point once the disk is
+## tilted: use surface_height_at().
 func surface_y() -> float:
 	return global_transform.origin.y
+
+
+## World Y of the disk's top plane (local y = 0) on the vertical line through
+## `world`'s XZ, for the live pose. A plane value: it ignores holes, blocks and
+## the rim, so callers that need "over the disk" check disk_local_from_world().
+func surface_height_at(world: Vector3) -> float:
+	var n: Vector3 = global_transform.basis.y.normalized()
+	var o: Vector3 = global_transform.origin
+	return surface_y() - (n.x * (world.x - o.x) + n.z * (world.z - o.z)) / n.y
 
 
 ## World point -> disk-local (x, z), the convention CellGrid documents. This

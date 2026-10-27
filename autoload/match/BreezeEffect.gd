@@ -171,8 +171,7 @@ func _try_spawn() -> void:
 	var block: Block = blocks[mini(int(pick * float(blocks.size())), blocks.size() - 1)]
 	if not _eligible(block):
 		return
-	var surface: float = _surface_y()
-	var height: float = block.global_position.y - surface
+	var height: float = block.global_position.y - _surface_y_at(block.global_position)
 	if accept >= BreezeField.spawn_probability(height, _bt):
 		return
 	var jitter: float = radius * _bt.center_jitter
@@ -189,7 +188,6 @@ func _try_spawn() -> void:
 
 
 func _push(delta: float) -> void:
-	var surface: float = _surface_y()
 	var stride: int = maxi(_bt.sleeper_stride_ticks, 1)
 	# Cheap sphere data first: most blocks are outside every gust, and the
 	# full checks (tree, freeze, children) only run for the few inside one.
@@ -213,7 +211,7 @@ func _push(delta: float) -> void:
 			continue
 		var total: Vector3 = Vector3.ZERO
 		for gust: Dictionary in _gusts:
-			total += BreezeField.gust_accel(gust, float(gust["age"]), position, surface, delta, _bt)
+			total += BreezeField.gust_accel(gust, float(gust["age"]), position, _surface_y_at(position), delta, _bt)
 		var accel: float = total.length()
 		if accel <= 0.0:
 			continue

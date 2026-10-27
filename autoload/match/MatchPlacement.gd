@@ -413,7 +413,7 @@ func request_throw(
 	# Rocket/Magnet spawn already facing their flight line, so the first replicated pose is never
 	# upright. The overlap/lift check tests that same faced basis (null = upright).
 	var plan: GiftThrow.Plan = GiftThrow.launch_plan(held_def, throw_mode, aim_direction, world_origin,
-			_match._field.surface_y(), _throw_range_scale(), _special_tuning, shape)
+			_match._field.surface_height_at(world_origin), _throw_range_scale(), _special_tuning, shape)
 	var clamped_velocity: Vector3 = plan.velocity
 	world_origin = plan.spawn_origin
 	var faced: Variant = plan.faced_basis if plan.faces else null
@@ -558,7 +558,7 @@ func _sky_spawn_origin(shape: BlockShape, origin: Vector3, basis: Basis, def: Sp
 	if world == null:
 		return null
 	var ceiling_y: float = _match._net_config.pos_max_y - _ghost_tuning.hover_ceiling_margin
-	var surface_y: float = _match._field.to_global(Vector3(0.0, _match._field.surface_y(), 0.0)).y
+	var surface_y: float = _match._field.surface_height_at(origin)
 	var top_y: float = surface_y
 	var ray: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
 		Vector3(origin.x, ceiling_y, origin.z), Vector3(origin.x, surface_y - 1.0, origin.z), Field.PLACEMENT_QUERY_MASK

@@ -45,7 +45,6 @@ func tick(delta: float, intensity: float) -> void:
 	var dir2: Vector2 = WindField.direction(_seed, _elapsed, wt)
 	var gust_mult: float = WindField.gust(_seed, _elapsed, wt)
 	var dir: Vector3 = Vector3(dir2.x, 0.0, dir2.y)
-	var surface: float = _surface_y()
 	var stride: int = maxi(wt.sleeper_stride_ticks, 1)
 	var index: int = 0
 	for block: Block in _blocks():
@@ -55,7 +54,7 @@ func tick(delta: float, intensity: float) -> void:
 		var stable_frozen: bool = is_stable_frozen(block)
 		if not stable_frozen and (block.freeze or block.is_freeze_static()):
 			continue
-		var height: float = block.global_position.y - surface
+		var height: float = block.global_position.y - _surface_y_at(block.global_position)
 		if height <= wt.threshold_height_m:
 			continue
 		if _owns_physics(block):

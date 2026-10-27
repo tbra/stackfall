@@ -7,8 +7,8 @@ extends Node3D
 ## throw_arc_sample_count) but stopping at the FIRST sample that reaches the landing surface.
 ##
 ## Landing height comes from the optional read-only `field` (game/world/FieldBody.gd):
-## disk_local_from_world() for "is this XZ still over the disc" and surface_y() for its top
-## height. That is the disc's own top while the sample is within map_def.field_radius of the
+## disk_local_from_world() for "is this XZ still over the disc" and surface_height_at() for the live top
+## height under that XZ. That is the disc's own top while the sample is within map_def.field_radius of the
 ## disc center, or GhostTuning.throw_arc_floor_below_disc_m below the disc's surface once it
 ## has flown past the rim (a flat "there is no ground here" backstop, togglable via
 ## throw_arc_floor_enabled). throw_arc_max_time_s is only the safety cap for a throw that never
@@ -98,7 +98,7 @@ func sample_arc(
 
 ## The world Y the arc must stop at for a candidate `point`, given the
 ## (read-only) `field` sample_arc() above was called with -- the disc's own
-## surface_y() while `point`'s XZ is still within map_def.field_radius of the
+## surface_height_at(point) while `point`'s XZ is still within map_def.field_radius of the
 ## disc center (per field.disk_local_from_world(), so a tilted disc's own
 ## rotation is honoured exactly like every other caller of that function),
 ## GhostTuning.throw_arc_floor_below_disc_m under that surface once it has
@@ -112,10 +112,10 @@ func _landing_height_at(point: Vector3, field: FieldBody) -> float:
 		return -INF
 	var local_xz: Vector2 = field.disk_local_from_world(point)
 	if local_xz.length() <= field.map_definition().field_radius:
-		return field.surface_y()
+		return field.surface_height_at(point)
 	if not ghost_tuning.throw_arc_floor_enabled:
 		return -INF
-	return field.surface_y() - ghost_tuning.throw_arc_floor_below_disc_m
+	return field.surface_height_at(point) - ghost_tuning.throw_arc_floor_below_disc_m
 
 
 ## Linearly interpolates between the last sample still above the landing
