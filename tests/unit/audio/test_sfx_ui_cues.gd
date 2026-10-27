@@ -6,24 +6,48 @@ var _config: AudioConfig
 
 func before_each() -> void:
 	_config = load("res://config/audio/audio_config.tres") as AudioConfig
+	_stop_ui_players()
 
 
-func _autoload() -> Node:
-	return get_tree().root.get_node("Sfx")
+func after_each() -> void:
+	_stop_ui_players()
 
 
-func _played_stream(sfx: Node, before: int) -> AudioStream:
-	assert_ne(sfx._next_ui_player_index, before, "a cue should have started a player")
-	var index: int = (sfx._next_ui_player_index - 1 + sfx._ui_players.size()) % sfx._ui_players.size()
-	return (sfx._ui_players[index] as AudioStreamPlayer).stream
+## The menu-cue pool: the AudioStreamPlayer children right after the match-cue pool.
+func _ui_players() -> Array[AudioStreamPlayer]:
+	var players: Array[AudioStreamPlayer] = []
+	var seen: int = 0
+	for child: Node in Sfx.get_children():
+		var player: AudioStreamPlayer = child as AudioStreamPlayer
+		if player == null:
+			continue
+		seen += 1
+		if seen > _config.max_simultaneous and players.size() < Sfx.UI_PLAYER_COUNT:
+			players.append(player)
+	return players
+
+
+func _stop_ui_players() -> void:
+	for player: AudioStreamPlayer in _ui_players():
+		player.stop()
+
+
+func _playing_data() -> Array[PackedByteArray]:
+	var found: Array[PackedByteArray] = []
+	for player: AudioStreamPlayer in _ui_players():
+		var wav: AudioStreamWAV = player.stream as AudioStreamWAV
+		if player.playing and wav != null:
+			found.append(wav.data)
+	return found
 
 
 func _expect_cue(cue: StringName, emit: Callable) -> void:
-	var sfx: Node = _autoload()
-	var before: int = sfx._next_ui_player_index
+	_stop_ui_players()
 	emit.call()
-	var stream: AudioStream = _played_stream(sfx, before)
-	assert_same(stream, sfx._library.stream(_config.ui_cue_file(cue)), "cue %s" % cue)
+	var expected: AudioStreamWAV = AudioStreamWAV.load_from_file("res://assets/audio/sfx".path_join(_config.ui_cue_file(cue)))
+	assert_not_null(expected, "cue %s file exists" % cue)
+	assert_eq(_playing_data().size(), 1, "cue %s started exactly one menu player" % cue)
+	assert_true(_playing_data().has(expected.data), "cue %s" % cue)
 
 
 func test_lobby_ui_cue_signal_plays_each_cue() -> void:
@@ -38,7 +62,5 @@ func test_peer_join_leave_and_gate_cues() -> void:
 
 
 func test_own_departure_is_silent() -> void:
-	var sfx: Node = _autoload()
-	var before: int = sfx._next_ui_player_index
 	Events.net_peer_left.emit(Net.local_peer_id(), 0, 0)
-	assert_eq(sfx._next_ui_player_index, before)
+	assert_true(_playing_data().is_empty())

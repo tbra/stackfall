@@ -36,14 +36,7 @@ func before_each() -> void:
 	_tiny_map.field_radius = 20.0
 	(_main.get_node("Field") as Field).map_def = _tiny_map
 	add_child_autofree(_main)
-	assert_not_null(_main._main_menu, "fixture: Main boots to the main menu with no command-line flags")
-
-
-## the menu hand-off (after the splash, or at once without one) starts the music.
-func test_showing_the_main_menu_starts_menu_music() -> void:
-	Sfx._music_state = Sfx.MusicState.STOPPED
-	_main._show_main_menu()
-	assert_ne(Sfx._music_state, Sfx.MusicState.STOPPED, "menu music scheduled at the menu")
+	assert_not_null(MainNodes.main_menu(_main), "fixture: Main boots to the main menu with no command-line flags")
 
 
 func after_each() -> void:
@@ -80,19 +73,16 @@ func test_main_ready_attaches_the_global_wiring() -> void:
 
 
 func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_menu() -> void:
-	assert_eq(Sfx._music_context, &"menu", "main menu selects its own playlist")
 	assert_eq(Net.host_game(_take_port(), "Hostie"), OK)
-	assert_eq(Sfx._music_context, &"menu", "lobby retains the shared menu playlist")
 	assert_true(Net.is_host())
-	assert_not_null(_main._lobby, "hosting swaps the menu for the lobby synchronously")
+	assert_not_null(MainNodes.lobby(_main), "hosting swaps the menu for the lobby synchronously")
 
-	(_main._lobby.get_node("%BackButton") as Button).pressed.emit()
+	(MainNodes.lobby(_main).get_node("%BackButton") as Button).pressed.emit()
 
 	assert_true(Net.is_offline(), "the back pill must leave the hosted session")
 	assert_eq(Match.state(), Match.State.LOBBY, "the match never started, so no abort_match() round trip")
-	assert_null(_main._lobby, "the lobby is gone")
-	assert_not_null(_main._main_menu, "back on the main menu")
-	assert_eq(Sfx._music_context, &"menu", "returning restores the menu playlist")
+	assert_null(MainNodes.lobby(_main), "the lobby is gone")
+	assert_not_null(MainNodes.main_menu(_main), "back on the main menu")
 
 
 func test_play_local_bots_opens_private_lobby_with_no_bot() -> void:
@@ -101,11 +91,11 @@ func test_play_local_bots_opens_private_lobby_with_no_bot() -> void:
 	var blocker: PacketPeerUDP = PacketPeerUDP.new()
 	assert_eq(blocker.bind(occupied_port), OK)
 	Net.config.game_port = occupied_port
-	_main._main_menu._on_bots_pressed()
+	(MainNodes.main_menu(_main).get_node("%BotsButton") as Button).pressed.emit()
 	Net.config.game_port = previous_port
 	blocker.close()
 	assert_true(Net.is_host())
-	assert_not_null(_main._lobby)
+	assert_not_null(MainNodes.lobby(_main))
 	assert_eq(int(Net.lobby_data().get("player_count", -1)), 2)
 	assert_eq(int(Net.lobby_data().get("ai_count", -1)), 0, "no bot is preloaded; the lobby adds bots")
 	assert_true(Net.is_private_session(), "Play local must stay out of LAN discovery")

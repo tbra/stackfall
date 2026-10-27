@@ -50,7 +50,6 @@ var _sfx_players: Array[AudioStreamPlayer] = []
 ## pause-proof pool for menu cues (see _build_player_pool).
 const UI_PLAYER_COUNT: int = 4
 var _ui_players: Array[AudioStreamPlayer] = []
-var _next_ui_player_index: int = 0
 ## Focus-move hover cue: one central hook for every menu. Menu navigation
 ## actions that press this frame arm it; a gui_focus_changed in the same frame plays one hover.
 ## Mouse focus (click/hover grab) and programmatic focus (a screen opening) arm nothing, so
@@ -60,7 +59,10 @@ const FOCUS_NAV_ACTIONS: Array[StringName] = [
 ]
 var _focus_nav_frame: int = -1
 var _focus_hover_frame: int = -1
-var _next_sfx_player_index: int = 0
+## Round-robin player slots and no-repeat variant picks; built with the player pool.
+var _sting_pool: StingPool
+## The contextual music scheduler; this node owns the players and streams it asks for.
+var _playlist: MusicPlaylist
 var _music_player: AudioStreamPlayer
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
@@ -79,21 +81,11 @@ var _tense_stem_available: bool = false
 var _tense_stem_is_active: bool = false
 var _music_crossfade_tween: Tween
 
-enum MusicState { STOPPED, WAITING, PLAYING, SWITCHING }
-var _music_state: MusicState = MusicState.STOPPED
-var _music_context: StringName = &"menu"
-var _music_wait_remaining: float = 0.0
-var _music_age: float = 0.0
-var _music_envelope: float = 0.0
-var _switch_start_envelope: float = 0.0
-var _switch_elapsed: float = 0.0
-var _last_track_by_context: Dictionary = {}
-## Lazy music: the track chosen for the next start, the
-## path-playlist requests still outstanding (path -> true) and loaded-but-not-yet
-## started streams (path -> AudioStream). Only the upcoming track is ever held.
-var _next_track_context: StringName = &""
-var _next_track_index: int = -1
+## Lazy music: the path-playlist requests still outstanding (path -> true).
+## Only the upcoming track is ever held.
 var _music_requested: Dictionary = {}
+## The requested path the next start will take; reaping spares it.
+var _pending_music_path: String = ""
 var _last_gift_spawn_msec: int = -1
 ## last special cue time per SpecialDef id (special_cue_min_interval_s).
 var _last_special_cue_msec: Dictionary[StringName, int] = {}
@@ -108,8 +100,6 @@ var _last_bean_hop_msec: int = -1
 ## match_scope_reset: the client's world build fires that mid-replay.
 var _world_replay_silent: bool = false
 var _last_music_tick_usec: int = Time.get_ticks_usec()
-## last variant index played per "<surface>_<tier>" key.
-var _last_impact_variant: Dictionary = {}
 ## resolved impact streams per surface x tier (int key from
 ## _impact_cache_key), so a hit does no string building or file-exists stat. Only
 ## filled when every variation resolved; dropped when config/root/variation set change.
@@ -145,6 +135,7 @@ func _ready() -> void:
 	if not _library.available():
 		print("Sfx: no effects at %s -- game runs silently." % _library.root_dir())
 	_build_player_pool()
+	_playlist = MusicPlaylist.new(config, _rng)
 	_refresh_tense_stem()
 	_build_claim_layer()
 	var listener: FocusNavListener = FocusNavListener.new()
@@ -250,6 +241,7 @@ func _build_player_pool() -> void:
 	_tense_music_player = AudioStreamPlayer.new()
 	_tense_music_player.bus = _music_player.bus
 	add_child(_tense_music_player)
+	_sting_pool = StingPool.new(_sfx_players.size(), _ui_players.size(), _rng)
 
 
 ## Plays one of `event`'s configured files on a pooled AudioStreamPlayer (or
@@ -259,7 +251,7 @@ func _build_player_pool() -> void:
 func play(event: StringName) -> bool:
 	if event == AudioConfig.EVENT_MUSIC and config.contextual_music_enabled:
 		play_music()
-		return config.playlist_track_count(_music_context) > 0
+		return config.playlist_track_count(_playlist.context()) > 0
 	var stream: AudioStream = _pick_stream(event)
 	if stream == null:
 		return false
@@ -275,8 +267,9 @@ func play(event: StringName) -> bool:
 
 func play_music() -> void:
 	if config.contextual_music_enabled:
-		if _music_state == MusicState.STOPPED:
-			_schedule_music(config.music_initial_delay_seconds)
+		_last_music_tick_usec = Time.get_ticks_usec()
+		_playlist.start()
+		_prepare_next_track()
 		return
 	var stream: AudioStream = _pick_stream(AudioConfig.EVENT_MUSIC)
 	if stream != null:
@@ -337,15 +330,11 @@ func _is_menu_event(event: StringName) -> bool:
 func _next_ui_player() -> AudioStreamPlayer:
 	if _ui_players.is_empty():
 		return _next_sfx_player()
-	var player: AudioStreamPlayer = _ui_players[_next_ui_player_index]
-	_next_ui_player_index = (_next_ui_player_index + 1) % _ui_players.size()
-	return player
+	return _ui_players[_sting_pool.next_ui_slot()]
 
 
 func _next_sfx_player() -> AudioStreamPlayer:
-	var player: AudioStreamPlayer = _sfx_players[_next_sfx_player_index]
-	_next_sfx_player_index = (_next_sfx_player_index + 1) % _sfx_players.size()
-	return player
+	return _sfx_players[_sting_pool.next_sfx_slot()]
 
 
 # --- Adaptive music -------------------------------------------------------------
@@ -492,20 +481,15 @@ func reset_match_audio() -> void:
 ## One state machine owns transitions; no delayed callbacks/tweens can start
 ## stale music after rapid menu/lobby/gameplay changes.
 func set_music_context(context: StringName) -> void:
-	if context not in [&"menu", &"lobby", &"gameplay"] or context == _music_context:
+	if context == _playlist.context() or context not in MusicPlaylist.CONTEXTS:
 		return
-	_music_context = context
+	_playlist.set_context(context)
 	if not config.contextual_music_enabled:
 		return
+	_last_music_tick_usec = Time.get_ticks_usec()
 	# Prefetch the next context's track now so it is decoded-ready by the time
 	# the fade-out of the current one ends.
 	_prepare_next_track()
-	if _music_state == MusicState.PLAYING:
-		_music_state = MusicState.SWITCHING
-		_switch_start_envelope = _music_envelope
-		_switch_elapsed = 0.0
-	elif _music_state != MusicState.SWITCHING:
-		_schedule_music(config.music_initial_delay_seconds)
 
 
 func _process(delta: float) -> void:
@@ -516,7 +500,7 @@ func _process(delta: float) -> void:
 	var real_delta: float = maxf(float(now_usec - _last_music_tick_usec) / 1000000.0, 0.0)
 	_last_music_tick_usec = now_usec
 	var playback_position: float = -1.0
-	if _music_state == MusicState.PLAYING and _music_player.playing:
+	if _playlist.phase() == MusicPlaylist.Phase.PLAYING and _music_player.playing:
 		playback_position = maxf(0.0, _music_player.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency())
 	_advance_music(real_delta, playback_position)
 	if not _music_requested.is_empty():
@@ -557,7 +541,7 @@ func release_audio() -> void:
 	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
 		_music_crossfade_tween.kill()
 	_music_crossfade_tween = null
-	_music_state = MusicState.STOPPED
+	_playlist.release()
 	stop_special_loops()
 	var players: Array[AudioStreamPlayer] = _sfx_players.duplicate()
 	players.append_array(_ui_players)
@@ -581,65 +565,30 @@ func _notification(what: int) -> void:
 func _advance_music(delta: float, playback_position: float = -1.0) -> void:
 	if not config.contextual_music_enabled:
 		return
-	match _music_state:
-		MusicState.WAITING:
-			_music_wait_remaining -= delta
-			if _music_wait_remaining <= 0.0:
-				_start_playlist_track()
-		MusicState.PLAYING:
-			_music_age = playback_position if playback_position >= 0.0 else _music_age + delta
-			var fade_in: float = 1.0 if config.music_fade_in_seconds <= 0.0 else clampf(_music_age / config.music_fade_in_seconds, 0.0, 1.0)
-			var remaining: float = _music_player.stream.get_length() - _music_age
-			var fade_out: float = 1.0 if config.music_fade_out_seconds <= 0.0 else clampf(remaining / config.music_fade_out_seconds, 0.0, 1.0)
-			_music_envelope = minf(fade_in, fade_out)
-			_apply_playlist_volume()
-		MusicState.SWITCHING:
-			_switch_elapsed += delta
-			var fraction: float = 1.0 if config.music_fade_out_seconds <= 0.0 else clampf(_switch_elapsed / config.music_fade_out_seconds, 0.0, 1.0)
-			_music_envelope = _switch_start_envelope * (1.0 - fraction)
-			_apply_playlist_volume()
-			if fraction >= 1.0:
-				_music_player.stop()
-				_music_player.stream = null # release the faded-out track
-				_schedule_music(config.music_initial_delay_seconds)
+	var length: float = _music_player.stream.get_length() if _music_player.stream != null else 0.0
+	match _playlist.advance(delta, playback_position, length):
+		MusicPlaylist.Step.START_TRACK:
+			_start_playlist_track()
+		MusicPlaylist.Step.STOP_PLAYER:
+			_music_player.stop()
+			_music_player.stream = null # release the faded-out track
+			_last_music_tick_usec = Time.get_ticks_usec()
+			_prepare_next_track()
+	var phase: MusicPlaylist.Phase = _playlist.phase()
+	if phase == MusicPlaylist.Phase.PLAYING or phase == MusicPlaylist.Phase.SWITCHING:
+		_apply_playlist_volume()
 
 
-func _schedule_music(delay: float) -> void:
-	_last_music_tick_usec = Time.get_ticks_usec()
-	_music_wait_remaining = maxf(delay, 0.0)
-	_music_state = MusicState.WAITING
-	_prepare_next_track()
-
-
-## Picks the next track for the current context and starts its threaded load
-## (path playlists only). Idempotent while the pick is still valid.
+## Starts the threaded load of the upcoming track (path playlists only); idempotent.
 func _prepare_next_track() -> void:
-	if _next_track_context == _music_context and _next_track_index >= 0:
+	var phase: MusicPlaylist.Phase = _playlist.phase()
+	if phase != MusicPlaylist.Phase.WAITING and phase != MusicPlaylist.Phase.SWITCHING:
 		return
-	var index: int = _choose_track_index(_music_context)
-	_next_track_context = _music_context
-	_next_track_index = index
-	if index < 0:
-		return
-	var paths: PackedStringArray = config.playlist_paths_for_context(_music_context)
-	if index < paths.size():
-		_request_music_path(paths[index])
-
-
-func _choose_track_index(context: StringName) -> int:
-	var count: int = config.playlist_track_count(context)
-	var streams: Array[AudioStream] = config.playlist_for_context(context)
-	var choices: Array[int] = []
-	var previous: int = int(_last_track_by_context.get(context, -1))
-	for index: int in range(count):
-		if (streams.is_empty() or streams[index] != null) and (index != previous or count == 1):
-			choices.append(index)
-	if choices.is_empty():
-		# Also tolerate a playlist with null entries and only one usable track.
-		if previous >= 0 and previous < count and (streams.is_empty() or streams[previous] != null):
-			return previous
-		return -1
-	return choices[_rng.randi_range(0, choices.size() - 1)]
+	var index: int = _playlist.next_track()
+	var paths: PackedStringArray = config.playlist_paths_for_context(_playlist.context())
+	_pending_music_path = paths[index] if index >= 0 and index < paths.size() else ""
+	if not _pending_music_path.is_empty():
+		_request_music_path(_pending_music_path)
 
 
 func _request_music_path(path: String) -> void:
@@ -664,12 +613,8 @@ func _take_music_stream(path: String) -> AudioStream:
 ## Collects finished requests that are no longer the pending pick (a context
 ## changed again before they were used) and discards them.
 func _reap_music_requests() -> void:
-	var keep: String = ""
-	var paths: PackedStringArray = config.playlist_paths_for_context(_next_track_context)
-	if _next_track_index >= 0 and _next_track_index < paths.size():
-		keep = paths[_next_track_index]
 	for path: String in _music_requested.keys():
-		if path == keep:
+		if path == _pending_music_path:
 			continue
 		if ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			ResourceLoader.load_threaded_get(path)
@@ -682,8 +627,7 @@ func _drop_music_requests() -> void:
 	for path: String in _music_requested.keys():
 		ResourceLoader.load_threaded_get(path)
 	_music_requested.clear()
-	_next_track_context = &""
-	_next_track_index = -1
+	_pending_music_path = ""
 
 
 func _load_track(context: StringName, index: int) -> AudioStream:
@@ -694,32 +638,20 @@ func _load_track(context: StringName, index: int) -> AudioStream:
 
 
 func _start_playlist_track() -> void:
-	if (
-		_next_track_context != _music_context
-		or _next_track_index < 0
-		or _next_track_index >= config.playlist_track_count(_music_context)
-	):
-		_next_track_index = -1
-		_next_track_context = &""
-		_prepare_next_track()
-	var selected: int = _next_track_index
-	_next_track_context = &""
-	_next_track_index = -1
-	if selected < 0:
-		_music_state = MusicState.STOPPED
-		return
-	var source: AudioStream = _load_track(_music_context, selected)
+	var context: StringName = _playlist.context()
+	var selected: int = _playlist.next_track()
+	_pending_music_path = ""
+	var source: AudioStream = _load_track(context, selected)
 	# A failed load advances to the next entry; each entry is tried once.
-	var count: int = config.playlist_track_count(_music_context)
+	var count: int = config.playlist_track_count(context)
 	var tried: int = 1
 	while source == null and tried < count:
 		selected = (selected + 1) % count
 		tried += 1
-		source = _load_track(_music_context, selected)
+		source = _load_track(context, selected)
 	if source == null:
-		_music_state = MusicState.STOPPED
+		_playlist.release()
 		return
-	_last_track_by_context[_music_context] = selected
 	# Duplicate before changing loop flags: imported shared resources must
 	# not inherit this playback's settings.
 	var stream: AudioStream = source.duplicate() as AudioStream
@@ -730,9 +662,7 @@ func _start_playlist_track() -> void:
 	elif stream is AudioStreamWAV:
 		(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_DISABLED
 	_music_player.stream = stream
-	_music_age = 0.0
-	_music_envelope = 0.0 if config.music_fade_in_seconds > 0.0 else 1.0
-	_music_state = MusicState.PLAYING
+	_playlist.track_started(selected)
 	_apply_playlist_volume()
 	_music_player.play()
 
@@ -740,20 +670,18 @@ func _start_playlist_track() -> void:
 func _apply_playlist_volume() -> void:
 	if _music_player == null:
 		return
+	var envelope: float = _playlist.envelope()
 	var baseline: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
-	_music_player.volume_db = MUSIC_STEM_MUTE_DB if _music_envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + _claim_duck_db + linear_to_db(_music_envelope))
+	_music_player.volume_db = MUSIC_STEM_MUTE_DB if envelope <= 0.0 else maxf(MUSIC_STEM_MUTE_DB, baseline + _claim_duck_db + linear_to_db(envelope))
 
 
 func _on_music_finished() -> void:
 	if not config.contextual_music_enabled:
 		return
 	_music_player.stream = null # finished track: release it during the silent gap
-	if _music_state == MusicState.SWITCHING:
-		_schedule_music(config.music_initial_delay_seconds)
-	elif _music_state == MusicState.PLAYING:
-		var minimum: float = maxf(config.music_gap_min_seconds, 0.0)
-		_schedule_music(_rng.randf_range(minimum, maxf(minimum, config.music_gap_max_seconds)))
-	_music_envelope = 0.0
+	_last_music_tick_usec = Time.get_ticks_usec()
+	_playlist.track_finished()
+	_prepare_next_track()
 
 
 # --- Events hooks -------------------------------------------------------------
@@ -827,14 +755,7 @@ func _pick_impact_stream(speed: float, surface: StringName) -> AudioStream:
 	var streams: Array[AudioStream] = _impact_streams(surface, tier, key)
 	if streams.is_empty():
 		return null
-	var index: int = 0
-	if streams.size() > 1:
-		var last: int = int(_last_impact_variant.get(key, -1))
-		index = _rng.randi_range(0, streams.size() - 2)
-		if last >= 0 and index >= last:
-			index += 1
-		_last_impact_variant[key] = index
-	return streams[index]
+	return streams[_sting_pool.pick_variant(key, streams.size())]
 
 
 ## Small int key for the two surfaces x three tiers, -1 for anything else (which

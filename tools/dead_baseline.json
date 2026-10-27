@@ -115,16 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/audio/MusicPlaylist.gd",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/audio/StingPool.gd",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imusic"
-  },
-  {
-   "id": "dead-file",
    "entry": "core/blocks/GhostSilhouette.gd",
    "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Isil, which removes this entry"
   },
