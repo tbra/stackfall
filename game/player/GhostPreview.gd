@@ -17,7 +17,7 @@ extends Node3D
 ## Projection prism: the shaft under the shape, from the landing surface up to
 ## the shape's own underside, not a box around it. Its walls follow the
 ## silhouette outline and hug the underside piece by piece
-## (_build_underside_walls()); where the underside touches the landing surface no
+## (GhostSilhouette.build()); where the underside touches the landing surface no
 ## wall is drawn. The material blends additively and emits light so a surface
 ## seen through the column brightens. projection_span_y() stays the whole shape's
 ## top-to-disc span, which PlayerController's spawn clearance reads.
@@ -86,28 +86,6 @@ static var VISUAL_TUNING: BlockVisualTuning = preload("res://config/blocks/tunin
 ## lying exactly on the decal box's top or bottom plane.
 const _MIN_DECAL_FADE: float = 0.0001
 
-## The smallest projected (XZ) triangle area, in square meters,
-## _collect_rotated_triangles() still unions rather than drops as degenerate -- a
-## triangle of the rendered shell that is edge-on to straight-down (an unrotated
-## shape's vertical side faces, or any face rotated exactly vertical) projects to
-## a zero-width sliver that would feed a near-empty/self-intersecting polygon
-## into Geometry2D.merge_polygons.
-const _MIN_SILHOUETTE_TRIANGLE_AREA: float = 1e-6
-
-## Geometric tolerances for the underside-hugging prism walls, in meters.
-## Structural float tolerances, not look tunables (file consts rather than
-## GhostTuning fields, like _MIN_DECAL_FADE): no value in these ranges changes
-## how the prism looks, only whether rounding (Geometry2D.merge_polygons'
-## fixed-point output, ~1e-5 m) is absorbed.
-## How far a split point may sit from an outline edge and still split it, and
-## the shortest outline piece kept (a T-junction vertex ending exactly on the
-## outline, _edge_split_params()).
-const _SILHOUETTE_SPLIT_EPSILON: float = 1e-4
-## How far _underside_heights() nudges its probe point off the outline, toward
-## the silhouette's interior, so point-in-triangle tests never land exactly on
-## the outline (which every neighbouring triangle "contains"). Two orders of
-## magnitude above merge_polygons' own rounding, two below a cube.
-const _SILHOUETTE_PROBE_INSET: float = 1e-3
 ## How close the underside may come to the wall bottom before that stretch of
 ## wall is treated as "the shape sits on the ground here" and not drawn
 ## (_append_underside_wall()).
@@ -123,9 +101,6 @@ const _MASK_KEY_SCALE: float = 1000.0
 const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
 const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
-## Indices of the probe point in _underside_heights()'s result.
-const _HEIGHTS_PROBE_X: int = 2
-const _HEIGHTS_PROBE_Y: int = 3
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
 ## The group game/player/PlayerController.gd puts its own (local, player-driven)
@@ -164,33 +139,19 @@ var _projection_material: StandardMaterial3D
 ## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
 ## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
 var _projection_span_y: Vector2 = Vector2.ZERO
-## The ghost-local (not world-translated) XZ outline loop(s)
-## _shape_silhouette_loops() built the prism walls from last time, plus the exact
-## (shape, basis) pair that produced them: a frame that changes neither (the
-## player is only moving the cursor) skips re-walking every triangle of the
-## rendered mesh and re-running Geometry2D.merge_polygons. Every other input
-## _update_projection_mesh() reads each frame (global_position.y, landing_y) only
-## changes how high the cached walls are extruded, never their XZ shape, so
-## caching on (shape, basis) alone is exact.
+## The ghost-local (not world-translated) silhouette (outline loops, underside
+## walls and their probes) GhostSilhouette built last time, plus the exact
+## (shape, basis) pair that produced it: a frame that changes neither (the player
+## is only moving the cursor) skips re-walking every triangle of the rendered
+## mesh. Every other input _update_projection_mesh() reads each frame
+## (global_position.y, landing_y) only changes how high the cached walls are
+## extruded, never their XZ shape, so caching on (shape, basis) alone is exact.
+## wall_heights are relative to the ghost origin, so a frame that only moves the
+## ghost re-emits the quads at a new offset.
 var _cached_silhouette_shape: BlockShape = null
 var _cached_silhouette_basis: Basis = Basis.IDENTITY
-var _cached_silhouette_loops: Array[PackedVector2Array] = []
 var _cached_silhouette_valid: bool = false
-## The underside-hugging wall list built alongside _cached_silhouette_loops,
-## same (shape, basis) cache key. _cached_wall_segments holds consecutive (a, b)
-## ghost-local XZ pairs -- every outline edge split wherever a projected mesh
-## triangle edge crosses or touches it, so each piece lies under one fixed set of
-## triangles -- and _cached_wall_heights holds, per piece, the shape's own
-## underside Y at a and at b, *relative to the ghost origin*
-## (global_position.y), so a frame that only moves the ghost re-emits these
-## quads at a new offset and never re-walks the mesh.
-var _cached_wall_segments: PackedVector2Array = PackedVector2Array()
-var _cached_wall_heights: PackedVector2Array = PackedVector2Array()
-## One ghost-local XZ point per cached wall piece, nudged just inside the
-## silhouette, where _update_projection_mesh() casts its straight-down probe so
-## each wall stops on whatever (tower top or disc) lies under that piece instead
-## of running through placed blocks.
-var _cached_wall_probes: PackedVector2Array = PackedVector2Array()
+var _silhouette: GhostSilhouette.Result = GhostSilhouette.Result.new()
 var _floors: PackedFloat64Array = PackedFloat64Array()
 var _floors_shape: BlockShape = null
 var _floors_position: Vector3 = Vector3.ZERO
@@ -302,7 +263,7 @@ func set_shape(shape: BlockShape) -> void:
 		_shape_visual.queue_free()
 		_shape_visual = null
 	# A new shape invalidates the cached silhouette outline; a stale
-	# _shape_visual would leave _collect_rotated_triangles() reading freed nodes.
+	# _shape_visual would leave _shape_silhouette_loops() reading freed nodes.
 	_cached_silhouette_valid = false
 	if shape == null:
 		return
@@ -694,7 +655,7 @@ func _update_footprint() -> void:
 ## _rotated_top_offset(); PlayerController's spawn clearance reads this
 ## contract), while the mesh walls the merged rendered silhouette
 ## (_shape_silhouette_loops()) from a shared wall_bottom_y up to the shape's own
-## underside along the outline (the cached pieces from _build_underside_walls(),
+## underside along the outline (the cached pieces from GhostSilhouette.build(),
 ## re-emitted at this frame's height). The prism collapses when the whole shape's
 ## top is within ghost_tuning.footprint_offset of the disc, or below it; a shape
 ## resting on the ground draws no wall at all (no mesh, though
@@ -730,17 +691,17 @@ func _update_projection_mesh(landing_y: float) -> void:
 	# ground-contact edge never Z-fights the disc's collision mesh at `landing_y`.
 	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
 	# Re-emit the cached underside walls at this frame's own height -- the only
-	# per-frame work (see _cached_wall_heights' own doc comment).
+	# per-frame work (see _silhouette's own doc comment).
 	var origin_y: float = global_position.y
 	var floors: PackedFloat64Array = _piece_floors(wall_bottom_y)
-	for i: int in range(_cached_wall_heights.size()):
-		var heights: Vector2 = _cached_wall_heights[i]
+	for i: int in range(_silhouette.wall_heights.size()):
+		var heights: Vector2 = _silhouette.wall_heights[i]
 		# Stop each piece on whatever is under it (a placed tower's top face,
 		# which the block-projection decal paints), not the disc, so the
 		# additive wall never runs through placed blocks.
 		var piece_bottom_y: float = floors[i]
 		_append_underside_wall(
-			_cached_wall_segments[i * 2], _cached_wall_segments[i * 2 + 1],
+			_silhouette.wall_segments[i * 2], _silhouette.wall_segments[i * 2 + 1],
 			origin_y + heights.x, origin_y + heights.y, piece_bottom_y,
 			verts, normals, uvs, indices
 		)
@@ -770,7 +731,7 @@ func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
 	var frame: int = Engine.get_physics_frames()
 	if _floors_shape == _shape and _floors_position.is_equal_approx(global_position) \
 			and _floors_basis.is_equal_approx(basis) and is_equal_approx(_floors_bottom, wall_bottom_y) \
-			and _floors.size() == _cached_wall_heights.size() and frame - _floors_frame < _FLOOR_RECAST_FRAMES:
+			and _floors.size() == _silhouette.wall_heights.size() and frame - _floors_frame < _FLOOR_RECAST_FRAMES:
 		return _floors
 	_floors_shape = _shape
 	_floors_position = global_position
@@ -778,9 +739,9 @@ func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
 	_floors_bottom = wall_bottom_y
 	_floors_frame = frame
 	_floors = PackedFloat64Array()
-	for i: int in range(_cached_wall_heights.size()):
-		var heights: Vector2 = _cached_wall_heights[i]
-		_floors.append(_piece_floor_y(_cached_wall_probes[i], global_position.y + minf(heights.x, heights.y), wall_bottom_y))
+	for i: int in range(_silhouette.wall_heights.size()):
+		var heights: Vector2 = _silhouette.wall_heights[i]
+		_floors.append(_piece_floor_y(_silhouette.probes[i], global_position.y + minf(heights.x, heights.y), wall_bottom_y))
 	return _floors
 
 
@@ -896,277 +857,29 @@ func _build_white_decal_texture() -> ImageTexture:
 
 ## The projection prism's outline loop(s) in ghost-local XZ -- the *rendered*
 ## shape's true silhouette from directly above, at the current rotation. Cached
-## on (`_shape`, `basis`); see _cached_silhouette_loops' own doc comment for why
+## on (`_shape`, `basis`); see _cached_silhouette_shape's own doc comment for why
 ## that is exact for every other input _update_projection_mesh() reads. The same
-## cache fill also builds the underside wall list (_build_underside_walls()), so
+## cache fill also builds the underside wall list (GhostSilhouette.build()), so
 ## a cache hit covers both.
 func _shape_silhouette_loops() -> Array[PackedVector2Array]:
 	if _shape == null or _shape_visual == null:
 		return []
 	if _cached_silhouette_valid and _cached_silhouette_shape == _shape \
 			and _cached_silhouette_basis.is_equal_approx(basis):
-		return _cached_silhouette_loops
-	var triangles_3d: Array[PackedVector3Array] = _collect_rotated_triangles()
-	var triangles_2d: Array[PackedVector2Array] = []
-	for triangle: PackedVector3Array in triangles_3d:
-		triangles_2d.append(_flatten_triangle(triangle))
-	var loops: Array[PackedVector2Array] = []
-	for triangle: PackedVector2Array in triangles_2d:
-		loops = _accumulate_union(loops, triangle)
-	_build_underside_walls(loops, triangles_3d, triangles_2d)
-	_cached_silhouette_shape = _shape
-	_cached_silhouette_basis = basis
-	_cached_silhouette_loops = loops
-	_cached_silhouette_valid = true
-	return loops
-
-
-## Every triangle of every MeshInstance3D under _shape_visual (in the common
-## case BlockFactory's single BlockMeshBuilder shell; the sloped-cell/custom-mesh
-## fallback is walked the same way, one MeshInstance3D per cell with its own
-## local `.position` offset), each vertex transformed by the ghost's current
-## rotation `basis` (matching _rotated_bottom_offset()/_rotated_top_offset()'s
-## corner math), in ghost-local 3D (each Y is a height relative to
-## global_position.y). Triangles whose XZ projection is degenerate (near-zero
-## area, e.g. a vertical face at identity rotation) are dropped -- see
-## _MIN_SILHOUETTE_TRIANGLE_AREA; such a triangle also has no well-defined plane
-## height over XZ for _underside_heights() to read.
-func _collect_rotated_triangles() -> Array[PackedVector3Array]:
-	var triangles: Array[PackedVector3Array] = []
+		return _silhouette.loops
+	var meshes: Array[Mesh] = []
+	var offsets: PackedVector3Array = PackedVector3Array()
 	for child: Node in _shape_visual.get_children():
 		var mesh_instance: MeshInstance3D = child as MeshInstance3D
 		if mesh_instance == null or mesh_instance.mesh == null:
 			continue
-		var local_offset: Vector3 = mesh_instance.position
-		var mesh: Mesh = mesh_instance.mesh
-		for surface: int in range(mesh.get_surface_count()):
-			var arrays: Array = mesh.surface_get_arrays(surface)
-			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-			var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
-			if indices.is_empty():
-				indices = _sequential_indices(verts.size())
-			for i: int in range(0, indices.size() - 2, 3):
-				var triangle: PackedVector3Array = PackedVector3Array([
-					basis * (local_offset + verts[indices[i]]),
-					basis * (local_offset + verts[indices[i + 1]]),
-					basis * (local_offset + verts[indices[i + 2]]),
-				])
-				if _triangle_area(_flatten_triangle(triangle)) >= _MIN_SILHOUETTE_TRIANGLE_AREA:
-					triangles.append(triangle)
-	return triangles
-
-
-## A ghost-local 3D triangle dropped straight down onto XZ (x, z).
-func _flatten_triangle(triangle: PackedVector3Array) -> PackedVector2Array:
-	return PackedVector2Array([
-		Vector2(triangle[0].x, triangle[0].z),
-		Vector2(triangle[1].x, triangle[1].z),
-		Vector2(triangle[2].x, triangle[2].z),
-	])
-
-
-## Fallback index buffer (0, 1, 2, 3, ...) for a surface with no ARRAY_INDEX at
-## all; every real mesh this file walks (BlockMeshBuilder's combined shell,
-## BoxMesh's primitive surface) always has one.
-func _sequential_indices(vertex_count: int) -> PackedInt32Array:
-	var indices: PackedInt32Array = PackedInt32Array()
-	indices.resize(vertex_count)
-	for i: int in range(vertex_count):
-		indices[i] = i
-	return indices
-
-
-## Twice the signed area (shoelace formula), absolute value -- cheap enough to
-## call once per candidate triangle without a second pass.
-func _triangle_area(triangle: PackedVector2Array) -> float:
-	var a: Vector2 = triangle[0]
-	var b: Vector2 = triangle[1]
-	var c: Vector2 = triangle[2]
-	return absf((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) * 0.5
-
-
-## Folds `addition` into `existing` (a list of already-mutually-disjoint
-## outline loops) via Geometry2D.merge_polygons, growing one candidate polygon
-## against every existing loop it touches in turn (so a single new triangle
-## can bridge two previously separate loops into one in the same pass) --
-## see this file's own header DECISION for why one growing candidate per
-## addition is enough rather than a full pairwise fixed point over the whole
-## pool. A pair that doesn't overlap/touch at all (merge_polygons returns the
-## two polygons unchanged) is left as two separate loops -- correct for a
-## shape whose current rotation genuinely splits its silhouette into disjoint
-## pieces, which does not happen for any shipped BlockShape but costs nothing
-## to leave correct for one that might.
-func _accumulate_union(
-	existing: Array[PackedVector2Array], addition: PackedVector2Array
-) -> Array[PackedVector2Array]:
-	var candidate: PackedVector2Array = addition
-	var remainder: Array[PackedVector2Array] = []
-	for polygon: PackedVector2Array in existing:
-		var merge_result: Array = Geometry2D.merge_polygons(polygon, candidate)
-		if merge_result.size() == 1:
-			candidate = merge_result[0]
-		else:
-			remainder.append(polygon)
-	remainder.append(candidate)
-	return remainder
-
-
-## Fills _cached_wall_segments/_cached_wall_heights from the silhouette `loops`
-## and the rotated mesh triangles that produced them. Step 1: every outline edge
-## a->b is split at every parameter where a projected triangle edge crosses it
-## (Geometry2D.segment_intersects_segment) or where a projected triangle vertex
-## lies on it (within _SILHOUETTE_SPLIT_EPSILON -- a T-junction, e.g.
-## BlockMeshBuilder's per-cell bottom-face seams ending exactly on the outline,
-## which a crossing test alone can miss by float rounding). Between two
-## consecutive split parameters no triangle boundary crosses the edge, so the
-## lowest triangle over the piece is one fixed triangle. Step 2
-## (_underside_heights()): that triangle's own plane, evaluated at the piece's
-## two endpoints, is the shape's underside there -- exact for a tilted underside
-## (the wall's top edge slopes with it) and stepped wherever an overhang begins
-## (a split lands exactly on the step). Pieces shorter than the split epsilon, or
-## with no triangle on either side (an outline spike thinner than
-## _SILHOUETTE_PROBE_INSET), are dropped.
-func _build_underside_walls(
-	loops: Array[PackedVector2Array],
-	triangles_3d: Array[PackedVector3Array], triangles_2d: Array[PackedVector2Array]
-) -> void:
-	_cached_wall_segments = PackedVector2Array()
-	_cached_wall_heights = PackedVector2Array()
-	_cached_wall_probes = PackedVector2Array()
-	for loop: PackedVector2Array in loops:
-		var edge_count: int = loop.size()
-		if edge_count < 3:
-			continue
-		for i: int in range(edge_count):
-			var a: Vector2 = loop[i]
-			var b: Vector2 = loop[(i + 1) % edge_count]
-			var edge_length: float = a.distance_to(b)
-			if edge_length <= _SILHOUETTE_SPLIT_EPSILON:
-				continue
-			var params: PackedFloat64Array = _edge_split_params(a, b, triangles_2d)
-			var previous: float = params[0]
-			# Index (into _cached_wall_heights) of the last piece kept on *this*
-			# edge, or -1 -- lets a piece that just continues the previous one's
-			# plane (same height at the shared point, same slope: e.g. a flat
-			# bar's per-cell bottom-face seams) extend it instead of adding a
-			# redundant quad.
-			var last_piece: int = -1
-			for k: int in range(1, params.size()):
-				var current: float = params[k]
-				if (current - previous) * edge_length <= _SILHOUETTE_SPLIT_EPSILON:
-					continue
-				var piece_a: Vector2 = a.lerp(b, previous)
-				var piece_b: Vector2 = a.lerp(b, current)
-				previous = current
-				var heights: PackedFloat64Array = _underside_heights(piece_a, piece_b, triangles_3d, triangles_2d)
-				if heights.is_empty():
-					last_piece = -1
-					continue
-				if last_piece >= 0 and _continues_piece(last_piece, piece_a, piece_b, heights):
-					_cached_wall_segments[last_piece * 2 + 1] = piece_b
-					var extended: Vector2 = _cached_wall_heights[last_piece]
-					_cached_wall_heights[last_piece] = Vector2(extended.x, heights[1])
-					continue
-				_cached_wall_segments.append(piece_a)
-				_cached_wall_segments.append(piece_b)
-				_cached_wall_heights.append(Vector2(heights[0], heights[1]))
-				_cached_wall_probes.append(Vector2(heights[_HEIGHTS_PROBE_X], heights[_HEIGHTS_PROBE_Y]))
-				last_piece = _cached_wall_heights.size() - 1
-
-
-## Whether new piece piece_a->piece_b (underside `heights` at its ends) lies on
-## the same straight underside line as cached piece `index` on the same
-## outline edge: it starts where that one ends, at the same height, with the
-## same slope -- so one quad can cover both exactly.
-func _continues_piece(index: int, piece_a: Vector2, piece_b: Vector2, heights: PackedFloat64Array) -> bool:
-	var prev_a: Vector2 = _cached_wall_segments[index * 2]
-	var prev_b: Vector2 = _cached_wall_segments[index * 2 + 1]
-	var prev_heights: Vector2 = _cached_wall_heights[index]
-	if prev_b.distance_to(piece_a) > _SILHOUETTE_SPLIT_EPSILON:
-		return false
-	if absf(prev_heights.y - heights[0]) > _UNDERSIDE_CONTACT_EPSILON:
-		return false
-	var prev_slope: float = (prev_heights.y - prev_heights.x) / prev_a.distance_to(prev_b)
-	var slope: float = (heights[1] - heights[0]) / piece_a.distance_to(piece_b)
-	return absf(prev_slope - slope) <= _UNDERSIDE_CONTACT_EPSILON
-
-
-## Sorted split parameters (always including 0.0 and 1.0) along outline edge
-## a->b -- see _build_underside_walls()'s own step 1. Near-duplicates are left
-## in; the caller skips any piece shorter than _SILHOUETTE_SPLIT_EPSILON.
-func _edge_split_params(a: Vector2, b: Vector2, triangles_2d: Array[PackedVector2Array]) -> PackedFloat64Array:
-	var params: PackedFloat64Array = PackedFloat64Array([0.0, 1.0])
-	var edge: Vector2 = b - a
-	var length_squared: float = edge.length_squared()
-	for triangle: PackedVector2Array in triangles_2d:
-		for k: int in range(3):
-			var p: Vector2 = triangle[k]
-			var q: Vector2 = triangle[(k + 1) % 3]
-			var crossing: Variant = Geometry2D.segment_intersects_segment(a, b, p, q)
-			if crossing != null:
-				params.append(clampf(((crossing as Vector2) - a).dot(edge) / length_squared, 0.0, 1.0))
-			var closest: Vector2 = Geometry2D.get_closest_point_to_segment(p, a, b)
-			if closest.distance_to(p) <= _SILHOUETTE_SPLIT_EPSILON:
-				params.append(clampf((closest - a).dot(edge) / length_squared, 0.0, 1.0))
-	params.sort()
-	return params
-
-
-## The shape's own underside height (relative to the ghost origin) at the two
-## endpoints of outline piece a->b, as [height_at_a, height_at_b] -- or empty
-## when neither side of the piece has any mesh triangle over it. Probes the
-## piece's midpoint nudged _SILHOUETTE_PROBE_INSET off the outline (left side
-## first, then right: which side is "inside" depends on the loop's winding,
-## and a hole loop winds the other way, so both are tried rather than trusting
-## Geometry2D.is_polygon_clockwise), picks the triangle with the *lowest*
-## plane Y there (a closed shell's lowest surface over a point is its
-## underside), and evaluates that one triangle's plane at the two real,
-## un-nudged endpoints. No triangle boundary crosses the piece
-## (_edge_split_params()), so that plane is the underside along its whole
-## length.
-func _underside_heights(
-	a: Vector2, b: Vector2,
-	triangles_3d: Array[PackedVector3Array], triangles_2d: Array[PackedVector2Array]
-) -> PackedFloat64Array:
-	var midpoint: Vector2 = (a + b) * 0.5
-	var direction: Vector2 = (b - a).normalized()
-	var left: Vector2 = Vector2(-direction.y, direction.x)
-	for side: float in [1.0, -1.0]:
-		var probe: Vector2 = midpoint + left * (side * _SILHOUETTE_PROBE_INSET)
-		var best_index: int = -1
-		var best_y: float = INF
-		for j: int in range(triangles_2d.size()):
-			var flat: PackedVector2Array = triangles_2d[j]
-			if not Geometry2D.point_is_inside_triangle(probe, flat[0], flat[1], flat[2]):
-				continue
-			var y: float = _triangle_plane_y(triangles_3d[j], flat, probe)
-			if y < best_y:
-				best_y = y
-				best_index = j
-		if best_index >= 0:
-			var triangle: PackedVector3Array = triangles_3d[best_index]
-			var triangle_flat: PackedVector2Array = triangles_2d[best_index]
-			return PackedFloat64Array([
-				_triangle_plane_y(triangle, triangle_flat, a),
-				_triangle_plane_y(triangle, triangle_flat, b),
-				probe.x, probe.y,
-			])
-	return PackedFloat64Array()
-
-
-## The Y of `triangle`'s own plane straight above/below XZ point `point`
-## (barycentric weights from its XZ projection `flat`, extrapolated if
-## `point` is outside it). `flat` is never degenerate here --
-## _collect_rotated_triangles() already dropped every triangle under
-## _MIN_SILHOUETTE_TRIANGLE_AREA.
-func _triangle_plane_y(triangle: PackedVector3Array, flat: PackedVector2Array, point: Vector2) -> float:
-	var e1: Vector2 = flat[1] - flat[0]
-	var e2: Vector2 = flat[2] - flat[0]
-	var d: Vector2 = point - flat[0]
-	var denominator: float = e1.x * e2.y - e2.x * e1.y
-	var weight_1: float = (d.x * e2.y - e2.x * d.y) / denominator
-	var weight_2: float = (e1.x * d.y - d.x * e1.y) / denominator
-	return triangle[0].y + weight_1 * (triangle[1].y - triangle[0].y) + weight_2 * (triangle[2].y - triangle[0].y)
+		meshes.append(mesh_instance.mesh)
+		offsets.append(mesh_instance.position)
+	_silhouette = GhostSilhouette.build(meshes, offsets, basis)
+	_cached_silhouette_shape = _shape
+	_cached_silhouette_basis = basis
+	_cached_silhouette_valid = true
+	return _silhouette.loops
 
 
 ## Appends one underside wall into the caller's shared mesh arrays: a vertical
@@ -1283,7 +996,7 @@ func _build_polygon_mesh(hull: PackedVector2Array, center: Vector2) -> ArrayMesh
 func _build_loops_mesh(loops: Array[PackedVector2Array], center: Vector2) -> ArrayMesh:
 	if loops.is_empty():
 		return null
-	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
+	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(GhostSilhouette.largest_loop(loops))
 	var verts: PackedVector3Array = PackedVector3Array()
 	var normals: PackedVector3Array = PackedVector3Array()
 	var uvs: PackedVector2Array = PackedVector2Array()
@@ -1313,20 +1026,6 @@ func _build_loops_mesh(loops: Array[PackedVector2Array], center: Vector2) -> Arr
 	var built: ArrayMesh = ArrayMesh.new()
 	built.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return built
-
-
-func _largest_loop(loops: Array[PackedVector2Array]) -> PackedVector2Array:
-	var best: PackedVector2Array = loops[0]
-	var best_area: float = 0.0
-	for loop: PackedVector2Array in loops:
-		var area: float = 0.0
-		for i: int in range(loop.size()):
-			var next: Vector2 = loop[(i + 1) % loop.size()]
-			area += loop[i].x * next.y - next.x * loop[i].y
-		if absf(area) > best_area:
-			best_area = absf(area)
-			best = loop
-	return best
 
 
 ## The decal's albedo is an alpha mask of the true footprint over
@@ -1370,43 +1069,11 @@ func _apply_decal_footprint_mask(origin: Vector2, extent: Vector2) -> void:
 		return
 	if _mask_cache.size() >= MASK_CACHE_MAX_ENTRIES:
 		_mask_cache.clear()
-	var texture: ImageTexture = ImageTexture.create_from_image(_rasterize_footprint_mask(loops, origin, extent))
+	var texture: ImageTexture = ImageTexture.create_from_image(GhostSilhouette.rasterize_mask(
+		loops, origin, extent, FOOTPRINT_MASK_PIXELS_PER_METER, FOOTPRINT_MASK_MAX_PIXELS
+	))
 	_mask_cache[key] = texture
 	_block_projection_decal.texture_albedo = texture
-
-
-## Scanline fill of the outer loops (even-odd, hole loops skipped like the
-## mesh) into an alpha mask over [origin, origin + extent]; one fill_rect per
-## covered span, no per-pixel polygon tests.
-func _rasterize_footprint_mask(loops: Array[PackedVector2Array], origin: Vector2, extent: Vector2) -> Image:
-	var width: int = clampi(ceili(extent.x * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
-	var height: int = clampi(ceili(extent.y * FOOTPRINT_MASK_PIXELS_PER_METER), 2, FOOTPRINT_MASK_MAX_PIXELS)
-	var image: Image = Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
-	image.fill(Color(Color.WHITE, 0.0))
-	var outer_clockwise: bool = Geometry2D.is_polygon_clockwise(_largest_loop(loops))
-	var edges: PackedVector2Array = PackedVector2Array()
-	for loop: PackedVector2Array in loops:
-		if Geometry2D.is_polygon_clockwise(loop) != outer_clockwise:
-			continue
-		for i: int in range(loop.size()):
-			edges.append(loop[i])
-			edges.append(loop[(i + 1) % loop.size()])
-	var crossings: PackedFloat64Array = PackedFloat64Array()
-	for row: int in range(height):
-		var v: float = origin.y + (row + 0.5) / height * extent.y
-		crossings.clear()
-		for e: int in range(0, edges.size(), 2):
-			var a: Vector2 = edges[e]
-			var b: Vector2 = edges[e + 1]
-			if (a.y <= v) != (b.y <= v):
-				crossings.append(a.x + (v - a.y) / (b.y - a.y) * (b.x - a.x))
-		crossings.sort()
-		for k: int in range(0, crossings.size() - 1, 2):
-			var x0: int = clampi(ceili((crossings[k] - origin.x) / extent.x * width - 0.5), 0, width)
-			var x1: int = clampi(ceili((crossings[k + 1] - origin.x) / extent.x * width - 0.5), 0, width)
-			if x1 > x0:
-				image.fill_rect(Rect2i(x0, row, x1 - x0, 1), Color.WHITE)
-	return image
 
 
 ## Straight down from `origin`, skipping any RigidBody3D (a placed block) so the
