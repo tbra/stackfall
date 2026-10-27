@@ -296,50 +296,6 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	)
 
 	assert_true(_has_projection_mesh(ghost), "a real gap between the shape and the disc must show a projection prism.")
-	var span: Vector2 = ghost.projection_span_y()
-	# unlike _rotated_bottom_offset() (deliberately the
-	# cube_margin-shrunk *collision* half_size, so placed blocks don't jam --
-	# this file's own DECISION on collision_box_local_centers()),
-	# _rotated_top_offset() uses the same full cube_size the *visual* mesh
-	# itself is built from (core/blocks/BlockMeshBuilder.gd's own
-	# `half: float = cube_size * 0.5`), so the prism's own top should match
-	# _visual_world_top_y() tightly, not just within a cube_margin tolerance.
-	assert_almost_eq(
-		span.x, _visual_world_top_y(ghost), 0.01,
-		"the prism's own top must reach the held shape's own current highest rendered point, not its lowest."
-	)
-	assert_true(
-		span.x >= _visual_world_top_y(ghost) - 0.001,
-		"the prism mesh's own AABB top must be at or above the ghost body's own AABB max Y."
-	)
-	assert_almost_eq(
-		span.y, disk_surface_point.y, 0.01,
-		"the prism's own bottom must match the footprint's disc landing height, not the pillar's top."
-	)
-
-
-## hover_height alone (spec 1.4's default lift) is a real, known gap -- proof
-## the collapse guard above isn't just always true.
-func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_flat_ground() -> void:
-	var ghost: GhostPreview = _make_ghost()
-
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
-
-	assert_true(_has_projection_mesh(ghost), "hover_height alone should still show a prism.")
-	var span: Vector2 = ghost.projection_span_y()
-	# the prism's own top is now the shape's own highest
-	# point, not its lowest -- for an unrotated cube resting hover_height
-	# above the ground, that adds the collision half-extent (how far the
-	# node's own origin sits above the ground, _rotated_bottom_offset()) plus
-	# the visual half-extent (how far the shape's own top sits above that
-	# same origin, _rotated_top_offset()) on top of hover_height itself.
-	var half_collision: float = (ghost.tuning.cube_size - ghost.tuning.cube_margin) * 0.5
-	var half_visual: float = ghost.tuning.cube_size * 0.5
-	var expected_span: float = ghost.tuning.hover_height + half_collision + half_visual
-	assert_almost_eq(
-		span.x - span.y, expected_span, 0.01,
-		"the prism should span hover_height plus the whole cube's own height above flat ground."
-	)
 
 
 # --- projection walls: no dark seams or overlapping stepped columns -----------
@@ -352,9 +308,8 @@ func test_projection_prism_spans_hover_height_plus_the_shapes_own_height_over_fl
 # restores the per-column hull rule on top of that: the prism is the shaft
 # *under* the shape -- every wall's top follows the shape's own underside along
 # the outline (sloped for a tilted shape, stepped where an overhang begins),
-# never the whole shape's top. projection_span_y() stays
-# the whole-shape bookkeeping game/player/PlayerController.gd reads; the tests
-# below check the built mesh itself (_prism_vertices()).
+# never the whole shape's top. The tests below check the built mesh itself
+# (_prism_vertices()).
 
 ## The same 8 corner signs _CORNER_SIGNS declares (game/player/GhostPreview.gd),
 ## independently re-declared here so the per-cell expectations below are a real

@@ -19,8 +19,7 @@ extends Node3D
 ## silhouette outline and hug the underside piece by piece
 ## (GhostSilhouette.build()); where the underside touches the landing surface no
 ## wall is drawn. The material blends additively and emits light so a surface
-## seen through the column brightens. projection_span_y() stays the whole shape's
-## top-to-disc span, which PlayerController's spawn clearance reads.
+## seen through the column brightens.
 ##
 ## Block decal: _block_projection_decal projects the footprint mask from the
 ## ghost's underside down to the disc, so a placed block in that gap reads pale.
@@ -135,10 +134,6 @@ var _footprint_material: StandardMaterial3D
 ## the disc: a single persistent node whose mesh is rebuilt in place every frame.
 var _projection_mesh: MeshInstance3D
 var _projection_material: StandardMaterial3D
-## The world-space Y span _projection_mesh currently covers (top,
-## bottom) -- Vector2.ZERO (and no visible mesh) when nothing is held or the
-## prism collapsed (top <= bottom; see _update_footprint()'s own guard).
-var _projection_span_y: Vector2 = Vector2.ZERO
 ## The ghost-local (not world-translated) silhouette (outline loops, underside
 ## walls and their probes) GhostSilhouette built last time, plus the exact
 ## (shape, basis) pair that produced it: a frame that changes neither (the player
@@ -295,7 +290,7 @@ func set_held_gift(special_id: StringName) -> void:
 ## DECISION: a held gift is not a drop-and-stack block, so the
 ## placement projection (landing footprint, light-shaft prism, block decal) is
 ## hidden entirely -- no landing marker stays. Only visibility changes; the
-## footprint/span bookkeeping PlayerController reads is untouched.
+## footprint bookkeeping is untouched.
 func _apply_projection_visibility() -> void:
 	var show_projection: bool = _held_gift_id == &""
 	for quad: MeshInstance3D in _footprint_quads:
@@ -541,8 +536,7 @@ func _rotated_bottom_offset() -> float:
 
 
 ## The mirror image of _rotated_bottom_offset(): how far *above* this node's own
-## local origin the rotated shape's *highest* point sits, the prism's top for
-## projection_span_y(). Always >= 0 for the same reason
+## local origin the rotated shape's *highest* point sits, the prism's top. Always >= 0 for the same reason
 ## _rotated_bottom_offset() is always <= 0: the origin itself is always a point
 ## on the shape's own surface.
 ## DECISION (game/player/GhostPreview.gd): uses the *visual* mesh's own full cube_size (`half_size = tuning.cube_size * 0.5`, matching BlockMeshBuilder.build_mesh()), not _rotated_bottom_offset()'s cube_margin-shrunk collision half_size, so the top matches the rendered shape's true extent, not the slightly smaller physics box.
@@ -651,15 +645,12 @@ func _update_footprint() -> void:
 	_apply_projection_visibility()
 
 
-## `_projection_span_y` is the *whole* shape's bookkeeping (top =
-## _rotated_top_offset(); PlayerController's spawn clearance reads this
-## contract), while the mesh walls the merged rendered silhouette
-## (_shape_silhouette_loops()) from a shared wall_bottom_y up to the shape's own
-## underside along the outline (the cached pieces from GhostSilhouette.build(),
-## re-emitted at this frame's height). The prism collapses when the whole shape's
-## top is within ghost_tuning.footprint_offset of the disc, or below it; a shape
-## resting on the ground draws no wall at all (no mesh, though
-## projection_span_y() still reports the body).
+## The mesh walls the merged rendered silhouette (_shape_silhouette_loops())
+## from a shared wall_bottom_y up to the shape's own underside along the outline
+## (the cached pieces from GhostSilhouette.build(), re-emitted at this frame's
+## height). The prism collapses when the whole shape's top (_rotated_top_offset())
+## is within ghost_tuning.footprint_offset of the disc, or below it; a shape
+## resting on the ground draws no wall at all (no mesh).
 func _update_projection_mesh(landing_y: float) -> void:
 	if _shape == null or _shape.cells.is_empty():
 		_clear_projection_mesh()
@@ -667,9 +658,7 @@ func _update_projection_mesh(landing_y: float) -> void:
 
 	var whole_top_y: float = global_position.y + _rotated_top_offset()
 	if whole_top_y - landing_y <= ghost_tuning.footprint_offset:
-		# The whole shape's own top is at or below the ground -- nothing to
-		# show; keeps projection_span_y()'s "Vector2.ZERO when collapsed"
-		# contract.
+		# The whole shape's own top is at or below the ground -- nothing to show.
 		_clear_projection_mesh()
 		return
 
@@ -678,7 +667,6 @@ func _update_projection_mesh(landing_y: float) -> void:
 		_clear_projection_mesh()
 		return
 
-	_projection_span_y = Vector2(whole_top_y, landing_y)
 	_projection_mesh.global_position = Vector3(global_position.x, 0.0, global_position.z)
 
 	var verts: PackedVector3Array = PackedVector3Array()
@@ -708,8 +696,7 @@ func _update_projection_mesh(landing_y: float) -> void:
 
 	if verts.is_empty():
 		# The shape rests on the ground along its whole outline -- no shaft to
-		# draw. _projection_span_y is kept (spawn clearance still needs the body's
-		# own top).
+		# draw.
 		_projection_mesh.mesh = null
 		return
 
@@ -781,7 +768,6 @@ func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 ## Hides the projection prism (nothing held, or it collapsed -- see
 ## _update_projection_mesh()'s own guard) without freeing the persistent node.
 func _clear_projection_mesh() -> void:
-	_projection_span_y = Vector2.ZERO
 	if _projection_mesh != null:
 		_projection_mesh.mesh = null
 
@@ -1102,16 +1088,6 @@ func _set_footprint_quad_count(count: int) -> void:
 	while _footprint_quads.size() > count:
 		var extra: MeshInstance3D = _footprint_quads.pop_back()
 		extra.queue_free()
-
-
-## The world-space Y span (top, bottom) of the held shape's whole
-## bookkeeping -- Vector2.ZERO when nothing is held or the prism collapsed (see
-## _update_projection_mesh()'s own guard). `top` is the held shape's current
-## *highest* point (_rotated_top_offset()); `bottom` is the footprint's landing
-## height. This is bookkeeping, not the mesh's extent: the walls stop at the
-## shape's underside.
-func projection_span_y() -> Vector2:
-	return _projection_span_y
 
 
 # --- Ghost-vs-placed-block collision (spec 1.4) -------------
