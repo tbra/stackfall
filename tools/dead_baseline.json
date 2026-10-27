@@ -135,11 +135,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "game/player/InputGate.gd",
-   "reason": "P3-Sgate typed stub (docs/plans/P3_PLAN.md R2.2): no caller until P3-Igate wires it into CameraRig, PlayerController, SpectatorController and TuningPanel, which removes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },

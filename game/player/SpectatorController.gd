@@ -209,7 +209,7 @@ func _on_match_state_changed(_from_state: int, to_state: int) -> void:
 # --- Input -------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _rig != null and _rig.is_input_blocked():
+	if _rig != null and _rig.input_gate.is_blocked():
 		return
 	if event.is_action_pressed(NEXT_ACTION):
 		follow_next()
@@ -243,7 +243,7 @@ func _process(_delta: float) -> void:
 		return
 	var pan: Vector2 = Vector2.ZERO
 	var zoom_axis: float = 0.0
-	if not _rig.is_input_blocked():
+	if not _rig.input_gate.is_blocked():
 		var stick: Vector2 = Vector2(
 			Input.get_action_strength(&"camera_pan_right") - Input.get_action_strength(&"camera_pan_left"),
 			Input.get_action_strength(&"camera_pan_back") - Input.get_action_strength(&"camera_pan_forward"))
