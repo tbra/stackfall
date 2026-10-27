@@ -49,28 +49,35 @@ func _body_tint(ghost: GhostPreview) -> Color:
 	return ghost._material.get_shader_parameter(&"albedo_color") as Color
 
 
+func _body_hatched(ghost: GhostPreview) -> bool:
+	return ghost._material.get_shader_parameter(&"use_hatch") as bool
+
+
+func _assert_body_shows(ghost: GhostPreview, color: Color, hatched: bool) -> void:
+	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, color)), "body tint colour")
+	assert_eq(_body_hatched(ghost), hatched, "body hatch overlay")
+
+
 func test_valid_result_tints_player_color() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.VALID)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
 	var tint: Color = _body_tint(ghost)
 	assert_almost_eq(tint.r, PLAYER_COLOR.r, 0.001)
 	assert_almost_eq(tint.g, PLAYER_COLOR.g, 0.001)
 	assert_almost_eq(tint.b, PLAYER_COLOR.b, 0.001)
+	assert_false(_body_hatched(ghost))
 
 
 func test_outside_territory_is_invalid_red() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.OUTSIDE_TERRITORY)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
-	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.invalid_tint_color)))
+	_assert_body_shows(ghost, ghost.ghost_tuning.invalid_tint_color, false)
 
 
 func test_hole_is_hatched() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.HOLE)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
-	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
+	_assert_body_shows(ghost, ghost.ghost_tuning.hole_tint_color, true)
 
 
 ## Territory v2: a goal flag's no-build
@@ -80,8 +87,7 @@ func test_hole_is_hatched() -> void:
 func test_goal_zone_is_hatched() -> void:
 	var ghost: GhostPreview = _make_ghost()
 	ghost.apply_validity(PlacementRules.Result.GOAL_ZONE)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_HOLE)
-	assert_true(_body_tint(ghost).is_equal_approx(_with_ghost_opacity(ghost, ghost.ghost_tuning.hole_tint_color)))
+	_assert_body_shows(ghost, ghost.ghost_tuning.hole_tint_color, true)
 
 
 # --- Controller wiring: the ghost tint follows the context's preview_placement -----
@@ -105,12 +111,12 @@ func test_controller_applies_preview_result_to_ghost_every_frame() -> void:
 
 	controller._process(1.0 / 60.0)
 
-	assert_eq(ghost.current_state(), GhostPreview.STATE_INVALID)
+	_assert_body_shows(ghost, ghost.ghost_tuning.invalid_tint_color, false)
 
 	context.preview_placement_value = PlacementRules.Result.VALID
 	controller._process(1.0 / 60.0)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_VALID)
+	_assert_body_shows(ghost, PLAYER_COLOR, false)
 
 	context.release_locked_by_slot[0] = true
 	controller._process(1.0 / 60.0)
-	assert_eq(ghost.current_state(), GhostPreview.STATE_LOCKED, "a release-locked slot overrides the legal-spot tint.")
+	_assert_body_shows(ghost, ghost.ghost_tuning.locked_tint_color, false)
