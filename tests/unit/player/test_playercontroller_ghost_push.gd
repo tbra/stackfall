@@ -33,7 +33,7 @@ func test_timer_inside_the_warning_lead_pulses_the_ghost() -> void:
 	_fake.feed_timer_enabled_value = true
 	_fake.feed_time_by_slot[0] = 0.1
 	var controller: PlayerController = _make_controller()
-	controller.input_enabled = false
+	controller.input_gate.set_blocker(InputGate.Blocker.PANEL, true)
 	controller._process(FRAME)
 	assert_true(controller._ghost.is_pulse_active(), "pushed even with input disabled")
 
