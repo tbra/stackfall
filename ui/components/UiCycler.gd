@@ -63,15 +63,7 @@ func _init() -> void:
 	custom_minimum_size.x = 0.0
 	set_process(false)
 	prev_button = _make_button(PREV_GLYPH, -1)
-	value_label = Label.new()
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	value_label.add_theme_color_override("font_color", arcade.cream_color)
-	value_label.add_theme_font_size_override("font_size", m.stepper_value_font_px)
-	var display: Font = (load("res://ui/theme/stackfall_theme.tres") as Theme).get_font(&"font", &"DisplayLabel")
-	if display != null:
-		value_label.add_theme_font_override("font", display)
+	value_label = UiRowItem.make_value_label()
 	value_box = HBoxContainer.new()
 	value_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	value_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
