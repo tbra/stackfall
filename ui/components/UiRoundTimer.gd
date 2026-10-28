@@ -3,8 +3,8 @@ extends PanelContainer
 ## The design system's RoundTimer: the match
 ## clock on a hud-plate in Bungee numerals as m:ss. It counts the time left down in a limited match
 ## and, in a mode with no limit, the time played up. The last HUDVisualTuning.round_timer_hurry_seconds
-## turn the plate edge and numerals rim gold; sudden death (overtime) swaps the clock for its flare
-## label. Display only: the host's clock is fed in by the HUD, so a client shows the host's time.
+## turn the plate edge and numerals rim gold; sudden death (overtime) keeps the flare
+## styling and counts its remaining time down (the flare label when no time is fed). Display only: the host's clock is fed in by the HUD, so a client shows the host's time.
 ## Sizes and colours come from HUDVisualTuning and ArcadeVisualTuning.
 
 enum Phase { HIDDEN, RUNNING, HURRY, OVERTIME }
@@ -76,8 +76,11 @@ func show_elapsed(seconds_played: float) -> void:
 	_refresh()
 
 
-## Shows the sudden-death (overtime) label in place of the clock.
-func show_overtime() -> void:
+## Shows sudden death in the overtime phase: the time left when [param seconds_left] > 0,
+## otherwise the overtime label.
+func show_overtime(seconds_left: float = 0.0) -> void:
+	_seconds = maxf(seconds_left, 0.0)
+	_counting_up = false
 	phase = Phase.OVERTIME
 	_refresh()
 
@@ -87,7 +90,7 @@ func show_overtime() -> void:
 ## [param seconds_played] up.
 func show_match(limit_minutes: int, seconds_left: float, sudden_death: bool, seconds_played: float) -> void:
 	if sudden_death:
-		show_overtime()
+		show_overtime(seconds_left)
 	elif limit_minutes > 0:
 		show_remaining(seconds_left)
 	else:
@@ -112,7 +115,7 @@ func clear() -> void:
 
 ## The text the plate shows right now.
 func clock_text() -> String:
-	if phase == Phase.OVERTIME:
+	if phase == Phase.OVERTIME and _seconds <= 0.0:
 		return tuning().round_timer_overtime_text
 	return format_clock(int(floor(_seconds)) if _counting_up else int(ceil(_seconds)))
 
