@@ -37,7 +37,10 @@ the Godot best-practices rule in CLAUDE.md, as few deep modules: a feature folde
 one small typed interface that hides most of its code. Split files for parallel ownership
 only behind that interface, never into pass-through facades or forwarders unless the plan
 marks them transitional and names the package that removes them. Cite the real functions and lines you
-read. Each package brief names its baseline entries: every `lint_dead` `allow` id it adds
+read. For every member a package moves, renames, re-types or whose contract it changes, list
+its readers (`python tools/dep_graph.py --callers`, then grep for string and dynamic use),
+including tests, fixtures and net appliers, and put each in that package's owned files or
+its must-run checks. Each package brief names its baseline entries: every `lint_dead` `allow` id it adds
 with the package that removes it, and every file it adds to Main's compile closure
 (`lint_layers --allow-new`), or "none".
 
