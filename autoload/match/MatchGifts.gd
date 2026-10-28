@@ -170,12 +170,16 @@ func _default_special_drawer() -> StringName:
 ## _draw_special_id(), which is guarded (see its own doc comment).
 func set_special_drawer(drawer: Callable) -> void:
 	_special_drawer = drawer
+	# A forced drawer must survive the lazy install at the first claim; handing
+	# back the default leaves the install pending so the weighted draw returns.
+	_roster_ready = drawer != _default_special_drawer
 
 
 ## Restores the placeholder drawer, so a forced-special drawer cannot leak into
 ## the next match (Match.start_match).
 func reset_special_drawer() -> void:
 	_special_drawer = _default_special_drawer
+	_roster_ready = false
 
 
 ## Builds one fresh per-slot queue. A real Array[StringName], not a plain
