@@ -927,9 +927,9 @@ func apply_replicated_territory(
 ## HoleMode.OFF -- enforced here, not trusted to every SpecialEffect caller, so a special cannot
 ## invent a hole ruleset the lobby turned off. Otherwise force-opens every in-disk cell whose centre
 ## falls within radius_m of world_pos, then runs the same change-set path _run_territory_step() runs
-## for a natural hole: one Events.hole_cells_changed for the whole punch, then
-## _check_home_flags(opened). A special-punched hole eliminates a home flag exactly like a natural
-## one (the shipped default while that rule stays open).
+## for a natural hole: one Events.hole_cells_changed for the whole punch. The cell under each living
+## home flag is never punched (the hole opens around it), so a gift cannot eliminate a home; only a
+## natural overlap hole does (spec 1.5), which is why no home check runs here.
 ##
 ## DECISION: the opened change-set is computed locally from is_hole() before/after each cell, not
 ## from TerritoryRaster.holes_opened() as _run_territory_step() does. That array is only cleared at
@@ -944,8 +944,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	# DECISION: live-play guard (PLAYING or SUDDEN_DEATH via MatchAutoload.is_live()).
 	# _finish_match() only sets State.END -- it never tears the raster down or stops a
 	# SpecialEffect's physics_tick() -- so a Jumping Bean still hopping after a natural win could
-	# otherwise punch a hole here and, through _check_home_flags(), eliminate a still-alive slot
-	# after the match is over.
+	# otherwise punch a hole here after the match is over.
 	if not MatchAutoload.is_live(_match.state()):
 		return
 	if _match.config.hole_mode == MatchConfig.HoleMode.OFF:
@@ -962,6 +961,12 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	var cell_size: float = _cell_grid.cell_size
 	var half_extent: float = _cell_grid.half_extent
 	var radius_squared: float = radius_m * radius_m
+	# The cells the home-elimination checks read: under each living home flag.
+	var home_cells: Dictionary = {}
+	for slot_item: PlayerSlot in _match._lifecycle._slots:
+		var home: Vector2i = _cell_grid.world_to_cell(slot_item.home_position)
+		if slot_item.home_flag_alive and _cell_grid.in_bounds(home.x, home.y):
+			home_cells[_cell_grid.cell_index(home.x, home.y)] = true
 
 	var cy_min: int = maxi(0, ceili((world_pos.y - radius_m + half_extent) / cell_size - 0.5))
 	var cy_max: int = mini(res - 1, floori((world_pos.y + radius_m + half_extent) / cell_size - 0.5))
@@ -976,7 +981,7 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 		var cx_max: int = mini(res - 1, floori((world_pos.x + half_span + half_extent) / cell_size - 0.5))
 
 		for cx: int in range(cx_min, cx_max + 1):
-			if not _cell_grid.is_in_disk(cx, cy):
+			if not _cell_grid.is_in_disk(cx, cy) or home_cells.has(_cell_grid.cell_index(cx, cy)):
 				continue
 			var was_hole: bool = _raster.is_hole(cx, cy)
 			_raster.force_hole_cell(cx, cy, hole_open_s, permanent_holes)
@@ -986,4 +991,4 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	_force_dirty = true
 	if opened.size() > 0:
 		Events.hole_cells_changed.emit(opened, PackedInt32Array())
-		_check_home_flags(opened)
+

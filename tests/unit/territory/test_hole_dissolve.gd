@@ -327,7 +327,7 @@ func _spawn_at_local(local: Vector2) -> Block:
 	return block
 
 
-func test_home_elimination_still_triggers_and_blocks_on_the_punched_hole_dissolve() -> void:
+func test_blocks_in_the_punched_area_dissolve_and_the_home_flag_survives() -> void:
 	_start_match(MatchConfig.HoleMode.TEMPORARY)
 	var home0: Vector2 = Match.slot(0).home_position
 	var inward: Vector2 = -home0.normalized() * 2.0
@@ -335,7 +335,7 @@ func test_home_elimination_still_triggers_and_blocks_on_the_punched_hole_dissolv
 	await wait_physics_frames(SETTLE_FRAMES)
 
 	Match.punch_special_hole(home0, 3.0, 2.0)
-	assert_false(Match.slot(0).home_flag_alive, "A hole opening under a home flag still eliminates it.")
+	assert_true(Match.slot(0).home_flag_alive, "A gift hole around a home flag does not eliminate it.")
 
 	await _wait_removed(id, DISSOLVE_FRAMES)
 	assert_true(_was_removed(id), "The block resting in the punched area dissolves.")
