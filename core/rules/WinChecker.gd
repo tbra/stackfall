@@ -116,6 +116,30 @@ func winner() -> int:
 	return _winner
 
 
+## Starts sudden death: instant per-goal latching (stub until the latch lands).
+func begin_sudden_death(_raster: TerritoryRaster) -> void:
+	pass
+
+
+func is_sudden_death() -> bool:
+	return false
+
+
+## The team that latched goal `goal_index`, or NO_TEAM (stub until the latch lands).
+func latched_team(_goal_index: int) -> int:
+	return NO_TEAM
+
+
+## Releases latches held by teams not in `alive_teams` (stub).
+func release_teams_not_in(_alive_teams: PackedInt32Array) -> void:
+	pass
+
+
+## Client mirror of the latches, display only (stub).
+func set_latched(_teams: PackedInt32Array) -> void:
+	pass
+
+
 ## Clears the capture timer and the latched winner.
 func reset() -> void:
 	_clear_capture()

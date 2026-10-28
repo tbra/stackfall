@@ -5,6 +5,9 @@ extends ModeObjective
 ## all the logic; winner(), capture ring and hold behave exactly as before.
 ## Untimed: the match timer keeps its sudden-death meaning.
 
+## Mode-state keys carrying the latched owner of goal i ("l0", "l1", ...), -1 = none.
+const LATCH_KEY_PREFIX: String = "l"
+
 var _checker: WinChecker = null
 
 
@@ -60,3 +63,17 @@ func capturing_team() -> int:
 
 func capture_progress() -> float:
 	return _checker.capture_progress() if _checker != null else 0.0
+
+
+func begin_sudden_death(raster: TerritoryRaster) -> void:
+	if _checker != null:
+		_checker.begin_sudden_death(raster)
+
+
+func latched_team(goal_index: int) -> int:
+	return _checker.latched_team(goal_index) if _checker != null else NO_TEAM
+
+
+## The latched owner of goal `goal_index` in a mode-state dict, or NO_TEAM.
+static func latched_in_state(state: Dictionary, goal_index: int) -> int:
+	return int(state.get(LATCH_KEY_PREFIX + str(goal_index), NO_TEAM))
