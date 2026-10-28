@@ -61,23 +61,14 @@ var _hold_button: UiIconButton = null
 
 func _init() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var m: ComponentMetrics = UiRowItem.metrics()
 	add_theme_constant_override("separation", arcade.space_1_px)
 	focus_mode = Control.FOCUS_ALL
 	UiRowItem.apply(self, UiRowItem.Kind.STEPPER)
 	set_process(false)
 	minus_button = _make_button(char(MINUS_GLYPH), -1)
-	value_label = Label.new()
+	value_label = UiRowItem.make_value_label()
 	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	value_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	value_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	value_label.add_theme_color_override("font_color", arcade.cream_color)
-	value_label.add_theme_font_size_override("font_size", m.stepper_value_font_px)
-	var display: Font = (load("res://ui/theme/stackfall_theme.tres") as Theme).get_font(&"font", &"DisplayLabel")
-	if display != null:
-		value_label.add_theme_font_override("font", display)
 	add_child(value_label)
 	plus_button = _make_button(PLUS_GLYPH, 1)
 	focus_entered.connect(queue_redraw)

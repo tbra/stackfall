@@ -66,3 +66,17 @@ static func min_width_for(kind: Kind, m: ComponentMetrics = null) -> float:
 		Kind.METER:
 			return float(metric.meter_min_width_px)
 	return 0.0
+
+
+## The plain cream display-font value label shared by UiStepper and UiCycler.
+static func make_value_label() -> Label:
+	var label: Label = Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_color_override("font_color", MenuStyleFactory.arcade_tuning().cream_color)
+	label.add_theme_font_size_override("font_size", metrics().stepper_value_font_px)
+	var display: Font = (load("res://ui/theme/stackfall_theme.tres") as Theme).get_font(&"font", &"DisplayLabel")
+	if display != null:
+		label.add_theme_font_override("font", display)
+	return label
