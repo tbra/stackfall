@@ -6,7 +6,9 @@ Registered once in .claude/settings.json, so a call starts one Python process. I
   interrupted the user on another monitor; the flags are in CLAUDE.md §Environment);
 - killing Godot by image name (other agents run Godot in other worktrees);
 - the full GUT suite from writer roles (`agent_type` in the hook input names the subagent;
-  the orchestrator and the integrator may run it).
+  the orchestrator and the integrator may run it);
+- `git stash` (any subcommand, global options allowed) from every worker profile; the
+  orchestrator may stash.
 Only command positions are checked, so the words may still appear in quoted text, commit
 messages or grep patterns. Everything else passes untouched.
 """
@@ -40,6 +42,11 @@ FULL_SUITE = re.compile(
     r"-gdir=res://tests/?(?=[\s\"']|$)"
     r"|" + _SEP + _PREFIX + r"python\S*\s+(?:\S*[\\/])?full_gate\.py\b",
     re.IGNORECASE)
+_ARG = r"(?:\"[^\"]*\"|'[^']*'|\S+)"
+GIT_STASH = re.compile(
+    _SEP + _PREFIX + r"git(?:\.exe)?(?:\s+(?:-[Cc]\s+" + _ARG + r"|--[\w-]+(?:=" + _ARG + r")?))*\s+stash(?=\s|$)",
+    re.IGNORECASE)
+ORCHESTRATOR_ROLE = "stackfall-orchestrator"
 WRITER_ROLES = frozenset((
     "stackfall-implementer", "stackfall-netcode", "stackfall-designer", "stackfall-triage",
     "stackfall-planner", "stackfall-editor", "stackfall-tester",
@@ -55,6 +62,9 @@ REASON_KILL = (
 REASON_SUITE = (
     "Blocked: the full GUT suite is the orchestrator's once-per-batch gate. Run the targeted "
     "`tools/run_gut.ps1 <scripts>` named in your brief instead.")
+REASON_STASH = (
+    "Blocked: workers never use `git stash`; it moves files other checkouts and agents rely on. "
+    "Copy the files you need to set aside into your scratchpad instead.")
 
 
 # A quoted argument holds data, so a separator inside it starts no command: the `\|` of a grep
@@ -117,6 +127,8 @@ def problem(command, agent_type=None):
             return REASON_WINDOW
     if agent_type in WRITER_ROLES and FULL_SUITE.search(command):
         return REASON_SUITE
+    if agent_type and agent_type != ORCHESTRATOR_ROLE and GIT_STASH.search(command):
+        return REASON_STASH
     return None
 
 
