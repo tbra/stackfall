@@ -95,7 +95,8 @@ const _MASK_KEY_SCALE: float = 1000.0
 const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
 const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
-## A hit normal flatter than this (never a real disc) is treated as level, so the shear never divides by ~0.
+## A hit normal flatter than this (a block's side face or edge, never the disc) is treated as level,
+## so the shear never divides by ~0.
 const _MIN_PLANE_NORMAL_Y: float = 0.1
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
@@ -741,7 +742,7 @@ func _piece_floors(lowest_y: float) -> PackedFloat64Array:
 	for i: int in range(_silhouette.wall_heights.size()):
 		var heights: Vector2 = _silhouette.wall_heights[i]
 		var probe: Vector2 = _silhouette.probes[i]
-		var disc_floor_y: float = _disc_y_at(global_position.x + probe.x, global_position.z + probe.y) 				+ ghost_tuning.footprint_offset
+		var disc_floor_y: float = _disc_y_at(global_position.x + probe.x, global_position.z + probe.y) + ghost_tuning.footprint_offset
 		_floors.append(_piece_floor_y(probe, global_position.y + minf(heights.x, heights.y), disc_floor_y))
 	return _floors
 
