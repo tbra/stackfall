@@ -90,8 +90,9 @@ extends Resource
 ## (a released block also gains a little height from physics settling).
 @export var hover_ceiling_margin: float = 2.0
 
-## Length of the downward placement raycast, meters.
-@export var placement_ray_length: float = 200.0
+## Length of the downward placement raycast, meters. Must exceed cursor_ray_height plus the depth a
+## tilted disc's downhill rim can sink below the cursor, or the ray misses the live disc there.
+@export var placement_ray_length: float = 400.0
 ## Height above the cursor's disk-plane position that the placement raycast
 ## starts from, so it looks straight down through anything the cursor sits
 ## under (spec 1.4: placement is a straight-down ray from the ghost).

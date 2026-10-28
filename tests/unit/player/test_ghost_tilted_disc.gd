@@ -6,8 +6,7 @@ extends GutTest
 const EPS: float = 0.001
 const TILT_X_RAD: float = 0.0
 const TILT_Z_RAD: float = 0.2
-## Raised so the downhill side stays inside the ghost's cursor ray, which ends at world y = 0.
-const POSE_OFFSET: Vector3 = Vector3(0.0, 2.0, 0.0)
+const RIM_X_M: float = -11.0
 const HOVER_STEP_M: float = 1.0
 const WALL_HOVER_M: float = 2.0
 const VERTS_PER_WALL: int = 4
@@ -28,7 +27,7 @@ func before_each() -> void:
 	_field.map_def = map_def
 	add_child_autofree(_field)
 	var tilt: Quaternion = (Basis(Vector3.RIGHT, TILT_X_RAD) * Basis(Vector3.BACK, TILT_Z_RAD)).get_rotation_quaternion()
-	_field.apply_replicated_pose(POSE_OFFSET, tilt)
+	_field.apply_replicated_pose(Vector3.ZERO, tilt)
 	_ghost = autofree(GhostPreview.new())
 	add_child_autofree(_ghost)
 	_ghost.set_shape(load("res://config/blocks/bar3.tres"))
@@ -94,3 +93,13 @@ func test_projection_walls_stop_on_the_live_disc_under_each_piece() -> void:
 	# downhill and uphill walls reach the disc's lowest and highest points (end walls are exact).
 	assert_almost_eq(wall_lowest, disc_lowest, EPS, "the downhill wall ends on the live disc, not the centroid height")
 	assert_almost_eq(wall_highest, disc_highest, EPS, "the uphill wall ends on the live disc")
+
+
+func test_cursor_ray_reaches_the_live_disc_on_the_downhill_rim() -> void:
+	# tilt about +Z by 0.2 rad drops the -X rim well below the cursor ray's old end at world y = 0
+	var live_y: float = _field.surface_height_at(Vector3(RIM_X_M, 0.0, 0.0))
+	assert_lt(live_y, -1.0, "fixture: the rim is below world y = 0")
+	var origin: Vector3 = Vector3(RIM_X_M, _ghost.ghost_tuning.cursor_ray_height, 0.0)
+	var hit: Dictionary = _ghost.raycast_disk_surface(origin)
+	assert_false(hit.is_empty(), "the ray finds the downhill disc")
+	assert_almost_eq((hit["position"] as Vector3).y, live_y, EPS, "hit is the live disc surface")
