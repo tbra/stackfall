@@ -4,8 +4,8 @@ extends MainMatchFlowPort
 ## bot controllers, scope reset), split out of game/main/Main.gd.
 ## Main keeps one forwarder per name and loads this script before the first match_state_changed
 ## reaction (the client's net_match_start RPC arrives with no Main involvement, so the Main
-## forwarder of `_on_match_state_changed` always ensures this flow first). State fields stay on Main
-## because tests read them; this file reads and writes them through `main_node` (DECISION: one
+## forwarder of `_on_match_state_changed` always ensures this flow first). Per-match node fields live here;
+## this file reaches Main's scene helpers through `main_node` (DECISION: one
 ## module split in two, as MainSandboxFlow does). The loading-generation guard stays on Main
 ## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await.
 
@@ -17,6 +17,18 @@ var main_node: Main:
 	get:
 		return main as Main
 
+# Per-match nodes and flags this flow owns (they used to sit on Main).
+var _local_player: Node = null
+var _spectator: Node = null
+var _remote_cursors: Node = null
+var _debug_overlay: Node = null
+var _stable_block_manager: Node = null
+var _bot_controllers: Array[Node] = []
+var _controller_was_processing: bool = false
+var _controller_was_handling_input: bool = false
+var _world_built: bool = false
+var _world_building: bool = false
+
 # Read-only views of Main's persistent world nodes.
 var _field: Field:
 	get:
@@ -27,9 +39,6 @@ var _registry: BlockRegistry:
 var _camera_rig: CameraRig:
 	get:
 		return main_node._camera_rig
-var _world_environment: WorldEnvironment:
-	get:
-		return main_node._world_environment
 var _loading_screen: LoadingScreen:
 	get:
 		return main_node._loading_screen
@@ -82,7 +91,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# briefly passes through LOBBY inside start_match(); keep that transition
 		# out of the UI route so the new match builds directly.
 		if not Match.lifecycle().is_starting_match() and not Net.is_offline():
-			if main_node._watch_bots_active:
+			if world.watch_bots_active:
 				# a watch match has no lobby to return to; Back to menu leaves the
 				# session, which routes to the main menu (Main._on_net_mode_changed).
 				Net.leave()
@@ -110,7 +119,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 
 
 func _finish_loading_when_ready(generation: int) -> void:
-	while not main_node._world_built:
+	while not _world_built:
 		await main_node.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
@@ -144,11 +153,11 @@ func _finish_loading_when_ready(generation: int) -> void:
 	_loading_screen.set_stage("Ready", _loading_screen.tuning.complete_progress)
 	# the camera starts at the local player's own beacon, looking
 	# at the centre, whatever the loading frames did to it.
-	if main_node._local_player != null and _camera_rig != null:
+	if _local_player != null and _camera_rig != null:
 		_camera_rig.begin_start_framing(Net.local_slot())
-	if main_node._local_player != null:
-		(main_node._local_player as LocalPlayer).controller().set_process(main_node._controller_was_processing)
-		(main_node._local_player as LocalPlayer).controller().set_process_unhandled_input(main_node._controller_was_handling_input)
+	if _local_player != null:
+		(_local_player as LocalPlayer).controller().set_process(_controller_was_processing)
+		(_local_player as LocalPlayer).controller().set_process_unhandled_input(_controller_was_handling_input)
 	await _loading_screen.fade_out()
 	# DECISION: Main may be freed while this coroutine is suspended.
 	if not is_instance_valid(main):
@@ -167,9 +176,9 @@ func _release_countdown_hold(generation: int) -> void:
 
 
 func build_match_world() -> void:
-	if main_node._world_built or main_node._world_building:
+	if _world_built or _world_building:
 		return
-	main_node._world_building = true
+	_world_building = true
 	var generation: int = main_node._loading_generation
 	# the single new-match entry (host, client and headless
 	# alike) -- starts from the launch camera and a dry arena whatever the
@@ -192,7 +201,7 @@ func build_match_world() -> void:
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
-			main_node._world_building = false
+			_world_building = false
 			return
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_loading_screen.set_stage("Preparing territory", _loading_screen.tuning.territory_progress)
@@ -202,7 +211,7 @@ func build_match_world() -> void:
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
-			main_node._world_building = false
+			_world_building = false
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
 	main_node._apply_match_sky(config)
@@ -218,11 +227,11 @@ func build_match_world() -> void:
 		if not is_instance_valid(main):
 			return
 		if generation != main_node._loading_generation or not _loading_screen.visible:
-			main_node._world_building = false
+			_world_building = false
 			return
 
-	main_node._remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
-	main_node.add_child(main_node._remote_cursors)
+	_remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
+	main_node.add_child(_remote_cursors)
 
 	# A LocalPlayer instance always binds Net.local_slot() (0 on the host), so it must not
 	# be built when that slot is a bot: the all-bot `--bots=<n>` command
@@ -232,11 +241,11 @@ func build_match_world() -> void:
 	# A mid-match spectator (Net.local_slot() == -1) gets no controller at all.
 	# DECISION: it watches through the default camera rig
 	# with no LocalPlayer -- there is no slot for one to drive.
-	if main_node._watch_bots_active and DebugMode.is_enabled():
+	if world.watch_bots_active and DebugMode.is_enabled():
 		build_spectator(config)
 	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
 		var local_player: LocalPlayer = main_node._load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
-		main_node._local_player = local_player
+		_local_player = local_player
 		main_node.add_child(local_player)
 		local_player.set_camera_rig(_camera_rig)
 		local_player.set_field(_field)
@@ -246,8 +255,8 @@ func build_match_world() -> void:
 		# it does not depend on a child scene's _ready() timing. Idempotent and a
 		# no-op headless.
 		local_player.controller().enable_mouse_capture()
-		main_node._controller_was_processing = local_player.controller().is_processing()
-		main_node._controller_was_handling_input = local_player.controller().is_processing_unhandled_input()
+		_controller_was_processing = local_player.controller().is_processing()
+		_controller_was_handling_input = local_player.controller().is_processing_unhandled_input()
 		if stage_build:
 			local_player.controller().set_process(false)
 			local_player.controller().set_process_unhandled_input(false)
@@ -258,27 +267,27 @@ func build_match_world() -> void:
 	# Single wiring point for the stable-block manager, alongside
 	# _spawn_bot_controllers(): BlockRegistry.all_blocks() only has anything to scan
 	# once _registry is populated, which SnapshotSync.begin_match() above has done.
-	main_node._stable_block_manager = StableBlockManager.new()
-	main_node.add_child(main_node._stable_block_manager)
-	main_node._stable_block_manager.setup(_registry)
+	_stable_block_manager = StableBlockManager.new()
+	main_node.add_child(_stable_block_manager)
+	_stable_block_manager.setup(_registry)
 
-	main_node._debug_overlay = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
-	main_node.add_child(main_node._debug_overlay)
+	_debug_overlay = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
+	main_node.add_child(_debug_overlay)
 
-	# Re-applies the current preset once the match world exists. _world_environment is
+	# Re-applies the current preset once the match world exists. world.world_environment is
 	# a static child of Main, so today this repeats the _ready()-time call; kept
 	# because this is the one shared scene-load path (lobby-driven and headless-bot
 	# matches alike).
 	main_node._apply_graphics_preset(Settings.current_graphics_preset())
-	main_node._world_built = true
-	main_node._world_building = false
+	_world_built = true
+	_world_building = false
 
 
 ## debug Watch bots: the local player's whole presence in an all-bot match -- spectator
 ## camera, follow / speed controls and the match HUD -- in place of a LocalPlayer.
 func build_spectator(config: MatchConfig) -> void:
 	var spectator: SpectatorController = SpectatorController.new()
-	main_node._spectator = spectator
+	_spectator = spectator
 	main_node.add_child(spectator)
 	spectator.setup(_camera_rig, config.player_count)
 	spectator.build_presentation(main_node._load_scene(HUD_SCENE_PATH), main_node._load_scene(TUNING_PANEL_SCENE_PATH), _field)
@@ -300,7 +309,7 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 		var bot: BotController = BotController.new()
 		main_node.add_child(bot)
 		bot.setup(slot_id, config.ai_difficulty_for_slot(slot_id), _field, _registry)
-		main_node._bot_controllers.append(bot)
+		_bot_controllers.append(bot)
 
 
 ## The one presentation-reset entry for a fresh-launch match start. The CameraRig,
@@ -324,6 +333,10 @@ func _reset_match_scope_unless_restarting() -> void:
 		_reset_match_scope()
 
 
+func is_world_live() -> bool:
+	return _world_built or _world_building
+
+
 func end_match_world() -> void:
 	# DECISION: the scope reset runs before the _world_built
 	# early return, so every (-> LOBBY) -- including a staged build that was
@@ -331,13 +344,13 @@ func end_match_world() -> void:
 	# launch-state camera, dry arena and reset persistent owners. Such a half-built world still touched the
 	# Field (flags, rebuild, overlay), so it is cleared here too. Idempotent: a
 	# net leave reaches this twice (mode change, then the abort's -> LOBBY).
-	if not main_node._world_built:
+	if not _world_built:
 		SnapshotSync.end_match()
 		_field.clear_match_state()
 		_reset_match_scope_unless_restarting()
 		_end_mode_extras()
 		return
-	main_node._world_built = false
+	_world_built = false
 	main_node._stop_headless_bots_diagnostics()
 	SnapshotSync.end_match()
 	# Field is persistent (unlike everything else torn down below) and Match's
@@ -346,26 +359,26 @@ func end_match_world() -> void:
 	_field.clear_match_state()
 	# and the menu/lobby behind it looks like a fresh launch too.
 	_reset_match_scope_unless_restarting()
-	if main_node._remote_cursors != null and is_instance_valid(main_node._remote_cursors):
-		main_node._remote_cursors.queue_free()
-	main_node._remote_cursors = null
-	_free_inert(main_node._local_player)
-	main_node._local_player = null
+	if _remote_cursors != null and is_instance_valid(_remote_cursors):
+		_remote_cursors.queue_free()
+	_remote_cursors = null
+	_free_inert(_local_player)
+	_local_player = null
 	_end_mode_extras()
-	if main_node._spectator != null and is_instance_valid(main_node._spectator):
-		(main_node._spectator as SpectatorController).reset_speed()
-		main_node._spectator.queue_free()
-	main_node._spectator = null
-	for bot: BotController in main_node._bot_controllers:
+	if _spectator != null and is_instance_valid(_spectator):
+		(_spectator as SpectatorController).reset_speed()
+		_spectator.queue_free()
+	_spectator = null
+	for bot: BotController in _bot_controllers:
 		if bot != null and is_instance_valid(bot):
 			bot.queue_free()
-	main_node._bot_controllers.clear()
-	if main_node._stable_block_manager != null and is_instance_valid(main_node._stable_block_manager):
-		main_node._stable_block_manager.queue_free()
-	main_node._stable_block_manager = null
-	if main_node._debug_overlay != null and is_instance_valid(main_node._debug_overlay):
-		main_node._debug_overlay.queue_free()
-	main_node._debug_overlay = null
+	_bot_controllers.clear()
+	if _stable_block_manager != null and is_instance_valid(_stable_block_manager):
+		_stable_block_manager.queue_free()
+	_stable_block_manager = null
+	if _debug_overlay != null and is_instance_valid(_debug_overlay):
+		_debug_overlay.queue_free()
+	_debug_overlay = null
 
 
 ## Disabling the subtree first stops its _process/_input at once; queue_free() only

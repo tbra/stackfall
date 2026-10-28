@@ -19,3 +19,7 @@ var graphics: GraphicsApplier = null
 var mode_extras: ModeExtras = null
 var sandbox: Node = null
 var tutorial: Node = null
+
+## debug Watch bots: true from Main.start_watch_bots() until the session ends or returns to
+## the menu; the match flow then builds a SpectatorController instead of a LocalPlayer.
+var watch_bots_active: bool = false

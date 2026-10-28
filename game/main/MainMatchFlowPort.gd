@@ -13,6 +13,6 @@ func on_match_state_changed(_from_state: int, _to_state: int) -> void:
 	pass
 
 
-## STUB (P7 plan section 2.1): false in the base; P7-Imatch overrides it.
+## True while a match world is built or building; MainMatchFlow overrides it.
 func is_world_live() -> bool:
 	return false

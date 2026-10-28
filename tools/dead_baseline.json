@@ -576,12 +576,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch",
-   "consumer": "P7-Imatch-a"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
