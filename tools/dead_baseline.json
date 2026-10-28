@@ -115,12 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/audio/StemMix.gd",
-   "consumer": "P7-Istem",
-   "reason": "P7-Sstem stub (plan 2.2): signatures only, nothing calls it until P7-Istem wires the adaptive stems into Sfx.gd and deletes this entry"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },

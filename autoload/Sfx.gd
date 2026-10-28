@@ -32,7 +32,7 @@ const AUDIO_SUBDIR: String = "assets/audio/sfx"
 ## Engineering constant matching AudioServer's convention that -80 dB reads as
 ## inaudible on any reasonable output device; not designer-facing, so it stays
 ## a local const rather than an AudioConfig field.
-const MUSIC_STEM_MUTE_DB: float = -80.0
+const MUSIC_STEM_MUTE_DB: float = StemMix.MUTE_DB
 
 ## DECISION: engine constant, not designer-facing. AudioServer
 ## only frees a stopped playback after one mix cycle plus a main-thread cleanup,
@@ -74,11 +74,9 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## error/warning (Skybox.gd's fallback_active pattern).
 var _tense_music_player: AudioStreamPlayer
 var _tense_stem_available: bool = false
-## Which side of the crossfade Events.goal_capture_progress last asked for.
-## Drives calm_stem_target_volume_db()/tense_stem_target_volume_db() even
-## when _tense_stem_available is false, so a test (or a later real asset
-## drop) can read the intended target without needing a live Tween to finish.
-var _tense_stem_is_active: bool = false
+## The calm/tense rules Events.goal_capture_progress drives; it answers even while
+## _tense_stem_available is false, so the intended target is readable without a live Tween.
+var _stem_mix: StemMix
 var _music_crossfade_tween: Tween
 
 ## Lazy music: the path-playlist requests still outstanding (path -> true).
@@ -136,6 +134,7 @@ func _ready() -> void:
 		print("Sfx: no effects at %s -- game runs silently." % _library.root_dir())
 	_build_player_pool()
 	_playlist = MusicPlaylist.new(config, _rng)
+	_stem_mix = StemMix.new(config)
 	_refresh_tense_stem()
 	_build_claim_layer()
 	var listener: FocusNavListener = FocusNavListener.new()
@@ -354,15 +353,15 @@ func _refresh_tense_stem() -> void:
 	_tense_music_player.stop()
 	# The owner theme is a complete mix, not a stem of the original score.
 	if config.contextual_music_enabled or _bundled_theme() != null:
-		_tense_stem_is_active = false
+		_stem_mix.reset()
 		return
 	if not _library.available():
-		if was_available:
-			_tense_stem_is_active = false  # the tense stem just disappeared -- fall back to calm
+		if was_available and _stem_mix.is_tense():
+			_stem_mix.reset()  # the tense stem just disappeared -- fall back to calm
 		return
 	if not _library.has_file(config.music_stem_calm_file) or not _library.has_file(config.music_stem_tense_file):
-		if was_available:
-			_tense_stem_is_active = false  # the tense (or its calm partner) just disappeared -- fall back to calm
+		if was_available and _stem_mix.is_tense():
+			_stem_mix.reset()  # the tense (or its calm partner) just disappeared -- fall back to calm
 		return
 	var stream: AudioStream = _library.stream(config.music_stem_tense_file)
 	if stream == null:
@@ -394,54 +393,42 @@ func _sync_tense_player_with_calm() -> void:
 ## or touching audio hardware.
 ##
 ## DECISION (autoload/Sfx.gd): never mute unless the tense stem is actually
-## available -- _tense_stem_is_active alone isn't enough to gate this, because
+## available -- the StemMix flag alone isn't enough to gate this, because
 ## it can flip true from a plain Events.goal_capture_progress reading (no asset
 ## needed) even in the shipped single-stream config. Without this guard, the
 ## next play_music()/_on_audio_settings_changed() call would apply
 ## MUSIC_STEM_MUTE_DB to the only music stream that exists and mute it
 ## permanently.
 func calm_stem_target_volume_db() -> float:
-	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
-		return baseline_db
-	return MUSIC_STEM_MUTE_DB if _tense_stem_is_active else baseline_db
+		return _volume_db(config.music_volume_db, Settings.music_volume_db())
+	return _stem_target_db(_stem_mix.calm_db())
 
 
 ## Mirror of calm_stem_target_volume_db() for the tense stem. Symmetric guard:
 ## with no tense stem installed there is nothing to raise the volume of, so
-## this stays muted regardless of _tense_stem_is_active (moot in practice --
-## _tense_music_player is never given a stream or started while unavailable,
-## see _refresh_tense_stem()/_sync_tense_player_with_calm()).
+## this stays muted (moot in practice -- the tense player is never started
+## while unavailable).
 func tense_stem_target_volume_db() -> float:
-	var baseline_db: float = _volume_db(config.music_volume_db, Settings.music_volume_db())
 	if not _tense_stem_available:
 		return MUSIC_STEM_MUTE_DB
-	return baseline_db if _tense_stem_is_active else MUSIC_STEM_MUTE_DB
+	return _stem_target_db(_stem_mix.tense_db())
+
+
+## A stem gain from StemMix with the master and music-channel offsets added; a muted stem stays muted.
+func _stem_target_db(stem_db: float) -> float:
+	return stem_db if stem_db <= MUSIC_STEM_MUTE_DB else _volume_db(stem_db, Settings.music_volume_db())
 
 
 ## Events.goal_capture_progress (spec 1.10's adaptive music crossfade): the
 ## crossfade only cares how close ANY team is to capturing, not which one, so
 ## team_id is unused. Events.gd: "team_id is -1 with progress 0 when a capture
-## breaks" -- that case falls out of the plain `progress >= threshold` check
-## below with no special-casing, since 0.0 is always below
-## music_tense_progress_threshold.
+## breaks" -- 0.0 is always below the threshold, so StemMix needs no special case.
 func _on_goal_capture_progress(_team_id: int, progress: float) -> void:
 	if config.contextual_music_enabled:
 		return
-	# Hysteresis: the rising edge (calm -> tense) always uses the plain
-	# threshold; the falling edge (tense -> calm) only fires
-	# music_tense_release_margin below it, so progress hovering right at the
-	# threshold doesn't flap the crossfade every frame. A margin of 0.0 means a
-	# single threshold.
-	var release_threshold: float = config.music_tense_progress_threshold - config.music_tense_release_margin
-	var want_tense: bool = (
-		progress >= config.music_tense_progress_threshold
-		if not _tense_stem_is_active
-		else progress >= release_threshold
-	)
-	if want_tense == _tense_stem_is_active:
+	if not _stem_mix.on_progress(progress):
 		return
-	_tense_stem_is_active = want_tense
 	if not _tense_stem_available:
 		return  # single-stream playback: nothing installed to crossfade to
 	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
@@ -467,7 +454,7 @@ func reset_match_audio() -> void:
 	if _music_crossfade_tween != null and _music_crossfade_tween.is_valid():
 		_music_crossfade_tween.kill()
 	_music_crossfade_tween = null
-	_tense_stem_is_active = false
+	_stem_mix.reset()
 	if config.contextual_music_enabled:
 		return
 	if _music_player != null:
