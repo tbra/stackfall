@@ -72,3 +72,11 @@ func test_restore_default_brings_back_the_weighted_draw() -> void:
 	var drawn: StringName = _claim_drawn_id(2000)
 	assert_ne(drawn, FORCED_ID)
 	assert_ne(drawn, MatchGifts.PENDING_SPECIAL_ID, "the weighted roster draw is installed")
+
+
+func test_restore_default_with_no_special_enabled_drops_the_forced_drawer() -> void:
+	_start_playing()
+	Match.config.enabled_specials = [MatchGifts.ALL_DISABLED_SENTINEL]
+	Match.set_special_drawer(func() -> StringName: return FORCED_ID)
+	Match.restore_default_special_drawer()
+	assert_eq(_claim_drawn_id(2000), MatchGifts.PENDING_SPECIAL_ID)

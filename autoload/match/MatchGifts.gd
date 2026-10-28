@@ -512,7 +512,7 @@ func debug_queue_special(slot_id: int, special_id: StringName) -> bool:
 ## idempotency guard would make the call a no-op after a forced special's own
 ## set_special_drawer() replaced the drawer.
 func restore_default_special_drawer() -> void:
-	_roster_ready = false
+	reset_special_drawer()
 	_ensure_special_drawer_installed()
 
 
