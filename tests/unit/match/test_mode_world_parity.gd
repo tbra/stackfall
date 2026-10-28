@@ -78,9 +78,19 @@ func before_each() -> void:
 	Match.set_process(false)
 	Match.abort_match()
 	SnapshotSync.end_match()
-	# A vibration leaked by an earlier script in the shard must not reach the capture.
+	# A vibration leaked by an earlier script in the shard must not reach the capture, and a pad
+	# an earlier script left as the last-used device must not start new ones while bots play:
+	# a key press is how the game itself hands Rumble back to the keyboard.
 	Rumble.stop_all()
 	Input.stop_joy_vibration(MatchFingerprint.RUMBLE_PROBE_DEVICE)
+	var key: InputEventKey = InputEventKey.new()
+	key.keycode = KEY_SPACE
+	key.pressed = true
+	Input.parse_input_event(key)
+	var release: InputEventKey = key.duplicate() as InputEventKey
+	release.pressed = false
+	Input.parse_input_event(release)  # no key left held for later scripts
+	Input.flush_buffered_events()
 	Match._lifecycle._host_bot_names = PackedStringArray()
 	assert_true(Net.is_offline(), "fixture: the real Net must start offline")
 	Engine.time_scale = 1.0
