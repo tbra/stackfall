@@ -156,7 +156,8 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchContextLive.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -166,7 +167,8 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -181,12 +183,14 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -221,12 +225,14 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchPlacement.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchPlacement.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -436,12 +442,14 @@
   {
    "id": "test-only-func",
    "entry": "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
    "entry": "config/gifts/GiftModelTable.gd:visual_for",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): consumed by P3-Ifallback (optional; if cut, delete visual_for), which removes this entry"
+   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): removed by P3-Sdead (P3-Ifallback was cut)",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -551,7 +559,8 @@
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
-   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until the bot-swap bead (the P11 bot-swap package) replaces the BotController radius scan; that bead removes this entry"
+   "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController radius scan; that bead removes this entry",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
@@ -561,32 +570,38 @@
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/JumpingBeanEffect.gd:effect_radius_m",
-   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until the bot-swap package (the P11 bot-swap package) replaces the BotController property scan"
+   "reason": "P6-S virtual override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController property scan",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/PaintballEffect.gd:effect_radius_m",
-   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until only a bot-swap caller (the P11 bot-swap package) reads it; the P11 bot-swap package removes this entry"
+   "reason": "P6-Ipaint override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap reads it; P11-Ibotswap removes this entry",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/RocketEffect.gd:effect_radius_m",
-   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; the P11 bot-swap package removes this entry"
+   "reason": "P6-Irocket override of a P6-S virtual (docs/plans/P6_PLAN.md): its only caller arrives later; P11-Ibotswap removes this entry",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/SpecialEffect.gd:effect_radius_m",
-   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until a bot-swap package (the P11 bot-swap package) replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger"
+   "reason": "P6-S stub (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController property scan; P6_PLAN section 4 sets the delete trigger",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
    "entry": "game/gifts/specials/VolcanoEffect.gd:effect_radius_m",
-   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until the P11 bot-swap package replaces the BotController property scan; di0.12 removes this entry"
+   "reason": "P6-Ivolprop override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController property scan; P11-Ibotswap removes this entry",
+   "consumer": "P11-Ibotswap"
   },
   {
    "id": "test-only-func",
    "entry": "game/main/MainMatchFlowPort.gd:is_world_live",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch"
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Imatch",
+   "consumer": "P7-Imatch-a"
   },
   {
    "id": "test-only-func",
@@ -616,7 +631,8 @@
   {
    "id": "test-only-func",
    "entry": "game/world/MatchContext.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -651,12 +667,14 @@
   {
    "id": "test-only-var",
    "entry": "game/main/MainWorld.gd:world_environment",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)"
+   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
+   "consumer": "P7-Inav"
   },
   {
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
+   "consumer": "P3-Sdead"
   }
  ]
 }
