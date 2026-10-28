@@ -161,21 +161,17 @@ var _special_frequency_value: int = 0
 ## the Experiments trials row, shown only while the Experiments switch is on.
 @onready var _experiments_group: Control = %ExperimentsGroup
 ## the Experiments chips, in QolExperiments.with_toggles()
-## argument order (timer pause, backlog, goal radius, gift slot). They are the
+## argument order (timer pause, backlog, goal radius, gift slot, gift loads next). They are the
 ## EXPERIMENTS section's Advanced block. Host-editable,
 ## read-only for a client (_settings_controls).
 @onready var _qol_timer_pause_check: UiChipToggle = %QolTimerPauseCheck
 @onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
 @onready var _qol_goal_radius_check: UiChipToggle = %QolGoalRadiusCheck
 @onready var _qol_gift_slot_check: UiChipToggle = %QolGiftSlotCheck
-## the gift-after-next TRIAL (QolExperiments.gift_queue_after_next, on by default).
-## DECISION: it sits in the same chip group (focus loop, host-only gating, replication) but is a rule
-## variant rather than an opt-in experiment, so it is not part of the with_toggles() flags and the
-## section's "n on" count skips it.
-@onready var _qol_gift_after_next_check: UiChipToggle = %QolGiftAfterNextCheck
+@onready var _qol_gift_loads_next_check: UiChipToggle = %QolGiftLoadsNextCheck
 @onready var _qol_checks: Array[UiChipToggle] = [
 	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
-	_qol_gift_after_next_check,
+	_qol_gift_loads_next_check,
 ]
 
 ## The settings column is a stack of UiSections: GAME (mode, disc size,
@@ -1153,7 +1149,7 @@ func _update_section_summaries() -> void:
 		_gifts_section.set_summary(SUMMARY_GIFTS_OFF)
 	var experiments_on: int = 0
 	for qol_check: UiChipToggle in _qol_checks:
-		if qol_check.button_pressed and qol_check != _qol_gift_after_next_check:
+		if qol_check.button_pressed:
 			experiments_on += 1
 	if _experiments_check.button_pressed:
 		_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
@@ -1432,14 +1428,14 @@ func _reconciled_bot_names(bot_count: int) -> PackedStringArray:
 	return _bot_names.duplicate()
 
 
-## The four Experiments checkboxes folded onto a copy of the shared F4 resource
+## The five Experiments checkboxes folded onto a copy of the shared F4 resource
 ## (QolExperiments.with_toggles() never modifies QOL_SHARED).
 func _qol_from_controls() -> QolExperiments:
 	var qol: QolExperiments = QolExperiments.with_toggles(
 		QOL_SHARED, _qol_timer_pause_check.button_pressed, _qol_backlog_check.button_pressed,
-		_qol_goal_radius_check.button_pressed, _qol_gift_slot_check.button_pressed
+		_qol_goal_radius_check.button_pressed, _qol_gift_slot_check.button_pressed,
+		_qol_gift_loads_next_check.button_pressed
 	)
-	qol.gift_queue_after_next = _qol_gift_after_next_check.button_pressed
 	return qol
 
 
@@ -1514,8 +1510,7 @@ func _apply_data(data: Dictionary) -> void:
 	_chip_silent(_qol_backlog_check, qol != null and qol.backlog_enabled)
 	_chip_silent(_qol_goal_radius_check, qol != null and qol.goal_radius_enabled)
 	_chip_silent(_qol_gift_slot_check, qol != null and qol.gift_slot_enabled)
-	# A null qol (config/match/match_defaults.tres) leaves the trial at the shared resource's default.
-	_chip_silent(_qol_gift_after_next_check, QOL_SHARED.gift_queue_after_next if qol == null else qol.gift_queue_after_next)
+	_chip_silent(_qol_gift_loads_next_check, qol != null and qol.gift_loads_next)
 	_applying_remote_data = false
 	_refresh_master_toggles()
 	_update_section_summaries()

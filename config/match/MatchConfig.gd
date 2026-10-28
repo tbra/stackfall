@@ -499,7 +499,7 @@ func clamp_to_connected_peers(peer_count: int) -> void:
 ## chips must keep their selection for when the switch is turned back on.
 func apply_experiments_switch() -> void:
 	if not experiments_enabled and qol != null:
-		qol = QolExperiments.with_toggles(qol, false, false, false, false)
+		qol = QolExperiments.with_toggles(qol, false, false, false, false, false)
 
 
 ## Clamps every field into its spec 1.9 range. The host calls this on any

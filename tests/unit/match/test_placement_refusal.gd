@@ -22,9 +22,9 @@ func _config(player_count: int = 2) -> MatchConfig:
 	config.player_count = player_count
 	config.block_timer = 6.0
 	config.rng_seed = 24680
-	# Old gift rule (a claim replaces the next piece); the after-next trial is in test_gift_queue_after_next.gd.
+	# Old gift rule (a claim replaces the next piece); the default after-next rule is in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	return config
 
 

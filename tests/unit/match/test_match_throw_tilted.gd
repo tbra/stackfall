@@ -30,7 +30,7 @@ func _config() -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 13579
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	return config
 
 

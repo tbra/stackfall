@@ -55,12 +55,11 @@ extends Resource
 ## activated, so it cannot be auto-dropped the instant it appears.
 @export var gift_slot_min_window_s: float = 2.0
 
-## -- Rule trial: a claimed gift joins the queue one block later --
-## ON by default (a rule variant, not an opt-in experiment): a claimed gift becomes
-## the block AFTER next and the ordinary next piece stays, so a late claim leaves
-## more time to plan. Off restores the rule (the gift replaces the next piece).
-## DECISION: unsupported next to the backlog or gift-slot experiments, which keep the old rule.
-@export var gift_queue_after_next: bool = true
+## -- Experiment: a claimed gift replaces the next piece --
+## Off by default: a claimed gift becomes the block AFTER next and the ordinary next piece stays,
+## so a late claim leaves more time to plan. On: the gift replaces the next piece.
+## Unsupported next to the backlog or gift-slot experiments, which keep the after-next rule off too.
+@export var gift_loads_next: bool = false
 
 const PAUSE_MAX_DEFAULT_S: float = 10.0
 const PAUSE_MAX_MIN_S: float = 1.0
@@ -71,15 +70,16 @@ const GIFT_MIN_WINDOW_MAX_S: float = 10.0
 const GOAL_RADIUS_MULTIPLIER_MAX: float = 4.0
 
 
-## A copy of `base` (all numeric parameters kept) with the four enable flags set
+## A copy of `base` (all numeric parameters kept) with the five enable flags set
 ## to the given values. A null `base` starts from the defaults. `base` is never modified.
 static func with_toggles(base: QolExperiments, timer_pause: bool, backlog: bool,
-		goal_radius: bool, gift_slot: bool) -> QolExperiments:
+		goal_radius: bool, gift_slot: bool, gift_loads: bool) -> QolExperiments:
 	var qol: QolExperiments = QolExperiments.new() if base == null else base.duplicate() as QolExperiments
 	qol.timer_pause_enabled = timer_pause
 	qol.backlog_enabled = backlog
 	qol.goal_radius_enabled = goal_radius
 	qol.gift_slot_enabled = gift_slot
+	qol.gift_loads_next = gift_loads
 	return qol
 
 
@@ -111,10 +111,10 @@ func effective_gift_slot_capacity() -> int:
 	return clampi(gift_slot_capacity, 1, GIFT_SLOT_CAPACITY_CEILING)
 
 
-## Whether a claimed gift joins the queue as the block after next: the trial is on and neither
-## the backlog nor the gift slot experiment (which keep the old rule) is.
+## Whether a claimed gift joins the queue as the block after next: the loads-next experiment is off
+## and neither the backlog nor the gift slot experiment (which keep the old rule) is on.
 func gift_after_next_in_force() -> bool:
-	return gift_queue_after_next and not backlog_enabled and not gift_slot_enabled
+	return not gift_loads_next and not backlog_enabled and not gift_slot_enabled
 
 
 ## Minimum post-activation window in force (seconds).
@@ -153,7 +153,7 @@ func to_dict() -> Dictionary:
 		"gift_slot_capacity": gift_slot_capacity,
 		"gift_slot_min_window_s": gift_slot_min_window_s,
 		"pause_max_s": pause_max_s,
-		"gift_queue_after_next": gift_queue_after_next,
+		"gift_loads_next": gift_loads_next,
 	}
 
 
@@ -175,7 +175,7 @@ static func from_dict(data: Dictionary) -> QolExperiments:
 	qol.gift_slot_capacity = int(_num(data, "gift_slot_capacity", float(qol.gift_slot_capacity)))
 	qol.gift_slot_min_window_s = _num(data, "gift_slot_min_window_s", qol.gift_slot_min_window_s)
 	qol.pause_max_s = _num(data, "pause_max_s", qol.pause_max_s)
-	qol.gift_queue_after_next = _bool(data, "gift_queue_after_next", qol.gift_queue_after_next)
+	qol.gift_loads_next = _bool(data, "gift_loads_next", qol.gift_loads_next)
 	qol.sanitize()
 	return qol
 

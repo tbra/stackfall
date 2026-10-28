@@ -8,7 +8,7 @@ extends GutTest
 ## per-gift checklist is GIFTS Advanced, the experiment checks are the EXPERIMENTS block, and
 ## the Advanced rules popup, bar, Players/AI steppers and segmented Teams are gone.
 
-const QOL_NAMES: Array[String] = ["%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck"]
+const QOL_NAMES: Array[String] = ["%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck", "%QolGiftLoadsNextCheck"]
 
 
 func _make_lobby(is_host: bool) -> Lobby:

@@ -1,5 +1,5 @@
 extends Node
-## host + client over real ENet with the gift_queue_after_next trial on (default).
+## host + client over real ENet with the default after-next rule.
 ## The host claims a gift for the client's seat; the client must see it staged as the block AFTER next
 ## (the next piece stays ordinary), then next, then held, as the host issues two blocks. Run via
 ## tools/run_gift_after_next_enet.ps1. Host: --headless-host --expect-peers=2.
@@ -75,7 +75,7 @@ func _run_host() -> void:
 func _run_client() -> void:
 	var playing: bool = await _until(func() -> bool: return Match.state() == Match.State.PLAYING, CONNECT_TIMEOUT + 10.0)
 	if not playing or Match.config.qol == null or not Match.config.qol.gift_after_next_in_force():
-		print("GANENET result=FAIL reason=no_playing_or_trial_off")
+		print("GANENET result=FAIL reason=no_playing_or_after_next_off")
 		get_tree().quit(2)
 		return
 	var slot_id: int = Net.local_slot()

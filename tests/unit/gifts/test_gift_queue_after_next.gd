@@ -1,6 +1,6 @@
 extends GutTest
-## a claimed gift joins the queue one block later (gift_queue_after_next
-## trial, on by default): the ordinary next piece stays and the gift is the block after next.
+## a claimed gift joins the queue one block later (the default rule
+## gift_loads_next off): the ordinary next piece stays and the gift is the block after next.
 const MatchNetScript := preload("res://net/MatchNet.gd")
 
 var _field: Field

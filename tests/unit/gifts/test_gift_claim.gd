@@ -62,10 +62,10 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.gifts_enabled = gifts_enabled
-	# These tests cover the rule (a claim replaces the next piece); the
-	# after-next trial (default on) is in test_gift_queue_after_next.gd.
+	# These tests cover the rule (a claim replaces the next piece);
+	# the default after-next rule is in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	return config
 
 

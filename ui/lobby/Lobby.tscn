@@ -457,12 +457,12 @@ layout_mode = 2
 size_flags_horizontal = 3
 label = "Gift slot"
 
-[node name="QolGiftAfterNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
+[node name="QolGiftLoadsNextCheck" type="Button" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/ExperimentsSection/Body/ExperimentsRow/ExperimentsGroup/ExperimentsChecklist"]
 unique_name_in_owner = true
 script = ExtResource("12_chip")
 layout_mode = 2
 size_flags_horizontal = 3
-label = "Gift after next block"
+label = "Gift loads next"
 
 [node name="HelpLine" type="MarginContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout"]
 unique_name_in_owner = true
