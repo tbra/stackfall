@@ -72,7 +72,7 @@ func _make_crate(gift_id: int, disk_point: Vector2, parent: Node3D) -> GiftCrate
 func _hold_cube_at(world_pos: Vector3) -> void:
 	MatchContext.current().local_held().publish(
 		Net.local_slot(), load("res://config/blocks/cube.tres") as BlockShape, world_pos,
-		0, Quaternion.IDENTITY, true, 0.0, Time.get_ticks_msec()
+		0, Quaternion.IDENTITY, true, 0.0
 	)
 
 
@@ -185,7 +185,7 @@ func test_hint_does_not_pulse_when_nothing_is_held() -> void:
 	add_child_autofree(parent)
 	var crate: GiftCrate = _make_crate(1, Vector2(19.0, 19.0), parent)
 	MatchContext.current().local_held().publish(
-		Net.local_slot(), null, crate.global_position, 0, Quaternion.IDENTITY, true, 0.0, 1
+		Net.local_slot(), null, crate.global_position, 0, Quaternion.IDENTITY, true, 0.0
 	)
 
 	crate._process(0.05)

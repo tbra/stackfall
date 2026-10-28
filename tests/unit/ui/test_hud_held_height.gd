@@ -29,7 +29,7 @@ func after_each() -> void:
 
 
 func _publish(shape: BlockShape, height: float, is_visible: bool = true) -> void:
-	_fake_context.local_held().publish(SLOT, shape, FAR, 0, Quaternion.IDENTITY, is_visible, height, 0)
+	_fake_context.local_held().publish(SLOT, shape, FAR, 0, Quaternion.IDENTITY, is_visible, height)
 
 
 func _hud() -> Label:

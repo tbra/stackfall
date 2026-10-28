@@ -5,14 +5,13 @@ extends Node
 ## the public Match/controller API, one scripted step per physics tick; no ENet peer (the throw pair is P3-0b).
 ##
 ## Record a run (the committed reference comes from an unmodified main):
-##   godot --headless --fixed-fps 60 --path . res://tests/bench/bench_p3_parity.tscn -- --out=run.json [--rng-seed=N] [--wallclock]
+##   godot --headless --fixed-fps 60 --path . res://tests/bench/bench_p3_parity.tscn -- --out=run.json [--rng-seed=N]
 ## Compare two recordings (exit 1 on any difference above --tol, default 0):
 ##   godot --headless --path . res://tests/bench/bench_p3_parity.tscn -- --compare=a.json,b.json [--tol=0.0001]
 ##
 ## Determinism rules (plan 6.1): (a) accumulated input off and the buffer flushed after every tick;
 ## (b) Settings is isolated (a scene under res://tests/ or `-- --agent-probe` gives defaults, never the user's
-## settings.cfg; the scale is recorded in the header and a non-isolated run refuses to start); wall-clock fields are never recorded (LocalHeldView.updated_msec only under --wallclock, which exists
-## to show that it differs); (c) offline, no peer. Ticks are counted from the first PLAYING tick, so
+## settings.cfg; the scale is recorded in the header and a non-isolated run refuses to start); wall-clock fields are never recorded; (c) offline, no peer. Ticks are counted from the first PLAYING tick, so
 ## load-timed world building does not shift the keys.
 
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
@@ -23,7 +22,6 @@ const OUT_ARG: String = "--out="
 const COMPARE_ARG: String = "--compare="
 const TOL_ARG: String = "--tol="
 const SEED_ARG: String = "--rng-seed="
-const WALLCLOCK_ARG: String = "--wallclock"
 const DEFAULT_SEED: int = 20261025
 const HOST_SLOT: int = 0
 const REMOTE_SLOT: int = 1
@@ -77,7 +75,6 @@ const SCOPE_RESET_TICK: int = 1380
 const END_TICK: int = 1420
 
 var _out_path: String = ""
-var _wallclock: bool = false
 var _record: Dictionary = {}
 var _events: Array = []
 var _tick: int = -1
@@ -103,8 +100,6 @@ func _ready() -> void:
 			tol = arg.substr(TOL_ARG.length()).to_float()
 		elif arg.begins_with(SEED_ARG):
 			rng_seed = arg.substr(SEED_ARG.length()).to_int()
-		elif arg == WALLCLOCK_ARG:
-			_wallclock = true
 	if not compare.is_empty():
 		get_tree().quit(_compare(compare, tol))
 		set_physics_process(false)
@@ -446,8 +441,6 @@ func _sample_held(prefix: String) -> void:
 	_put_quat(prefix + "held.free_quat", held.free_quat)
 	_record[prefix + "held.visible"] = int(held.visible)
 	_record[prefix + "held.height"] = _r(held.height_above_surface)
-	if _wallclock:
-		_record[prefix + "held.updated_msec"] = held.updated_msec
 
 
 func _sample_arc(prefix: String) -> void:

@@ -33,7 +33,6 @@ var spawn_projectile_result: RigidBody3D = null
 var add_match_child_adopts: bool = false
 var held_shape_by_slot: Dictionary = {}
 var held_special_by_slot: Dictionary = {}
-var feed_seq_by_slot: Dictionary = {}
 var release_locked_by_slot: Dictionary = {}
 var gift_slot_head_by_slot: Dictionary = {}
 var default_ghost_origin_by_slot: Dictionary = {}
@@ -173,10 +172,6 @@ func held_shape(slot_id: int) -> BlockShape:
 
 func held_special(slot_id: int) -> StringName:
 	return StringName(held_special_by_slot.get(slot_id, &""))
-
-
-func feed_seq(slot_id: int) -> int:
-	return int(feed_seq_by_slot.get(slot_id, 0))
 
 
 func is_release_locked(slot_id: int) -> bool:

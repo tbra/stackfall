@@ -86,7 +86,6 @@ func test_a_normal_frame_publishes_the_held_pose() -> void:
 	assert_eq(view.origin, controller._ghost.global_position, "the ghost position, not the cursor")
 	assert_eq(view.orientation_index, controller._ghost.orientation_index)
 	assert_true(view.visible)
-	assert_gt(view.updated_msec, 0, "stamped with the publish time")
 
 
 func test_publishing_works_offline() -> void:

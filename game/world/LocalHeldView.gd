@@ -13,11 +13,10 @@ var orientation_index: int = 0
 var free_quat: Quaternion = Quaternion.IDENTITY
 var visible: bool = false
 var height_above_surface: float = 0.0
-var updated_msec: int = 0
 
 
 func publish(slot: int, held: BlockShape, at: Vector3, orientation: int, quat: Quaternion,
-		is_visible: bool, height: float, now_msec: int) -> void:
+		is_visible: bool, height: float) -> void:
 	slot_id = slot
 	shape = held
 	origin = at
@@ -25,7 +24,6 @@ func publish(slot: int, held: BlockShape, at: Vector3, orientation: int, quat: Q
 	free_quat = quat
 	visible = is_visible
 	height_above_surface = height
-	updated_msec = now_msec
 
 
 func clear() -> void:
