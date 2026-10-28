@@ -67,6 +67,7 @@ def main():
     parent_hygiene(limit)
     stale_blocked(limit)
     stale_in_progress(limit)
+    owner_questions(limit)
     # surface new user replies on Beads at every board scan.
     import user_replies
     user_replies.main([])
@@ -195,6 +196,28 @@ def stale_in_progress(limit):
         print("  " + brief(row))
     if len(stale) > limit:
         print(f"  ... {len(stale) - limit} more")
+
+
+def find_owner_questions(rows, is_owner):
+    """Pure classifier: open issues assigned to the owner (`is_owner(assignee)`) whose title ends
+    in '?' but that are not a decision with the human label, so they never reach the owner's queue."""
+    return [row for row in rows
+            if row.get("status") == "open" and is_owner(row.get("assignee"))
+            and (row.get("title") or "").rstrip().endswith("?")
+            and not (row.get("issue_type") == "decision" and "human" in (row.get("labels") or []))]
+
+
+def owner_questions(limit):
+    """One bd export call; the owner is any assignee user_replies counts as the user (not an agent profile)."""
+    import user_replies
+    found = find_owner_questions(user_replies._export(), user_replies._is_user)
+    if not found:
+        return
+    print(f"owner questions not in the human decision queue (file as decision + label human): {len(found)}")
+    for row in found[:limit]:
+        print("  " + brief(row))
+    if len(found) > limit:
+        print(f"  ... {len(found) - limit} more")
 
 
 if __name__ == "__main__":
