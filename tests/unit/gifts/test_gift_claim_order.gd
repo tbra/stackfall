@@ -73,7 +73,7 @@ func _start(player_count: int, team_ids: PackedInt32Array = PackedInt32Array()) 
 	# Forces an id no committed special matches, so the installed drawer below is not replaced.
 	config.enabled_specials = [&"__no_special_with_this_id_exists__"]
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	if not team_ids.is_empty():
 		config.team_mode = MatchConfig.TeamMode.TEAMS_2
 		config.slot_team_ids = team_ids

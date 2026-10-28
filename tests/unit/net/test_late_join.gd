@@ -85,9 +85,9 @@ func _config(player_count: int, mode: int) -> MatchConfig:
 	config.team_mode = MatchConfig.TeamMode.OFF
 	config.block_timer = 6.0
 	config.rng_seed = 4242
-	# Old gift rule (a claim replaces the next piece); the after-next trial is in test_gift_queue_after_next.gd.
+	# Old gift rule (a claim replaces the next piece); the default after-next rule is in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	config.game_mode = mode
 	config.round_timer_minutes = 5
 	config.allow_mid_match_join = true

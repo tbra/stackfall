@@ -50,7 +50,7 @@ func _config(qol: QolExperiments = null, turn_based: bool = false) -> MatchConfi
 ## The rule where a claimed gift replaces the next piece (the default queues it one block later).
 func _old_gift_rule() -> QolExperiments:
 	var qol: QolExperiments = QolExperiments.new()
-	qol.gift_queue_after_next = false
+	qol.gift_loads_next = true
 	return qol
 
 

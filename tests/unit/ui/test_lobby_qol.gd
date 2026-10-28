@@ -96,26 +96,26 @@ func test_wire_garbage_in_qol_is_ignored_safely() -> void:
 	assert_eq(_flags(lobby), [false, false, false, true], "wrong-typed flags keep the OFF default")
 
 
-# --- Gift-after-next trial chip --------------------------
+# --- Gift-loads-next experiment chip --------------------------
 
-const AFTER_NEXT_CHIP: String = "%QolGiftAfterNextCheck"
+const AFTER_NEXT_CHIP: String = "%QolGiftLoadsNextCheck"
 
 
-func test_the_host_publishes_the_gift_after_next_chip_and_a_client_mirrors_it() -> void:
+func test_the_host_publishes_the_gift_loads_next_chip_and_a_client_mirrors_it() -> void:
 	var host_lobby: Lobby = _make_lobby(true)
-	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = false
+	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = true
 	var calls: Array[Dictionary] = _fake_of(host_lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	var data: Dictionary = calls[0]
-	assert_false(bool((data["qol"] as Dictionary)["gift_queue_after_next"]))
+	assert_true(bool((data["qol"] as Dictionary)["gift_loads_next"]))
 	assert_false(MatchConfig.from_dict(data).qol.gift_after_next_in_force())
 	var client_lobby: Lobby = _make_lobby(false)
 	assert_true(_check(client_lobby, AFTER_NEXT_CHIP).disabled, "read-only for a client")
 	Events.net_lobby_data_changed.emit(data)
-	assert_false(_check(client_lobby, AFTER_NEXT_CHIP).button_pressed, "the client shows the host's choice")
+	assert_true(_check(client_lobby, AFTER_NEXT_CHIP).button_pressed, "the client shows the host's choice")
 	assert_eq(_fake_of(client_lobby).set_lobby_data_calls.size(), 0, "mirroring never re-publishes")
-	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = true
-	assert_true(bool((calls[1]["qol"] as Dictionary)["gift_queue_after_next"]))
+	_check(host_lobby, AFTER_NEXT_CHIP).button_pressed = false
+	assert_false(bool((calls[1]["qol"] as Dictionary)["gift_loads_next"]))
 
 
 # --- Start carries the toggles ------------------------------------------------

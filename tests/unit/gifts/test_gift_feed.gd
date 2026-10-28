@@ -25,9 +25,9 @@ func before_each() -> void:
 	config.sandbox = true
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 5101
-	# Old rule (claim replaces next); the after-next trial is covered in test_gift_queue_after_next.gd.
+	# Old rule (claim replaces next); the default after-next rule is covered in test_gift_queue_after_next.gd.
 	config.qol = QolExperiments.new()
-	config.qol.gift_queue_after_next = false
+	config.qol.gift_loads_next = true
 	Match.start_match(config)
 	for i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):
 		Match._process(1.0 / 60.0)

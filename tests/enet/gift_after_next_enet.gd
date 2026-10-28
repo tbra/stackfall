@@ -1,5 +1,5 @@
 extends Node
-## host + client over real ENet with the gift_queue_after_next trial on (default).
+## host + client over real ENet with the default after-next rule.
 ## The host claims a gift for the client's seat; the client must see it staged as the block AFTER next
 ## (the next piece stays ordinary), then next, then held, as the host issues two blocks. Run via
 ## tools/run_gift_after_next_enet.ps1. Host: --headless-host --expect-peers=2.

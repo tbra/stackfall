@@ -130,10 +130,9 @@ func _fake_topple_counts() -> PackedInt32Array:
 
 func _cell_qol(mask: int) -> QolExperiments:
 	var qol: QolExperiments = QolExperiments.with_toggles(null, mask & BIT_PAUSE != 0, mask & BIT_BACKLOG != 0,
-		mask & BIT_RADIUS != 0, mask & BIT_GIFT != 0)
+		mask & BIT_RADIUS != 0, mask & BIT_GIFT != 0, true)
 	# This harness covers the replace-the-next-piece queue the gift slot is compared with, so it pins the
-	# default-on after-next rule off (the experiments-off cells would otherwise stage the gift one block later).
-	qol.gift_queue_after_next = false
+	# loads-next experiment on (the experiments-off cells would otherwise stage the gift one block later).
 	qol.pause_event_s = PAUSE_EVENT_S
 	qol.pause_tail_s = PAUSE_TAIL_S
 	qol.topple_scan_interval_s = SCAN_INTERVAL_S

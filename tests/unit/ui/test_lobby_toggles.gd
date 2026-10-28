@@ -135,7 +135,7 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 
 
 func _any_toggle_on(qol: QolExperiments) -> bool:
-	return qol.timer_pause_enabled or qol.backlog_enabled or qol.goal_radius_enabled or qol.gift_slot_enabled
+	return qol.timer_pause_enabled or qol.backlog_enabled or qol.goal_radius_enabled or qol.gift_slot_enabled or qol.gift_loads_next
 
 
 func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active() -> void:
@@ -143,6 +143,7 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	await wait_frames(1)
 	(lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGoalRadiusCheck") as UiChipToggle).button_pressed = true
+	(lobby.get_node("%QolGiftLoadsNextCheck") as UiChipToggle).button_pressed = true
 	assert_true(_any_toggle_on(lobby._config_from_controls().qol), "on: the chips apply")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = false
 	var off_config: MatchConfig = lobby._config_from_controls()
@@ -154,6 +155,7 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	assert_true(_any_toggle_on(started.qol), "a published, sanitized config still carries the chips")
 	started.apply_experiments_switch()
 	assert_false(_any_toggle_on(started.qol), "off: no experiment active in the started match")
+	assert_true(started.qol.gift_after_next_in_force(), "off: the gift-loads-next chip falls back to the after-next rule")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	var again: MatchConfig = MatchConfig.from_dict(lobby._config_from_controls().to_dict())
 	again.sanitize()

@@ -48,7 +48,7 @@ var _release_locked: Array[bool] = []
 ## These dictionaries are cleared when a new bag is built or a match resets.
 var _next_gift_shapes: Dictionary = {}
 var _held_is_gift: Dictionary = {}
-## gift_queue_after_next trial: slot -> carrier BlockShape of a
+## after-next rule (off when gift_loads_next, backlog or gift slot is on): slot -> carrier BlockShape of a
 ## claimed gift that is the block AFTER next. It becomes _next_gift_shapes[slot] as
 ## soon as the ordinary next piece is issued. Empty with the trial off.
 var _staged_gift_shapes: Dictionary = {}

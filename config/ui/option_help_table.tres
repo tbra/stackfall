@@ -26,7 +26,7 @@ entries = Dictionary[String, String]({
 "MatchTimerCol": "Optional time limit. Off: the match runs until a team holds every goal. With sudden death on, the arena shrinks when time is up.",
 "MidJoinCol": "Lets players join a match that has already started.",
 "QolBacklogCheck": "Experiment: when the block timer runs out the held piece is queued and you get a fresh one, instead of being dropped.",
-"QolGiftAfterNextCheck": "Trial: a claimed gift becomes the block after next and your next piece stays. Off: it replaces your next piece.",
+"QolGiftLoadsNextCheck": "Experiment: a claimed gift replaces your next piece. Off: it becomes the block after next and your next piece stays.",
 "QolGiftSlotCheck": "Experiment: a claimed gift waits in a slot and is spent with the use-gift action, instead of replacing your next block.",
 "QolGoalRadiusCheck": "Experiment: a goal can be claimed by territory around the flag, not only on the flag cell itself.",
 "QolTimerPauseCheck": "Experiment: the block timer pauses while a special is active or a tower is toppling, so a forced drop cannot land mid-chaos.",
