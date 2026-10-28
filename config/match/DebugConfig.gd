@@ -36,8 +36,16 @@ extends Resource
 
 @export var graph_size: Vector2 = Vector2(260.0, 48.0)
 
-## Overlay layout.
+## Overlay layout (ui/debug/DebugOverlayLayout.gd). `overlay_margin` is the gap between two panels and
+## between a panel and a HUD element. The HUD sizes below are in HUD pixels (the layout multiplies them by the
+## HUD's own scale); they mirror ui/hud/HUD.tscn: the timer ring F1 and F9 flank, and the top-left stats
+## cluster (backplate plus status pill) F9 drops below when it cannot fit between that cluster and the ring.
 @export var overlay_margin: Vector2 = Vector2(12.0, 12.0)
+@export var hud_timer_ring_half_width_px: float = 45.0
+@export var hud_top_left_right_px: float = 400.0
+@export var hud_top_left_bottom_px: float = 320.0
+## Least width of the F9 table panel; its free-text lines wrap to it so it fits beside the timer ring.
+@export var bot_cost_panel_width_px: float = 440.0
 @export var overlay_font_size: int = 13
 
 ## Bot think cost overlay (ui/debug/PerfBotCostOverlay.gd, F9): seconds between table refreshes

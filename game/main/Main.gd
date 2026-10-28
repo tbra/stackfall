@@ -44,8 +44,6 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
-const POSE_OVERLAY_PATH: String = "res://ui/debug/PoseOverlay.tscn"
-const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
 const SOAK_MONITOR_PATH: String = "res://game/debug/SoakMonitor.gd"
 const SOAK_FUZZER_PATH: String = "res://game/debug/SoakIntentFuzzer.gd"
 const SOAK_CONFIG_PATH: String = "res://config/soak/soak_config.tres"
@@ -760,7 +758,7 @@ func _match_flow_port() -> MainMatchFlowPort:
 # --- Debug tools ---------------------------------------------
 
 ## Debug mode only (game/debug/DebugMode.gd): the F1 perf overlay, its sampler and
-## the per-session CSV logger. Lives under Main for the whole session, so it
+## the per-session CSV logger (the round overlays F2/F3/F9 are built per match by game/main/MainMatchFlow.gd). Lives under Main for the whole session, so it
 ## covers menus, lobby, matches and the sandbox alike. Not built (and PerfProbe
 ## stays disabled) for players.
 func _build_debug_tools() -> void:
@@ -775,16 +773,6 @@ func _build_debug_tools() -> void:
 	overlay.config = debug_config
 	overlay.sampler = sampler
 	add_child(overlay)
-	var pose: Node = (load(POSE_OVERLAY_PATH) as PackedScene).instantiate()
-	pose.set(&"config", debug_config)
-	pose.set(&"camera", _camera_rig.get_camera())
-	pose.set(&"field", _field)
-	add_child(pose)
-	# Loaded on demand by path (debug builds only): the bot code behind it stays out of Main's compile closure.
-	var bot_cost_script: GDScript = load(BOT_COST_OVERLAY_PATH) as GDScript
-	var bot_cost: CanvasLayer = bot_cost_script.new() as CanvasLayer
-	bot_cost.set(&"config", debug_config)
-	add_child(bot_cost)
 	var logger: PerfLogger = PerfLogger.new()
 	logger.config = debug_config
 	logger.sampler = sampler

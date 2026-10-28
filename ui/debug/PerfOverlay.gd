@@ -12,6 +12,10 @@ extends CanvasLayer
 
 enum Mode { HIDDEN, BASIC, DETAILED }
 
+## Loaded by path and called by name: Main builds this overlay, and naming the layout class here would pull
+## it into Main's compile closure (tools/lint_layers.py).
+const LAYOUT_SCRIPT_PATH: String = "res://ui/debug/DebugOverlayLayout.gd"
+
 var sampler: PerfSampler = null
 var config: DebugConfig = null
 
@@ -19,6 +23,7 @@ var _mode: Mode = Mode.HIDDEN
 var _panel: PanelContainer = null
 var _label: Label = null
 var _graph: _PerfGraph = null
+var _layout: GDScript = null
 
 
 func _ready() -> void:
@@ -26,6 +31,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if config == null:
 		config = DebugConfig.new()
+	_layout = load(LAYOUT_SCRIPT_PATH) as GDScript
 	_build()
 	_apply_mode()
 	if sampler != null:
@@ -68,12 +74,8 @@ func _build() -> void:
 	style.set_content_margin_all(float(arcade.space_2_px))
 	style.set_corner_radius_all(arcade.radius_chip_px)
 	_panel.add_theme_stylebox_override(&"panel", style)
-	# Top-right corner; grows left/down from the anchor.
-	_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_panel.offset_right = -config.overlay_margin.x
-	_panel.offset_top = config.overlay_margin.y
 	add_child(_panel)
+	_place()
 	var box: VBoxContainer = VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(box)
@@ -88,6 +90,16 @@ func _build() -> void:
 	_graph.custom_minimum_size = config.graph_size
 	_graph.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(_graph)
+
+
+## Top band, right of the HUD's timer ring (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
+func _place() -> void:
+	_layout.call(&"place_beside_centre", _panel, false, config)
+
+
+func _process(_delta: float) -> void:
+	if _mode != Mode.HIDDEN:
+		_place()
 
 
 func _apply_mode() -> void:

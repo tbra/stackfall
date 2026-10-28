@@ -73,9 +73,16 @@ func _apply_visibility(shown: bool) -> void:
 		BotThinkCostCollector.disable()
 
 
+## Top band, left of the HUD's timer ring, or under the stats cluster on a narrow canvas
+## (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
+func _place() -> void:
+	DebugOverlayLayout.place_bot_cost(_panel, config)
+
+
 func _process(delta: float) -> void:
 	if not is_shown():
 		return
+	_place()
 	if not DebugMode.is_enabled():
 		set_shown(false)
 		return
@@ -237,6 +244,13 @@ func _make_label() -> Label:
 	return label
 
 
+## A free-text line: wraps to the panel's width instead of stretching it past the timer ring.
+func _make_wrapping_label() -> Label:
+	var label: Label = _make_label()
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
+
+
 func _build() -> void:
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -246,22 +260,20 @@ func _build() -> void:
 	style.set_content_margin_all(float(arcade.space_2_px))
 	style.set_corner_radius_all(arcade.radius_chip_px)
 	_panel.add_theme_stylebox_override(&"panel", style)
-	# Top-left corner (F1 owns the top-right); grows right/down from the anchor.
-	_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	_panel.offset_left = config.overlay_margin.x
-	_panel.offset_top = config.overlay_margin.y
+	_panel.custom_minimum_size.x = config.bot_cost_panel_width_px
 	add_child(_panel)
+	_place()
 	var box: VBoxContainer = VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_panel.add_child(box)
-	_header = _make_label()
+	_header = _make_wrapping_label()
 	box.add_child(_header)
-	_status = _make_label()
+	_status = _make_wrapping_label()
 	box.add_child(_status)
 	_grid = GridContainer.new()
 	_grid.columns = COLUMN_COUNT
 	_grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_grid.add_theme_constant_override(&"h_separation", config.bot_cost_column_gap_px)
 	box.add_child(_grid)
-	_footer = _make_label()
+	_footer = _make_wrapping_label()
 	box.add_child(_footer)
