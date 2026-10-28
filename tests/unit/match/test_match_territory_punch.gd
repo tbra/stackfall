@@ -59,8 +59,7 @@ func test_punch_special_hole_spares_a_home_flag_in_permanent_mode() -> void:
 # _finish_match() only sets State.END (autoload/match/MatchLifecycle.gd);
 # nothing tears the raster down or stops a SpecialEffect's physics_tick(), so
 # a Jumping Bean still hopping after a natural win could otherwise still
-# punch a hole under a still-alive slot's home flag on the winning team and
-# eliminate it after the match is already decided. Mirrors
+# punch holes after the match is already decided. Mirrors
 # MatchPlacement.spawn_special_projectile()'s own State.PLAYING guard.
 func test_punch_special_hole_is_a_noop_after_the_match_has_ended() -> void:
 	Match.start_match(_real_time_config(MatchConfig.HoleMode.TEMPORARY))
@@ -74,7 +73,9 @@ func test_punch_special_hole_is_a_noop_after_the_match_has_ended() -> void:
 	var home1: Vector2 = Match.slot(1).home_position
 	Match.punch_special_hole(home1, 2.0, 2.0)
 
-	var cell: Vector2i = Match.cell_grid().world_to_cell(home1)
+	# A neighbour of the home cell: the home cell itself is never punched, so only it proves the guard.
+	var cell: Vector2i = Match.cell_grid().world_to_cell(home1) + Vector2i(-1, 0)
+	assert_true(Match.cell_grid().is_in_disk(cell.x, cell.y), "Setup: the neighbour cell is on the disc.")
 	assert_false(Match.raster().is_hole(cell.x, cell.y),
 		"A punch after State.END must not open a hole at all.")
 	assert_true(Match.slot(1).home_flag_alive,

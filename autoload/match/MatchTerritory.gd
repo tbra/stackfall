@@ -991,4 +991,3 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 	_force_dirty = true
 	if opened.size() > 0:
 		Events.hole_cells_changed.emit(opened, PackedInt32Array())
-
