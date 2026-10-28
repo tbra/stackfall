@@ -95,6 +95,8 @@ const _MASK_KEY_SCALE: float = 1000.0
 const FOOTPRINT_MASK_PIXELS_PER_METER: float = 8.0
 const FOOTPRINT_MASK_MAX_PIXELS: int = 96
 const _MIN_POLYGON_POINTS: int = 3
+## A hit normal flatter than this (never a real disc) is treated as level, so the shear never divides by ~0.
+const _MIN_PLANE_NORMAL_Y: float = 0.1
 const _UNDERSIDE_CONTACT_EPSILON: float = 1e-4
 
 ## The 8 corner signs of a unit box centred on its own local position, used by
@@ -147,6 +149,10 @@ var _floors_frame: int = _FLOORS_NEVER
 ## shape overhanging the disk's edge). sync_remote_position() never updates it,
 ## since a remote ghost has no local surface point.
 var _last_surface_point: Vector3 = Vector3.ZERO
+## The live disc plane under the hull centroid (point + normal), from the last
+## _update_footprint(); level at the _last_surface_point fallback on a miss.
+var _plane_point: Vector3 = Vector3.ZERO
+var _plane_normal: Vector3 = Vector3.UP
 
 var _material: ShaderMaterial
 var _hatch_texture: ImageTexture
@@ -473,15 +479,15 @@ func _apply_rotation() -> void:
 	basis = Basis(free_quaternion) * base_basis
 
 
-## Called every frame by PlayerController with the disk surface point/normal
+## Called every frame by PlayerController with the disk surface point
 ## straight under the cursor (a raycast that skips placed blocks, so this is
 ## always the bare disk). Positions the ghost so the *rotated* held shape's
-## lowest point sits at hover height above that surface (Y only), and so the
+## lowest point sits at hover height straight above (world up) that point, and so the
 ## *rotated* shape's own geometric centre column sits over the cursor's XZ (see
 ## rotated_center_offset()), then refreshes the footprint projection.
-func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
+func update_placement(surface_point: Vector3) -> void:
 	var hover: float = tuning.hover_height + manual_hover_offset
-	var anchor: Vector3 = surface_point + surface_normal * hover
+	var anchor: Vector3 = surface_point + Vector3.UP * hover
 	var bottom_offset: float = _rotated_bottom_offset()
 	var center_offset: Vector3 = rotated_center_offset()
 	global_position = Vector3(
@@ -489,6 +495,11 @@ func update_placement(surface_point: Vector3, surface_normal: Vector3) -> void:
 	) + _reject_offset
 	_last_surface_point = surface_point
 	_update_footprint()
+
+
+## World Y of the live disc plane (_plane_point/_plane_normal) at world (x, z).
+func _disc_y_at(x: float, z: float) -> float:
+	return _plane_point.y - (_plane_normal.x * (x - _plane_point.x) + _plane_normal.z * (z - _plane_point.z)) / _plane_normal.y
 
 
 ## How high the held shape's own lowest point hovers above the disk surface
@@ -618,8 +629,18 @@ func _update_footprint() -> void:
 	else:
 		landing_y = (hit["position"] as Vector3).y
 		landing_normal = hit["normal"] as Vector3
+	_plane_point = Vector3(world_x, landing_y, world_z)
+	_plane_normal = landing_normal if landing_normal.y > _MIN_PLANE_NORMAL_Y else Vector3.UP
 
-	_footprint_quads[0].global_position = Vector3(world_x, landing_y, world_z) + landing_normal * ghost_tuning.footprint_offset
+	# The flat world-XZ mesh is sheared onto the tilted plane so it follows the
+	# vertical drop the block will make; the offset is along world up.
+	var shear: Basis = Basis(
+		Vector3(1.0, -_plane_normal.x / _plane_normal.y, 0.0), Vector3.UP,
+		Vector3(0.0, -_plane_normal.z / _plane_normal.y, 1.0)
+	)
+	_footprint_quads[0].global_transform = Transform3D(
+		shear, _plane_point + Vector3.UP * ghost_tuning.footprint_offset
+	)
 	# The quad follows the rendered silhouette (the union of every cell's
 	# footprint), so concave shapes (plus5, u5, corner4...) don't show their
 	# convex hull. The hull stays the bounding/test polygon.
@@ -628,25 +649,28 @@ func _update_footprint() -> void:
 	var world_hull: PackedVector2Array = PackedVector2Array()
 	for point: Vector2 in hull:
 		world_hull.append(Vector2(global_position.x + point.x, global_position.z + point.y))
+	var lowest_y: float = INF
+	for world_point: Vector2 in world_hull:
+		lowest_y = minf(lowest_y, _disc_y_at(world_point.x, world_point.y))
 
-	_update_projection_mesh(landing_y)
-	_update_block_projection_decal(world_hull, landing_y)
+	_update_projection_mesh(lowest_y)
+	_update_block_projection_decal(world_hull, lowest_y)
 	_apply_projection_visibility()
 
 
 ## The mesh walls the merged rendered silhouette (_shape_silhouette_loops())
-## from a shared wall_bottom_y up to the shape's own underside along the outline
+## from the live disc under each piece up to the shape's own underside along the outline
 ## (the cached pieces from GhostSilhouette.build(), re-emitted at this frame's
 ## height). The prism collapses when the whole shape's top (_rotated_top_offset())
 ## is within ghost_tuning.footprint_offset of the disc, or below it; a shape
 ## resting on the ground draws no wall at all (no mesh).
-func _update_projection_mesh(landing_y: float) -> void:
+func _update_projection_mesh(lowest_y: float) -> void:
 	if _shape == null or _shape.cells.is_empty():
 		_clear_projection_mesh()
 		return
 
 	var whole_top_y: float = global_position.y + _rotated_top_offset()
-	if whole_top_y - landing_y <= ghost_tuning.footprint_offset:
+	if whole_top_y - lowest_y <= ghost_tuning.footprint_offset:
 		# The whole shape's own top is at or below the ground -- nothing to show.
 		_clear_projection_mesh()
 		return
@@ -663,14 +687,13 @@ func _update_projection_mesh(landing_y: float) -> void:
 	var uvs: PackedVector2Array = PackedVector2Array()
 	var indices: PackedInt32Array = PackedInt32Array()
 
-	# Every wall bottoms out ghost_tuning.footprint_offset above `landing_y`, the
-	# same epsilon the footprint quad uses above the disc, so the wall's
-	# ground-contact edge never Z-fights the disc's collision mesh at `landing_y`.
-	var wall_bottom_y: float = landing_y + ghost_tuning.footprint_offset
+	# Every wall bottoms out ghost_tuning.footprint_offset above the live disc under
+	# its piece, the same epsilon the footprint quad uses, so the ground-contact
+	# edge never Z-fights the disc's collision mesh.
 	# Re-emit the cached underside walls at this frame's own height -- the only
 	# per-frame work (see _silhouette's own doc comment).
 	var origin_y: float = global_position.y
-	var floors: PackedFloat64Array = _piece_floors(wall_bottom_y)
+	var floors: PackedFloat64Array = _piece_floors(lowest_y)
 	for i: int in range(_silhouette.wall_heights.size()):
 		var heights: Vector2 = _silhouette.wall_heights[i]
 		# Stop each piece on whatever is under it (a placed tower's top face,
@@ -703,21 +726,23 @@ func _update_projection_mesh(landing_y: float) -> void:
 ## Per-piece wall floors (world Y). Re-cast only when the ghost pose, wall set or
 ## disc-level floor changed, or every _FLOOR_RECAST_FRAMES physics frames (a
 ## tower may have grown), so a held still ghost costs no rays.
-func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
+func _piece_floors(lowest_y: float) -> PackedFloat64Array:
 	var frame: int = Engine.get_physics_frames()
 	if _floors_shape == _shape and _floors_position.is_equal_approx(global_position) \
-			and _floors_basis.is_equal_approx(basis) and is_equal_approx(_floors_bottom, wall_bottom_y) \
+			and _floors_basis.is_equal_approx(basis) and is_equal_approx(_floors_bottom, lowest_y) \
 			and _floors.size() == _silhouette.wall_heights.size() and frame - _floors_frame < _FLOOR_RECAST_FRAMES:
 		return _floors
 	_floors_shape = _shape
 	_floors_position = global_position
 	_floors_basis = basis
-	_floors_bottom = wall_bottom_y
+	_floors_bottom = lowest_y
 	_floors_frame = frame
 	_floors = PackedFloat64Array()
 	for i: int in range(_silhouette.wall_heights.size()):
 		var heights: Vector2 = _silhouette.wall_heights[i]
-		_floors.append(_piece_floor_y(_silhouette.probes[i], global_position.y + minf(heights.x, heights.y), wall_bottom_y))
+		var probe: Vector2 = _silhouette.probes[i]
+		var disc_floor_y: float = _disc_y_at(global_position.x + probe.x, global_position.z + probe.y) 				+ ghost_tuning.footprint_offset
+		_floors.append(_piece_floor_y(probe, global_position.y + minf(heights.x, heights.y), disc_floor_y))
 	return _floors
 
 
@@ -725,7 +750,7 @@ func _piece_floors(wall_bottom_y: float) -> PackedFloat64Array:
 ## first settled collider (placed sleeping block or disc; loose/falling blocks
 ## are skipped so the bottom never flickers; gifts are Areas and never hit)
 ## straight below `from_y`, plus footprint_offset against z-fighting, never
-## lower than `floor_y` (the disc-level wall bottom).
+## lower than `floor_y` (the live disc under the piece, plus footprint_offset).
 func _piece_floor_y(probe: Vector2, from_y: float, floor_y: float) -> float:
 	if not is_inside_tree() or from_y <= floor_y:
 		return floor_y
@@ -767,14 +792,15 @@ func _clear_projection_mesh() -> void:
 ## (world-space X/Z, the same hull _update_footprint() built the flat footprint
 ## from), projecting straight down from the ghost's current underside
 ## (_rotated_bottom_offset() -- deliberately not any higher, so the decal's
-## volume never overlaps the held ghost's rendered body) down to `landing_y`.
+## volume never overlaps the held ghost's rendered body) down to `lowest_y`, the
+## lowest live-disc point under the hull.
 ## The disc lives on TerritoryOverlay.DISC_LAYER_BIT and _ready() strips that bit
 ## from the decal's cull_mask: painting the disc speckled it.
-func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: float) -> void:
+func _update_block_projection_decal(world_hull: PackedVector2Array, lowest_y: float) -> void:
 	if _block_projection_decal == null:
 		return
 	var top_y: float = global_position.y + _rotated_bottom_offset()
-	if top_y - landing_y <= 0.001:
+	if top_y - lowest_y <= 0.001:
 		_hide_block_projection_decal()
 		return
 
@@ -795,8 +821,8 @@ func _update_block_projection_decal(world_hull: PackedVector2Array, landing_y: f
 	_block_projection_decal.upper_fade = _decal_fade()
 	_block_projection_decal.lower_fade = _decal_fade()
 	_block_projection_decal.normal_fade = ghost_tuning.block_projection_normal_fade
-	_block_projection_decal.size = Vector3(size_x, top_y - landing_y, size_z)
-	_block_projection_decal.global_position = Vector3(center_x, (top_y + landing_y) * 0.5, center_z)
+	_block_projection_decal.size = Vector3(size_x, top_y - lowest_y, size_z)
+	_block_projection_decal.global_position = Vector3(center_x, (top_y + lowest_y) * 0.5, center_z)
 	_block_projection_decal.modulate = Color(
 		ghost_tuning.block_projection_color.r, ghost_tuning.block_projection_color.g,
 		ghost_tuning.block_projection_color.b, ghost_tuning.block_projection_alpha

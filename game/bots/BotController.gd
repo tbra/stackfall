@@ -698,8 +698,9 @@ func _home_position() -> Vector2:
 	return slot.home_position if slot != null else Vector2.ZERO
 
 
-## The straight-down raycast Field.raycast_down_disk_local() uses (map_def.cell_wake_height down to
-## tuning.kill_plane_y), keeping the hit's disk-local height. `{}` only with no Field or physics
+## The disk-normal column Field.raycast_disk_column() casts (map_def.cell_wake_height down to
+## tuning.kill_plane_y). Field.raycast_down_disk_local() (host judgement) is world-down instead, so on a
+## tilted disc the two differ by hover * tan(tilt); keeping the hit's disk-local height. `{}` only with no Field or physics
 ## world; a genuine miss reports `"hit": false` with the disk-surface fallback height 0.0. Only a
 ## support estimate: MatchPlacement.request_place() is the sole authority on legality.
 func _raycast_support_height(local_xz: Vector2) -> Dictionary:

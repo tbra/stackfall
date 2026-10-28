@@ -36,8 +36,8 @@ func before_each() -> void:
 	_ghost.set_shape(load(CUBE_PATH) as BlockShape)
 	_body = autofree(RigidBody3D.new())
 	_clearance = _make_clearance(_ghost)
-	_clearance.set_surface(Vector3.ZERO, Vector3.UP)
-	_ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	_clearance.set_surface(Vector3.ZERO)
+	_ghost.update_placement(Vector3.ZERO)
 
 
 func _make_clearance(ghost: GhostPreview) -> SpawnClearance:
@@ -154,8 +154,8 @@ func test_spawn_without_a_shape_does_not_raise() -> void:
 
 
 func test_spawn_poses_from_the_surface_it_was_given() -> void:
-	_clearance.set_surface(SURFACE_POINT, Vector3.UP)
-	_ghost.update_placement(SURFACE_POINT, Vector3.UP)
+	_clearance.set_surface(SURFACE_POINT)
+	_ghost.update_placement(SURFACE_POINT)
 	var top: float = 2.0
 	_need = top - _physics.hover_height
 	_spawn_now()

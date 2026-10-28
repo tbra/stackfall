@@ -324,16 +324,20 @@ func is_hole_cell(index: int) -> bool:
 
 
 ## The ruleset's one physics query: a raycast straight down from the middle of
-## the ghost block, from `map_def.cell_wake_height` above the disk to
-## `tuning.kill_plane_y`, against the disk and every resting block. Returns the
-## hit as disk-local (x, z), or null on a miss. Only the (x, z) of `world_origin`
-## is read, and the heights go through world_from_disk_local(), so it stays
-## correct while the disk tilts.
+## the ghost block, from `map_def.cell_wake_height` above the live disk under it
+## down to `tuning.kill_plane_y`, against the disk and every resting block. The
+## column is world-vertical (the way the block drops), not along the disk normal.
+## Returns the hit as disk-local (x, z), or null on a miss. Only the (x, z) of
+## `world_origin` is read.
 func raycast_down_disk_local(world_origin: Vector3) -> Variant:
 	var space: PhysicsDirectSpaceState3D = direct_space()
 	if space == null:
 		return null
-	var hit: Dictionary = raycast_disk_column(space, disk_local_from_world(world_origin))
+	var start: Vector3 = Vector3(
+		world_origin.x, surface_height_at(world_origin) + map_def.cell_wake_height, world_origin.z
+	)
+	var end: Vector3 = Vector3(world_origin.x, global_position.y + tuning.kill_plane_y, world_origin.z)
+	var hit: Dictionary = _cast_placement_ray(space, start, end)
 	if hit.is_empty():
 		return null
 	return disk_local_from_world(hit["position"] as Vector3)
@@ -349,11 +353,18 @@ func direct_space() -> PhysicsDirectSpaceState3D:
 	return world.direct_space_state
 
 
-## The straight-down column ray at disk-local `local_xz` (PLACEMENT_QUERY_MASK,
-## bodies only): the raw intersect_ray() dictionary, empty on a miss.
+## The column ray at disk-local `local_xz`, along the disk normal (PLACEMENT_QUERY_MASK,
+## bodies only): the raw intersect_ray() dictionary, empty on a miss. Bots use this.
+# SHORTCUT: a bot's disk-normal column differs from the host's world-down judgement by its hover * tan(tilt), upgrade when a bot is refused on a tilted disc.
 func raycast_disk_column(space: PhysicsDirectSpaceState3D, local_xz: Vector2) -> Dictionary:
-	var start: Vector3 = world_from_disk_local(local_xz, map_def.cell_wake_height)
-	var end: Vector3 = world_from_disk_local(local_xz, tuning.kill_plane_y)
+	return _cast_placement_ray(
+		space,
+		world_from_disk_local(local_xz, map_def.cell_wake_height),
+		world_from_disk_local(local_xz, tuning.kill_plane_y)
+	)
+
+
+func _cast_placement_ray(space: PhysicsDirectSpaceState3D, start: Vector3, end: Vector3) -> Dictionary:
 	var params: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(start, end)
 	params.collide_with_bodies = true
 	params.collide_with_areas = false
