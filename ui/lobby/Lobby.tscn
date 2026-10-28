@@ -305,6 +305,15 @@ script = ExtResource("9_toggle")
 layout_mode = 2
 caption = "Sudden death"
 
+[node name="SuddenDeathSecondsStepper" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow/SuddenDeathCol"]
+unique_name_in_owner = true
+script = ExtResource("10_stepper")
+layout_mode = 2
+min_value = 30
+max_value = 300
+step = 30
+value = 120
+
 [node name="BlockTimerGroup" type="HBoxContainer" parent="Margin/Layout/Columns/SettingsCard/SettingsCardLayout/SettingsScroll/Settings/RoundSection/Body/RoundRow"]
 script = ExtResource("8_row")
 layout_mode = 2
