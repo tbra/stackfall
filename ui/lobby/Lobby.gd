@@ -151,6 +151,8 @@ var _special_frequency_value: int = 0
 ## the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
 @onready var _sky_theme_option: UiCycler = %SkyThemeOption
 @onready var _sudden_death_check: UiToggle = %SuddenDeathCheck
+## Sudden-death length in seconds (MatchConfig.SUDDEN_DEATH_*), shown beside the toggle.
+@onready var _sudden_death_seconds_stepper: UiStepper = %SuddenDeathSecondsStepper
 @onready var _turn_based_check: UiToggle = %TurnBasedCheck
 ## host-only toggle for MatchConfig.allow_mid_match_join.
 @onready var _mid_join_check: UiToggle = %MidJoinCheck
@@ -321,8 +323,8 @@ func _ready() -> void:
 		_disc_size_meter, _player_count_spin, _ai_count_spin,
 		_ai_difficulty_option, _team_mode_option, _block_timer_stepper, _gravity_meter,
 		_goal_flag_stepper, _gifts_check, _experiments_check, _special_freq_meter, _tilt_mode_option,
-		_hole_mode_option, _match_timer_stepper, _sudden_death_check, _turn_based_check,
-		_mid_join_check,
+		_hole_mode_option, _match_timer_stepper, _sudden_death_check, _sudden_death_seconds_stepper,
+		_turn_based_check, _mid_join_check,
 	]
 	_settings_controls.append(_weather_option)
 	_settings_controls.append(_sky_theme_option)
@@ -442,6 +444,11 @@ func _configure_timer_steppers() -> void:
 	# An unchanged value emits no signal, so seed what _on_timer_stepper_changed() compares against.
 	_timer_previous_minutes[_match_timer_stepper] = _match_timer_stepper.value
 	_timer_previous_minutes[_round_timer_stepper] = _round_timer_stepper.value
+	_sudden_death_seconds_stepper.min_value = MatchConfig.SUDDEN_DEATH_MIN_SECONDS
+	_sudden_death_seconds_stepper.max_value = MatchConfig.SUDDEN_DEATH_MAX_SECONDS
+	_sudden_death_seconds_stepper.step = MatchConfig.SUDDEN_DEATH_STEP_SECONDS
+	_sudden_death_seconds_stepper.formatter = BeaconTimerText.clock
+	_sudden_death_seconds_stepper.set_value_silent(MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
 
 
 ## block timer (half-second steps between MatchConfig's bounds), goal flags,
@@ -659,7 +666,8 @@ func _wire_focus_chain() -> void:
 	]
 	chain.append_array(_section_chain(_game_section, game_main, game_advanced))
 	var round_main: Array[Control] = [
-		_round_timer_stepper, _match_timer_stepper, _sudden_death_check, _block_timer_stepper, _goal_flag_stepper,
+		_round_timer_stepper, _match_timer_stepper, _sudden_death_check, _sudden_death_seconds_stepper, _block_timer_stepper,
+		_goal_flag_stepper,
 		_sky_team_sum_check,
 	]
 	chain.append_array(_section_chain(_round_section, round_main, []))
@@ -961,6 +969,7 @@ func _connect_control_signals() -> void:
 	_gifts_check.toggled.connect(_on_toggled)
 	_experiments_check.toggled.connect(_on_toggled)
 	_sudden_death_check.toggled.connect(_on_toggled)
+	_sudden_death_seconds_stepper.value_changed.connect(_on_stepper_changed)
 	_turn_based_check.toggled.connect(_on_toggled)
 	_mid_join_check.toggled.connect(_on_toggled)
 	for qol_check: UiChipToggle in _qol_checks:
@@ -1342,6 +1351,7 @@ func _refresh_master_toggles() -> void:
 	_special_freq_group.modulate.a = 1.0 if gifts_on else MenuStyleFactory.arcade_tuning().disabled_alpha
 	_special_freq_meter.focus_mode = Control.FOCUS_ALL if gifts_on else Control.FOCUS_NONE
 	_gifts_section.set_advanced_enabled(gifts_on)
+	_update_host_only_state()
 	_experiments_group.visible = _experiments_check.button_pressed
 	_rewire_focus()
 
@@ -1397,6 +1407,7 @@ func _config_from_controls() -> MatchConfig:
 	config.round_timer_minutes = _round_timer_stepper.value
 	config.sky_team_sum = _sky_team_sum_check.button_pressed
 	config.sudden_death = _sudden_death_check.button_pressed
+	config.sudden_death_seconds = _sudden_death_seconds_stepper.value
 	config.turn_based = _turn_based_check.button_pressed
 	config.allow_mid_match_join = _mid_join_check.button_pressed
 	config.enabled_specials = _enabled_specials_from_checkboxes()
@@ -1499,6 +1510,7 @@ func _apply_data(data: Dictionary) -> void:
 	_toggle_silent(_sky_team_sum_check, config.sky_team_sum)
 	_refresh_sky_controls()
 	_toggle_silent(_sudden_death_check, config.sudden_death)
+	_sudden_death_seconds_stepper.set_value_silent(config.sudden_death_seconds)
 	_toggle_silent(_turn_based_check, config.turn_based)
 	_toggle_silent(_mid_join_check, config.allow_mid_match_join)
 	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
@@ -1835,7 +1847,12 @@ func _build_join_code_row() -> void:
 func _update_host_only_state() -> void:
 	var is_host: bool = net_provider != null and bool(net_provider.is_host())
 	for control: Control in _settings_controls:
-		_set_control_editable(control, is_host and (control != _special_freq_meter or _gifts_check.button_pressed))
+		# DECISION: the sudden-death length stepper is read-only while the Sudden death toggle is off (host and non-host).
+		var governed_on: bool = (
+			(control != _special_freq_meter or _gifts_check.button_pressed)
+			and (control != _sudden_death_seconds_stepper or _sudden_death_check.button_pressed)
+		)
+		_set_control_editable(control, is_host and governed_on)
 	_players_panel.set_editable(is_host)
 	# A start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when

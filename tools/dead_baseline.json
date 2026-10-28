@@ -445,6 +445,11 @@
   },
   {
    "id": "test-only-func",
+   "entry": "core/rules/ClassicObjective.gd:latched_team",
+   "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
+  },
+  {
+   "id": "test-only-func",
    "entry": "core/weather/BreezeField.gd:gust_accel",
    "reason": "BreezeEffect.gd:220"
   },

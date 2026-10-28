@@ -47,7 +47,8 @@ func test_match_timer_at_zero_enters_sudden_death_only_when_configured() -> void
 	Match._process(0.1)
 
 	assert_eq(Match.state(), Match.State.SUDDEN_DEATH, "the timer hitting zero with sudden_death on transitions")
-	assert_almost_eq(Match.match_timer_left(), 0.0, 0.0001)
+	assert_almost_eq(Match.match_timer_left(), float(config.sudden_death_seconds), 0.0001,
+		"sudden death runs on its own clock, started at the configured length")
 
 
 # --- Match._process()'s SUDDEN_DEATH branch (regression against the audit --

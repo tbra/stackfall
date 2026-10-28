@@ -371,7 +371,7 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	var goal: BotModeGoal = BotModeGoal.new()
 	goal.mode = _objective.mode_id()
 	if _objective is ClassicObjective:
-		_fill_classic_goals(goal, slot_id)
+		_fill_classic_goals(goal, slot_id, _objective as ClassicObjective)
 	if _objective is CaptureFlagObjective:
 		var own_team: int = _match.team_of(slot_id)
 		goal.beacon_positions = PlayerSlot.goal_positions_for(
@@ -423,7 +423,7 @@ func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
 
 ## classic multi-goal context (left empty for a single goal so
 ## classic scoring stays exactly as before).
-func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
+func _fill_classic_goals(goal: BotModeGoal, slot_id: int, classic: ClassicObjective) -> void:
 	if _raster == null:
 		return
 	var positions: PackedVector2Array = PlayerSlot.goal_positions_for(
@@ -447,8 +447,11 @@ func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
 			if _raster.group_at(cell.x, cell.y) == home_group:
 				component_points.append(grid.index_center(index))
 	var in_home_group: Array[bool] = []
-	for point: Vector2 in positions:
-		in_home_group.append(home_group >= 0 and _raster.group_at_point(point) == home_group)
+	var own_team: int = _match.team_of(slot_id)
+	for i: int in positions.size():
+		# A goal already latched to our team counts as held, so the bot moves on.
+		var latched_own: bool = classic.latched_team(i) == own_team
+		in_home_group.append(latched_own or (home_group >= 0 and _raster.group_at_point(positions[i]) == home_group))
 	goal.target_goal_index = BotModeGoal.next_goal_index(positions, in_home_group, component_points, home)
 
 
