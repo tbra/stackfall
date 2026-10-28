@@ -115,6 +115,15 @@ class DispatchPrepTest(unittest.TestCase):
         self.assertIn("python tools/scratch.py path Bontago-123", brief)
         self.assertTrue(brief.endswith("- Pair: P1t in work/wt/p1t.\n"))
 
+    def test_rpc_surface_files_get_the_contract_note_once(self):
+        no_git = lambda cmd, stdin_text=None: (1, "", "")
+        text = "Bead: Bontago-123 (fix).\n"
+        for files in ("autoload/Net.gd,core/a.gd", "core/a.gd, net/Lobby.gd", "core/net/Wire.gd"):
+            brief = dispatch_prep.compose_brief(self.args(files=files, checkout="wt", note=[]), no_git, text=text)
+            self.assertEqual(brief.count("is on the RPC surface"), 1, files)
+        brief = dispatch_prep.compose_brief(self.args(files="core/a.gd,ui/net_panel.gd", checkout="wt", note=[]), no_git, text=text)
+        self.assertNotIn("is on the RPC surface", brief)
+
     def test_package_without_a_placeholder_keeps_its_first_line(self):
         package = os.path.join(self.scratch, "P2.md")
         with open(package, "w", encoding="utf-8") as handle:

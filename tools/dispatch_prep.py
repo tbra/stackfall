@@ -10,7 +10,8 @@ Usage:
 With --package the brief is composed here, so the orchestrator never writes it inline: the
 package brief (its `Bead: new` / placeholder line gets the bead id), then a Dispatch block from
 DISPATCH_TEMPLATE with the checkout, its branch and short HEAD, the bead's prior commits on main,
-the scratchpad and the machine and handback rules, then each --note line; a hand-written stdin brief gets the same block. The Agent prompt then
+the scratchpad and the machine and handback rules, one RPC-contract note when a --files entry is on the RPC
+surface (the res:// paths in tests/support/RpcSurface.gd, read at run time, or anything under net/ or core/net/), then each --note line; a hand-written stdin brief gets the same block. The Agent prompt then
 only names the printed brief path.
 
 Steps: save the brief under the bead's scratchpad; ask tools/route_model.py for the verdict;
@@ -23,6 +24,7 @@ model to pass in the Agent call; exit 1 names the failed step.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -56,6 +58,26 @@ Dispatch (filled in by tools/dispatch_prep.py):
 PLACEHOLDER_BEADS = ("Bead: <bead id assigned by the orchestrator>", "Bead: new")
 
 
+RPC_SURFACE_FILE = os.path.join("tests", "support", "RpcSurface.gd")
+RPC_PREFIXES = ("net/", "core/net/")
+RPC_NOTE = ("An owned file is on the RPC surface: run test_rpc_contract with the package checks; an intended wire "
+            "change follows the VERSION-BUMP POLICY in tests/unit/net/test_rpc_contract.gd and is named in the "
+            "handback (the orchestrator bumps application/config/version).")
+
+
+def touches_rpc_surface(files, root=ROOT):
+    """True when a comma-separated --files entry is a script RpcSurface.gd lists or lives under net/ or core/net/."""
+    try:
+        with open(os.path.join(root, RPC_SURFACE_FILE), encoding="utf-8") as handle:
+            surface = set(re.findall(r"res://[^\"\s]+", handle.read()))
+    except OSError:
+        surface = set()
+    for entry in (f.strip().replace("\\", "/") for f in (files or "").split(",")):
+        if entry and ("res://" + entry in surface or entry.startswith(RPC_PREFIXES)):
+            return True
+    return False
+
+
 def _git(runner, checkout, *argv):
     code, out, _err = runner(["git", "-C", checkout] + list(argv))
     return out.strip() if code == 0 else ""
@@ -78,7 +100,8 @@ def compose_brief(args, runner=run, text=None):
         branch=_git(runner, checkout, "rev-parse", "--abbrev-ref", "HEAD") or "?",
         base=_git(runner, checkout, "rev-parse", "--short", "HEAD") or "?",
         prior="; ".join(prior) if prior else "none")
-    return package + block + "".join("- %s\n" % note for note in args.note)
+    rpc = "- %s\n" % RPC_NOTE if touches_rpc_surface(getattr(args, "files", "")) else ""
+    return package + block + rpc + "".join("- %s\n" % note for note in args.note)
 
 
 def prepare(args, brief, runner=run):
