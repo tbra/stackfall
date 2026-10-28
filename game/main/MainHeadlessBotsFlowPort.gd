@@ -6,3 +6,8 @@ extends MainFlowPort
 
 func start_match_with_args(_args: PackedStringArray) -> void:
 	pass
+
+
+## Tears down the report timer and block_placed hookup; a no-op when none started.
+func stop_diagnostics() -> void:
+	pass
