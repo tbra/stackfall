@@ -677,9 +677,10 @@ func _connect_row(row: LobbySeatRow) -> void:
 ## lane by lane). _player_rows is always the visual order, which is also the focus order.
 func _place_rows(built: Array[LobbySeatRow]) -> void:
 	var style: int = LobbySeatVariants.current()
+	if LobbySeatVariants.is_tiles(style):
+		_place_tiles(built, style)
+		return
 	match style:
-		LobbySeatVariants.Style.TILES:
-			_place_tiles(built)
 		LobbySeatVariants.Style.BOARD:
 			_place_board(built)
 		_:
@@ -709,10 +710,22 @@ func _add_table_header() -> void:
 
 
 ## TILES: `seat_tile_columns` equal columns, tiles dealt across in row-major order.
-func _place_tiles(built: Array[LobbySeatRow]) -> void:
+func _place_tiles(built: Array[LobbySeatRow], style: int) -> void:
 	var grid: UiGrid = UiGrid.new()
 	grid.name = "TileGrid"
 	grid.columns = maxi(layout_tuning.seat_tile_columns, 1)
+	if style == LobbySeatVariants.Style.TILES_BIG:
+		# balanced rows: as many columns as the fewest rows need, so a small roster gets wide tiles
+		var rows: int = ceili(float(built.size()) / float(grid.columns))
+		grid.columns = clampi(ceili(float(built.size()) / float(maxi(rows, 1))), 1, grid.columns)
+	if LobbySeatVariants.sorts_by_team(style) and _team_cap() > 0:
+		var order: Dictionary = {}
+		for i: int in built.size():
+			order[built[i]] = i
+		built.sort_custom(func(a: LobbySeatRow, b: LobbySeatRow) -> bool:
+			var ta: int = a.team_pick if a.team_pick > 0 else MatchConfig.TEAM_PICK_MAX + 1
+			var tb: int = b.team_pick if b.team_pick > 0 else MatchConfig.TEAM_PICK_MAX + 1
+			return ta < tb if ta != tb else int(order[a]) < int(order[b]))
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.h_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
 	grid.v_gap_px = MenuStyleFactory.arcade_tuning().space_2_px
