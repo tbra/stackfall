@@ -29,6 +29,14 @@ func test_single_shot_from_flags() -> void:
 	assert_eq(shot["name"], "lobby_hosted_8seats_board")
 
 
+func test_lobby_shot_names_a_roster_tile_style_and_the_teams_toggle() -> void:
+	var shot: Dictionary = ShotTargets.normalize_shot({"target": "lobby", "style": "tiles_cap", "teams": true})
+	assert_eq(shot["error"], "")
+	assert_eq(shot["style"], LobbySeatVariants.Style.TILES_CAP)
+	assert_true(shot["teams"])
+	assert_eq(ShotTargets.STYLES.size(), LobbySeatVariants.NAMES.size(), "every row style can be captured")
+
+
 func test_shots_json_overrides_flag_defaults() -> void:
 	var json: String = '[{"target":"match","watch":true,"bots":4,"mode":"ctf"},{"target":"sandbox","overlays":["f4"]},{"target":"main_menu"}]'
 	var result: Dictionary = _parse(["--shots=" + json, "--frames=10", "--hud=0"])

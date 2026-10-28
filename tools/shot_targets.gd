@@ -7,8 +7,8 @@ extends RefCounted
 ##   main_menu              the main menu home page.
 ##   menu     page=<name>   a main-menu page by PAGE_* name (home, join, debug ...) or `host_dialog`.
 ##   options  tab=<name>    the Options menu from the main menu; tab = a *TabButton name (audio, video ...).
-##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|tiles|table|board, advanced=1,
-##            scroll=1 (settings column to its end), gifts_off=1 (gifts switch off)
+##   lobby    kind=bots|hosted, seats=N, bots=B, style=classic|tiles|table|board|tiles_cap|tiles_team|tiles_wash|tiles_big, advanced=1,
+##            scroll=1 (settings column to its end), gifts_off=1 (gifts switch off), teams=1 (the Teams toggle on)
 ##   sandbox  preset=default|gift_demo|tower_topple|tutorial
 ##   match    mode=<name>, bots=B, seats=N, watch=1 (all-bot spectator match), follow=<bot index>,
 ##            difficulty=easy|normal|hard|mixed
@@ -36,7 +36,7 @@ const TARGETS: PackedStringArray = [
 const LOBBY_BOTS: String = "bots"
 const LOBBY_HOSTED: String = "hosted"
 const PRESETS: PackedStringArray = ["default", "gift_demo", "tower_topple", "tutorial"]
-const STYLES: PackedStringArray = ["classic", "tiles", "table", "board"]
+const STYLES: PackedStringArray = ["classic", "tiles", "table", "board", "tiles_cap", "tiles_team", "tiles_wash", "tiles_big"]
 ## Overlay key -> Input Map action that toggles it.
 const OVERLAY_ACTIONS: Dictionary = {
 	"f1": &"perf_overlay_toggle",
@@ -85,7 +85,7 @@ const SHEET_MAX_H: int = 3000
 const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
-	"scroll", "gifts_off", "weather", "pin_sky_time", "rng_seed",
+	"scroll", "gifts_off", "teams", "weather", "pin_sky_time", "rng_seed",
 ]
 
 
@@ -175,7 +175,7 @@ static func parse_shots_json(text: String) -> Dictionary:
 static func normalize_shot(raw: Dictionary) -> Dictionary:
 	var shot: Dictionary = {
 		"error": "", "name": "", "target": "", "page": "", "tab": "", "kind": LOBBY_BOTS,
-		"seats": NO_VALUE, "bots": NO_VALUE, "style": 0, "advanced": false, "scroll": false, "gifts_off": false, "preset": "default", "mode": "",
+		"seats": NO_VALUE, "bots": NO_VALUE, "style": 0, "advanced": false, "scroll": false, "gifts_off": false, "teams": false, "preset": "default", "mode": "",
 		"watch": false, "follow": NO_VALUE, "difficulty": "", "path": "", "overlays": PackedStringArray(),
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
@@ -204,7 +204,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		return _failed(shot, "unknown sky '%s' (cycle, %s)" % [sky_id, ", ".join(MatchConfig.SKY_THEME_IDS)])
 	if int(shot["frames"]) < 0 or int(shot["frames"]) > MAX_FRAMES:
 		return _failed(shot, "frames must be 0..%d" % MAX_FRAMES)
-	for key: String in ["advanced", "watch", "scroll", "gifts_off"]:
+	for key: String in ["advanced", "watch", "scroll", "gifts_off", "teams"]:
 		if raw.has(key):
 			shot[key] = _as_bool(raw[key])
 	if raw.has("hud"):
@@ -555,6 +555,10 @@ static func _host_lobby(host: Node, main: Node, shot: Dictionary) -> String:
 		return "the lobby did not appear within %ds" % int(STATE_WAIT_TIMEOUT_S)
 	await settle(host, SETTLE_FRAMES)
 	Net.set_lobby_data(config.to_dict())
+	if bool(shot["teams"]):
+		# the panel's Teams toggle re-seeds the seats' team picks, so it is driven like a click, not set in the config
+		((main.get("_lobby") as Lobby).find_child("TeamsToggle", true, false) as UiToggle).set_on(true)
+		await settle(host, SETTLE_FRAMES)
 	return ""
 
 

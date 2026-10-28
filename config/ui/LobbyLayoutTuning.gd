@@ -76,6 +76,10 @@ extends Resource
 @export var seat_tile_columns: int = 4
 @export var seat_tile_marker_px: int = 48
 @export_range(0.0, 1.0, 0.01) var seat_tile_tint_mix: float = 0.22
+## The louder tile wash of the stronger-wash looks, the big-hero look's marker, and the marker plate's colour share.
+@export_range(0.0, 1.0, 0.01) var seat_tile_strong_mix: float = 0.4
+@export var seat_tile_big_marker_px: int = 72
+@export_range(0.0, 1.0, 0.01) var seat_tile_plate_mix: float = 0.55
 ## Versus board: lanes side by side, and how much of the team colour tints a lane's field.
 @export var seat_board_columns: int = 2
 @export_range(0.0, 1.0, 0.01) var seat_board_lane_tint_mix: float = 0.14

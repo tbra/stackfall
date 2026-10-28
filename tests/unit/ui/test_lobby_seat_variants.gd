@@ -1,5 +1,5 @@
 extends GutTest
-## The lobby players row has switchable looks (Classic, Roster tiles, Table, Versus board), all built by ONE LobbySeatRow for the vs-bots and the hosted lobby. Every control of the requirement
+## The lobby players row has switchable looks (Classic, Roster tiles, Table, Versus board, the four round-4 tile refinements), all built by ONE LobbySeatRow for the vs-bots and the hosted lobby. Every control of the requirement
 ## table exists, is operable (synthetic clicks, ui_accept from a pad press, dropdown picks), a client cannot use
 ## the host's controls, pad focus reaches every control and the footer, and the debug-only switch keeps seat state.
 ## Each test builds its lobby once and walks the looks through the debug-only switch the game itself uses.
@@ -9,7 +9,8 @@ const BOTS: int = 3
 const NAMES: Array[String] = ["Atlas", "Tomas", "Ines", "Mira", "Kai"]
 const STYLES: Array[int] = [
 	LobbySeatVariants.Style.CLASSIC, LobbySeatVariants.Style.TILES,
-	LobbySeatVariants.Style.TABLE, LobbySeatVariants.Style.BOARD,
+	LobbySeatVariants.Style.TABLE, LobbySeatVariants.Style.BOARD, LobbySeatVariants.Style.TILES_CAP,
+	LobbySeatVariants.Style.TILES_TEAM, LobbySeatVariants.Style.TILES_WASH, LobbySeatVariants.Style.TILES_BIG,
 ]
 const MAX_WALK: int = 200
 const OWN_PEER_CLIENT: int = 2
@@ -147,10 +148,13 @@ func test_every_look_has_every_control_in_vsbots_and_hosted_lobbies() -> void:
 
 
 func test_host_can_operate_difficulty_remove_team_and_mute_in_every_look() -> void:
-	# One bot more than looks are walked, so every look has a bot to remove.
 	var lobby: Lobby = await _host_lobby(STYLES[0], true, HUMANS - 1, BOTS + 1, true)
 	var panel: LobbyPlayersPanel = _panel(lobby)
 	for style: int in STYLES:
+		# Each look removes a bot below, so seat the full bot count again first.
+		(lobby.get_node("%PlayerCountSpin") as SpinBox).value = HUMANS + BOTS
+		(lobby.get_node("%AiCountSpin") as SpinBox).value = BOTS + 1
+		lobby._on_setting_changed()
 		await _show_look(lobby, style)
 		var label: String = _style_label(style)
 		# Difficulty: a press on the skill block / a step on the cycler.
@@ -284,7 +288,7 @@ func test_pad_focus_reaches_every_control_and_a_pad_press_operates_it() -> void:
 func test_right_click_cycles_team_and_skill_backwards() -> void:
 	var lobby: Lobby = await _host_lobby(LobbySeatVariants.Style.CLASSIC, true, HUMANS, BOTS, true)
 	var panel: LobbyPlayersPanel = _panel(lobby)
-	for style: int in [LobbySeatVariants.Style.TILES, LobbySeatVariants.Style.TABLE, LobbySeatVariants.Style.BOARD]:
+	for style: int in STYLES.slice(1):
 		await _show_look(lobby, style)
 		var bot: LobbySeatRow = _bot_rows(lobby)[0]
 		var click: InputEventMouseButton = InputEventMouseButton.new()
@@ -333,5 +337,27 @@ func test_board_makes_a_lane_per_team_and_free_for_all_two_neutral_lanes() -> vo
 	assert_eq(ffa_lanes.size(), 2, "free-for-all: two lanes")
 	for lane: Node in ffa_lanes:
 		assert_null((lane as LobbySeatLane).cap, "free-for-all lanes carry no team cap")
+	lobby.queue_free()
+	await wait_frames(1)
+
+
+func test_team_tile_looks_seat_teammates_together_and_the_big_look_balances_its_columns() -> void:
+	var lobby: Lobby = await _host_lobby(LobbySeatVariants.Style.TILES, false, 1, 4, true)
+	var panel: LobbyPlayersPanel = _panel(lobby)
+	var columns: Dictionary = {}
+	for style: int in STYLES.slice(1):
+		if not LobbySeatVariants.is_tiles(style):
+			continue
+		await _show_look(lobby, style)
+		var label: String = _style_label(style)
+		columns[style] = (panel.find_child("TileGrid", true, false) as UiGrid).columns
+		var picks: Array[int] = []
+		for row: LobbySeatRow in _rows(lobby):
+			picks.append(row.team_pick if row.team_pick > 0 else MatchConfig.TEAM_PICK_MAX + 1)
+		var sorted: Array[int] = picks.duplicate()
+		sorted.sort()
+		assert_eq(picks == sorted, LobbySeatVariants.sorts_by_team(style), "%s: seats are grouped by team only in the team looks" % label)
+	assert_eq(columns[LobbySeatVariants.Style.TILES_WASH], panel.layout_tuning.seat_tile_columns, "the wash look keeps the tile columns")
+	assert_lt(columns[LobbySeatVariants.Style.TILES_BIG], columns[LobbySeatVariants.Style.TILES_WASH], "5 seats in two balanced rows need fewer columns than the default")
 	lobby.queue_free()
 	await wait_frames(1)

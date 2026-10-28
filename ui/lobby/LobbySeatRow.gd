@@ -165,9 +165,11 @@ func build(tuning: MenuVisualTuning, layout_tuning: LobbyLayoutTuning) -> void:
 		custom_minimum_size = Vector2(0.0, float(layout_tuning.seat_row_min_height_px))
 	layout = HBoxContainer.new()
 	layout.add_theme_constant_override("separation", arcade.space_2_px)
+	if LobbySeatVariants.is_tiles(variant):
+		_build_tile(row_box)
+		_wire_horizontal_focus()
+		return
 	match variant:
-		LobbySeatVariants.Style.TILES:
-			_build_tile(row_box)
 		LobbySeatVariants.Style.TABLE:
 			add_child(layout)
 			_build_table_line(row_box)
@@ -204,9 +206,12 @@ func focusable_controls() -> Array[Control]:
 	controls.append(color_button)
 	var ordered: Array[Control] = []
 	match variant:
-		LobbySeatVariants.Style.TILES:
+		LobbySeatVariants.Style.TILES, LobbySeatVariants.Style.TILES_TEAM, LobbySeatVariants.Style.TILES_WASH, \
+		LobbySeatVariants.Style.TILES_BIG:
 			# the tile's top-right control (X or mute), then its footer (team, skill)
 			ordered = [remove_button, mute_button, team_cycle_button, skill_button]
+		LobbySeatVariants.Style.TILES_CAP:
+			ordered = [team_cycle_button, remove_button, mute_button, skill_button]
 		LobbySeatVariants.Style.TABLE:
 			ordered = [team_cycle_button, skill_button, mute_button, remove_button]
 		LobbySeatVariants.Style.BOARD:
@@ -577,6 +582,11 @@ func _make_seat_team_cycle() -> UiBlockButton:
 	return _make_team_cycle(team_text(team_pick), team_color(), float(UiRowItem.metrics().row_height_px))
 
 
+## "Team 2", or "?" for Random.
+func _team_name() -> String:
+	return PlayerNames.team_label(team_pick) if team_pick > MatchConfig.TEAM_PICK_RANDOM else TEAM_RANDOM_TEXT
+
+
 ## A bot's skill as one icon block: shows the skill's icon, click / accept = next, right click = previous.
 func _make_skill_button() -> UiIconButton:
 	var index: int = clampi(difficulty, 0, DIFFICULTY_LABELS.size() - 1)
@@ -609,14 +619,29 @@ func _add_expander() -> void:
 
 
 ## TILES: one upright tile. Top line: state tile left, the bot's X (or a human's mute) right; then the hero
-## marker on a wash of the player's colour, name and sub line, and a footer of the team and skill blocks.
+## marker, name and sub line, and a footer of the team and skill blocks. The round-4 refinements differ in
+## what carries the tile's identity (player colour wash, team colour wash, neutral tile + team cap), how loud
+## the wash is, and how big the hero is.
 func _build_tile(box: StyleBoxFlat) -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	box.bg_color = arcade.disc_700_color.lerp(seat_color, _layout_tuning.seat_tile_tint_mix)
+	var has_team: bool = show_team and seat_key != LobbySeats.KEY_NONE
+	var identity: Color = seat_color
+	if variant == LobbySeatVariants.Style.TILES_TEAM and team_color().a > 0.0:
+		identity = team_color()
+	var mix: float = _layout_tuning.seat_tile_tint_mix
+	if variant == LobbySeatVariants.Style.TILES_WASH or variant == LobbySeatVariants.Style.TILES_BIG:
+		mix = _layout_tuning.seat_tile_strong_mix
+	if variant == LobbySeatVariants.Style.TILES_CAP:
+		mix = 0.0
+	box.bg_color = arcade.disc_700_color.lerp(identity, mix)
 	box.set_content_margin_all(float(arcade.space_2_px))
 	var body: UiStack = UiStack.new()
 	body.gap_px = arcade.space_1_px
 	add_child(body)
+	if variant == LobbySeatVariants.Style.TILES_CAP and has_team:
+		var cap: UiBlockButton = _make_team_cycle(_team_name().to_upper(), team_color(), 0.0)
+		cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		body.add_child(cap)
 	var top: HBoxContainer = HBoxContainer.new()
 	body.add_child(top)
 	layout = top
@@ -630,6 +655,15 @@ func _build_tile(box: StyleBoxFlat) -> void:
 	body.add_child(marker_line)
 	layout = marker_line
 	var marker_px: float = float(_layout_tuning.seat_tile_marker_px)
+	if variant == LobbySeatVariants.Style.TILES_BIG:
+		marker_px = float(_layout_tuning.seat_tile_big_marker_px)
+	if variant == LobbySeatVariants.Style.TILES_CAP or variant == LobbySeatVariants.Style.TILES_TEAM:
+		# the player's colour on its own plate: the diamond reads on any tile colour
+		var plate: UiPlate = UiPlate.new()
+		plate.name = "MarkerPlate"
+		plate.paint(arcade.disc_800_color.lerp(seat_color, _layout_tuning.seat_tile_plate_mix), arcade.radius_cell_px, 0, 0)
+		marker_line.add_child(plate)
+		layout = plate
 	_build_color_button(Vector2.ONE * marker_px, marker_px)
 	layout = body
 	_build_text_column()
@@ -641,8 +675,11 @@ func _build_tile(box: StyleBoxFlat) -> void:
 	footer.gap_px = arcade.space_1_px
 	body.add_child(footer)
 	layout = footer
-	if show_team and seat_key != LobbySeats.KEY_NONE:
-		footer.add_child(_make_seat_team_cycle())
+	if has_team and variant != LobbySeatVariants.Style.TILES_CAP:
+		if variant == LobbySeatVariants.Style.TILES_WASH or variant == LobbySeatVariants.Style.TILES_BIG:
+			footer.add_child(_make_team_cycle(_team_name(), team_color(), 0.0))
+		else:
+			footer.add_child(_make_seat_team_cycle())
 	if is_bot:
 		footer.add_child(_make_skill_button())
 	layout = body
