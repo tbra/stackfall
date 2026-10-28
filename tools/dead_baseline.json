@@ -445,6 +445,24 @@
   },
   {
    "id": "test-only-func",
+   "entry": "core/rules/ClassicObjective.gd:begin_sudden_death",
+   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
+   "consumer": "SD-C"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/rules/ClassicObjective.gd:latched_team",
+   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
+   "consumer": "SD-C"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/rules/WinChecker.gd:begin_sudden_death",
+   "reason": "only caller is ClassicObjective.begin_sudden_death, itself callerless until the lifecycle wires it",
+   "consumer": "SD-C"
+  },
+  {
+   "id": "test-only-func",
    "entry": "core/weather/BreezeField.gd:gust_accel",
    "reason": "BreezeEffect.gd:220"
   },
@@ -640,24 +658,6 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:begin_sudden_death",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-C"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:latched_team",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-C"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:begin_sudden_death",
-   "reason": "only caller is ClassicObjective.begin_sudden_death, itself callerless until the lifecycle wires it",
-   "consumer": "SD-C"
   }
  ]
 }
