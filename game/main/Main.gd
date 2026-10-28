@@ -102,13 +102,6 @@ var _headless_bots_flow: MainHeadlessBotsFlowPort = null
 var _match_flow: MainMatchFlowPort = null
 var _main_menu: MainMenu = null
 var _lobby: Node = null
-var _local_player: Node = null
-## debug Watch bots: true from start_watch_bots() until the session ends or returns to
-## the menu; the match flow then builds a SpectatorController instead of a LocalPlayer.
-var _watch_bots_active: bool = false
-var _spectator: Node = null
-var _remote_cursors: Node = null
-var _debug_overlay: Node = null
 ## The four overlays (pause menu, results screen, scoreboard, loading screen) are
 ## created on first need (ensure), not in _ready(). `_pause_menu` & co. are lazy
 ## accessors (the flows and tests read them and always get an instance); the
@@ -134,26 +127,8 @@ var _loading_screen: LoadingScreen:
 	get:
 		return _ensure_loading_screen()
 var _start_pending: bool = false
-## One instance per bot slot in the match currently built; freed in
-## _end_match_world(). See _spawn_bot_controllers().
-var _bot_controllers: Array[Node] = []
-
-## One instance for the match currently built, same lifecycle as _bot_controllers.
-## Host-gated inside the manager (Net.is_host()), so building one on a client costs
-## nothing and stays inert.
-var _stable_block_manager: Node = null
-
-## True once _build_match_world() has run for the match currently in
-## progress, so a repeated match_state_changed(LOBBY, LOADING) firing twice
-## (should not happen, but a state machine is exactly the place to be
-## defensive about it) cannot double-instance LocalPlayer/RemoteCursors, and
-## _end_match_world() is a no-op when there is nothing to tear down.
-var _world_built: bool = false
 var _first_territory_ready: bool = false
 var _loading_generation: int = 0
-var _world_building: bool = false
-var _controller_was_processing: bool = false
-var _controller_was_handling_input: bool = false
 
 
 ## the process-wide caches are released as the game scene leaves the tree.
@@ -175,7 +150,7 @@ func _register_menu_dormant_world() -> void:
 ## True while a match, sandbox or tutorial world is built or building: a menu backdrop still in
 ## the tree must not freeze it.
 func _menu_world_is_live() -> bool:
-	return _world_built or _world_building
+	return _match_flow != null and _match_flow.is_world_live()
 
 
 ## Menu hand-off (after the splash, or at once without one); the loader collects the Lobby chunk first.
@@ -512,7 +487,7 @@ func start_watch_bots(options: RefCounted) -> void:
 		if _main_menu != null:
 			_main_menu.show_status("Could not start watch match: %s" % error_string(err))
 		return
-	_watch_bots_active = true
+	_main_world().watch_bots_active = true
 	Match.start_match(options.call(&"build_config", match_config) as MatchConfig)
 
 
@@ -551,7 +526,7 @@ func _on_net_mode_changed(mode: int) -> void:
 		# (autoload/Net.gd's _on_server_disconnected() calls leave(), which
 		# emits this): never a half-dead match.
 		_end_match_world()
-		_watch_bots_active = false
+		_main_world().watch_bots_active = false
 		# DECISION (game/main/Main.gd): Net.leave() does not know about Match, so
 		# the match is aborted here, where the session's end is routed. Otherwise
 		# Match stays PLAYING/END on the main menu, still ticking feed timers and
