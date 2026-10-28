@@ -1347,9 +1347,9 @@ func _update_ghost_transform() -> void:
 		# Fallback so the ghost has somewhere to go even if the ray misses
 		# every physics body (e.g. aimed at the sky before Field is ready) or
 		# runs out of blocks to skip past.
-		var plane: Plane = Plane(Vector3.UP, 0.0)
-		var point: Variant = plane.intersects_ray(origin, Vector3.DOWN)
-		hit_point = (point as Vector3) if point != null else Vector3.ZERO
+		var field: FieldBody = match_context.field()
+		var surface_y: float = field.surface_height_at(_cursor) if field != null else 0.0
+		hit_point = Vector3(_cursor.x, surface_y, _cursor.z)
 	else:
 		hit_point = hit["position"] as Vector3
 
