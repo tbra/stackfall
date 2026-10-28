@@ -308,7 +308,6 @@ func _begin_thinking(match_ref: Variant) -> void:
 	var built_us: int = Time.get_ticks_usec() if cost != null else 0
 	_apply_weather(view, match_ref)
 	_apply_gravity_and_gifts(view, match_ref)
-	_apply_live_radius(view, match_ref)
 	_apply_incoming_specials(view, match_ref)
 	_apply_stack(view, match_ref)
 	_special_view = view
@@ -377,14 +376,6 @@ func _append_uncovered_towers(
 		if not covered:
 			centres.append(point)
 			added += 1
-
-
-## After the sudden-death shrink, the view's live radius is the surviving disc.
-func _apply_live_radius(view: BotWorldView, match_ref: Variant) -> void:
-	if match_ref.has_method("sudden_death_active") and bool(match_ref.sudden_death_active()):
-		var live: float = BotWorldView.live_radius_from_raster(view.raster, view.grid)
-		if live > 0.0:
-			view.live_radius = minf(live, view.field_radius)
 
 
 ## Live gravity in the Field's local frame (magnitude g * gravity_multiplier) and the match's

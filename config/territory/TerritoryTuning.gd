@@ -159,17 +159,9 @@ extends Resource
 ##
 ## DECISION: the spec names only the
 ## direction ("climbs toward the maximum"), not a duration. 60 s is a round
-## number on the same order as the shrink schedule below (6 shrink steps) --
-## short enough that sudden death visibly escalates well before the disk has
-## crumbled to the radius-8 tiebreak on every map size, long enough not to
-## feel instantaneous.
+## number short enough that sudden death visibly escalates well before its
+## timer runs out, long enough not to feel instantaneous.
 @export var sudden_death_ramp_s: float = 60.0
-## "The disk's edge crumbles inward by 1 m every 10 s" (spec 1.9, verbatim).
-@export var sudden_death_shrink_interval_s: float = 10.0
-@export var sudden_death_shrink_step_m: float = 1.0
-## "If nobody has won when the disk has shrunk to a radius of 8, the player
-## or team with the most territory wins" (spec 1.9, verbatim).
-@export var sudden_death_tiebreak_radius_m: float = 8.0
 
 ## -- Turn-based (spec 1.2) ---------------------------------------------------
 ## "Physics settles completely (all bodies asleep, or after 6 s) before the

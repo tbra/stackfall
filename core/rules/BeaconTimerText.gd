@@ -47,5 +47,15 @@ static func held_count_in_state(state: Dictionary, team: int) -> int:
 	return int(extra.get("held_%d" % team, 0))
 
 
+## Key prefix of a sudden-death goal latch in a Classic mode state's "extra" ("l0", "l1", ...).
+const LATCH_KEY_PREFIX: String = "l"
+
+
+## The team latched on goal `goal_index` in a replicated Classic mode state, or -1 (none).
+static func latched_in_state(state: Dictionary, goal_index: int) -> int:
+	var extra: Dictionary = state.get("extra", {}) as Dictionary
+	return int(extra.get(LATCH_KEY_PREFIX + str(goal_index), -1))
+
+
 static func multiplier_text_in_state(state: Dictionary, team: int) -> String:
 	return multiplier_text(held_count_in_state(state, team))

@@ -18,6 +18,8 @@ var _capture_hold_s: float = 0.0
 var _timer_capture_team: int = -1
 var _timer_capture_progress: float = 0.0
 var _timer_mode_state: Dictionary = {}
+## The last raster a control refresh saw, so a latch change can re-run it.
+var _last_raster: TerritoryRaster = null
 ## Slot id -> PackedInt32Array of the beacon body's shape owners.
 var _flag_owner_ids: Dictionary = {}
 ## Child body carrying every beacon's shapes; follows the field's tilt.
@@ -44,6 +46,7 @@ func set_colors(colors: PackedColorArray) -> void:
 func place(slot_count: int, goal_count: int, goal_zone_radius: float, capture_hold_s: float, counts_up: bool) -> void:
 	_capture_hold_s = capture_hold_s
 	_timer_mode_state = {}
+	_last_raster = null
 	clear()
 	for slot_id: int in range(maxi(slot_count, 0)):
 		var flag: HomeFlag = home_flag_scene.instantiate() as HomeFlag
@@ -165,6 +168,9 @@ func _feed_multiplier(flag: GoalFlag) -> void:
 
 func _on_mode_state_changed(state: Dictionary) -> void:
 	_timer_mode_state = state
+	if _last_raster != null:
+		_refresh_goal_control(_last_raster)
+		return
 	for flag: GoalFlag in _goal_flags:
 		_feed_multiplier(flag)
 
@@ -177,9 +183,16 @@ func _on_territory_updated(raster: TerritoryRaster, _groups: TerritoryGroups) ->
 ## solved or the client mirrored) onto its beacon. Runs on host and client from
 ## the same raster data, so they always agree.
 func _refresh_goal_control(raster: TerritoryRaster) -> void:
-	for flag: GoalFlag in _goal_flags:
+	_last_raster = raster
+	for i: int in range(_goal_flags.size()):
+		var flag: GoalFlag = _goal_flags[i]
 		var point: Vector2 = Vector2(flag.position.x, flag.position.z)
 		var control: int = GoalControl.owner_at(raster, point)
+		# Sudden death: a latched goal shows its latch owner even when the raster says
+		# neutral or contested (the latch stays with the last claimer).
+		var latched: int = BeaconTimerText.latched_in_state(_timer_mode_state, i)
+		if latched >= 0:
+			control = latched
 		var contest_colors: PackedColorArray = PackedColorArray()
 		if control == GoalControl.CONTESTED:
 			var teams: PackedInt32Array = GoalControl.nearby_teams(

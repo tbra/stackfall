@@ -371,7 +371,7 @@ func bot_mode_goal(slot_id: int) -> BotModeGoal:
 	var goal: BotModeGoal = BotModeGoal.new()
 	goal.mode = _objective.mode_id()
 	if _objective is ClassicObjective:
-		_fill_classic_goals(goal, slot_id)
+		_fill_classic_goals(goal, slot_id, _objective as ClassicObjective)
 	if _objective is CaptureFlagObjective:
 		var own_team: int = _match.team_of(slot_id)
 		goal.beacon_positions = PlayerSlot.goal_positions_for(
@@ -423,7 +423,7 @@ func _fill_domination_goal(goal: BotModeGoal, own_team: int) -> void:
 
 ## classic multi-goal context (left empty for a single goal so
 ## classic scoring stays exactly as before).
-func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
+func _fill_classic_goals(goal: BotModeGoal, slot_id: int, classic: ClassicObjective) -> void:
 	if _raster == null:
 		return
 	var positions: PackedVector2Array = PlayerSlot.goal_positions_for(
@@ -447,8 +447,11 @@ func _fill_classic_goals(goal: BotModeGoal, slot_id: int) -> void:
 			if _raster.group_at(cell.x, cell.y) == home_group:
 				component_points.append(grid.index_center(index))
 	var in_home_group: Array[bool] = []
-	for point: Vector2 in positions:
-		in_home_group.append(home_group >= 0 and _raster.group_at_point(point) == home_group)
+	var own_team: int = _match.team_of(slot_id)
+	for i: int in positions.size():
+		# A goal already latched to our team counts as held, so the bot moves on.
+		var latched_own: bool = classic.latched_team(i) == own_team
+		in_home_group.append(latched_own or (home_group >= 0 and _raster.group_at_point(positions[i]) == home_group))
 	goal.target_goal_index = BotModeGoal.next_goal_index(positions, in_home_group, component_points, home)
 
 
@@ -979,49 +982,6 @@ func punch_special_hole(world_pos: Vector2, radius_m: float, hole_open_s: float)
 			_raster.force_hole_cell(cx, cy, hole_open_s, permanent_holes)
 			if not was_hole and _raster.is_hole(cx, cy):
 				opened.append(_cell_grid.cell_index(cx, cy))
-
-	_force_dirty = true
-	if opened.size() > 0:
-		Events.hole_cells_changed.emit(opened, PackedInt32Array())
-		_check_home_flags(opened)
-
-
-# --- Sudden death disk shrink (spec 1.9) ------------------------------
-
-## Spec 1.9: "The disk's edge crumbles inward by 1 m every 10 s." Called by
-## MatchLifecycle._tick_sudden_death() with the current shrink radius (field
-## radius minus however many 1 m steps have elapsed); punches every currently
-## solid (not already a hole), still-in-disk cell whose center now falls
-## outside `radius_m` as a **permanent** hole -- regardless of the match's own
-## hole_mode, since a shrunk cell must never reopen.
-##
-## DECISION: shrinking is expressed entirely in the existing hole vocabulary
-## (TerritoryRaster.force_hole_cell(), the same mechanism punch_special_hole() uses) rather than
-## resizing CellGrid/rebuilding Field's trimesh, a whole-disk operation not to run every 10 s.
-## game/field/Field.gd needs no new code for sudden death: it already reacts to
-## set_hole_cells()/wakes bodies above a newly-opened cell exactly as for a natural overlap hole.
-##
-## Monotonic by construction: a cell already a hole (`_raster.is_hole()` true)
-## is skipped, so calling this again -- even with a *larger* radius than a
-## previous call, which should never happen since the caller only ever shrinks
-## -- can never reopen a cell this function already punched; it can only ever
-## punch more.
-func shrink_to_radius(radius_m: float) -> void:
-	if not _match._is_host():
-		return
-	if _raster == null or _cell_grid == null:
-		return
-
-	var opened: PackedInt32Array = PackedInt32Array()
-	for index: int in _cell_grid.in_disk_cells():
-		var coords: Vector2i = _cell_grid.cell_coords(index)
-		if _raster.is_hole(coords.x, coords.y):
-			continue
-		if _cell_grid.index_center(index).length() <= radius_m:
-			continue
-		_raster.force_hole_cell(coords.x, coords.y, 0.0, true)
-		if _raster.is_hole(coords.x, coords.y):
-			opened.append(index)
 
 	_force_dirty = true
 	if opened.size() > 0:

@@ -3,7 +3,6 @@ extends GutTest
 
 const FULL_RADIUS_M: float = 30.0
 const SHRUNK_RADIUS_M: float = 20.0
-const CELL_M: float = 1.0
 const TIP_WEIGHT: float = 3.0
 const REACH_WEIGHT: float = 0.2
 const TARGET: Vector2 = Vector2(5.0, 0.0)
@@ -59,33 +58,3 @@ func test_beyond_live_radius_never_chosen() -> void:
 			best = c
 	assert_ne(best.origin, OUTSIDE)
 	assert_true(BotEvaluator.rim_risk(_site(OUTSIDE), shrunk) >= BotEvaluator.tuning.rim_outside_penalty)
-
-
-func test_live_radius_read_from_shrunk_raster() -> void:
-	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres") as TerritoryTuning
-	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M)
-	var raster: TerritoryRaster = TerritoryRaster.new(grid, tuning)
-	var full: float = BotWorldView.live_radius_from_raster(raster, grid)
-	assert_gt(full, FULL_RADIUS_M - 2.0 * CELL_M)
-	for index: int in grid.in_disk_cells():
-		var xy: Vector2i = grid.cell_coords(index)
-		if grid.index_center(index).length() > SHRUNK_RADIUS_M:
-			raster.force_hole_cell(xy.x, xy.y, 0.0, true)
-	var live: float = BotWorldView.live_radius_from_raster(raster, grid)
-	assert_true(live <= SHRUNK_RADIUS_M and live > SHRUNK_RADIUS_M - 2.0 * CELL_M, "live=%f" % live)
-
-
-func _raster_fixture() -> Array:
-	var tuning: TerritoryTuning = load("res://config/territory/territory_tuning.tres") as TerritoryTuning
-	var grid: CellGrid = CellGrid.new(FULL_RADIUS_M, CELL_M)
-	return [grid, TerritoryRaster.new(grid, tuning)]
-
-
-func test_natural_interior_holes_do_not_shrink() -> void:
-	var fx: Array = _raster_fixture()
-	var grid: CellGrid = fx[0] as CellGrid
-	var raster: TerritoryRaster = fx[1] as TerritoryRaster
-	raster.force_hole_cell(grid.res / 2, grid.res / 2, 0.0, false)
-	assert_eq(BotWorldView.live_radius_from_raster(raster, grid), FULL_RADIUS_M, "unshrunk reports field_radius")
-	var view: BotWorldView = _view(BotWorldView.live_radius_from_raster(raster, grid))
-	assert_false(view.is_shrunk(), "t=0 / natural holes: not shrunk")

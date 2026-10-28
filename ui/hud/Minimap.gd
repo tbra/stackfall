@@ -52,6 +52,8 @@ var _gift_states: Array[Dictionary] = []
 ## the shared capture progress from Events.goal_capture_progress.
 var _goal_positions: PackedVector2Array = PackedVector2Array()
 var _goal_controls: PackedInt32Array = PackedInt32Array()
+## Mode state carrying the sudden-death goal latches (BeaconTimerText.latched_in_state).
+var _mode_state: Dictionary = {}
 var _capture_team: int = -1
 var _capture_progress: float = 0.0
 
@@ -223,6 +225,23 @@ func set_capture(team_id: int, progress: float) -> void:
 	_capture_progress = clamped
 	if _canvas != null and _map_def != null:
 		_canvas.queue_redraw()
+
+
+## Feeds the mode state; a latched goal then draws in its latch owner's colour.
+func set_mode_state(state: Dictionary) -> void:
+	if state == _mode_state:
+		return
+	_mode_state = state
+	if _canvas != null and _map_def != null:
+		_canvas.queue_redraw()
+
+
+## The goal's shown controller: its sudden-death latch owner, else the raster's.
+func _goal_control(index: int) -> int:
+	var latched: int = BeaconTimerText.latched_in_state(_mode_state, index)
+	if latched >= 0:
+		return latched
+	return _goal_controls[index] if index < _goal_controls.size() else GoalControl.NEUTRAL
 
 
 func _refresh_goal_controls() -> void:
@@ -435,7 +454,7 @@ func _on_canvas_draw() -> void:
 
 ## Fill colour of goal marker `index`: neutral, the holder's slot colour, or contested.
 func goal_marker_color(index: int) -> Color:
-	var control: int = _goal_controls[index] if index < _goal_controls.size() else GoalControl.NEUTRAL
+	var control: int = _goal_control(index)
 	if control == GoalControl.CONTESTED:
 		return tuning.minimap_goal_contested_color
 	if control >= 0 and control < _team_colors.size():
@@ -456,7 +475,7 @@ func goal_marker_draw_data() -> Array[Dictionary]:
 		markers.append({
 			"pixel": _world_to_px(_goal_positions[i], px_per_m),
 			"color": goal_marker_color(i),
-			"control": _goal_controls[i] if i < _goal_controls.size() else GoalControl.NEUTRAL,
+			"control": _goal_control(i),
 		})
 	return markers
 

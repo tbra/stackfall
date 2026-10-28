@@ -78,8 +78,8 @@ func is_timed() -> bool:
 
 ## Default false (DECISION: opt-in, so a new objective never silently adds
 ## traffic). A mode that wants its scores/extras mirrored to clients overrides
-## this to true. Classic stays false: its state is the capture ring
-## (goal_capture_progress), already replicated.
+## this to true. Classic replicates only during sudden death (its goal latches);
+## before that its state is the capture ring (goal_capture_progress), already replicated.
 func replicates_state() -> bool:
 	return false
 
