@@ -8,7 +8,8 @@ Registered once in .claude/settings.json, so a call starts one Python process. I
 - the full GUT suite from writer roles (`agent_type` in the hook input names the subagent;
   the orchestrator and the integrator may run it);
 - `git stash` (any subcommand, global options allowed) from every worker profile; the
-  orchestrator may stash.
+  orchestrator may stash;
+- the `find` command, for every agent including the orchestrator.
 Only command positions are checked, so the words may still appear in quoted text, commit
 messages or grep patterns. Everything else passes untouched.
 """
@@ -59,7 +60,8 @@ def _basename(token):
     return re.split(r"[\\/]", _word(token))[-1].lower()
 
 
-def _is_git_stash(tokens):
+def _command_index(tokens):
+    """Index of the command a segment runs, after env assignments and wrappers (len(tokens) if none)."""
     i = 0
     while i < len(tokens) and re.fullmatch(r"[A-Za-z_]\w*=\S*", _word(tokens[i])):
         i += 1
@@ -67,6 +69,11 @@ def _is_git_stash(tokens):
         i += 1
         while i < len(tokens) and re.fullmatch(r"-\S*|\S*=\S*|\d+[smhd]?", _word(tokens[i])):
             i += 1
+    return i
+
+
+def _is_git_stash(tokens):
+    i = _command_index(tokens)
     if i >= len(tokens) or _basename(tokens[i]) not in ("git", "git.exe"):
         return False
     i += 1
@@ -78,6 +85,16 @@ def _is_git_stash(tokens):
 def git_stash(command):
     """True when a command segment runs `git stash` (any global options or wrapper in front)."""
     return any(_is_git_stash(_TOKEN.findall(segment)) for segment in _SEGMENT_SPLIT.split(command))
+
+
+def find_command(command):
+    """True when a command segment runs `find` (any wrapper, path or quoting in front)."""
+    for segment in _SEGMENT_SPLIT.split(command):
+        tokens = _TOKEN.findall(segment)
+        i = _command_index(tokens)
+        if i < len(tokens) and _basename(tokens[i]) in ("find", "find.exe"):
+            return True
+    return False
 
 
 ORCHESTRATOR_ROLE = "stackfall-orchestrator"
@@ -99,6 +116,9 @@ REASON_SUITE = (
 REASON_STASH = (
     "Blocked: workers never use `git stash`; it moves files other checkouts and agents rely on. "
     "Copy the files you need to set aside into your scratchpad instead.")
+REASON_FIND = (
+    "Blocked: `find` scans the whole tree and can run for hours. Use the Glob/Grep tools, `rg --files`, "
+    "`rg` or `git ls-files` instead.")
 
 
 # A quoted argument holds data, so a separator inside it starts no command: the `\|` of a grep
@@ -159,6 +179,8 @@ def problem(command, agent_type=None):
         segment = match.group(1)
         if not NO_WINDOW.search(segment) and not OFF_SCREEN.search(segment):
             return REASON_WINDOW
+    if find_command(command):
+        return REASON_FIND
     if agent_type in WRITER_ROLES and FULL_SUITE.search(command):
         return REASON_SUITE
     if agent_type and agent_type != ORCHESTRATOR_ROLE and git_stash(command):
