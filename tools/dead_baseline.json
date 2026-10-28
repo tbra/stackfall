@@ -440,26 +440,13 @@
   },
   {
    "id": "test-only-func",
+   "entry": "core/rules/ClassicObjective.gd:latched_team",
+   "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
+  },
+  {
+   "id": "test-only-func",
    "entry": "core/ai/BotModeGoal.gd:next_goal_index",
    "reason": "MatchTerritory.gd:423 in bot_mode_goal"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:begin_sudden_death",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-C"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:latched_team",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-C"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:begin_sudden_death",
-   "reason": "only caller is ClassicObjective.begin_sudden_death, itself callerless until the lifecycle wires it",
-   "consumer": "SD-C"
   },
   {
    "id": "test-only-func",
