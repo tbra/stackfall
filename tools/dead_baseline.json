@@ -275,11 +275,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/territory/TerritoryRaster.gd:force_hole_cell",
-   "reason": "live: autoload/match/MatchTerritory.gd:982 punch_special_hole (typed call, but punch_special_hole is itself reached only through the ambiguous gift-context chain)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchTerritory.gd:raster",
    "reason": "Match.gd:978 _territory.raster()"
   },
@@ -452,6 +447,11 @@
    "id": "test-only-func",
    "entry": "core/rules/ClassicObjective.gd:latched_team",
    "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/territory/TerritoryRaster.gd:force_hole_cell",
+   "reason": "live: autoload/match/MatchTerritory.gd:982 punch_special_hole (typed call, but punch_special_hole is itself reached only through the ambiguous gift-context chain)"
   },
   {
    "id": "test-only-func",
