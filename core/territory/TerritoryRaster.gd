@@ -763,7 +763,9 @@ func _advance_timers(delta: float, permanent_holes: bool) -> void:
 			elapsed = minf(elapsed + delta, hole_delay)
 			_contested_time[index] = elapsed
 			_idle_time[index] = 0.0
-			if _hole[index] == 0 and _reached(elapsed, hole_delay):
+			# A goal zone may be contested but never punched through, so the
+			# beacon stays claimable in both hole modes.
+			if _hole[index] == 0 and _goal_zone[index] == 0 and _reached(elapsed, hole_delay):
 				_hole[index] = 1
 				_opened.append(index)
 		else:
@@ -843,7 +845,8 @@ func force_hole_cell(cx: int, cy: int, hole_open_s: float, permanent_holes: bool
 	if not _grid.in_bounds(cx, cy):
 		return
 	var index: int = _grid.cell_index(cx, cy)
-	if _in_disk[index] == 0:
+	# Goal zones are never punched through, same rule as the natural contest hole.
+	if _in_disk[index] == 0 or _goal_zone[index] == 1:
 		return
 
 	_mark_changed()
