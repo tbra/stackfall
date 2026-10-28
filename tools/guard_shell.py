@@ -42,10 +42,44 @@ FULL_SUITE = re.compile(
     r"-gdir=res://tests/?(?=[\s\"']|$)"
     r"|" + _SEP + _PREFIX + r"python\S*\s+(?:\S*[\\/])?full_gate\.py\b",
     re.IGNORECASE)
-_ARG = r"(?:\"[^\"]*\"|'[^']*'|\S+)"
-GIT_STASH = re.compile(
-    _SEP + _PREFIX + r"git(?:\.exe)?(?:\s+(?:-[Cc]\s+" + _ARG + r"|--[\w-]+(?:=" + _ARG + r")?))*\s+stash(?=\s|$)",
-    re.IGNORECASE)
+_SEGMENT_SPLIT = re.compile(r"[;&|(`\n]|\$\(")
+_TOKEN = re.compile(r"\"[^\"]*\"|'[^']*'|\S+")
+# Commands that run their first non-option argument; their own option values are skipped loosely.
+_WRAPPERS = frozenset(("timeout", "env", "xargs", "command", "nice", "nohup", "sudo", "exec", "time", "builtin"))
+# git global options whose value is the next token (the attached forms are one token).
+_GIT_VALUE_OPTIONS = frozenset(("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix",
+                                "--config-env", "--attr-source", "--exec-path", "--list-cmds"))
+
+
+def _word(token):
+    return token.strip("\"'")
+
+
+def _basename(token):
+    return re.split(r"[\\/]", _word(token))[-1].lower()
+
+
+def _is_git_stash(tokens):
+    i = 0
+    while i < len(tokens) and re.fullmatch(r"[A-Za-z_]\w*=\S*", _word(tokens[i])):
+        i += 1
+    while i < len(tokens) and _basename(tokens[i]) in _WRAPPERS:
+        i += 1
+        while i < len(tokens) and re.fullmatch(r"-\S*|\S*=\S*|\d+[smhd]?", _word(tokens[i])):
+            i += 1
+    if i >= len(tokens) or _basename(tokens[i]) not in ("git", "git.exe"):
+        return False
+    i += 1
+    while i < len(tokens) and _word(tokens[i]).startswith("-"):
+        i += 2 if _word(tokens[i]) in _GIT_VALUE_OPTIONS else 1
+    return i < len(tokens) and _word(tokens[i]) == "stash"
+
+
+def git_stash(command):
+    """True when a command segment runs `git stash` (any global options or wrapper in front)."""
+    return any(_is_git_stash(_TOKEN.findall(segment)) for segment in _SEGMENT_SPLIT.split(command))
+
+
 ORCHESTRATOR_ROLE = "stackfall-orchestrator"
 WRITER_ROLES = frozenset((
     "stackfall-implementer", "stackfall-netcode", "stackfall-designer", "stackfall-triage",
@@ -127,7 +161,7 @@ def problem(command, agent_type=None):
             return REASON_WINDOW
     if agent_type in WRITER_ROLES and FULL_SUITE.search(command):
         return REASON_SUITE
-    if agent_type and agent_type != ORCHESTRATOR_ROLE and GIT_STASH.search(command):
+    if agent_type and agent_type != ORCHESTRATOR_ROLE and git_stash(command):
         return REASON_STASH
     return None
 
