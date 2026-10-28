@@ -55,6 +55,7 @@ func _start_playing() -> void:
 	config.player_count = 2
 	config.block_timer = 6.0
 	config.rng_seed = 13579
+	config.experiments_enabled = true
 	config.qol = qol
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * Engine.physics_ticks_per_second)) + 2):

@@ -72,6 +72,7 @@ func _start(player_count: int, team_ids: PackedInt32Array = PackedInt32Array()) 
 	config.special_frequency = 0
 	# Forces an id no committed special matches, so the installed drawer below is not replaced.
 	config.enabled_specials = [&"__no_special_with_this_id_exists__"]
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_loads_next = true
 	if not team_ids.is_empty():

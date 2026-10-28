@@ -142,6 +142,7 @@ func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> v
 	var lobby: Lobby = _make_lobby(true)
 	var section: UiSection = lobby.get_node("%ExperimentsSection") as UiSection
 	assert_null(section.advanced_button, "the Experiments checks sit directly in the section")
+	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	for unique_name: String in CHECK_NAMES:
 		var check: UiChipToggle = _check(lobby, unique_name)
 		assert_true(check.is_visible_in_tree(), "%s is visible once the section is open" % unique_name)

@@ -194,6 +194,7 @@ func _host_cell(cell: int) -> void:
 	config.player_count = SLOTS
 	config.block_timer = BLOCK_TIMER_S
 	config.countdown_seconds = COUNTDOWN_S
+	config.experiments_enabled = true
 	config.qol = _cell_qol(mask)
 	_expired = [0, 0]
 	_client_blocks = 0

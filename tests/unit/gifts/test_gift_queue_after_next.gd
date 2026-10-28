@@ -29,6 +29,7 @@ func _start(qol: QolExperiments = null) -> void:
 	config.sandbox = true
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 5101
+	config.experiments_enabled = true
 	config.qol = qol
 	Match.start_match(config)
 	for _i: int in range(int(ceil(Match.COUNTDOWN_SECONDS * 60.0)) + 2):

@@ -18,6 +18,7 @@ func _config(qol: QolExperiments) -> MatchConfig:
 	config.player_count = 2
 	config.block_timer = MatchConfig.BLOCK_TIMER_MIN
 	config.rng_seed = 5150
+	config.experiments_enabled = true
 	config.qol = qol
 	return config
 

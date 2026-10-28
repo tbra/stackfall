@@ -64,6 +64,7 @@ func _config(player_count: int = 2, gifts_enabled: bool = true) -> MatchConfig:
 	config.gifts_enabled = gifts_enabled
 	# These tests cover the rule (a claim replaces the next piece);
 	# the default after-next rule is in test_gift_queue_after_next.gd.
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_loads_next = true
 	return config

@@ -29,6 +29,7 @@ func before_each() -> void:
 	config.gifts_enabled = false
 	config.rng_seed = 5251
 	# Old gift rule (a claim replaces the next piece); the default after-next rule is in test_gift_queue_after_next.gd.
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_loads_next = true
 	Match.start_match(config)
