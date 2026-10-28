@@ -1847,12 +1847,11 @@ func _build_join_code_row() -> void:
 func _update_host_only_state() -> void:
 	var is_host: bool = net_provider != null and bool(net_provider.is_host())
 	for control: Control in _settings_controls:
-		# DECISION: the sudden-death length stepper is read-only while the Sudden death toggle is off (host and non-host).
-		var governed_on: bool = (
-			(control != _special_freq_meter or _gifts_check.button_pressed)
-			and (control != _sudden_death_seconds_stepper or _sudden_death_check.button_pressed)
-		)
+		var governed_on: bool = control != _special_freq_meter or _gifts_check.button_pressed
 		_set_control_editable(control, is_host and governed_on)
+	# The sudden-death length only exists while the toggle is on (host and non-host; non-hosts read it);
+	# _visible_chain drops it from the focus loop while hidden.
+	_sudden_death_seconds_stepper.visible = _sudden_death_check.button_pressed
 	_players_panel.set_editable(is_host)
 	# A start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when

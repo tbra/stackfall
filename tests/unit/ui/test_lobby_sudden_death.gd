@@ -36,7 +36,7 @@ func _stepper(lobby: Lobby) -> UiStepper:
 	return null
 
 
-## Turns sudden death on through the lobby's own toggle (the length stepper is read-only while it is off).
+## Turns sudden death on through the lobby's own toggle (the length stepper is hidden while it is off).
 func _enable_sudden_death(lobby: Lobby) -> void:
 	(lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed = true
 
@@ -235,26 +235,35 @@ func test_client_stepper_is_read_only() -> void:
 func test_host_stepper_follows_the_sudden_death_toggle() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var stepper: UiStepper = _stepper(lobby)
-	assert_true(stepper.disabled, "sudden death starts off, so the length is read-only")
-	assert_false(stepper.nudge(1))
+	assert_false(stepper.visible, "sudden death starts off, so the length is hidden")
+	assert_false(stepper.disabled, "the host stepper is editable even while hidden")
 	assert_eq(stepper.value, MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
 	var toggle: UiToggle = lobby.get_node("%SuddenDeathCheck") as UiToggle
 	toggle.button_pressed = true
+	assert_true(stepper.visible, "the toggle on shows the length")
 	assert_false(stepper.disabled, "the toggle on makes the length editable")
 	toggle.button_pressed = false
-	assert_true(stepper.disabled, "the toggle off makes it read-only again")
+	assert_false(stepper.visible, "the toggle off hides it again")
+	for control: Control in lobby._visible_chain(lobby._main_chain):
+		assert_ne(control, stepper, "a hidden stepper is never a focus stop")
+	toggle.button_pressed = true
+	assert_true(lobby._visible_chain(lobby._main_chain).has(stepper), "shown again, it is a focus stop")
 
 
-func test_non_host_stepper_stays_read_only_with_sudden_death_on() -> void:
+func test_non_host_stepper_is_hidden_off_and_read_only_on() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var config: MatchConfig = MatchConfig.new()
 	config.sudden_death = true
 	config.sudden_death_seconds = 150
 	_push_remote(config)
 	var stepper: UiStepper = _stepper(lobby)
+	assert_true(stepper.visible, "a non-host reads the length while sudden death is on")
 	assert_eq(stepper.value, 150)
 	assert_true(stepper.disabled)
 	assert_false(stepper.nudge(1))
+	config.sudden_death = false
+	_push_remote(config)
+	assert_false(stepper.visible, "sudden death off hides it for a non-host too")
 
 
 func test_arrow_keys_step_the_focused_stepper() -> void:
