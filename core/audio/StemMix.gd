@@ -27,10 +27,6 @@ func on_progress(progress: float) -> bool:
 	return true
 
 
-func is_tense() -> bool:
-	return _tense
-
-
 func calm_db() -> float:
 	return MUTE_DB if _tense else _config.music_volume_db
 

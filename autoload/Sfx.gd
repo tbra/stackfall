@@ -356,11 +356,11 @@ func _refresh_tense_stem() -> void:
 		_stem_mix.reset()
 		return
 	if not _library.available():
-		if was_available and _stem_mix.is_tense():
+		if was_available:
 			_stem_mix.reset()  # the tense stem just disappeared -- fall back to calm
 		return
 	if not _library.has_file(config.music_stem_calm_file) or not _library.has_file(config.music_stem_tense_file):
-		if was_available and _stem_mix.is_tense():
+		if was_available:
 			_stem_mix.reset()  # the tense (or its calm partner) just disappeared -- fall back to calm
 		return
 	var stream: AudioStream = _library.stream(config.music_stem_tense_file)
