@@ -186,11 +186,6 @@ func held_special(_slot_id: int) -> StringName:
 	return &""
 
 
-## The value an intent must quote to be accepted (Match.feed_seq).
-func feed_seq(_slot_id: int) -> int:
-	return 0
-
-
 func is_release_locked(_slot_id: int) -> bool:
 	return false
 

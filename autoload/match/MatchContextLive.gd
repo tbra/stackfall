@@ -202,10 +202,6 @@ func held_special(slot_id: int) -> StringName:
 	return _match.held_special(slot_id)
 
 
-func feed_seq(slot_id: int) -> int:
-	return _match.feed_seq(slot_id)
-
-
 func is_release_locked(slot_id: int) -> bool:
 	return _match.is_release_locked(slot_id)
 

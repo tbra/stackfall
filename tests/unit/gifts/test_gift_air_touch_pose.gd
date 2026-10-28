@@ -86,7 +86,7 @@ func _touch_pose(crate: Vector3) -> Vector3:
 
 
 func _publish(slot: int, shape: BlockShape, origin: Vector3) -> void:
-	MatchContext.current().local_held().publish(slot, shape, origin, 0, Quaternion.IDENTITY, true, 0.0, 0)
+	MatchContext.current().local_held().publish(slot, shape, origin, 0, Quaternion.IDENTITY, true, 0.0)
 
 
 func _claimed(gift_id: int) -> bool:

@@ -63,7 +63,7 @@ func _poll(bird: PerchingBird) -> void:
 
 func _hold_beside(bird: PerchingBird, shape: BlockShape, is_visible: bool) -> void:
 	_fake_context.local_held().publish(0, shape, bird.global_position + NEAR_OFFSET, 0,
-			Quaternion.IDENTITY, is_visible, 0.0, 0)
+			Quaternion.IDENTITY, is_visible, 0.0)
 
 
 func test_bird_flees_a_visible_held_block_nearby() -> void:

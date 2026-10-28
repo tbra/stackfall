@@ -136,7 +136,7 @@ func _fall_ticks(count: int) -> void:
 
 
 func _publish(origin: Vector3) -> void:
-	MatchContext.current().local_held().publish(LOCAL, Match.held_shape(LOCAL), origin, 0, Quaternion.IDENTITY, true, 0.0, 0)
+	MatchContext.current().local_held().publish(LOCAL, Match.held_shape(LOCAL), origin, 0, Quaternion.IDENTITY, true, 0.0)
 
 
 func test_level_disc_crate_lands_on_the_spawn_surface_point() -> void:

@@ -331,7 +331,7 @@ func _publish_held_view() -> void:
 		return
 	match_context.local_held().publish(_acting_slot(), _ghost.get_shape(), _ghost.global_position,
 			_ghost.orientation_index, _ghost.free_quaternion, _ghost.visible,
-			_ghost.height_above_surface(), Time.get_ticks_msec())
+			_ghost.height_above_surface())
 
 
 func _process_input(delta: float) -> void:

@@ -92,7 +92,6 @@ func test_null_object_local_player_reads_and_intents_are_neutral() -> void:
 	var ctx: MatchContext = MatchContext.current()
 	assert_null(ctx.held_shape(0))
 	assert_eq(ctx.held_special(0), &"")
-	assert_eq(ctx.feed_seq(0), 0)
 	assert_false(ctx.is_release_locked(0))
 	assert_eq(ctx.gift_slot_head(0), &"")
 	assert_eq(ctx.default_ghost_origin(0), Vector3.ZERO)
@@ -106,7 +105,7 @@ func test_each_context_has_its_own_held_view() -> void:
 	var a: FakeMatchContext = FakeMatchContext.new()
 	var b: FakeMatchContext = FakeMatchContext.new()
 	a.local_held().publish(1, load("res://config/blocks/cube.tres"), Vector3.ONE, 0,
-			Quaternion.IDENTITY, true, 0.0, 10)
+			Quaternion.IDENTITY, true, 0.0)
 	assert_not_null(a.local_held().shape)
 	assert_null(b.local_held().shape, "publishing into one context leaves another untouched")
 
@@ -117,7 +116,7 @@ func test_fake_context_view_is_readable_and_settable_through_the_port() -> void:
 	var mine: LocalHeldView = LocalHeldView.new()
 	fake.set_local_held(mine)
 	assert_same(MatchContext.current().local_held(), mine, "a reader sees the view the test supplied")
-	MatchContext.current().local_held().publish(2, null, Vector3.UP, 1, Quaternion.IDENTITY, true, 1.0, 7)
+	MatchContext.current().local_held().publish(2, null, Vector3.UP, 1, Quaternion.IDENTITY, true, 1.0)
 	assert_eq(mine.slot_id, 2, "a writer through the port lands in the supplied view")
 	assert_eq(mine.origin, Vector3.UP)
 
@@ -127,6 +126,6 @@ func test_live_context_returns_the_same_view_on_every_call() -> void:
 	var view: LocalHeldView = live.local_held()
 	assert_not_null(view)
 	assert_same(live.local_held(), view)
-	view.publish(0, null, Vector3(2.0, 0.0, 0.0), 0, Quaternion.IDENTITY, true, 0.0, 1)
+	view.publish(0, null, Vector3(2.0, 0.0, 0.0), 0, Quaternion.IDENTITY, true, 0.0)
 	assert_eq(live.local_held().origin, Vector3(2.0, 0.0, 0.0), "a publish is visible to the next reader")
 	view.clear()

@@ -155,20 +155,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:feed_progress",
    "reason": "live: autoload/Match.gd:732 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchFeed.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
   },
   {
    "id": "test-only-func",
@@ -183,14 +171,12 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:held_shape",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
+   "reason": "live: autoload/Match.gd:481 (name-ambiguous call chain; Match.held_shape is read by HUD, PlayerController, RemoteCursors)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:is_release_locked",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
+   "reason": "live: autoload/Match.gd:796 (name-ambiguous call chain; read by HUD, PlayerController, MatchEventMirror)"
   },
   {
    "id": "test-only-func",
@@ -225,14 +211,12 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchPlacement.gd:default_ghost_origin",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
+   "reason": "live: autoload/Match.gd:804 (name-ambiguous call chain; read by LocalPlayer, SpectatorController, SlotCursors)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchPlacement.gd:note_aim",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
+   "reason": "live: autoload/Match.gd:745 (name-ambiguous call chain; called by PlayerController, MatchIntentGateway)"
   },
   {
    "id": "test-only-func",
@@ -442,14 +426,7 @@
   {
    "id": "test-only-func",
    "entry": "config/blocks/tuning/GhostTuning.gd:home_spawn_back_position",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "config/gifts/GiftModelTable.gd:visual_for",
-   "reason": "P3-Sx frozen stub (docs/plans/P3_PLAN.md 2.2): removed by P3-Sdead (P3-Ifallback was cut)",
-   "consumer": "P3-Sdead"
+   "reason": "live: autoload/match/MatchPlacement.gd:964 (reached only through the ambiguous default_ghost_origin chain)"
   },
   {
    "id": "test-only-func",
@@ -630,12 +607,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:feed_seq",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
-  },
-  {
-   "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
   },
@@ -669,12 +640,6 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
-  },
-  {
-   "id": "test-only-var",
-   "entry": "game/world/LocalHeldView.gd:updated_msec",
-   "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): removed by P3-Sdead",
-   "consumer": "P3-Sdead"
   }
  ]
 }
