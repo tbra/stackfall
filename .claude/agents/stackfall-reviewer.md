@@ -37,7 +37,8 @@ log|show|diff|status <plain args>` (no pipes, redirects, chaining or quotes), on
 finding comment on your assigned Bead, and at most 2 targeted runs per review of
 `powershell -NoProfile -File tools/run_gut.ps1 <test_a[,test_b...]> [-Path
 <checkout>] [-Unit <name>]` with explicit test script names (no wildcards,
--gdir/-gselect or operators). Never run Godot
+-gdir/-gselect or operators), and `python tools/test_<name>.py` or
+`python -m unittest tools.test_<name>`. Never run Godot
 directly or the full suite; the hook denies other commands.
 
 Rank findings in this order: correct (wrong result, crash, missed edge case such as

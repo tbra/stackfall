@@ -115,11 +115,9 @@ var _last_safe_cursor: Vector3 = Vector3.ZERO
 ## sweep across the whole map from the pre-spawn Vector3.ZERO default.
 var _collision_cursor_seeded: bool = false
 ## The disk-surface hit this frame's _update_ghost_transform() last saw,
-## cached so _clamp_hover_offset() (called from the wheel/held-key handlers,
-## not from _update_ghost_transform() itself) knows which world direction
-## "up" is for the vertical collision sweep without re-raycasting.
+## cached so the wheel/held-key handlers (not _update_ghost_transform() itself)
+## can re-pose the ghost without re-raycasting.
 var _last_hit_point: Vector3 = Vector3.ZERO
-var _last_hit_normal: Vector3 = Vector3.UP
 
 ## The held ghost's clearance machine (post-placement raise, release lift, home raise); built
 ## for the current ghost and tuning by _clearance().
@@ -204,7 +202,7 @@ func _clearance() -> SpawnClearance:
 		_clearance_machine = SpawnClearance.new(
 			_ghost, _ghost_overlapping_bodies, _camera_rig, ghost_tuning, tuning, _hover_offset_ceiling
 		)
-		_clearance_machine.set_surface(_last_hit_point, _last_hit_normal)
+		_clearance_machine.set_surface(_last_hit_point)
 	return _clearance_machine
 
 
@@ -682,7 +680,7 @@ func _step_hover(direction: float) -> void:
 ## frame could overshoot the wire-band ceiling or the sweep's start point.
 func _refresh_ghost_pose() -> void:
 	if _ghost != null:
-		_ghost.update_placement(_last_hit_point, _last_hit_normal)
+		_ghost.update_placement(_last_hit_point)
 
 
 ## The highest manual_hover_offset the held ghost may reach right now. The
@@ -692,19 +690,15 @@ func _refresh_ghost_pose() -> void:
 ## accepts from a client -- with GhostTuning.hover_manual_max only an optional
 ## extra cap on top (its default, 200 m, sits above anything the band allows).
 ## DECISION (game/player/PlayerController.gd): derived from the ghost's *current*
-## origin height and offset (origin Y moves 1:1 with the offset along the
-## surface normal's Y), rather than re-deriving GhostPreview's private
+## origin height and offset (hover is world-up, so origin Y moves 1:1 with the offset), rather than re-deriving GhostPreview's private
 ## rotated-bottom pivot math here -- both values are the same frame's pose.
 func _hover_offset_ceiling() -> float:
 	var ceiling: float = ghost_tuning.hover_manual_max
 	if _ghost == null:
 		return ceiling
-	var rise_per_meter: float = maxf(_last_hit_normal.y, 0.0)
-	if rise_per_meter <= 0.0:
-		return ceiling
 	var origin_limit: float = net_config.pos_max_y - ghost_tuning.hover_ceiling_margin
 	var band_ceiling: float = (
-		_ghost.manual_hover_offset + (origin_limit - _ghost.global_position.y) / rise_per_meter
+		_ghost.manual_hover_offset + origin_limit - _ghost.global_position.y
 	)
 	return maxf(minf(ceiling, band_ceiling), 0.0)
 
@@ -1349,7 +1343,6 @@ func _update_ghost_transform() -> void:
 
 	var hit: Dictionary = _ghost.raycast_disk_surface(origin)
 	var hit_point: Vector3
-	var hit_normal: Vector3
 	if hit.is_empty():
 		# Fallback so the ghost has somewhere to go even if the ray misses
 		# every physics body (e.g. aimed at the sky before Field is ready) or
@@ -1357,15 +1350,12 @@ func _update_ghost_transform() -> void:
 		var plane: Plane = Plane(Vector3.UP, 0.0)
 		var point: Variant = plane.intersects_ray(origin, Vector3.DOWN)
 		hit_point = (point as Vector3) if point != null else Vector3.ZERO
-		hit_normal = Vector3.UP
 	else:
 		hit_point = hit["position"] as Vector3
-		hit_normal = hit["normal"] as Vector3
 
 	_last_hit_point = hit_point
-	_last_hit_normal = hit_normal
-	_clearance().set_surface(hit_point, hit_normal)
-	_ghost.update_placement(hit_point, hit_normal)
+	_clearance().set_surface(hit_point)
+	_ghost.update_placement(hit_point)
 
 
 # --- Ghost-vs-placed-block collision (spec 1.4 "Held-block
@@ -1442,9 +1432,7 @@ func _clamp_cursor_collision() -> void:
 ## Clamps a manual_hover_offset change (from the wheel notch or a held
 ## raise/lower key) so raising/lowering the held shape can't sweep it through
 ## a placed block above or below it -- same box-sweep technique as the
-## horizontal clamp, just along the disk's own surface normal
-## (_last_hit_normal, cached by _update_ghost_transform()) instead of the XZ
-## plane. `desired` is the value the caller would otherwise commit after its
+## horizontal clamp, just along world up instead of the XZ plane. `desired` is the value the caller would otherwise commit after its
 ## own hover_manual_max clamp.
 func _clamp_hover_offset(desired: float) -> float:
 	if not ghost_tuning.ghost_collision_enabled or _ghost == null or _ghost.get_shape() == null:
@@ -1454,9 +1442,9 @@ func _clamp_hover_offset(desired: float) -> float:
 	if is_equal_approx(delta, 0.0):
 		return desired
 	var from_position: Vector3 = _ghost.global_position
-	var to_position: Vector3 = from_position + _last_hit_normal * delta
+	var to_position: Vector3 = from_position + Vector3.UP * delta
 	var clamped_position: Vector3 = _sweep_ghost_position(from_position, to_position)
-	var achieved_delta: float = (clamped_position - from_position).dot(_last_hit_normal)
+	var achieved_delta: float = clamped_position.y - from_position.y
 	return current + achieved_delta
 
 

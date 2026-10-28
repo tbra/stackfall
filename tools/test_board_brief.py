@@ -29,6 +29,27 @@ class StaleBlockedTests(unittest.TestCase):
         self.assertEqual([r["id"] for r in bb.find_stale_blocked(rows)], ["stale", "parent_ignored"])
 
 
+class OwnerQuestionTests(unittest.TestCase):
+    def test_classifier(self):
+        def row(iid, title, status="open", assignee="owner", kind="task", labels=()):
+            return {"id": iid, "title": title, "status": status, "assignee": assignee,
+                    "issue_type": kind, "labels": list(labels)}
+        rows = [
+            row("plain", "Keep the rule?"),
+            row("trailing_space", "Keep the rule? "),
+            row("decision_human", "Q?", kind="decision", labels=["human"]),
+            row("decision_no_label", "Q?", kind="decision"),
+            row("label_on_task", "Q?", labels=["human"]),
+            row("no_question", "Do it"),
+            row("closed", "Q?", status="closed"),
+            row("agent", "Q?", assignee="stackfall-implementer (sonnet)"),
+            row("unassigned", "Q?", assignee=None),
+        ]
+        found = bb.find_owner_questions(rows, lambda a: a == "owner")
+        self.assertEqual([r["id"] for r in found],
+                         ["plain", "trailing_space", "decision_no_label", "label_on_task"])
+
+
 class StaleInProgressTests(unittest.TestCase):
     def test_classifier(self):
         now = datetime.datetime(2026, 10, 20, 12, tzinfo=datetime.timezone.utc)

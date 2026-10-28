@@ -117,16 +117,6 @@ func _controller_slot() -> int:
 	return MatchContext.current().local_held().slot_id
 
 
-## The scoreboard row whose "YOU" marker the local HUD shows, -1 for none: what
-## the player sees for which slot the HUD follows (solo teams: row == slot).
-## Keeps the first real claim from replacing a forced drawer with the weighted
-## roster draw (MatchGifts._ensure_special_drawer_installed runs lazily at the
-## first claim and overwrites any drawer installed before it): an id no special
-## has empties the match roster, as test_gift_claim.gd does.
-func _keep_forced_drawer_on_first_claim() -> void:
-	_main.match_config.enabled_specials = [&"__no_special_with_this_id_exists__"]
-
-
 ## Claims a crate on slot `slot_id`'s own home flag through the game's claim
 ## path and returns the special id it drew (the claim's gift_claimed event).
 func _claim_crate_for_slot(slot_id: int) -> StringName:
@@ -145,6 +135,8 @@ func _claim_crate_for_slot(slot_id: int) -> StringName:
 	return drawn[0] if not drawn.is_empty() else &""
 
 
+## The scoreboard row whose "YOU" marker the local HUD shows, -1 for none: what
+## the player sees for which slot the HUD follows (solo teams: row == slot).
 func _hud_you_row() -> int:
 	var hud: HUD = _local_player().hud()
 	var row: int = -1
@@ -366,7 +358,6 @@ func test_sandbox_force_special_hotkey_cycles_the_roster_in_order_and_wraps_to_o
 
 
 func test_sandbox_force_special_installs_a_forced_drawer() -> void:
-	_keep_forced_drawer_on_first_claim()
 	_start_sandbox(2)
 	_run_countdown()
 	var sandbox: Sandbox = _sandbox()
@@ -477,7 +468,6 @@ func test_f5_twice_in_a_row_still_leaves_one_of_everything() -> void:
 
 
 func test_a_forced_special_chosen_before_f5_is_still_forced_after() -> void:
-	_keep_forced_drawer_on_first_claim()
 	DebugMode.set_override_for_test(true)
 	_start_sandbox(2)
 	_run_countdown()

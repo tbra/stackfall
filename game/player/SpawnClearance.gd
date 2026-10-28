@@ -29,7 +29,6 @@ var _tuning: GhostTuning
 var _physics: PhysicsTuning
 var _hover_ceiling: Callable
 var _surface_point: Vector3 = Vector3.ZERO
-var _surface_normal: Vector3 = Vector3.UP
 ## A placement request is waiting for the next ghost to be cleared.
 var _pending: bool = false
 ## The previous piece's raise was already taken back for the pending spawn (once per placement).
@@ -68,10 +67,9 @@ func set_camera(camera: CameraRig) -> void:
 	_camera = camera
 
 
-## The surface hit the ghost is posed from (PlayerController's last hit point and normal).
-func set_surface(point: Vector3, normal: Vector3) -> void:
+## The surface hit the ghost is posed from (PlayerController's last hit point).
+func set_surface(point: Vector3) -> void:
 	_surface_point = point
-	_surface_normal = normal
 
 
 ## A placement request was sent: restart the settle wait.
@@ -160,7 +158,7 @@ func _active() -> bool:
 
 
 func _refresh_pose() -> void:
-	_ghost.update_placement(_surface_point, _surface_normal)
+	_ghost.update_placement(_surface_point)
 
 
 func _apply_pending(delta: float, wait_for_settle: bool) -> void:

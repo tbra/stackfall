@@ -91,6 +91,25 @@ class KillAndSuiteTest(unittest.TestCase):
         self.assertEqual(g.problem("python3 x.py"), g.guard_store_python.REASON)
 
 
+class GitStashTest(unittest.TestCase):
+    def test_workers_refused_in_every_form(self):
+        for cmd in ("git stash", "git stash push -m x", "git -C /work/wt stash pop", 'git -C "a b" stash list',
+                    "git -c user.name=x --no-pager stash",
+                    "git --git-dir X stash", "git -Cx stash", "git -P stash", "timeout 5 git stash",
+                    "env A=1 git stash", "xargs git stash", "/usr/bin/git stash", '"git" stash',
+                    "nice -n 5 git stash", "command git stash", "git --work-tree x -C y stash", "cd x && git stash", "echo hi; git stash drop"):
+            for role in ("stackfall-implementer", "stackfall-reviewer", "stackfall-integrator"):
+                self.assertEqual(g.problem(cmd, role), g.REASON_STASH, (cmd, role))
+
+    def test_orchestrator_and_lookalikes_pass(self):
+        self.assertIsNone(g.problem("git stash", "stackfall-orchestrator"))
+        self.assertIsNone(g.problem("git stash"))
+        for cmd in ("git status", "git log --grep stash", "git commit -m 'git stash'", "git stashed",
+                    "git -C /work/wt diff stash.txt", "echo git stash", "git show stash@{0}",
+                    "git --git-dir stash log", "grep -r git stash tools"):
+            self.assertIsNone(g.problem(cmd, "stackfall-implementer"), cmd)
+
+
 class HookIoTest(unittest.TestCase):
     def run_hook(self, event):
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_shell.py")

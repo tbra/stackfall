@@ -373,5 +373,42 @@ class BaselineTest(unittest.TestCase):
             self.assertIn("game=1", out)
 
 
+class ConsumerTest(unittest.TestCase):
+    ALLOW = [{"id": "test-only-func", "entry": "game/Main.gd:orphan", "reason": "removed by P7-Ibots", "consumer": "P7-Ibots"},
+             {"id": "dead-file", "entry": "game/Gallery.tscn", "reason": "designer gallery"}]
+
+    def test_landed_needs_a_closed_title_with_the_exact_package_prefix(self):
+        landed = lint_dead.landed_consumers
+        self.assertEqual(landed(self.ALLOW, ["P7-Ibots: headless bots flow"]),
+                         [("test-only-func", "game/Main.gd:orphan", "P7-Ibots")])
+        self.assertEqual(landed(self.ALLOW, ["P7-Ibots-b: later part", "P7-Iboot: other", "x P7-Ibots: no"]), [])
+        self.assertEqual(landed(self.ALLOW, []), [])
+
+    def run_main(self, root, titles):
+        buf = io.StringIO()
+        old = lint_dead.closed_titles
+        lint_dead.closed_titles = lambda _root: titles
+        try:
+            with redirect_stdout(buf):
+                code = lint_dead.main(["--path", root, "--today", TODAY])
+        finally:
+            lint_dead.closed_titles = old
+        return code, buf.getvalue()
+
+    def test_run_fails_once_consumer_landed_and_survives_missing_bd(self):
+        files = {"game/Main.gd": "extends Node\nfunc orphan() -> void:\n\tpass\n"}
+        with make_repo(files) as root:
+            os.makedirs(os.path.join(root, "tools"))
+            with open(os.path.join(root, "tools", "dead_baseline.json"), "w", encoding="utf-8") as fh:
+                json.dump({"checks": {}, "allow": self.ALLOW[:1]}, fh)
+            code, out = self.run_main(root, ["P7-Ibots: done"])
+            self.assertEqual(code, 1)
+            self.assertIn("consumer package P7-Ibots has landed", out)
+            self.assertEqual(self.run_main(root, ["P7-Imatch-a: other"])[0], 0)
+            code, out = self.run_main(root, None)
+            self.assertEqual(code, 0)
+            self.assertIn("consumer check skipped: bd unavailable", out)
+
+
 if __name__ == "__main__":
     unittest.main()

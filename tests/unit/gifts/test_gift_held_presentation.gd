@@ -50,19 +50,19 @@ func test_held_gift_is_never_tinted_in_any_state() -> void:
 ## light-shaft prism, block decal); going back to a plain block restores it.
 func test_held_gift_hides_projection_visuals_and_plain_block_restores_them() -> void:
 	var ghost: GhostPreview = _make_ghost()
-	ghost.update_placement(Vector3(0.0, 3.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 3.0, 0.0))
 	var quads: Array[MeshInstance3D] = GhostParts.footprint_quads(ghost)
 	assert_gt(quads.size(), 0, "fixture: plain block has a footprint")
 	assert_true(quads[0].visible)
 	assert_true(GhostParts.decal(ghost).visible, "fixture: plain block over a gap has a decal")
 	ghost.set_held_gift(&"earthquake")
-	ghost.update_placement(Vector3(0.0, 3.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 3.0, 0.0))
 	for quad: MeshInstance3D in GhostParts.footprint_quads(ghost):
 		assert_false(quad.visible, "gift footprint hidden")
 	assert_false(GhostParts.prism(ghost).visible, "gift prism hidden")
 	assert_false(GhostParts.decal(ghost).visible, "gift decal hidden")
 	ghost.set_held_gift(&"")
-	ghost.update_placement(Vector3(0.0, 3.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 3.0, 0.0))
 	assert_true(GhostParts.footprint_quads(ghost)[0].visible, "plain block footprint returns")
 	assert_true(GhostParts.prism(ghost).visible)
 	assert_true(GhostParts.decal(ghost).visible, "plain block decal returns")

@@ -23,6 +23,14 @@ def ok(path):
 
 
 class GuardTesterWritesTest(unittest.TestCase):
+    def test_only_tool_tests_allowed_under_tools(self):
+        self.assertTrue(ok("/work/repo/tools/test_guard_shell.py"))
+        self.assertTrue(ok("/work/repo-worktrees/wt/tools/test_x.py"))
+        self.assertFalse(ok("/work/repo/tools/guard_shell.py"))
+        self.assertFalse(ok("/work/repo/tools/sub/test_x.py"))
+        self.assertFalse(ok("/work/repo/tools/test_x.gd"))
+        self.assertFalse(ok("/work/repo/tools/test_x.py/../guard.py"))
+
     def test_tests_folder_of_every_checkout_kind_is_allowed(self):
         self.assertTrue(ok("/work/repo/tests/unit/blocks/test_block_bag.gd"))
         self.assertTrue(ok("\\work\\repo\\tests\\support\\Helper.gd"))

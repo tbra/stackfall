@@ -14,7 +14,7 @@ Every dispatch brief gives you:
 - the exact absolute checkout path, branch, base commit and any required interface revisions;
 - owned files/directories and exclusions, and the spec sections and plan to read;
 - commands, expected outcomes and the scratchpad for logs (`python tools/scratch.py path <bead-id> [slug]`);
-- your Git authority (default none: no commits, merges, pushes, stash or sync) and the Beads checkout for comments (the main checkout unless named);
+- your Git authority (default none: no commits, merges, pushes, stash or sync; the guard refuses `git stash`, so copy files to the scratchpad) and the Beads checkout for comments (the main checkout unless named);
 - the verification budget: named checks, maximum runs and time, whether a visual probe is justified, the stop condition and, for work over 30 min, a check-in time. A phased brief names only the current phase's checks; a phase before the last hands back verdict partial.
 
 If something you need is missing or conflicts (ownership, an absent interface, a spec ambiguity that changes rules or feel), report it instead of guessing or touching another worker's files.

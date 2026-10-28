@@ -26,11 +26,17 @@ dead" and "no dead weight left behind". Four checks, one finding per line as `pa
                   `(Bontago-<id>, expires YYYY-MM-DD)` form still passes until the code pass converts it.
 
 tools/dead_baseline.json holds the findings that predate the lint per check (`checks`) and reviewed exceptions
-(`allow`: [{"id","entry","reason"}]). Only findings outside both fail the run (exit 1). The baseline only
+(`allow`: [{"id","entry","reason"[,"consumer"]}]). Only findings outside both fail the run (exit 1). The baseline only
 shrinks: `--update-baseline` drops entries that no longer occur and keeps `allow` entries that still match,
 but never adds a finding; it lists each new one and exits 1. A new finding is fixed (delete the code) or
 gets an `allow` entry whose reason names its live caller or what removes it; a reason that is empty or
-points at a test exempts nothing. `--report` prints counts per check and folder. Graph building reuses
+points at a test exempts nothing.
+A temporary allow (its reason says a package removes it) also carries `"consumer": "<plan package>"`, the title
+prefix of the package that removes it (e.g. "P7-Ibots"; no Bead id in a tracked file). The run fails once that
+package has landed, i.e. a closed Bead whose title starts with "<consumer>:", while the entry is still listed:
+delete the entry (and the code, if it is now dead). A permanent allow (a live non-code consumer such as the soak
+harness or the designer gallery) has no consumer field. When bd is unavailable or times out the lookup is
+reported and skipped, never a failure; a consumer with no Bead yet is reported as unresolved. `--report` prints counts per check and folder. Graph building reuses
 tools/dep_graph.py (about 15 s).
 """
 import argparse
@@ -39,10 +45,12 @@ import datetime
 import json
 import os
 import re
+import subprocess
 import sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS)
+import bd_cli  # noqa: E402
 import dep_graph  # noqa: E402
 
 BASELINE_NAME = "dead_baseline.json"
@@ -443,6 +451,26 @@ def valid_reason(reason):
     return bool(reason.strip()) and not TEST_REASON_RE.search(reason)
 
 
+BD_TIMEOUT_S = 60
+
+
+def closed_titles(root):
+    """Titles of closed Beads, or None when bd is unavailable (missing, timed out, bad output)."""
+    try:
+        proc = subprocess.run([bd_cli.bd_executable(), "list", "--all", "--limit", "0", "--json"], cwd=root,
+                              capture_output=True, text=True, timeout=BD_TIMEOUT_S)
+        return [i.get("title", "") for i in json.loads(proc.stdout) if i.get("status") == "closed"]
+    except (OSError, ValueError, subprocess.SubprocessError, TypeError, AttributeError):
+        return None
+
+
+def landed_consumers(allow, titles):
+    """Allow entries (id, entry, consumer) whose consumer package has landed: a closed title starting
+    "<consumer>:"."""
+    return sorted((a["id"], a["entry"], a["consumer"]) for a in allow
+                  if a.get("consumer") and any(t.startswith(a["consumer"] + ":") for t in titles))
+
+
 def classify(findings, baseline, allow):
     """(new findings, baselined count, stale baseline entries (id, entry), stale allow entries)."""
     base = {c: set(v) for c, v in baseline.items()}
@@ -519,8 +547,19 @@ def main(argv):
     for a in allow:
         if not valid_reason(a.get("reason", "")):
             print("allow entry exempts nothing (empty reason or a test): %s %s" % (a.get("id"), a.get("entry")))
-    if new:
-        print("LINT DEAD RED: %d new finding(s) (%d baselined, %d stale)" % (len(new), n_base, len(stale) + len(stale_allow)))
+    landed = []
+    if any(a.get("consumer") for a in allow):
+        titles = closed_titles(root)
+        if titles is None:
+            print("consumer check skipped: bd unavailable")
+        else:
+            landed = landed_consumers(allow, titles)
+    for cid, key, consumer in landed:
+        print("allow entry's consumer package %s has landed (delete the entry and any dead code): %s %s"
+              % (consumer, cid, key))
+    if new or landed:
+        print("LINT DEAD RED: %d new finding(s), %d landed consumer(s) (%d baselined, %d stale)"
+              % (len(new), len(landed), n_base, len(stale) + len(stale_allow)))
         return 1
     print("LINT DEAD GREEN: %d baselined, %d stale" % (n_base, len(stale) + len(stale_allow)))
     return 0

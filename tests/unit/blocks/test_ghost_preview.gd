@@ -106,7 +106,7 @@ func _visual_world_top_y(ghost: GhostPreview) -> float:
 func test_update_placement_puts_an_unrotated_shapes_visual_bottom_at_the_reported_height() -> void:
 	var ghost: GhostPreview = _make_ghost()
 
-	ghost.update_placement(Vector3(2.0, 5.0, -3.0), Vector3.UP)
+	ghost.update_placement(Vector3(2.0, 5.0, -3.0))
 
 	assert_almost_eq(ghost.global_position.x, 2.0, 0.001)
 	assert_almost_eq(ghost.global_position.z, -3.0, 0.001)
@@ -128,7 +128,7 @@ func test_update_placement_keeps_a_rotated_talls_shapes_visual_bottom_at_the_rep
 	ghost.set_shape(load("res://config/blocks/pillar.tres"))
 	ghost.set_orientation_index(BlockOrientations.step_pitch_fwd(0))
 
-	ghost.update_placement(Vector3(0.0, 4.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 4.0, 0.0))
 
 	var expected_bottom: float = 4.0 + ghost.tuning.hover_height
 	assert_almost_eq(
@@ -201,7 +201,7 @@ func test_footprint_polygon_matches_the_whole_rotated_shapes_projected_corners()
 	for angle: float in [PI * 0.5, PI * 0.25]:
 		ghost.free_quaternion = Quaternion(Vector3.UP, angle)
 		ghost.set_orientation_index(0)
-		ghost.update_placement(Vector3.ZERO, Vector3.UP)
+		ghost.update_placement(Vector3.ZERO)
 
 		var expected_points: PackedVector2Array = PackedVector2Array()
 		for cell: Vector3i in shape.cells:
@@ -287,7 +287,7 @@ func test_pitched_bar3_over_a_placed_block_gets_one_disc_footprint_and_a_matchin
 	# surface at the field's own origin regardless of the pillar sitting
 	# there -- same surface_point PlayerController's own probe would report.
 	var disk_surface_point: Vector3 = Vector3.ZERO
-	ghost.update_placement(disk_surface_point, Vector3.UP)
+	ghost.update_placement(disk_surface_point)
 
 	assert_eq(_footprint_quad_count(ghost), 1, "one whole-shape footprint, not one per cell.")
 	assert_almost_eq(
@@ -493,7 +493,7 @@ func _held_ghost(shape_path: String, roll_degrees: float) -> GhostPreview:
 	ghost.set_shape(load(shape_path))
 	if roll_degrees != 0.0:
 		ghost.apply_free_rotation_delta(0.0, deg_to_rad(roll_degrees), Vector3.RIGHT)
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	ghost.update_placement(Vector3.ZERO)
 	return ghost
 
 
@@ -502,7 +502,7 @@ func _held_ghost(shape_path: String, roll_degrees: float) -> GhostPreview:
 ## reverted to). Must fail against attempt 3.
 func test_single_cube_projection_walls_cap_at_its_own_underside_not_the_shapes_own_top() -> void:
 	var ghost: GhostPreview = _make_ghost()
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	ghost.update_placement(Vector3.ZERO)
 
 	assert_true(_has_projection_mesh(ghost), "fixture: hover_height alone leaves a real gap under the cube.")
 	assert_almost_eq(

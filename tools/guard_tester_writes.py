@@ -1,7 +1,7 @@
 """Claude hook (PreToolUse Edit|Write|NotebookEdit): the tester writes tests only.
 
 stackfall-tester authors behaviour tests against a module's public interface, so it may
-write only under a checkout's tests/ folder (the main repo, a worktree under the worktrees
+write only under a checkout's tests/ folder, or a tools/test_*.py tool test (the main repo, a worktree under the worktrees
 root, or an app worktree under <repo>/.claude/worktrees/<name>/) or under the scratch root
 for logs. Any other path is denied: a hook, accessor or counter added to game code to make
 something testable is exactly what this role must not produce. Report the boundary instead.
@@ -9,11 +9,13 @@ something testable is exactly what this role must not produce. Report the bounda
 
 import json
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import repo_paths  # noqa: E402
 
+TOOL_TEST = re.compile(r"tools/test_[A-Za-z0-9_]+\.py")
 APP_WORKTREES = "/.claude/worktrees/"
 
 
@@ -49,7 +51,7 @@ def allowed(path, repo=None, worktrees=None, scratch=None):
     if _norm(path).lower().startswith(scratch.lower() + "/"):
         return True
     rel = checkout_relative(path, repo, worktrees)
-    return rel is not None and rel.startswith("tests/")
+    return rel is not None and (rel.startswith("tests/") or bool(TOOL_TEST.fullmatch(rel)))
 
 
 def main():
@@ -65,7 +67,7 @@ def main():
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
         "permissionDecisionReason": (
-            "stackfall-tester writes only under a checkout's tests/ folder or the scratch root. "
+            "stackfall-tester writes only under a checkout's tests/ folder, tools/test_*.py or the scratch root. "
             "If the behaviour cannot be tested through the public interface, do not add a hook, "
             "accessor or counter to game code: report the boundary to the orchestrator."),
     }}))

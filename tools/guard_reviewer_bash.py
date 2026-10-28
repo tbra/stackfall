@@ -14,6 +14,7 @@ one of those two roots and may not contain "..":
   - python [<repo>/]tools/check_packages.py|lint_dead.py|lint_all.py|dep_graph.py|affected_tests.py
     [plain args]: read-only tools; flags that write (--update, --update-baseline, --allow-new,
     --out) and ".." are denied.
+  - python [<repo>/]tools/test_<name>.py or python -m unittest tools.test_<name>: tool tests, no args.
 Everything else (edits, other tests, commits, status changes, pipes, redirects,
 command chaining, substitutions, -gdir/-gselect/-Dir overrides) is denied.
 """
@@ -64,8 +65,12 @@ PY_READ = re.compile(
     r'( [A-Za-z0-9_.:/=@,-]+)*$'
 )
 PY_DENY = re.compile(r' --(update|update-baseline|allow-new|out)(=| |$)|\.\.')
+# A tool test: `python tools/test_<name>.py` or `python -m unittest tools.test_x`, no further args.
+PY_TOOL_TEST = re.compile(
+    r'^python (?:(?:' + REPO + r'/)?tools/test_[A-Za-z0-9_]+\.py|-m unittest tools\.test_[A-Za-z0-9_]+)$'
+)
 RUN_CAP = 2
-ALLOWED = (COMMENT, BD_READ, GIT_READ, GUT_RUN, GUT_RUN_ALT, PY_READ)
+ALLOWED = (COMMENT, BD_READ, GIT_READ, GUT_RUN, GUT_RUN_ALT, PY_READ, PY_TOOL_TEST)
 # git options that write files or run external programs.
 GIT_DENY = re.compile(r' (--output|-o|--ext-diff|--textconv|--exec|--upload-pack)(=| |$)')
 
@@ -130,7 +135,8 @@ def main():
                 "log|show|diff|status <plain args>. No pipes, redirects, chaining or quotes "
                 "in git args; powershell -NoProfile -File tools/run_gut.ps1 test_a,test_b "
                 "[-Path <checkout>] [-Unit name] (max 2 runs); python tools/check_packages|lint_dead|"
-                "lint_all|dep_graph|affected_tests.py <plain args, no writing flags>. "
+                "lint_all|dep_graph|affected_tests.py <plain args, no writing flags>; python tools/test_<name>.py or "
+                "python -m unittest tools.test_<name>. "
                 "Use Read/Glob/Grep for files."
             ))
     return 0
