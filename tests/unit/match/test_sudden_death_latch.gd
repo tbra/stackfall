@@ -1,7 +1,8 @@
 extends GutTest
 ## Sudden-death goal latch (Classic): goal flags are claimed instantly, stay with
 ## the last claimer and the match is won when one team holds every latch. Driven
-## through ClassicObjective with rasters from the real solver.
+## through ClassicObjective with rasters from the real solver. The latch itself
+## lives in WinChecker's sudden-death mode, reached through the API the match uses.
 
 const MAP_RADIUS: float = 20.0
 const CELL: float = 1.0
@@ -395,3 +396,32 @@ func test_a_cleared_latch_travels_as_no_team() -> void:
 	client.apply_mode_state(host.mode_state())
 	assert_eq(client.latched_team(0), NO_TEAM, "the release reaches the mirror")
 	assert_eq(client.latched_team(1), 1)
+
+
+func test_the_state_carries_the_sudden_death_marker() -> void:
+	var objective: ClassicObjective = _objective([GOAL_LEFT, GOAL_RIGHT])
+	assert_true(_extra(objective).is_empty(), "nothing to publish before sudden death")
+	_begin(objective, _two_goal_split())
+	assert_eq(_extra(objective).get("sd"), 1)
+
+
+func test_the_last_goals_latch_is_released_too() -> void:
+	var objective: ClassicObjective = _objective([GOAL_LEFT, GOAL_TOP, GOAL_RIGHT])
+	_begin(objective, [
+		_home(GOAL_LEFT.x, GOAL_LEFT.y, 0), _home(GOAL_TOP.x, GOAL_TOP.y, 0, 3), _home(GOAL_RIGHT.x, GOAL_RIGHT.y, 1)
+	] as Array[InfluenceCircle])
+	objective.resolve_eliminations(
+		PackedInt32Array([1]), PackedInt32Array([0, 2]), PackedFloat32Array([0.5, 0.0, 0.5])
+	)
+	assert_eq(objective.latched_team(2), NO_TEAM, "the last flag is released")
+	assert_eq(objective.latched_team(0), 0)
+	assert_eq(objective.latched_team(1), 0)
+
+
+func test_sudden_death_without_goals_never_wins() -> void:
+	var objective: ClassicObjective = _objective([])
+	var circles: Array[InfluenceCircle] = [_home(0.0, 0.0, 0)]
+	_begin(objective, circles)
+	_step(objective, circles, 3)
+	assert_eq(objective.winner(), NO_TEAM)
+	assert_eq(objective.latched_team(0), NO_TEAM)
