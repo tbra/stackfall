@@ -252,7 +252,7 @@ Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig
 | Mid-match join | Off / On (§2.6) | Off |
 | Weather | Off, Storm, Rain, Snow, Fog, Random, Changing | Changing |
 | Sky theme | Day, Night, Dawn, Random, Cycle | Cycle |
-| Experiments | master switch | On |
+| Experiments | master switch | Off |
 
 **Experiments** (opt-in toggles in `QolExperiments`, default off; host-editable in the lobby's advanced rules and the F4 panel; snapshotted at match start):
 - **Pause timer on events:** a slot's block timer freezes for 4 s after any special, or while at least 4 of its blocks move faster than 1.5 m/s; total pause capped at 10 s.
