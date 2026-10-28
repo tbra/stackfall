@@ -141,7 +141,7 @@ Holes are a visual void, not an opening: disc collision stays solid. A block who
 
 **Round-timer results.** Elimination: the surviving team with the largest territory share wins, equal shares share the win. Capture the Flag, Reach the Sky and Domination as in §1.2.
 
-**Sudden death** (Classic only; lobby checkbox, default off; starts when the match timer runs out): gift probability climbs toward its maximum over `sudden_death_ramp_s` = 60 s; the disc edge crumbles inward by `sudden_death_shrink_step_m` = 1 m every `sudden_death_shrink_interval_s` = 10 s; the first team to reach the win condition wins; when the disc has shrunk to `sudden_death_tiebreak_radius_m` = 8 m, the team with the largest territory share wins (ties to the lowest team id). With sudden death off, the Classic timer has no gameplay effect.
+**Sudden death** (Classic only; lobby checkbox, default off; starts when the match timer runs out): gift probability climbs toward its maximum over `sudden_death_ramp_s` = 60 s. Goal flags are claimed at once instead of after `capture_hold`: the moment a team's territory holds a goal flag (the normal per-goal test, claim radius included), the flag is that team's, and it stays with its last claimer when the territory leaves it, it goes contested or unowned, or it becomes a hole; only another team holding it takes it over. Flags already held when sudden death starts are claimed at once. A team wins the moment it has claimed every goal flag (no connected-territory requirement). An eliminated team's claims are released. Sudden death lasts `MatchConfig.sudden_death_seconds` (lobby stepper beside the toggle, 30 s to 5 min in 30 s steps, default 2 min; host only, disabled while sudden death is off); the HUD clock counts it down, and when it reaches 0 the team with the largest territory share wins (ties to the lowest team id). The disc does not shrink. Beacons and the minimap show a claimed flag in its team's colour. With sudden death off, the Classic timer has no gameplay effect.
 
 ### 1.6 Gifts and specials
 
@@ -246,6 +246,7 @@ Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig
 | Match timer (Classic) | Off, or 2 to 30 min | Off |
 | Round timer (timed modes) | 2 to 30 min (Elimination may be Off) | 5 min |
 | Sudden death (Classic) | Off / On | Off |
+| Sudden death length (Classic, with sudden death on) | 30 s to 5 min, 30 s steps | 2 min |
 | Reach the Sky team sum | Off / On | Off |
 | Turn-based | Off / On | Off |
 | Mid-match join | Off / On (§2.6) | Off |
@@ -380,7 +381,7 @@ Support scripts `autoload/UserPaths.gd` and `autoload/LateScripts.gd` are static
 
 - **LOADING:** the host announces the match; a loading gate holds until every human peer reports ready (`LoadingReadyGate`); a timeout opens it.
 - **COUNTDOWN:** `countdown_seconds` = 3, replicated each second; the sandbox skips it.
-- **PLAYING / SUDDEN_DEATH** run these on the host every frame: disconnect grace, the block feed (§1.4), the territory step (§2.5) and gift spawning (§1.6). Sudden death adds the disc shrink and tiebreak.
+- **PLAYING / SUDDEN_DEATH** run these on the host every frame: disconnect grace, the block feed (§1.4), the territory step (§2.5) and gift spawning (§1.6). Sudden death adds the gift ramp, instant goal claims and its countdown, ending in the territory tiebreak.
 - **END:** a results payload is built (`MatchStats`, `core/rules/ResultsPayload.gd`) and replicated; players can replay or return to the lobby.
 - Disconnect: a slot whose peer leaves keeps its seat for `disconnect_grace` = 10 s; a rejoin with its token inside that window resumes with a full block timer; otherwise the slot is eliminated.
 
