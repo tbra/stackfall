@@ -101,17 +101,8 @@ var _last_published_second: int = -1
 var _pending_mode_state: Dictionary = {}
 
 ## Seconds since State.SUDDEN_DEATH was entered. Drives both the gift-chance
-## ramp (MatchGifts._effective_special_frequency()) and the disk shrink
-## schedule below. Reset at _begin_sudden_death().
+## ramp (MatchGifts._effective_special_frequency()). Reset at _begin_sudden_death().
 var _sudden_death_elapsed: float = 0.0
-
-## The last shrink radius MatchTerritory.shrink_to_radius() was actually
-## called with, so _tick_sudden_death() only re-punches once the computed
-## radius has actually dropped another step rather than re-scanning every
-## in-disk cell every frame for no new holes. INF before sudden death has
-## shrunk the disk at all, so the very first call (radius = field_radius)
-## always runs once.
-var _last_shrink_radius: float = INF
 
 ## -- Turn-based (spec 1.2) ---------------------------------------------
 
@@ -294,7 +285,6 @@ func _reset_match_state() -> void:
 	_reset_loading_gate()
 	_match_timer_left = 0.0
 	_sudden_death_elapsed = 0.0
-	_last_shrink_radius = INF
 	_turn_settle_wait_left = -1.0
 	var territory: MatchTerritory = _match._territory
 	territory.reset()
@@ -739,27 +729,29 @@ func mode_state_snapshot() -> Dictionary:
 
 func _begin_sudden_death() -> void:
 	_sudden_death_elapsed = 0.0
-	_last_shrink_radius = INF
 	# The countdown reuses the spent match timer, so match_timer_left() and
 	# mode_state["round_left"] show the time left in sudden death.
 	_match_timer_left = float(_match.config.sudden_death_seconds)
 	_last_published_second = int(ceil(_match_timer_left))
-	_set_state(MatchAutoload.State.SUDDEN_DEATH)
 	var objective: ModeObjective = _match._territory.objective()
 	if objective is ClassicObjective:
 		# DECISION: an in-flight async solve applies first, so flags held now latch
 		# from the settled raster; the next territory step finishes a latch win.
 		_match._territory.flush_pending()
+		if _state == MatchAutoload.State.END:
+			return
 		(objective as ClassicObjective).begin_sudden_death(_match._territory.raster())
+	# Publish the mode state (round_left, latches) before the state change, so a
+	# client never sees SUDDEN_DEATH with a zero clock.
+	publish_mode_state_if_changed()
+	_set_state(MatchAutoload.State.SUDDEN_DEATH)
 
 
 ## Ticked from Match._process()'s State.SUDDEN_DEATH branch, alongside
 ## the same three ticks State.PLAYING already runs (disconnect grace, feed,
-## territory) -- spec 1.9's three bullets: the gift-chance ramp is
-## MatchGifts._effective_special_frequency()'s own job (reads
-## sudden_death_active()/`_sudden_death_elapsed` above), so this function
-## only has to run the disk shrink and, once it has crumbled far enough, the
-## radius-8 tiebreak.
+## territory). The gift-chance ramp is MatchGifts._effective_special_frequency()'s
+## own job (reads sudden_death_active()/`_sudden_death_elapsed`); this runs the
+## duration countdown and its largest-share tiebreak.
 func _tick_sudden_death(delta: float) -> void:
 	if _match.config == null:
 		return
@@ -774,27 +766,9 @@ func _tick_sudden_death(delta: float) -> void:
 		_resolve_sudden_death_tiebreak()
 		return
 
-	var tuning: TerritoryTuning = _match._territory_tuning
-	var field_radius: float = _match.config.map_def().field_radius
-	var interval: float = maxf(tuning.sudden_death_shrink_interval_s, 0.001)
-	# Spec 1.9: "crumbles inward by 1 m every 10 s" -- recomputed from total
-	# elapsed time rather than a second running accumulator, so a caller that
-	# fast-forwards with one large delta (a test, a client that missed a few
-	# frames) lands on exactly the same radius a real match reaches one frame
-	# at a time.
-	var steps: float = floor(_sudden_death_elapsed / interval)
-	var shrink_radius: float = field_radius - steps * tuning.sudden_death_shrink_step_m
 
-	if shrink_radius < _last_shrink_radius:
-		_last_shrink_radius = shrink_radius
-		_match._territory.shrink_to_radius(shrink_radius)
-
-	if shrink_radius <= tuning.sudden_death_tiebreak_radius_m:
-		_resolve_sudden_death_tiebreak()
-
-
-## Spec 1.9: "If nobody has won when the disk has shrunk to a radius of 8,
-## the player or team with the most territory wins." Guarded on _state still
+## Spec 1.9: if nobody has won when the sudden-death timer runs out, the player
+## or team with the most territory wins. Guarded on _state still
 ## being SUDDEN_DEATH so a tiebreak already resolved (or a natural win landed
 ## the same tick) never calls _finish_match() a second time -- once this sets
 ## State.END, Match._process()'s match statement no longer reaches

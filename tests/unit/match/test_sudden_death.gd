@@ -56,25 +56,7 @@ func test_match_timer_at_zero_enters_sudden_death_only_when_configured() -> void
 
 # --- placement / preview / client feed display stay live ----
 
-# --- shrink_to_radius() (spec 1.9: "crumbles inward by 1 m every 10 s") -----
-
-func test_shrink_to_radius_punches_exactly_the_cells_outside_its_argument() -> void:
-	Match.start_match(_config(2))
-	_run_countdown()
-
-	var grid: CellGrid = Match.cell_grid()
-	var shrink_radius: float = 12.0
-	Match._territory.shrink_to_radius(shrink_radius)
-
-	for index: int in grid.in_disk_cells():
-		var coords: Vector2i = grid.cell_coords(index)
-		var is_hole: bool = Match.raster().is_hole(coords.x, coords.y)
-		var outside: bool = grid.index_center(index).length() > shrink_radius
-		assert_eq(is_hole, outside,
-			"cell %d hole state must match whether it's outside the shrink radius" % index)
-
-
-# --- Radius-8 tiebreak (spec 1.9, verbatim numbers) -------------------------
+# --- Largest-share tiebreak (spec 1.9) -------------------------
 
 func test_sudden_death_tiebreak_picks_the_team_with_strictly_more_territory_share() -> void:
 	Match.start_match(_config(2))
