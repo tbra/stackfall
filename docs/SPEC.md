@@ -149,7 +149,7 @@ Holes are a visual void, not an opening: disc collision stays solid. A block who
 
 **Flight and claiming.** A crate descends from `drop_height_m` 18 m at `fall_speed_m_s` 2 m/s with a small sway and shows on the minimap. Any player's held block can catch a crate in the air. On landing, the player whose territory owns that point claims it automatically; if nobody owns it, the first to claim that area gets it. A landed unclaimed crate expires after `life_s` = 25 s. The host decides all claims.
 
-**Queueing.** A claimed gift is queued behind the held piece. By default (`QolExperiments.gift_queue_after_next`) it becomes the block after next; the HUD label reads `NEXT · +1 GIFT`; a later claim replaces a gift still staged after next, and a gift already next is never displaced. With that setting off, or the Backlog or Gift slot experiment on, a claimed gift replaces the next piece.
+**Queueing.** A claimed gift is queued behind the held piece: it becomes the block after next; the HUD label reads `NEXT · +1 GIFT`; a later claim replaces a gift still staged after next, and a gift already next is never displaced. With the Gift loads next experiment, or the Backlog or Gift slot experiment on, a claimed gift replaces the next piece.
 
 **Activation.** A substantial impact activates a gift (`arm_impulse` and a 0.4 s `arm_delay` in `SpecialDef`), or its fuse expires (`fuse_timeout_s`). Chain reactions are capped at `SpecialTuning.max_chain_depth` = 4. Gifts cannot be rotated and are never recolored. Gifts are not destroyed by holes.
 
@@ -258,6 +258,7 @@ Set by the host in the lobby (`MatchConfig`; ranges are enforced by `MatchConfig
 - **Queue expired blocks:** an expired held block joins a backlog (2, max 3) and the player gets a fresh block; the forced drop waits until the backlog is full.
 - **Bigger goal claim radius:** goal flag claim radius multiplied (2.0, max 4.0).
 - **Gift slot:** a claimed gift waits in a per-player slot (1, max 3) instead of replacing the next block; no timer runs on a slotted gift; spend it with `use_gift_slot`.
+- **Gift loads next:** a claimed gift replaces the next piece instead of becoming the block after next (`gift_loads_next`).
 
 ### 1.10 Interface flow and presentation
 
@@ -466,7 +467,7 @@ Every tunable lives in a typed `Resource` under `res://config/` (a script plus i
 | `BlockShape` | `id`, `cells` (cube offsets), `weight`, `in_match_bag`, optional mesh |
 | `BlockFeedConfig` | Bag stabilizers and multiplier |
 | `GiftConfig`, `SpecialTuning`, `SpecialDef` | Gift spawning and flight; throw and aim; one def per special (`id`, `weight`, `enabled_by_default`, `throwable`, `aimed_launch`, `activates_in_place`, `arm_delay`, `arm_impulse`, `fuse_timeout_s`, `effect`) |
-| `QolExperiments` | The four opt-in experiments and the gift-after-next setting |
+| `QolExperiments` | The five opt-in experiments |
 | `BotTuning`, `BotDifficultyProfile` and related | Bot search, evaluation, strategy and think-cost budgets |
 | `NetConfig`, `ChatConfig`, `UpnpConfig` | Ports, rates, timeouts, snapshot and interpolation settings, chat limits |
 | `CameraTuning`, `GhostTuning` | Camera follow, zoom, focus; cursor, rotation and hover feel |
