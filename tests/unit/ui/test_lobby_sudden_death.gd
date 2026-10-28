@@ -36,6 +36,11 @@ func _stepper(lobby: Lobby) -> UiStepper:
 	return null
 
 
+## Turns sudden death on through the lobby's own toggle (the length stepper is read-only while it is off).
+func _enable_sudden_death(lobby: Lobby) -> void:
+	(lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed = true
+
+
 func _published(lobby: Lobby) -> MatchConfig:
 	return MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
 
@@ -94,7 +99,9 @@ func test_stepper_range_and_step_come_from_the_config_consts() -> void:
 
 
 func test_nudges_move_one_step_and_stop_at_both_bounds() -> void:
-	var stepper: UiStepper = _stepper(_make_lobby(true))
+	var lobby: Lobby = _make_lobby(true)
+	_enable_sudden_death(lobby)
+	var stepper: UiStepper = _stepper(lobby)
 	var step: int = MatchConfig.SUDDEN_DEATH_STEP_SECONDS
 	assert_true(stepper.nudge(1))
 	assert_eq(stepper.value, MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS + step)
@@ -225,12 +232,34 @@ func test_client_stepper_is_read_only() -> void:
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0)
 
 
-func test_host_stepper_is_editable() -> void:
-	assert_false(_stepper(_make_lobby(true)).disabled)
+func test_host_stepper_follows_the_sudden_death_toggle() -> void:
+	var lobby: Lobby = _make_lobby(true)
+	var stepper: UiStepper = _stepper(lobby)
+	assert_true(stepper.disabled, "sudden death starts off, so the length is read-only")
+	assert_false(stepper.nudge(1))
+	assert_eq(stepper.value, MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
+	var toggle: UiToggle = lobby.get_node("%SuddenDeathCheck") as UiToggle
+	toggle.button_pressed = true
+	assert_false(stepper.disabled, "the toggle on makes the length editable")
+	toggle.button_pressed = false
+	assert_true(stepper.disabled, "the toggle off makes it read-only again")
+
+
+func test_non_host_stepper_stays_read_only_with_sudden_death_on() -> void:
+	var lobby: Lobby = _make_lobby(false)
+	var config: MatchConfig = MatchConfig.new()
+	config.sudden_death = true
+	config.sudden_death_seconds = 150
+	_push_remote(config)
+	var stepper: UiStepper = _stepper(lobby)
+	assert_eq(stepper.value, 150)
+	assert_true(stepper.disabled)
+	assert_false(stepper.nudge(1))
 
 
 func test_arrow_keys_step_the_focused_stepper() -> void:
 	var lobby: Lobby = _make_lobby(true)
+	_enable_sudden_death(lobby)
 	await wait_process_frames(2)
 	var stepper: UiStepper = _stepper(lobby)
 	stepper.grab_focus()
@@ -245,6 +274,7 @@ func test_arrow_keys_step_the_focused_stepper() -> void:
 
 func test_dpad_steps_the_focused_stepper() -> void:
 	var lobby: Lobby = _make_lobby(true)
+	_enable_sudden_death(lobby)
 	await wait_process_frames(2)
 	var stepper: UiStepper = _stepper(lobby)
 	stepper.grab_focus()
