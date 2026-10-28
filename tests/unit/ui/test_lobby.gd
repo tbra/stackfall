@@ -356,14 +356,53 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 
 	assert_false((lobby.get_node("%TeamModeOption") as Control).is_visible_in_tree(), "TeamModeOption stays a hidden source of truth (teams are toggled in the players panel)")
 
-	# ... and so do the GIFTS Advanced (per-gift) and EXPERIMENTS blocks once opened.
+	# ... and so do the GIFTS Advanced (per-gift) block once opened.
 	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
-	var opened: Array[Control] = []
-	opened.append_array(lobby._special_checkboxes)
-	opened.append_array(lobby._qol_checks)
-	for control: Control in opened:
+	for control: Control in lobby._special_checkboxes:
 		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % control.name)
 		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % control.name)
+
+	# Experiments default off: nothing hidden or disabled traps focus, and the loop closes.
+	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments off")
+	# Switched on: every visible, enabled control is reachable with up/down and the loop still closes.
+	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
+	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments on")
+
+
+## Follows focus_neighbor_bottom from `start` once round: every stop is a live (visible, enabled)
+## control, the loop closes back on `start`, and every live focusable control of the settings column is a stop.
+func _assert_pad_loop_reaches_every_live_control(lobby: Lobby, start: Control, label: String) -> void:
+	var stops: Array[Control] = [start]
+	var current: Control = start
+	var closed: bool = false
+	for _i: int in range(200):
+		var next: Control = current.get_node_or_null(current.focus_neighbor_bottom) as Control
+		if next == null:
+			break
+		if next == start:
+			closed = true
+			break
+		stops.append(next)
+		current = next
+	assert_true(closed, "%s: the down chain closes back on StartButton" % label)
+	for stop: Control in stops:
+		assert_true(stop == start or _is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
+	for control: Control in _live_focusable_controls(lobby.get_node("%Settings")):
+		assert_true(stops.has(control), "%s: %s is reachable with down" % [label, control.name])
+
+
+func _is_live(control: Control) -> bool:
+	return control.is_visible_in_tree() and not (control is BaseButton and (control as BaseButton).disabled)
+
+
+func _live_focusable_controls(root: Node) -> Array[Control]:
+	var found: Array[Control] = []
+	for child: Node in root.get_children():
+		var control: Control = child as Control
+		if control != null and control.focus_mode == Control.FOCUS_ALL and _is_live(control):
+			found.append(control)
+		found.append_array(_live_focusable_controls(child))
+	return found
 
 
 ## X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
