@@ -34,10 +34,17 @@ func test_free_udp_port_is_in_range_and_bindable() -> void:
 	probe.close()
 
 
-func test_free_udp_port_draws_from_one_slice_per_process() -> void:
-	var first: int = AgentProbe.free_udp_port()
-	var second: int = AgentProbe.free_udp_port()
-	assert_eq((first - AgentProbe.FREE_PORT_MIN) / AgentProbe.FREE_PORT_SLICE, (second - AgentProbe.FREE_PORT_MIN) / AgentProbe.FREE_PORT_SLICE, "both ports come from this process's slice")
+## Contention can push any single draw to the whole-range fallback, so the slice
+## preference is only guaranteed in aggregate: some draw lands in this process's slice.
+func test_free_udp_port_prefers_this_processs_slice() -> void:
+	var slice_index: int = hash(OS.get_process_id()) % (AgentProbe.FREE_PORT_SPAN / AgentProbe.FREE_PORT_SLICE)
+	var in_slice: int = 0
+	for i: int in 8:
+		var port: int = AgentProbe.free_udp_port()
+		assert_ne(port, 0, "a free port is found")
+		if (port - AgentProbe.FREE_PORT_MIN) / AgentProbe.FREE_PORT_SLICE == slice_index:
+			in_slice += 1
+	assert_gt(in_slice, 0, "at least one draw comes from this process's slice")
 
 
 class FakeRig:
