@@ -193,9 +193,10 @@ func request_place(
 	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
 		# Only possible off the rim with nothing beneath (Field.gd's own
-		# contract for raycast_down_disk_local); disk_origin keeps the flat
-		# projection computed above, which is what the burn clamp below
-		# throws from.
+		# contract for raycast_down_disk_local); the miss is judged at the
+		# vertical line's crossing of the disc plane, which is also the point
+		# the burn clamp below throws from.
+		disk_origin = _miss_column_disk(probe_origin)
 		result = _hole_column_result(slot_id, disk_origin)
 	else:
 		disk_origin = hit as Vector2
@@ -388,6 +389,7 @@ func request_throw(
 	var disk_origin: Vector2 = Vector2(local_origin.x, local_origin.z) + centre_shift
 	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
+		disk_origin = _miss_column_disk(probe_origin)
 		result = _hole_column_result(slot_id, disk_origin)
 	else:
 		disk_origin = hit as Vector2
@@ -688,8 +690,7 @@ func preview_placement(
 	var probe_origin: Vector3 = origin + _centre_shift_world(slot_id, preview_shape, preview_basis)
 	var hit: Variant = _match._field.raycast_down_disk_local(probe_origin)
 	if hit == null:
-		var local_probe: Vector3 = _match._field.to_local(probe_origin)
-		return _hole_column_result(slot_id, Vector2(local_probe.x, local_probe.z))
+		return _hole_column_result(slot_id, _miss_column_disk(probe_origin))
 	var preview_result: PlacementRules.Result = PlacementRules.validate_point(hit as Vector2, _match.raster(), team_id)
 	# mirrors request_place(): a held gift ignores territory.
 	return _apply_territory_waiver(slot_id, preview_result)
@@ -704,6 +705,14 @@ func _centre_shift_world(slot_id: int, shape: BlockShape, basis: Basis) -> Vecto
 		return Vector3.ZERO
 	var judged_basis: Basis = _spawn_basis(_held_deliverable_gift(slot_id), basis)
 	return PlacementPoint.legality_point(Vector3.ZERO, shape, judged_basis, _match._physics_tuning.cube_size)
+
+
+## Disk-local (x, z) where the world-vertical line through `probe_origin` crosses the live disc plane:
+## the column a missed raycast_down_disk_local() is judged (and burned) at, not the disc-normal
+## projection of the raised point.
+func _miss_column_disk(probe_origin: Vector3) -> Vector2:
+	var on_plane: Vector3 = Vector3(probe_origin.x, _match._field.surface_height_at(probe_origin), probe_origin.z)
+	return _match._field.disk_local_from_world(on_plane)
 
 
 ## The same shift as a disk-local (x, z) vector, correct while the field tilts (to_local is affine,
