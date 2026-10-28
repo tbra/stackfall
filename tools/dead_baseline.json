@@ -655,39 +655,9 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:latched_in_state",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-E"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/WinChecker.gd:begin_sudden_death",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-B"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:is_sudden_death",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-B"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:latched_team",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-B"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:release_teams_not_in",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-B"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/rules/WinChecker.gd:set_latched",
-   "reason": "inert sudden-death latch stub; its consumer package wires the caller",
-   "consumer": "SD-B"
+   "reason": "only caller is ClassicObjective.begin_sudden_death, itself callerless until the lifecycle wires it",
+   "consumer": "SD-C"
   }
  ]
 }

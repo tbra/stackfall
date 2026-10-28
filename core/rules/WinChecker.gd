@@ -33,6 +33,9 @@ var _capturing_group: int = TerritoryGroups.NO_GROUP
 var _capturing_team: int = NO_TEAM
 var _held: float = 0.0
 var _winner: int = NO_TEAM
+## Sudden death (Classic): per-goal latched owner, NO_TEAM = unclaimed. See begin_sudden_death().
+var _sudden_death: bool = false
+var _latched: PackedInt32Array = PackedInt32Array()
 
 
 func _init(
@@ -59,6 +62,9 @@ func capture_hold() -> float:
 ## update"), so delta is 1 / TerritoryTuning.solve_hz.
 func update(raster: TerritoryRaster, delta: float) -> void:
 	if _winner != NO_TEAM:
+		return
+	if _sudden_death:
+		_latch_goals(raster)
 		return
 
 	# x = the group every goal shares (NO_GROUP when they disagree), y = the team
@@ -97,12 +103,14 @@ func update(raster: TerritoryRaster, delta: float) -> void:
 
 ## Team currently holding every goal in one connected group, or NO_TEAM.
 func capturing_team() -> int:
-	return _capturing_team
+	return NO_TEAM if _sudden_death else _capturing_team
 
 
 ## How far through capture_hold the current capture is, 0..1. Drives the goal
 ## flag's radial progress ring (spec 1.5) and the HUD.
 func capture_progress() -> float:
+	if _sudden_death:
+		return 0.0
 	if _winner != NO_TEAM:
 		return 1.0
 	if _capture_hold <= 0.0:
@@ -116,34 +124,63 @@ func winner() -> int:
 	return _winner
 
 
-## Starts sudden death: instant per-goal latching (stub until the latch lands).
-func begin_sudden_death(_raster: TerritoryRaster) -> void:
-	pass
+## Starts sudden death: the hold timer is dropped and every goal is claimed instantly,
+## staying with its last claimer. Latches the goals held right now (so a single goal
+## held at this moment wins at once, `winner()` is set here).
+func begin_sudden_death(raster: TerritoryRaster) -> void:
+	_sudden_death = true
+	_clear_capture()
+	_latched.resize(_goal_positions.size())
+	_latched.fill(NO_TEAM)
+	_latch_goals(raster)
 
 
 func is_sudden_death() -> bool:
-	return false
+	return _sudden_death
 
 
-## The team that latched goal `goal_index`, or NO_TEAM (stub until the latch lands).
-func latched_team(_goal_index: int) -> int:
-	return NO_TEAM
+## The team that latched goal `goal_index`, or NO_TEAM.
+func latched_team(goal_index: int) -> int:
+	return _latched[goal_index] if goal_index >= 0 and goal_index < _latched.size() else NO_TEAM
 
 
-## Releases latches held by teams not in `alive_teams` (stub).
-func release_teams_not_in(_alive_teams: PackedInt32Array) -> void:
-	pass
+## Releases latches held by teams not in `alive_teams` (an eliminated team cannot win
+## and does not block the others, who reclaim the goal by holding it).
+func release_teams_not_in(alive_teams: PackedInt32Array) -> void:
+	for i: int in range(_latched.size()):
+		if _latched[i] != NO_TEAM and not alive_teams.has(_latched[i]):
+			_latched[i] = NO_TEAM
 
 
-## Client mirror of the latches, display only (stub).
-func set_latched(_teams: PackedInt32Array) -> void:
-	pass
+## Client mirror of the latches, display only: never touches the winner.
+func set_latched(teams: PackedInt32Array) -> void:
+	_latched = teams.duplicate()
 
 
 ## Clears the capture timer and the latched winner.
 func reset() -> void:
 	_clear_capture()
 	_winner = NO_TEAM
+	_sudden_death = false
+	_latched = PackedInt32Array()
+
+
+## Sudden-death step: a goal held now (goal_holder: a contested, hole or unowned cell
+## holds for nobody) is latched to its holder, replacing any earlier owner; one team
+## latching every goal wins. The one-connected-territory rule does not apply here.
+func _latch_goals(raster: TerritoryRaster) -> void:
+	var count: int = _goal_positions.size()
+	if count == 0:
+		return
+	for i: int in range(count):
+		var holder: int = goal_holder(raster, _goal_positions[i], _claim_radius)
+		if holder != NO_TEAM:
+			_latched[i] = holder
+	var owner_team: int = _latched[0]
+	for i: int in range(1, count):
+		if _latched[i] != owner_team:
+			return
+	_winner = owner_team
 
 
 func _clear_capture() -> void:

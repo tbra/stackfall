@@ -6,6 +6,7 @@ extends ModeObjective
 ## Untimed: the match timer keeps its sudden-death meaning.
 
 ## Mode-state keys carrying the latched owner of goal i ("l0", "l1", ...), -1 = none.
+## Same format as BeaconTimerText.LATCH_KEY_PREFIX (the views' reader); reconcile at integration.
 const LATCH_KEY_PREFIX: String = "l"
 
 var _checker: WinChecker = null
@@ -29,8 +30,10 @@ func mode_id() -> int:
 	return MatchConfig.GameMode.CLASSIC
 
 
+## DECISION: Classic replicates mode state only while sudden death is active, so its
+## wire stays unchanged before then (the latched goals ride `extra`).
 func replicates_state() -> bool:
-	return false
+	return _checker != null and _checker.is_sudden_death()
 
 
 ## Classic's results payload carries no mode fields.
@@ -45,7 +48,9 @@ func reset(team_count: int) -> void:
 
 
 func update(raster: TerritoryRaster, delta: float) -> void:
+	var before: PackedInt32Array = _latches()
 	_checker.update(raster, delta)
+	_mark_dirty_if_latches_changed(before)
 
 
 func set_claim_radius(radius: float) -> void:
@@ -68,12 +73,55 @@ func capture_progress() -> float:
 func begin_sudden_death(raster: TerritoryRaster) -> void:
 	if _checker != null:
 		_checker.begin_sudden_death(raster)
+		_state_dirty = true
 
 
 func latched_team(goal_index: int) -> int:
 	return _checker.latched_team(goal_index) if _checker != null else NO_TEAM
 
 
-## The latched owner of goal `goal_index` in a mode-state dict, or NO_TEAM.
-static func latched_in_state(state: Dictionary, goal_index: int) -> int:
-	return int(state.get(LATCH_KEY_PREFIX + str(goal_index), NO_TEAM))
+## DECISION: an eliminated team's latches are released here (alive_teams is already
+## passed), then the base rule runs, so a latch win in the same step still wins.
+func resolve_eliminations(
+	batch_teams: PackedInt32Array, alive_teams: PackedInt32Array, shares: PackedFloat32Array
+) -> int:
+	if _checker != null:
+		var before: PackedInt32Array = _latches()
+		_checker.release_teams_not_in(alive_teams)
+		_mark_dirty_if_latches_changed(before)
+	return super.resolve_eliminations(batch_teams, alive_teams, shares)
+
+
+## {"sd": 1, "l0": team, ...} during sudden death (-1 = unclaimed), else {}.
+func extra_state() -> Dictionary:
+	var state: Dictionary = {}
+	if _checker == null or not _checker.is_sudden_death():
+		return state
+	state["sd"] = 1
+	for i: int in range(_checker.goal_positions().size()):
+		state[LATCH_KEY_PREFIX + str(i)] = _checker.latched_team(i)
+	return state
+
+
+## Client mirror: display only, never touches the winner.
+func apply_extra_state(data: Dictionary) -> void:
+	if _checker == null:
+		return
+	var teams: PackedInt32Array = PackedInt32Array()
+	for i: int in range(_checker.goal_positions().size()):
+		teams.append(int(data.get(LATCH_KEY_PREFIX + str(i), NO_TEAM)))
+	_checker.set_latched(teams)
+
+
+func _latches() -> PackedInt32Array:
+	var teams: PackedInt32Array = PackedInt32Array()
+	if _checker == null:
+		return teams
+	for i: int in range(_checker.goal_positions().size()):
+		teams.append(_checker.latched_team(i))
+	return teams
+
+
+func _mark_dirty_if_latches_changed(before: PackedInt32Array) -> void:
+	if _latches() != before:
+		_state_dirty = true
