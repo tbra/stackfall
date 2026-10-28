@@ -324,7 +324,7 @@ func test_begin_marks_state_dirty_and_publishes_the_latches() -> void:
 	_begin(objective, _two_goal_split())
 	assert_true(objective.consume_state_dirty())
 	var extra: Dictionary = _extra(objective)
-	assert_eq(BeaconTimerText.latched_in_state(objective.mode_state()["extra"] as Dictionary, 0), 0)
+	assert_eq(BeaconTimerText.latched_in_state(objective.mode_state(), 0), 0)
 	assert_eq(extra.get("l1"), 1)
 	assert_lte(extra.size(), 6, "a handful of keys")
 
@@ -382,8 +382,8 @@ func test_applying_a_winning_state_never_sets_the_clients_winner() -> void:
 
 func test_latched_in_state_reads_missing_keys_as_no_team() -> void:
 	assert_eq(BeaconTimerText.latched_in_state({}, 0), NO_TEAM)
-	assert_eq(BeaconTimerText.latched_in_state({"l1": 2}, 1), 2)
-	assert_eq(BeaconTimerText.latched_in_state({"l1": 2}, 0), NO_TEAM)
+	assert_eq(BeaconTimerText.latched_in_state({"extra": {"l1": 2}}, 1), 2)
+	assert_eq(BeaconTimerText.latched_in_state({"extra": {"l1": 2}}, 0), NO_TEAM)
 
 
 func test_a_cleared_latch_travels_as_no_team() -> void:
