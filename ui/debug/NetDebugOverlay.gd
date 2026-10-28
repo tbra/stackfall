@@ -17,7 +17,10 @@ var net_provider: Variant = null
 var match_net_provider: Variant = null
 
 @export var net_config: NetConfig = preload("res://config/net/net_config.tres")
+## Layout tunables (the gaps); the parent may hand one in before add_child, else the debug-mode one.
+var config: DebugConfig = null
 
+@onready var _panel: PanelContainer = %Panel
 @onready var _mode_label: Label = %ModeLabel
 @onready var _ping_label: Label = %PingLabel
 @onready var _snapshot_label: Label = %SnapshotLabel
@@ -39,6 +42,8 @@ var _applying_preset: bool = false
 
 
 func _ready() -> void:
+	if config == null:
+		config = DebugMode.config()
 	net_provider = Net
 	match_net_provider = MatchNet
 	visible = false
@@ -66,6 +71,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	visible = not visible
 	get_viewport().set_input_as_handled()
+
+
+func _exit_tree() -> void:
+	DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.NET, 0.0)
+
+
+## Bottom-right stack, right above F2's panel (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
+func _process(_delta: float) -> void:
+	if not visible:
+		DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.NET, 0.0)
+		return
+	DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.NET, _panel.size.y)
+	DebugOverlayLayout.place_stack(_panel, DebugOverlayLayout.Stack.NET, config)
 
 
 # --- Stats display ------------------------------------------------------------

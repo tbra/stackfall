@@ -31,8 +31,7 @@ func _ready() -> void:
 	style.set_content_margin_all(float(arcade.space_2_px))
 	style.set_corner_radius_all(arcade.radius_chip_px)
 	_panel.add_theme_stylebox_override(&"panel", style)
-	# Left edge, mid-height: F1 owns the top-right, F9 the top-left, the hint bar the bottom.
-	_panel.offset_left = config.overlay_margin.x
+	_place()
 	for label: Label in [_held_label, _camera_label, _tilt_label]:
 		label.add_theme_color_override(&"font_color", config.overlay_text_color())
 
@@ -45,6 +44,13 @@ func set_shown(shown: bool) -> void:
 	_panel.visible = shown
 	if shown:
 		refresh()
+		_place()
+	else:
+		DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.POSE, 0.0)
+
+
+func _exit_tree() -> void:
+	DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.POSE, 0.0)
 
 
 func _process(_delta: float) -> void:
@@ -54,6 +60,13 @@ func _process(_delta: float) -> void:
 		set_shown(false)
 		return
 	refresh()
+	_place()
+
+
+## Bottom-right stack, right above the minimap (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
+func _place() -> void:
+	DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.POSE, _panel.size.y)
+	DebugOverlayLayout.place_stack(_panel, DebugOverlayLayout.Stack.POSE, config)
 
 
 func _unhandled_input(event: InputEvent) -> void:

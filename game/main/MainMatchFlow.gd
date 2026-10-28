@@ -11,6 +11,9 @@ extends MainMatchFlowPort
 
 const HUD_SCENE_PATH: String = "res://ui/hud/HUD.tscn"
 const TUNING_PANEL_SCENE_PATH: String = "res://ui/debug/TuningPanel.tscn"
+const POSE_OVERLAY_PATH: String = "res://ui/debug/PoseOverlay.tscn"
+## Loaded by path (debug builds only): the bot code behind it stays out of the compile closure.
+const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
 
 ## The Main node, typed (the port's `main` is the Node3D it binds).
 var main_node: Main:
@@ -21,7 +24,8 @@ var main_node: Main:
 var _local_player: Node = null
 var _spectator: Node = null
 var _remote_cursors: Node = null
-var _debug_overlay: Node = null
+## F2 pose, F3 net and F9 bot-cost panels: round debugs, so they live and die with the match world.
+var _debug_overlays: Array[Node] = []
 var _stable_block_manager: Node = null
 var _bot_controllers: Array[Node] = []
 var _controller_was_processing: bool = false
@@ -271,8 +275,7 @@ func build_match_world() -> void:
 	main_node.add_child(_stable_block_manager)
 	_stable_block_manager.setup(_registry)
 
-	_debug_overlay = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate() as NetDebugOverlay
-	main_node.add_child(_debug_overlay)
+	_build_debug_overlays()
 
 	# Re-applies the current preset once the match world exists. world.world_environment is
 	# a static child of Main, so today this repeats the _ready()-time call; kept
@@ -281,6 +284,26 @@ func build_match_world() -> void:
 	main_node._apply_graphics_preset(Settings.current_graphics_preset())
 	_world_built = true
 	_world_building = false
+
+
+## The round debug panels, built with the world and freed with it, so F2/F3/F9 do nothing in the
+## menus and lobby and close when the match ends. F2 and F9 are debug builds only; F3 gates its own
+## toggle on DebugMode.
+func _build_debug_overlays() -> void:
+	var net: Node = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate()
+	_debug_overlays.append(net)
+	if DebugMode.is_enabled():
+		var debug_config: DebugConfig = DebugMode.config()
+		var pose: Node = main_node._load_scene(POSE_OVERLAY_PATH).instantiate()
+		pose.set(&"config", debug_config)
+		pose.set(&"camera", _camera_rig.get_camera())
+		pose.set(&"field", _field)
+		_debug_overlays.append(pose)
+		var bot_cost: Node = (load(BOT_COST_OVERLAY_PATH) as GDScript).new() as Node
+		bot_cost.set(&"config", debug_config)
+		_debug_overlays.append(bot_cost)
+	for overlay: Node in _debug_overlays:
+		main_node.add_child(overlay)
 
 
 ## debug Watch bots: the local player's whole presence in an all-bot match -- spectator
@@ -376,9 +399,10 @@ func end_match_world() -> void:
 	if _stable_block_manager != null and is_instance_valid(_stable_block_manager):
 		_stable_block_manager.queue_free()
 	_stable_block_manager = null
-	if _debug_overlay != null and is_instance_valid(_debug_overlay):
-		_debug_overlay.queue_free()
-	_debug_overlay = null
+	for overlay: Node in _debug_overlays:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+	_debug_overlays.clear()
 
 
 ## Disabling the subtree first stops its _process/_input at once; queue_free() only
