@@ -36,7 +36,10 @@ prefix of the package that removes it (e.g. "P7-Ibots"; no Bead id in a tracked 
 package has landed, i.e. a closed Bead whose title starts with "<consumer>:", while the entry is still listed:
 delete the entry (and the code, if it is now dead). A permanent allow (a live non-code consumer such as the soak
 harness or the designer gallery) has no consumer field. When bd is unavailable or times out the lookup is
-reported and skipped, never a failure; a consumer with no Bead yet is reported as unresolved. `--report` prints counts per check and folder. Graph building reuses
+reported and skipped, never a failure; a consumer with no Bead yet is reported as unresolved. A checkout that does
+not contain the current refs/heads/main of its repository (git merge-base --is-ancestor) only prints the landed
+consumers as a note ("clears after merging main") and stays GREEN for them; the merged tree still fails. With no
+main ref (not a git checkout) the landed consumers fail as above. `--report` prints counts per check and folder. Graph building reuses
 tools/dep_graph.py (about 15 s).
 """
 import argparse
@@ -464,6 +467,20 @@ def closed_titles(root):
         return None
 
 
+def contains_main(root):
+    """False when root is a git checkout whose HEAD lacks the commit refs/heads/main points at; True otherwise,
+    including when there is no main ref."""
+    def git(*args):
+        return subprocess.run(["git", "-C", root] + list(args), capture_output=True, text=True, timeout=30)
+    try:
+        main_ref = git("rev-parse", "--verify", "-q", "refs/heads/main")
+        if main_ref.returncode != 0:
+            return True
+        return git("merge-base", "--is-ancestor", main_ref.stdout.strip(), "HEAD").returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return True
+
+
 def landed_consumers(allow, titles):
     """Allow entries (id, entry, consumer) whose consumer package has landed: a closed title starting
     "<consumer>:"."""
@@ -554,6 +571,10 @@ def main(argv):
             print("consumer check skipped: bd unavailable")
         else:
             landed = landed_consumers(allow, titles)
+    if landed and not contains_main(root):
+        for cid, key, consumer in landed:
+            print("note: consumer package %s has landed, entry %s %s clears after merging main" % (consumer, cid, key))
+        landed = []
     for cid, key, consumer in landed:
         print("allow entry's consumer package %s has landed (delete the entry and any dead code): %s %s"
               % (consumer, cid, key))

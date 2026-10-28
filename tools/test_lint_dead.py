@@ -5,6 +5,7 @@ Run: python -m unittest discover -s tools -p test_lint_dead.py
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -408,6 +409,28 @@ class ConsumerTest(unittest.TestCase):
             code, out = self.run_main(root, None)
             self.assertEqual(code, 0)
             self.assertIn("consumer check skipped: bd unavailable", out)
+
+    def test_checkout_behind_main_only_notes_the_landed_consumer(self):
+        files = {"game/Main.gd": "extends Node\nfunc orphan() -> void:\n\tpass\n"}
+        with make_repo(files) as root:
+            os.makedirs(os.path.join(root, "tools"))
+            with open(os.path.join(root, "tools", "dead_baseline.json"), "w", encoding="utf-8") as fh:
+                json.dump({"checks": {}, "allow": self.ALLOW[:1]}, fh)
+
+            def git(*args):
+                subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t"] + list(args),
+                               check=True, capture_output=True)
+            git("init", "-q", "-b", "main")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            self.assertEqual(self.run_main(root, ["P7-Ibots: done"])[0], 1)  # contains main
+            git("checkout", "-q", "-b", "old")
+            git("checkout", "-q", "main")
+            git("commit", "-q", "--allow-empty", "-m", "main moves on")
+            git("checkout", "-q", "old")  # behind main
+            code, out = self.run_main(root, ["P7-Ibots: done"])
+            self.assertEqual(code, 0)
+            self.assertIn("clears after merging main", out)
 
 
 if __name__ == "__main__":
