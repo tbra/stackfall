@@ -740,7 +740,17 @@ func mode_state_snapshot() -> Dictionary:
 func _begin_sudden_death() -> void:
 	_sudden_death_elapsed = 0.0
 	_last_shrink_radius = INF
+	# The countdown reuses the spent match timer, so match_timer_left() and
+	# mode_state["round_left"] show the time left in sudden death.
+	_match_timer_left = float(_match.config.sudden_death_seconds)
+	_last_published_second = int(ceil(_match_timer_left))
 	_set_state(MatchAutoload.State.SUDDEN_DEATH)
+	var objective: ModeObjective = _match._territory.objective()
+	if objective is ClassicObjective:
+		# DECISION: an in-flight async solve applies first, so flags held now latch
+		# from the settled raster; the next territory step finishes a latch win.
+		_match._territory.flush_pending()
+		(objective as ClassicObjective).begin_sudden_death(_match._territory.raster())
 
 
 ## Ticked from Match._process()'s State.SUDDEN_DEATH branch, alongside
@@ -754,6 +764,15 @@ func _tick_sudden_death(delta: float) -> void:
 	if _match.config == null:
 		return
 	_sudden_death_elapsed += delta
+	_match_timer_left = maxf(_match_timer_left - delta, 0.0)
+	var objective: ModeObjective = _match._territory.objective()
+	var whole: int = int(ceil(_match_timer_left))
+	if whole != _last_published_second and objective != null and objective.replicates_state():
+		_last_published_second = whole
+		Events.mode_state_changed.emit(_build_mode_state(objective))
+	if _match_timer_left <= 0.0:
+		_resolve_sudden_death_tiebreak()
+		return
 
 	var tuning: TerritoryTuning = _match._territory_tuning
 	var field_radius: float = _match.config.map_def().field_radius

@@ -88,6 +88,12 @@ const ROUND_TIMER_MIN_MINUTES: int = 2
 const ROUND_TIMER_MAX_MINUTES: int = 30
 ## Round length a CTF / Reach the Sky match starts from (matches round_timer_minutes).
 const ROUND_TIMER_DEFAULT_MINUTES: int = 5
+## Classic sudden-death length in seconds (lobby stepper range and step). When it
+## runs out the largest territory share wins.
+const SUDDEN_DEATH_MIN_SECONDS: int = 30
+const SUDDEN_DEATH_MAX_SECONDS: int = 300
+const SUDDEN_DEATH_STEP_SECONDS: int = 30
+const SUDDEN_DEATH_DEFAULT_SECONDS: int = 120
 ## Domination always needs a timer (it has no early win); this is
 ## the round length it starts from when the lobby has none to carry over.
 ## DECISION: follows the default 5-minute round timer like every other timed mode.
@@ -168,6 +174,8 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 ## (the lobby slider skips 1 so on is 2-30; spec 1.9's 10-40 is superseded).
 @export var match_timer_minutes: int = 0
 @export var sudden_death: bool = false
+## Sudden-death length in seconds; sanitize() clamps it and snaps it to the step.
+@export var sudden_death_seconds: int = SUDDEN_DEATH_DEFAULT_SECONDS
 ## Spec 1.2 "Turn-based [NEW]": physics settles completely before the next
 ## player's turn starts. Orthogonal to team_mode; a real, networkable mode
 ## driven by active_slot/advance_turn().
@@ -520,6 +528,13 @@ func sanitize() -> void:
 	tilt_mode = clampi(tilt_mode, TiltMode.SPECIALS_ONLY, TiltMode.PHYSICAL_BALANCE)
 	hole_mode = clampi(hole_mode, HoleMode.TEMPORARY, HoleMode.OFF) as HoleMode
 	match_timer_minutes = clampi(match_timer_minutes, ROUND_TIMER_OFF_MINUTES, ROUND_TIMER_MAX_MINUTES)
+	sudden_death_seconds = (
+		clampi(
+			roundi(float(sudden_death_seconds) / SUDDEN_DEATH_STEP_SECONDS) * SUDDEN_DEATH_STEP_SECONDS,
+			SUDDEN_DEATH_MIN_SECONDS,
+			SUDDEN_DEATH_MAX_SECONDS
+		)
+	)
 	if qol != null:
 		qol.sanitize()
 	game_mode = resolve_game_mode(game_mode)
@@ -686,6 +701,7 @@ func to_dict() -> Dictionary:
 		"hole_mode": hole_mode,
 		"match_timer_minutes": match_timer_minutes,
 		"sudden_death": sudden_death,
+		"sudden_death_seconds": sudden_death_seconds,
 		"turn_based": turn_based,
 		"game_mode": game_mode,
 		"round_timer_minutes": round_timer_minutes,
@@ -738,6 +754,7 @@ static func from_dict(data: Dictionary) -> MatchConfig:
 	config.hole_mode = int(data.get("hole_mode", config.hole_mode))
 	config.match_timer_minutes = int(data.get("match_timer_minutes", config.match_timer_minutes))
 	config.sudden_death = bool(data.get("sudden_death", config.sudden_death))
+	config.sudden_death_seconds = int(data.get("sudden_death_seconds", config.sudden_death_seconds))
 	config.turn_based = bool(data.get("turn_based", config.turn_based))
 	config.game_mode = resolve_game_mode(int(data.get("game_mode", config.game_mode)))
 	config.round_timer_minutes = clamp_round_timer(

@@ -748,6 +748,7 @@ static func mode_status_text(state: Dictionary, team_numbers: PackedInt32Array =
 
 func _on_mode_state_changed(state: Dictionary) -> void:
 	_mode_state = state
+	_minimap.set_mode_state(state)
 	set_territory_shares(_last_shares)
 	var text: String = mode_status_text(state, _resolved_team_numbers())
 	if _mode_score_label == null:
