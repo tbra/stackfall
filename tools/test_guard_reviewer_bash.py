@@ -41,6 +41,14 @@ class GuardReviewerBashTest(unittest.TestCase):
                     "python tools/full_gate.py"]:
             self.assertFalse(g.allowed(cmd), repr(cmd))
 
+    def test_tool_tests_allowed_nothing_broader(self):
+        for cmd in ("python tools/test_guard_shell.py", "python -m unittest tools.test_guard_shell"):
+            self.assertTrue(g.allowed(cmd), cmd)
+        for cmd in ("python tools/test_x.py --update", "python tools/guard_shell.py", "python -m unittest tools",
+                    "python -m unittest tools.test_x; ls", "python tools/test_x.py > o", "python -m pytest tools.test_x",
+                    "python tools/../test_x.py"):
+            self.assertFalse(g.allowed(cmd), cmd)
+
     def test_existing_forms_unchanged(self):
         self.assertTrue(g.allowed(f'bd -C {R} comments add Bontago-1.2 --actor stackfall-reviewer "ok; fine"'))
         self.assertTrue(g.allowed(f"bd -C {R} show Bontago-1 --json"))
