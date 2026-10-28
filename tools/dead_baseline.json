@@ -657,6 +657,12 @@
    "id": "test-only-var",
    "entry": "game/world/LocalHeldView.gd:updated_msec",
    "reason": "P3-S frozen stub (docs/plans/P3_PLAN.md 2.1): consumed by P3-Iheld/P3-Ictx/P3-Ithrow-a; the consumer package removes this entry"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/audio/StemMix.gd",
+   "consumer": "P7-Istem",
+   "reason": "P7-Sstem stub (plan 2.2): signatures only, nothing calls it until P7-Istem wires the adaptive stems into Sfx.gd and deletes this entry"
   }
  ]
 }
