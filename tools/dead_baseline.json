@@ -440,13 +440,13 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/rules/ClassicObjective.gd:latched_team",
-   "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
+   "entry": "core/ai/BotModeGoal.gd:next_goal_index",
+   "reason": "MatchTerritory.gd:423 in bot_mode_goal"
   },
   {
    "id": "test-only-func",
-   "entry": "core/ai/BotModeGoal.gd:next_goal_index",
-   "reason": "MatchTerritory.gd:423 in bot_mode_goal"
+   "entry": "core/rules/ClassicObjective.gd:latched_team",
+   "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
   },
   {
    "id": "test-only-func",
