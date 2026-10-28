@@ -216,6 +216,7 @@ func _run_host() -> void:
 	config.rng_seed = SEED
 	config.gifts_enabled = false
 	config.block_timer = MatchConfig.BLOCK_TIMER_MAX
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_slot_enabled = true
 	if OS.get_cmdline_user_args().has("--weather-off"):

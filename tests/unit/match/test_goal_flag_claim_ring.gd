@@ -49,6 +49,7 @@ func _config(qol: QolExperiments, goals: int = 1) -> MatchConfig:
 	config.player_count = 2
 	config.goal_flag_count = goals
 	config.rng_seed = 5150
+	config.experiments_enabled = true
 	config.qol = qol
 	return config
 

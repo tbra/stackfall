@@ -29,6 +29,7 @@ func _config() -> MatchConfig:
 	config.player_count = 2
 	config.block_timer = 6.0
 	config.rng_seed = 13579
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_loads_next = true
 	return config

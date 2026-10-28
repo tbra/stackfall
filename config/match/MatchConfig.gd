@@ -162,8 +162,8 @@ const DISC_SIZE_STEP_DEFAULT: int = 2
 @export var gifts_enabled: bool = true
 ## the lobby's Experiments master switch. Off: the match starts with no QoL experiment
 ## active (MatchConfig.qol_in_effect()), whatever the chips say; the chips keep their selection for when it
-## is switched back on. Default on = the chips decide.
-@export var experiments_enabled: bool = true
+## is switched back on. Default off = no experiment runs until the host turns the switch on.
+@export var experiments_enabled: bool = false
 ## Special frequency, 0-100.
 @export var special_frequency: int = 30
 ## Empty means "every special enabled by default".

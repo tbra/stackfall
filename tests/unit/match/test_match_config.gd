@@ -278,3 +278,11 @@ func test_from_dict_degrades_foreign_values_to_the_legacy_behaviour() -> void:
 		assert_true(config.slot_ai_difficulties.is_empty(), "slot_ai_difficulties from %s" % str(bad))
 		assert_eq(config.team_of_slot(3), 1, "still the legacy interleave")
 
+
+
+func test_experiments_switch_defaults_off_and_round_trips_on() -> void:
+	assert_false(MatchConfig.new().experiments_enabled, "a fresh config runs no experiment")
+	assert_false(MatchConfig.from_dict({}).experiments_enabled, "a dict without the key stays off")
+	var on: MatchConfig = MatchConfig.new()
+	on.experiments_enabled = true
+	assert_true(MatchConfig.from_dict(on.to_dict()).experiments_enabled, "an explicit on survives the wire")

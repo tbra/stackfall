@@ -22,6 +22,7 @@ func _config(mode: int, goal_flags: int, qol: QolExperiments = null) -> MatchCon
 	config.rng_seed = 51051
 	config.game_mode = mode as MatchConfig.GameMode
 	config.goal_flag_count = goal_flags
+	config.experiments_enabled = true
 	config.qol = qol
 	return config
 

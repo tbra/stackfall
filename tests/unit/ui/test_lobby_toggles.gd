@@ -107,24 +107,28 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	await wait_frames(2)
 	var check: UiToggle = lobby.get_node("%ExperimentsCheck")
 	var section: UiSection = lobby.get_node("%ExperimentsSection")
-	assert_true(check.button_pressed, "default ON: current behaviour unchanged")
-	assert_null(section.advanced_button, "experiments have no Advanced sub-section")
-	assert_true(lobby._config_from_controls().experiments_enabled)
-	await wait_frames(1)
 	var chip: UiChipToggle = lobby._qol_checks[0]
-	assert_true(_stops(lobby).has(chip))
+	assert_false(check.button_pressed, "default OFF: no experiment runs until the host opts in")
+	assert_null(section.advanced_button, "experiments have no Advanced sub-section")
+	assert_false(lobby._config_from_controls().experiments_enabled)
+	assert_false(chip.is_visible_in_tree(), "default off: options hidden")
+	assert_false(_stops(lobby).has(chip))
 
 	# Keyboard path: focus the toggle and press ui_accept.
 	check.grab_focus()
 	_action_press(&"ui_accept")
 	await wait_frames(2)
-	assert_false(check.button_pressed, "ui_accept switched it off")
-	assert_false(chip.is_visible_in_tree(), "experiments off: options hidden")
+	assert_true(check.button_pressed, "ui_accept switched it on")
+	assert_true(chip.is_visible_in_tree(), "experiments on: options shown")
+	assert_true(_stops(lobby).has(chip))
+	assert_true(lobby._config_from_controls().experiments_enabled)
+	check.button_pressed = false
+	await wait_frames(2)
+	assert_false(chip.is_visible_in_tree(), "experiments off again: options hidden")
 	assert_false(_stops(lobby).has(chip))
 	var walked: Array[Control] = await _walk_with_pad(lobby)
 	assert_false(walked.has(chip), "pad focus skips the hidden options")
 	assert_true(walked.has(check), "the master switch stays a stop")
-	assert_false(lobby._config_from_controls().experiments_enabled)
 
 	check.grab_focus()
 	_pad_press(JOY_BUTTON_A)
@@ -141,6 +145,7 @@ func _any_toggle_on(qol: QolExperiments) -> bool:
 func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(1)
+	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	(lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGoalRadiusCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGiftLoadsNextCheck") as UiChipToggle).button_pressed = true
@@ -196,19 +201,19 @@ func test_over_enet_the_experiments_switch_replicates_and_a_client_cannot_change
 	client_lobby.net_provider = client
 	client_lobby._update_host_only_state()
 
-	(host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = false
+	(host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	assert_true(await _wait_for(func() -> bool:
-		return not bool(client.lobby_data().get("experiments_enabled", true))
+		return bool(client.lobby_data().get("experiments_enabled", false))
 	), "the host's setting reached the client over ENet")
 	var mirrored: UiToggle = client_lobby.get_node("%ExperimentsCheck") as UiToggle
-	assert_true(await _wait_for(func() -> bool: return not mirrored.button_pressed), "the client lobby mirrors it")
+	assert_true(await _wait_for(func() -> bool: return mirrored.button_pressed), "the client lobby mirrors it")
 	assert_true(mirrored.disabled, "a client cannot change it")
-	assert_false((client_lobby.get_node("%QolBacklogCheck") as Control).is_visible_in_tree(), "and its options are hidden too")
+	assert_true((client_lobby.get_node("%QolBacklogCheck") as Control).is_visible_in_tree(), "and its options show too")
 
 	# A client edit never publishes and the host keeps its value.
-	mirrored.button_pressed = true
+	mirrored.button_pressed = false
 	client_lobby._on_setting_changed()
 	for _i: int in range(30):
 		await get_tree().process_frame
-	assert_false(bool(host.lobby_data().get("experiments_enabled", true)), "the host's value is unchanged")
-	assert_false((host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed)
+	assert_true(bool(host.lobby_data().get("experiments_enabled", false)), "the host's value is unchanged")
+	assert_true((host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed)

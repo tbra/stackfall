@@ -43,6 +43,7 @@ func _config(qol: QolExperiments = null, turn_based: bool = false) -> MatchConfi
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.turn_based = turn_based
+	config.experiments_enabled = true
 	config.qol = qol if qol != null else _old_gift_rule()
 	return config
 

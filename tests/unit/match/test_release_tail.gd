@@ -27,6 +27,7 @@ func _config(player_count: int = 2, turn_based: bool = false, sandbox: bool = fa
 	config.turn_based = turn_based
 	config.sandbox = sandbox
 	# Old gift rule (a claim replaces the next piece).
+	config.experiments_enabled = true
 	config.qol = QolExperiments.new()
 	config.qol.gift_loads_next = true
 	return config
