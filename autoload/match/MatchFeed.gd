@@ -50,7 +50,7 @@ var _next_gift_shapes: Dictionary = {}
 var _held_is_gift: Dictionary = {}
 ## after-next rule (off when gift_loads_next, backlog or gift slot is on): slot -> carrier BlockShape of a
 ## claimed gift that is the block AFTER next. It becomes _next_gift_shapes[slot] as
-## soon as the ordinary next piece is issued. Empty with the trial off.
+## soon as the ordinary next piece is issued. Empty when the after-next rule is not in force.
 var _staged_gift_shapes: Dictionary = {}
 var _suppress_gift_roll: bool = false
 
@@ -519,7 +519,7 @@ func is_held_gift(slot_id: int) -> bool:
 	return bool(_held_is_gift.get(slot_id, false))
 
 
-## Whether a claimed gift joins as the block after next (QolExperiments trial,
+## Whether a claimed gift joins as the block after next (QolExperiments.gift_after_next_in_force,
 ## replicated in MatchConfig.qol so host and clients agree).
 func gift_after_next_active() -> bool:
 	var qol: QolExperiments = _match.config.qol if _match.config != null else null
@@ -537,7 +537,7 @@ func staged_gift_shape_id(slot_id: int) -> StringName:
 
 
 ## The carrier shape id a claim event tells clients about: the staged carrier
-## in the after-next trial, otherwise the HUD's next shape (the replaced next).
+## under the after-next rule, otherwise the HUD's next shape (the replaced next).
 func claim_carrier_shape_id(slot_id: int) -> StringName:
 	if _staged_gift_shapes.has(slot_id):
 		return staged_gift_shape_id(slot_id)
@@ -545,7 +545,7 @@ func claim_carrier_shape_id(slot_id: int) -> StringName:
 	return shape.id if shape != null else &""
 
 
-## Host: a claim in the after-next trial. The ordinary next draw stays; the draw
+## Host: a claim under the after-next rule. The ordinary next draw stays; the draw
 ## after it (peek 2) is the gift carrier, so nothing is discarded and the bag's
 ## sequence is exactly what it would be with no claim. A later claim replaces an
 ## earlier staged gift (it re-picks the same carrier). Returns its id, or &""

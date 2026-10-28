@@ -140,7 +140,7 @@ func on_gift_spawned(gift_id: int, position: Vector2) -> void:
 	_send(MatchWireEvents.GIFT_SPAWNED, [gift_id, position])
 
 
-## In the after-next trial the carrier is the staged shape, not the next piece.
+## Under the after-next rule the carrier is the staged shape, not the next piece.
 func on_gift_claimed(gift_id: int, slot_id: int, special_id: StringName) -> void:
 	if _session.is_host():
 		_send(MatchWireEvents.GIFT_CLAIMED, [gift_id, slot_id, special_id, _host.feed_claim_carrier_shape_id(slot_id)])

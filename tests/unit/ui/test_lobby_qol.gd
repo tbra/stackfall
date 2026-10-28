@@ -50,7 +50,7 @@ func _check(lobby: Lobby, unique_name: String) -> UiChipToggle:
 	return lobby.get_node(unique_name) as UiChipToggle
 
 
-## The four flags in with_toggles() order, as the controls currently show them.
+## The first four flags in with_toggles() order, as the controls currently show them.
 func _flags(lobby: Lobby) -> Array:
 	var flags: Array = []
 	for unique_name: String in CHECK_NAMES:

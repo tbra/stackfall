@@ -220,7 +220,7 @@ const GLUE_SPECIAL_ID: StringName = &"glue"
 const GLUE_DEF: SpecialDef = preload("res://config/gifts/specials/glue.tres")
 
 
-## `immediate` skips the after-next trial: the sandbox's forced special (debug_queue_special) is
+## `immediate` skips the after-next rule: the sandbox's forced special (debug_queue_special) is
 ## documented as the NEXT gift and the sandbox is host-local, so no client mirror is involved.
 func _queue_claimed_special(slot_id: int, special_id: StringName, immediate: bool = false) -> void:
 	if special_id == GLUE_SPECIAL_ID:
