@@ -86,13 +86,13 @@ func test_footprint_matches_cells_for_four_yaws() -> void:
 		for step: int in range(YAW_STEPS):
 			ghost.free_quaternion = Quaternion(Vector3.UP, PI * 0.5 * step)
 			ghost.set_orientation_index(0)
-			ghost.update_placement(Vector3.ZERO, Vector3.UP)
+			ghost.update_placement(Vector3.ZERO)
 			_check_footprint(ghost, "%s yaw%d" % [shape_id, step])
 
 
 func test_plus5_footprint_is_not_its_convex_hull() -> void:
 	var ghost: GhostPreview = _ghost_with("plus5")
-	ghost.update_placement(Vector3.ZERO, Vector3.UP)
+	ghost.update_placement(Vector3.ZERO)
 	var quads: Array[MeshInstance3D] = GhostParts.footprint_quads(ghost)
 	assert_eq(quads.size(), 1)
 	var hull_area: float = _area(Geometry2D.convex_hull(GhostParts.quad_points_world(quads[0])))
@@ -107,7 +107,7 @@ func test_plus5_footprint_is_not_its_convex_hull() -> void:
 
 func test_decal_mask_is_transparent_in_the_concave_notch() -> void:
 	var ghost: GhostPreview = _ghost_with("u5")
-	ghost.update_placement(Vector3(0.0, 3.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 3.0, 0.0))
 	var texture: ImageTexture = GhostParts.decal(ghost).texture_albedo as ImageTexture
 	assert_not_null(texture)
 	var image: Image = texture.get_image()
@@ -151,7 +151,7 @@ func test_walls_stop_on_a_block_under_the_ghost() -> void:
 	add_child_autofree(tower)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	ghost.update_placement(Vector3(0.0, 4.0, 0.0), Vector3.UP)
+	ghost.update_placement(Vector3(0.0, 4.0, 0.0))
 	var lowest: float = INF
 	for vertex: Vector3 in GhostParts.prism_vertices(ghost):
 		lowest = minf(lowest, vertex.y)

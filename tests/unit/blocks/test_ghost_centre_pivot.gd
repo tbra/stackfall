@@ -51,7 +51,7 @@ func test_free_rotation_spins_the_centre_in_place_and_keeps_the_bottom_fix() -> 
 	var surface_point: Vector3 = Vector3(2.0, 5.0, -3.0)
 
 	ghost.apply_free_rotation_delta(0.7, 1.1, Vector3.RIGHT)
-	ghost.update_placement(surface_point, Vector3.UP)
+	ghost.update_placement(surface_point)
 
 	# (a) the rotated shape's own geometric centre -- not the node's own
 	# swinging origin -- stays over the cursor's XZ.
@@ -104,7 +104,7 @@ func test_spawned_block_matches_the_rotated_ghosts_own_geometry() -> void:
 	controller.set_acting_slot(0)
 
 	var surface_point: Vector3 = Vector3(1.5, 3.0, -2.5)
-	ghost.update_placement(surface_point, Vector3.UP)
+	ghost.update_placement(surface_point)
 	var expected_center_xz: Vector2 = Vector2(ghost.rotated_center_world().x, ghost.rotated_center_world().z)
 	var expected_bottom_y: float = _min_world_y(_rotated_world_corners(ghost))
 
