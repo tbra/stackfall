@@ -122,7 +122,7 @@ Notes:
 
 **Goal flags and no-build zones.** Classic and Capture the Flag spawn `goal_flag_count` (1 to 5) goal flags. One flag sits at the center; with more than one, all sit evenly spaced on a ring of `0.4 * field_radius`. A disc of `goal_zone_radius` = 4 m around each goal blocks placement only: it is not missing floor and does not block influence or capture.
 
-**Overlap holes.** Where two teams' circles overlap the cell becomes contested; neither may place there. After `hole_delay` = 0.75 s of continuous contest the cell becomes a hole (`HoleMode`):
+**Overlap holes.** Where two teams' circles overlap the cell becomes contested; neither may place there. After `hole_delay` = 0.75 s of continuous contest the cell becomes a hole (`HoleMode`), except inside a goal zone: a goal-zone cell can be contested but never becomes a hole, from a contest or from a special's hole punch:
 - `TEMPORARY` (default): a hole closes `hole_close_delay` = 2 s after the contest ends.
 - `PERMANENT`: holes never close, so the disc erodes. Elimination defaults to it (the lobby switches to PERMANENT on entering Elimination and back on leaving; the host can still change it).
 - `OFF`: no holes. Each cell goes to the single home-anchored circle with the largest `radius − distance` (an additively weighted distance field, not a power diagram); a tie goes to the lower team id; circles cut off from a living home exert nothing; nothing is ever contested.
