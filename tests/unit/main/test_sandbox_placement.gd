@@ -125,12 +125,8 @@ func test_hole_placement_is_still_refused_in_sandbox() -> void:
 	var slot_id: int = 0
 	# Off the +x/-x axis (2-player home flags sit at angle 0/180 --
 	# PlayerSlot.home_position_for()'s own doc comment), so this point is on
-	# no slot's own home flag -- punching a hole directly on one eliminates
-	# it (test_match_territory_punch.gd's own "home-flag-elimination
-	# trigger"), which would refuse the placement below with REASON_NO_BLOCK
-	# before ever reaching the territory check this test means to pin. Also
-	# outside the default single goal flag's own no-build zone at the map
-	# centre (MatchConfig.GOAL_FLAG_MIN clamps goal_flag_count up to 1
+	# no slot's own home flag. Also outside the default single goal flag's
+	# own no-build zone at the map centre (MatchConfig.GOAL_FLAG_MIN clamps goal_flag_count up to 1
 	# regardless of this fixture's own _config(); TerritoryTuning.goal_zone_
 	# radius is 4 m) -- validate_point() checks GOAL_ZONE before HOLE (this
 	# file's own quote of its doc comment above), so this point must clear
