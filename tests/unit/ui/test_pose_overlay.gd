@@ -1,12 +1,13 @@
 extends GutTest
-## F2 pose overlay (ui/debug/PoseOverlay.gd): debug gate, key and pad chord, and the visible
-## labels following the held block, the camera and the disc tilt.
+## F2 pose overlay (ui/debug/PoseOverlay.gd): key and pad chord (both work with debug off), and the
+## visible text following the held block (from the injected match context), the camera and the disc tilt.
 
 const OVERLAY_SCENE: PackedScene = preload("res://ui/debug/PoseOverlay.tscn")
 
 var _overlay: PoseOverlay = null
 var _camera: Camera3D = null
 var _field: Node3D = null
+var _context: FakeMatchContext = null
 
 
 func before_each() -> void:
@@ -15,7 +16,10 @@ func before_each() -> void:
 	add_child_autofree(_camera)
 	_field = Field.new()
 	add_child_autofree(_field)
+	_context = FakeMatchContext.new()
 	_overlay = OVERLAY_SCENE.instantiate() as PoseOverlay
+	# set() so a missing property fails the behaviour tests, not the parse of this file
+	_overlay.set(&"match_context", _context)
 	_overlay.camera = _camera
 	_overlay.field = _field as Field
 	add_child_autofree(_overlay)
@@ -23,12 +27,22 @@ func before_each() -> void:
 
 func after_each() -> void:
 	Input.action_release(&"camera_snap_home")
-	MatchContext.current().local_held().clear()
 	DebugMode.clear_override_for_test()
 
 
-func _label(label_name: String) -> Label:
-	return _overlay.find_child(label_name, true, false) as Label
+## Every Label text under the overlay; queried by content, not by node name.
+func _texts() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for node: Node in _overlay.find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return out
+
+
+func _has_text_containing(fragment: String) -> bool:
+	for text: String in _texts():
+		if text.contains(fragment):
+			return true
+	return false
 
 
 func _press(event: InputEvent) -> void:
@@ -49,14 +63,28 @@ func _pad() -> InputEventJoypadButton:
 	return event
 
 
-func test_f2_toggles_only_in_debug_mode() -> void:
+func test_f2_toggles_with_debug_off() -> void:
+	DebugMode.set_override_for_test(false)
+	_press(_f2())
+	assert_true(_overlay.is_shown(), "debug off: F2 still opens the panel")
+	_press(_f2())
+	assert_false(_overlay.is_shown())
+
+
+func test_f2_toggles_with_debug_on() -> void:
 	_press(_f2())
 	assert_true(_overlay.is_shown())
 	_press(_f2())
 	assert_false(_overlay.is_shown())
+
+
+func test_pad_chord_toggles_with_debug_off() -> void:
 	DebugMode.set_override_for_test(false)
-	_press(_f2())
-	assert_false(_overlay.is_shown(), "debug off: F2 does nothing")
+	Input.action_press(&"camera_snap_home")
+	_press(_pad())
+	assert_true(_overlay.is_shown())
+	_press(_pad())
+	assert_false(_overlay.is_shown())
 
 
 func test_pad_press_needs_back_held() -> void:
@@ -67,22 +95,27 @@ func test_pad_press_needs_back_held() -> void:
 	assert_true(_overlay.is_shown())
 
 
-func test_labels_follow_held_block_camera_and_disc() -> void:
+func test_nothing_held_shows_no_held_pose() -> void:
 	_overlay.set_shown(true)
-	assert_eq(_label("HeldLabel").text, PoseOverlay.NO_VALUE, "nothing held")
-	var held: LocalHeldView = MatchContext.current().local_held()
+	assert_false(_has_text_containing("held   pos"), "no held block: no pose line for it")
+	assert_true(_texts().has(PoseOverlay.NO_VALUE))
+
+
+func test_text_follows_held_block_from_injected_context_camera_and_disc() -> void:
+	_overlay.set_shown(true)
+	var held: LocalHeldView = _context.local_held()
 	held.publish(0, BlockShape.new(), Vector3(1.0, 2.0, 3.0), 0, Quaternion.IDENTITY, true, 0.0)
 	_camera.global_position = Vector3(4.0, 5.0, 6.0)
 	_field.global_basis = Basis(Vector3.RIGHT, deg_to_rad(10.0))
 	_overlay.refresh()
-	var first_held: String = _label("HeldLabel").text
-	assert_string_contains(first_held, "(1.00, 2.00, 3.00)")
-	assert_string_contains(_label("CameraLabel").text, "(4.00, 5.00, 6.00)")
-	assert_string_contains(_label("TiltLabel").text, "10.00 deg about (1.00, 0.00, 0.00)")
+	assert_true(_has_text_containing("(1.00, 2.00, 3.00)"), "held position from the injected context")
+	assert_true(_has_text_containing("(4.00, 5.00, 6.00)"), "camera position")
+	assert_true(_has_text_containing("10.00 deg about (1.00, 0.00, 0.00)"), "disc tilt")
 	held.publish(0, BlockShape.new(), Vector3(7.0, 2.0, 3.0), 0, Quaternion(Vector3.UP, deg_to_rad(90.0)), true, 0.0)
 	_overlay.refresh()
-	assert_ne(_label("HeldLabel").text, first_held)
-	assert_string_contains(_label("HeldLabel").text, "(0.00, 90.00, 0.00)")
+	assert_true(_has_text_containing("(7.00, 2.00, 3.00)"))
+	assert_false(_has_text_containing("(1.00, 2.00, 3.00)"), "the old held position is gone")
+	assert_true(_has_text_containing("(0.00, 90.00, 0.00)"))
 
 
 func test_untilted_disc_reads_zero_about_up() -> void:

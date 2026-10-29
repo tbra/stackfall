@@ -1,15 +1,20 @@
 extends GutTest
-## the F9 bot think cost overlay (ui/debug/PerfBotCostOverlay.gd): debug gate, F9 and pad chord,
-## collector enable/disable, table content and highlight, selector, client / empty lines.
+## the F9 bot think cost overlay (ui/debug/PerfBotCostOverlay.gd): F9 and pad chord (both work with
+## debug off), collector enable/disable, cell text and the hot row through the kept statics, the
+## selector chord, and the client / empty lines from the injected match context.
 
 var _overlay: PerfBotCostOverlay = null
+var _context: FakeMatchContext = null
 
 
 func before_each() -> void:
 	BotThinkCostCollector.disable()
 	DebugMode.set_override_for_test(true)
+	_context = FakeMatchContext.new()
 	_overlay = PerfBotCostOverlay.new()
 	_overlay.config = DebugConfig.new()
+	# set() so a missing property fails the behaviour tests, not the parse of this file
+	_overlay.set(&"match_context", _context)
 	add_child_autofree(_overlay)
 
 
@@ -19,12 +24,34 @@ func after_each() -> void:
 	DebugMode.clear_override_for_test()
 
 
-func _f2() -> InputEventKey:
+func _f9() -> InputEventKey:
 	var event: InputEventKey = InputEventKey.new()
 	event.device = -1
 	event.physical_keycode = KEY_F9
 	event.pressed = true
 	return event
+
+
+func _pad_toggle() -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = JOY_BUTTON_LEFT_STICK
+	event.pressed = true
+	return event
+
+
+func _arrow(keycode: Key) -> InputEventKey:
+	var event: InputEventKey = InputEventKey.new()
+	event.keycode = keycode
+	event.physical_keycode = keycode
+	event.pressed = true
+	return event
+
+
+func _texts() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for node: Node in _overlay.find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return out
 
 
 func _record(phase_us: Array[int]) -> Dictionary:
@@ -45,41 +72,119 @@ func _feed() -> BotThinkCostCollector:
 	return collector
 
 
-func test_f2_toggles_only_in_debug_mode() -> void:
-	_overlay._unhandled_input(_f2())
-	assert_true(_overlay.is_shown())
-	_overlay._unhandled_input(_f2())
-	assert_false(_overlay.is_shown())
+## Row accessors: the cells and the hot flag (DebugRow.warn on the kit, "hot" on the older Dictionary row).
+func _cells(row: Variant) -> PackedStringArray:
+	if row is DebugRow:
+		return (row as DebugRow).cells
+	return (row as Dictionary)["cells"] as PackedStringArray
+
+
+func _is_hot(row: Variant) -> bool:
+	if row is DebugRow:
+		return (row as DebugRow).warn
+	return bool((row as Dictionary)["hot"])
+
+
+func test_f9_toggles_with_debug_off() -> void:
 	DebugMode.set_override_for_test(false)
-	_overlay._unhandled_input(_f2())
-	assert_false(_overlay.is_shown(), "debug off: F9 does nothing")
+	_overlay._unhandled_input(_f9())
+	assert_true(_overlay.is_shown(), "debug off: F9 still opens the panel")
+	_overlay._unhandled_input(_f9())
+	assert_false(_overlay.is_shown())
 
 
-func test_table_has_every_phase_row_numbers_and_highlight() -> void:
+func test_pad_chord_toggles_with_debug_off_and_bare_press_does_not() -> void:
+	DebugMode.set_override_for_test(false)
+	_overlay._unhandled_input(_pad_toggle())
+	assert_false(_overlay.is_shown(), "a bare left-stick click is ignored")
+	Input.action_press(&"camera_snap_home")
+	_overlay._unhandled_input(_pad_toggle())
+	assert_true(_overlay.is_shown())
+
+
+func test_collector_runs_only_while_shown() -> void:
+	assert_null(BotThinkCostCollector.current(), "hidden: no collector")
+	_overlay.set_shown(true)
+	assert_not_null(BotThinkCostCollector.current())
+	_overlay.set_shown(false)
+	assert_null(BotThinkCostCollector.current(), "hidden again: collector off")
+
+
+func test_table_rows_text_and_hot_flag_on_probe_only() -> void:
+	_overlay.set_shown(true)
+	_feed()
+	var report: BotThinkCostReport = BotThinkCostCollector.current().aggregate()
+	var rows: Array = PerfBotCostOverlay.table_rows(report)
+	assert_eq(rows.size(), BotThinkCostReport.PHASE_COUNT + 2)
+	var probe: Dictionary = report.phase_stats(BotThink.Phase.PROBE)
+	for i: int in range(BotThinkCostReport.PHASE_COUNT):
+		var phase_name: String = BotThinkCostReport.PHASE_NAMES[i]
+		assert_eq(_cells(rows[i])[0], phase_name)
+		assert_eq(_is_hot(rows[i]), phase_name == "PROBE", "hot only on PROBE (%s)" % phase_name)
+	var probe_cells: PackedStringArray = _cells(rows[BotThink.Phase.PROBE])
+	assert_eq(probe_cells[1], "%.1f" % probe["mean_us"])
+	assert_eq(probe_cells[1], "600.0")
+	assert_eq(probe_cells[3], "800")
+	assert_eq(probe_cells[4], "5.00")
+	var snapshot_index: int = BotThinkCostReport.PHASE_COUNT
+	var snapshot: PackedStringArray = _cells(rows[snapshot_index])
+	assert_eq(snapshot[0], PerfBotCostOverlay.ROW_SNAPSHOT)
+	assert_eq(snapshot[1], "100.0")
+	assert_false(_is_hot(rows[snapshot_index]))
+	var other: PackedStringArray = _cells(rows[snapshot_index + 1])
+	assert_eq(other[0], PerfBotCostOverlay.ROW_OTHER)
+	assert_eq(other[1], "80.0")
+	assert_false(_is_hot(rows[snapshot_index + 1]))
+
+
+func test_shown_panel_displays_the_probe_cost() -> void:
 	_overlay.set_shown(true)
 	_feed()
 	_overlay.refresh()
-	var cells: Array[Label] = _overlay.grid_cells()
-	assert_eq(cells.size(), (BotThinkCostReport.PHASE_COUNT + 2 + 1) * PerfBotCostOverlay.COLUMN_COUNT)
+	assert_true(_texts().has("600.0"), "the PROBE mean reaches a visible label")
+	assert_true(_texts().has("PROBE"))
+
+
+func test_footer_and_header_text() -> void:
+	_overlay.set_shown(true)
+	_feed()
 	var report: BotThinkCostReport = BotThinkCostCollector.current().aggregate()
-	var probe: Dictionary = report.phase_stats(BotThink.Phase.PROBE)
-	for i: int in range(BotThinkCostReport.PHASE_COUNT):
-		var base: int = (i + 1) * PerfBotCostOverlay.COLUMN_COUNT
-		assert_eq(cells[base].text, BotThinkCostReport.PHASE_NAMES[i])
-		var hot: bool = BotThinkCostReport.PHASE_NAMES[i] == "PROBE"
-		assert_eq(cells[base + 1].get_theme_color(&"font_color") == _overlay.config.overlay_warn_color(), hot, "highlight only PROBE (row %d)" % i)
-	var probe_base: int = (BotThink.Phase.PROBE + 1) * PerfBotCostOverlay.COLUMN_COUNT
-	assert_eq(cells[probe_base + 1].text, "%.1f" % probe["mean_us"])
-	assert_eq(cells[probe_base + 1].text, "600.0")
-	assert_eq(cells[probe_base + 3].text, "800")
-	assert_eq(cells[probe_base + 4].text, "5.00")
-	var snapshot_base: int = (BotThinkCostReport.PHASE_COUNT + 1) * PerfBotCostOverlay.COLUMN_COUNT
-	assert_eq(cells[snapshot_base].text, PerfBotCostOverlay.ROW_SNAPSHOT)
-	assert_eq(cells[snapshot_base + 1].text, "100.0")
-	assert_eq(cells[snapshot_base + PerfBotCostOverlay.COLUMN_COUNT].text, PerfBotCostOverlay.ROW_OTHER)
-	assert_eq(cells[snapshot_base + PerfBotCostOverlay.COLUMN_COUNT + 1].text, "80.0")
 	var footer: PackedStringArray = PerfBotCostOverlay.footer_lines(report)
 	assert_eq(footer.size(), 4)
 	assert_eq(footer[3], "FILL fallback: 0 of 2 thinks (0.0%, 0 sites)", "FILL fallback line under the table")
 	assert_true(footer[0].begins_with("PROBE physics 100.0 us"))
 	assert_true(PerfBotCostOverlay.header_text(report, 2, PerfBotCostOverlay.ALL_SLOTS).contains("2 bots"))
+	assert_true(PerfBotCostOverlay.header_text(report, 2, 1).contains("slot 1"))
+
+
+func test_client_sees_the_host_only_line_from_the_context() -> void:
+	_context.net_is_client_value = true
+	_overlay.set_shown(true)
+	assert_true(_texts().has(PerfBotCostOverlay.CLIENT_LINE))
+	assert_false(_texts().has(PerfBotCostOverlay.EMPTY_LINE))
+
+
+func test_host_without_data_sees_the_empty_line() -> void:
+	_context.net_is_client_value = false
+	_overlay.set_shown(true)
+	assert_true(_texts().has(PerfBotCostOverlay.EMPTY_LINE))
+	assert_false(_texts().has(PerfBotCostOverlay.CLIENT_LINE))
+
+
+func test_selector_chord_steps_slots_and_needs_back_held() -> void:
+	_overlay.set_shown(true)
+	_feed()
+	_overlay.refresh()
+	_overlay._unhandled_input(_arrow(KEY_RIGHT))
+	assert_eq(_overlay.selected_slot, PerfBotCostOverlay.ALL_SLOTS, "without Back the arrow does nothing")
+	Input.action_press(&"camera_snap_home")
+	_overlay._unhandled_input(_arrow(KEY_RIGHT))
+	assert_eq(_overlay.selected_slot, 1)
+	assert_true(_texts().has("400.0"), "slot 1's PROBE mean is shown")
+	assert_false(_texts().has("600.0"), "the all-bots mean is gone")
+	_overlay._unhandled_input(_arrow(KEY_RIGHT))
+	assert_eq(_overlay.selected_slot, 2)
+	_overlay._unhandled_input(_arrow(KEY_RIGHT))
+	assert_eq(_overlay.selected_slot, PerfBotCostOverlay.ALL_SLOTS, "wraps back to all bots")
+	_overlay._unhandled_input(_arrow(KEY_LEFT))
+	assert_eq(_overlay.selected_slot, 2, "left steps back with wrap")
