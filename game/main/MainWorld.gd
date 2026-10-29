@@ -13,6 +13,9 @@ var world_environment: WorldEnvironment = null
 var skybox: Skybox = null
 var loader: AppLoader = null
 var graphics: GraphicsApplier = null
+## The overlays the match flow drives, set by Main when it builds them (null until then).
+var loading_screen: LoadingScreen = null
+var pause_menu: PauseMenu = null
 
 ## State written by one flow and read by another (sandbox flow writes, match flow and Main read).
 ## Typed Node: Main must not name Sandbox/Tutorial (compile graph, MainFlowPort.gd).

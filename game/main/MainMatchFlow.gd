@@ -2,23 +2,18 @@ class_name MainMatchFlow
 extends MainMatchFlowPort
 ## The match-world flow (state routing, loading hand-off, world build/teardown,
 ## bot controllers, scope reset), split out of game/main/Main.gd.
-## Main keeps one forwarder per name and loads this script before the first match_state_changed
+## Main loads this script before the first match_state_changed
 ## reaction (the client's net_match_start RPC arrives with no Main involvement, so the Main
 ## forwarder of `_on_match_state_changed` always ensures this flow first). Per-match node fields live here;
-## this file reaches Main's scene helpers through `main_node` (DECISION: one
-## module split in two, as MainSandboxFlow does). The loading-generation guard lives here
-## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await.
+## the persistent nodes come from `world` and Main builds its overlays before each entry point
+## runs. The loading-generation guard lives here
+## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(world.parent)` after an await.
 
 const HUD_SCENE_PATH: String = "res://ui/hud/HUD.tscn"
 const TUNING_PANEL_SCENE_PATH: String = "res://ui/debug/TuningPanel.tscn"
 const POSE_OVERLAY_PATH: String = "res://ui/debug/PoseOverlay.tscn"
 ## Loaded by path (debug builds only): the bot code behind it stays out of the compile closure.
 const BOT_COST_OVERLAY_PATH: String = "res://ui/debug/PerfBotCostOverlay.gd"
-
-## The Main node, typed (the port's `main` is the Node3D it binds).
-var main_node: Main:
-	get:
-		return main as Main
 
 # Per-match nodes and flags this flow owns (they used to sit on Main).
 var _local_player: Node = null
@@ -38,22 +33,22 @@ var _first_territory_ready: bool = false
 ## Bumped on every new load and every return to the lobby; a stale hand-off coroutine sees it differ and stops.
 var _loading_generation: int = 0
 
-# Read-only views of Main's persistent world nodes.
+# Read-only views of Main's persistent world nodes and overlays (Main builds the overlays first).
 var _field: Field:
 	get:
-		return main_node._field
+		return world.field
 var _registry: BlockRegistry:
 	get:
-		return main_node._registry
+		return world.registry
 var _camera_rig: CameraRig:
 	get:
-		return main_node._camera_rig
+		return world.camera_rig
 var _loading_screen: LoadingScreen:
 	get:
-		return main_node._loading_screen
+		return world.loading_screen
 var _pause_menu: PauseMenu:
 	get:
-		return main_node._pause_menu
+		return world.pause_menu
 
 
 ## The world exists exactly while Match is past the lobby. Match guarantees
@@ -105,7 +100,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 				# session, which routes to the main menu (Main._on_net_mode_changed).
 				Net.leave()
 			else:
-				main_node._show_lobby()
+				lobby_requested.emit()
 	elif Match.is_start_transition(from_state, to_state):
 		_loading_generation += 1
 		_first_territory_ready = false
@@ -114,7 +109,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
 		var skip_loading: bool = world.mode_extras != null and world.mode_extras.skips_loading_screen()
 		if not skip_loading:
-			_loading_screen.show_for_match(Match.config, main_node._loading_screen_slots())
+			_loading_screen.show_for_match(Match.config, _loading_screen_slots())
 		# DECISION: the 3-2-1 must start once the loading screen
 		# is gone, not run down behind it. Held from here until
 		# _finish_loading_when_ready() releases it (a reset/abort also clears it).
@@ -129,9 +124,9 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 
 func _finish_loading_when_ready(generation: int) -> void:
 	while not _world_built:
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
@@ -141,9 +136,9 @@ func _finish_loading_when_ready(generation: int) -> void:
 		return
 	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
 	while not _first_territory_ready:
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
@@ -151,9 +146,9 @@ func _finish_loading_when_ready(generation: int) -> void:
 	_loading_screen.set_stage("Warming materials", _loading_screen.tuning.materials_progress)
 	_loading_screen.warm_common_materials()
 	for frame: int in range(_loading_screen.tuning.stable_frames):
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
@@ -169,7 +164,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 		(_local_player as LocalPlayer).controller().set_process_unhandled_input(_controller_was_handling_input)
 	await _loading_screen.fade_out()
 	# DECISION: Main may be freed while this coroutine is suspended.
-	if not is_instance_valid(main):
+	if not is_instance_valid(world.parent):
 		return
 	# the screen is gone; now the 3-2-1 starts running down.
 	_release_countdown_hold(generation)
@@ -196,14 +191,12 @@ func on_lobby_start_pressed(config: MatchConfig) -> void:
 	if not Net.is_host() or _start_pending:
 		return
 	_start_pending = true
-	# SHORTCUT: upward read of Main's overlay builder, removed by P7-Inav when the flow owns its overlays
-	main_node._ensure_overlays()
 	_loading_screen.show_pending(config)
 	MatchNet.replicate_match_loading()
 	for _i: int in range(_loading_screen.tuning.pre_start_frames):
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 	_start_pending = false
 	if not Net.is_host() or not _loading_screen.is_pending():
@@ -215,9 +208,6 @@ func on_lobby_start_pressed(config: MatchConfig) -> void:
 func on_match_loading_announced() -> void:
 	if Match.state() != Match.State.LOBBY:
 		return
-	# SHORTCUT: upward calls into Main's prefetch and overlay builder, removed by P7-Inav
-	main_node._prefetch_match_scenes()
-	main_node._ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
 	_loading_screen.show_pending(null)
 
 
@@ -243,8 +233,7 @@ func on_loading_readiness_timed_out() -> void:
 
 ## The overlay exists, is up and is past its pending stage. Reads the raw node: the getter would build it.
 func _loading_screen_is_running() -> bool:
-	# SHORTCUT: upward read of Main's raw loading-screen node, removed by P7-Inav
-	var screen: LoadingScreen = main_node._loading_screen_node
+	var screen: LoadingScreen = world.loading_screen
 	return screen != null and screen.visible and not screen.is_pending()
 
 
@@ -261,7 +250,7 @@ func build_match_world() -> void:
 	# DECISION: only a visible interactive overlay needs frame-separated stages.
 	# Headless hosts and test/probe runs retain the synchronous start contract.
 	var stage_build: bool = _loading_screen != null and _loading_screen.visible and DisplayServer.get_name() != "headless" and not AgentProbe.is_active()
-	main_node._clear_menu_and_lobby()
+	menus_clear_requested.emit()
 	_pause_menu.suppressed = false
 
 	var config: MatchConfig = Match.config
@@ -269,9 +258,9 @@ func build_match_world() -> void:
 	_camera_rig.set_map_def(config.map_def())
 	_loading_screen.set_stage("Placing flags", _loading_screen.tuning.flags_progress)
 	if stage_build:
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
@@ -279,15 +268,15 @@ func build_match_world() -> void:
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
 	_loading_screen.set_stage("Preparing territory", _loading_screen.tuning.territory_progress)
 	if stage_build:
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
-	main_node._apply_match_sky(config)
+	world.skybox.configure_match_sky(config)
 	# the lobby's Day/Night/Random, resolved by the host and
 	# replicated; the F4 Theme dropdown still overrides live afterwards.
 
@@ -295,16 +284,16 @@ func build_match_world() -> void:
 	SnapshotSync.begin_match(Match.registry(), config.map_def())
 	_loading_screen.set_stage("Preparing players", _loading_screen.tuning.players_progress)
 	if stage_build:
-		await main_node.get_tree().process_frame
+		await world.parent.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
-		if not is_instance_valid(main):
+		if not is_instance_valid(world.parent):
 			return
 		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
 			return
 
-	_remote_cursors = main_node._load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
-	main_node.add_child(_remote_cursors)
+	_remote_cursors = world.loader.load_scene(Main.REMOTE_CURSORS_SCENE_PATH).instantiate() as RemoteCursors
+	world.parent.add_child(_remote_cursors)
 
 	# A LocalPlayer instance always binds Net.local_slot() (0 on the host), so it must not
 	# be built when that slot is a bot: the all-bot `--bots=<n>` command
@@ -317,9 +306,9 @@ func build_match_world() -> void:
 	if world.watch_bots_active and DebugMode.is_enabled():
 		build_spectator(config)
 	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
-		var local_player: LocalPlayer = main_node._load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
+		var local_player: LocalPlayer = world.loader.load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
 		_local_player = local_player
-		main_node.add_child(local_player)
+		world.parent.add_child(local_player)
 		local_player.set_camera_rig(_camera_rig)
 		local_player.set_field(_field)
 		local_player.bind_local_slot(Net.local_slot())
@@ -333,7 +322,7 @@ func build_match_world() -> void:
 		if stage_build:
 			local_player.controller().set_process(false)
 			local_player.controller().set_process_unhandled_input(false)
-		main_node._attach_mode_extras(local_player)
+		local_player_built.emit(local_player)
 
 	spawn_bot_controllers(config)
 
@@ -341,7 +330,7 @@ func build_match_world() -> void:
 	# _spawn_bot_controllers(): BlockRegistry.all_blocks() only has anything to scan
 	# once _registry is populated, which SnapshotSync.begin_match() above has done.
 	_stable_block_manager = StableBlockManager.new()
-	main_node.add_child(_stable_block_manager)
+	world.parent.add_child(_stable_block_manager)
 	_stable_block_manager.setup(_registry)
 
 	_build_debug_overlays()
@@ -350,7 +339,7 @@ func build_match_world() -> void:
 	# a static child of Main, so today this repeats the _ready()-time call; kept
 	# because this is the one shared scene-load path (lobby-driven and headless-bot
 	# matches alike).
-	main_node._apply_graphics_preset(Settings.current_graphics_preset())
+	world.graphics.apply(Settings.current_graphics_preset())
 	_world_built = true
 	_world_building = false
 
@@ -359,11 +348,11 @@ func build_match_world() -> void:
 ## menus and lobby and close when the match ends. F2 and F9 are debug builds only; F3 gates its own
 ## toggle on DebugMode.
 func _build_debug_overlays() -> void:
-	var net: Node = main_node._load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate()
+	var net: Node = world.loader.load_scene(Main.NET_DEBUG_OVERLAY_SCENE_PATH).instantiate()
 	_debug_overlays.append(net)
 	if DebugMode.is_enabled():
 		var debug_config: DebugConfig = DebugMode.config()
-		var pose: Node = main_node._load_scene(POSE_OVERLAY_PATH).instantiate()
+		var pose: Node = world.loader.load_scene(POSE_OVERLAY_PATH).instantiate()
 		pose.set(&"config", debug_config)
 		pose.set(&"camera", _camera_rig.get_camera())
 		pose.set(&"field", _field)
@@ -372,7 +361,7 @@ func _build_debug_overlays() -> void:
 		bot_cost.set(&"config", debug_config)
 		_debug_overlays.append(bot_cost)
 	for overlay: Node in _debug_overlays:
-		main_node.add_child(overlay)
+		world.parent.add_child(overlay)
 
 
 ## debug Watch bots: the local player's whole presence in an all-bot match -- spectator
@@ -380,9 +369,9 @@ func _build_debug_overlays() -> void:
 func build_spectator(config: MatchConfig) -> void:
 	var spectator: SpectatorController = SpectatorController.new()
 	_spectator = spectator
-	main_node.add_child(spectator)
+	world.parent.add_child(spectator)
 	spectator.setup(_camera_rig, config.player_count)
-	spectator.build_presentation(main_node._load_scene(HUD_SCENE_PATH), main_node._load_scene(TUNING_PANEL_SCENE_PATH), _field)
+	spectator.build_presentation(world.loader.load_scene(HUD_SCENE_PATH), world.loader.load_scene(TUNING_PANEL_SCENE_PATH), _field)
 
 
 ## One BotController per bot slot (the trailing `config.ai_count` slots, matching
@@ -399,7 +388,7 @@ func spawn_bot_controllers(config: MatchConfig) -> void:
 	var first_bot_slot: int = config.player_count - config.ai_count
 	for slot_id: int in range(first_bot_slot, config.player_count):
 		var bot: BotController = BotController.new()
-		main_node.add_child(bot)
+		world.parent.add_child(bot)
 		bot.setup(slot_id, config.ai_difficulty_for_slot(slot_id), _field, _registry)
 		_bot_controllers.append(bot)
 
@@ -443,7 +432,7 @@ func end_match_world() -> void:
 		_end_mode_extras()
 		return
 	_world_built = false
-	main_node._stop_headless_bots_diagnostics()
+	world_ended.emit()
 	SnapshotSync.end_match()
 	# Field is persistent (unlike everything else torn down below) and Match's
 	# own teardown never touches it, so its flags, overlay raster reference
@@ -474,6 +463,19 @@ func end_match_world() -> void:
 	_debug_overlays.clear()
 
 
+## Collected into a plain array so ui/menus/LoadingScreen.gd never reaches for the
+## Match singleton (same injection shape as ui/hud/HUD.gd's match_provider seam).
+## Every slot's display_name/is_bot is already final: MatchLifecycle's slot build
+## ran before the LOBBY -> LOADING emit this feeds.
+func _loading_screen_slots() -> Array[PlayerSlot]:
+	var slots: Array[PlayerSlot] = []
+	for i: int in range(Match.slot_count()):
+		var slot_item: PlayerSlot = Match.slot(i)
+		if slot_item != null:
+			slots.append(slot_item)
+	return slots
+
+
 ## Disabling the subtree first stops its _process/_input at once; queue_free() only
 ## frees at the end of the frame.
 func _free_inert(node: Node) -> void:
@@ -488,8 +490,8 @@ func _free_inert(node: Node) -> void:
 func _end_mode_extras() -> void:
 	if world.mode_extras == null:
 		return
-	if world.sandbox != null and main_node._scoreboard_node != null:
-		main_node._scoreboard_node.suppressed = false
+	if world.sandbox != null:
+		overlays_suppressed.emit(false, false)
 	_free_inert(world.sandbox)
 	world.sandbox = null
 	_free_inert(world.tutorial)
