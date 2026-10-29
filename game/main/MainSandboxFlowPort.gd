@@ -4,23 +4,23 @@ extends MainFlowPort
 ## The bodies are empty; game/main/MainSandboxFlow.gd (MF1) overrides them.
 
 
-func start_sandbox_match() -> void:
+func start_sandbox_match(_base_match: MatchConfig, _base_sandbox: SandboxConfig) -> void:
 	pass
 
 
-func start_sandbox_from_menu() -> void:
+func start_sandbox_from_menu(_base_match: MatchConfig, _base_sandbox: SandboxConfig) -> void:
 	pass
 
 
-func start_gift_demo_from_menu() -> void:
+func start_gift_demo_from_menu(_base_match: MatchConfig, _base_sandbox: SandboxConfig) -> void:
 	pass
 
 
-func start_tower_topple_from_menu() -> void:
+func start_tower_topple_from_menu(_base_match: MatchConfig, _base_sandbox: SandboxConfig) -> void:
 	pass
 
 
-func start_tutorial_from_menu() -> void:
+func start_tutorial_from_menu(_base_match: MatchConfig) -> void:
 	pass
 
 
