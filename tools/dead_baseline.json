@@ -644,6 +644,34 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudPlayerLookup.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ilook",
+   "consumer": "P8-Ilook"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudShares.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ishares",
+   "consumer": "P8-Ishares"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudGiftSlot.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Igift",
+   "consumer": "P8-Igift"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:name_for_slot",
+   "reason": "live: ui/hud/HUD.gd:1185 and ui/menus/LoadingScreen.gd:409 call it through a duck-typed provider (name-ambiguous with HudPlayerLookup.name_for_slot)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/session/NetRoster.gd:name_at_slot",
+   "reason": "live: autoload/Net.gd:437 name_for_slot delegates to it (reached only through the name-ambiguous name_for_slot chain)"
   }
  ]
 }
