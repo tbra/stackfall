@@ -267,3 +267,93 @@ func submit_cat_target(slot_id: int, point: Vector3) -> void:
 
 func note_aim(slot_id: int, forward: Vector3) -> void:
 	_match.note_aim(slot_id, forward)
+
+
+func next_shape(slot_id: int) -> BlockShape:
+	if not _active():
+		return null
+	return _match.next_shape(slot_id)
+
+
+func feed_progress(slot_id: int) -> float:
+	if not _active():
+		return 1.0
+	return _match.feed_progress(slot_id)
+
+
+func qol_backlog_count(slot_id: int) -> int:
+	if not _active():
+		return 0
+	return _match.qol_backlog_count(slot_id)
+
+
+func qol_timer_paused(slot_id: int) -> bool:
+	if not _active():
+		return false
+	return _match.qol_timer_paused(slot_id)
+
+
+func max_height_for_slot(slot_id: int) -> float:
+	if not _active():
+		return 0.0
+	return _match.max_height_for_slot(slot_id)
+
+
+func match_timer_left() -> float:
+	if not _active():
+		return 0.0
+	return _match.match_timer_left()
+
+
+func sudden_death_active() -> bool:
+	if not _active():
+		return false
+	return _match.sudden_death_active()
+
+
+func countdown_remaining() -> float:
+	if not _active():
+		return 0.0
+	return _match.countdown_remaining()
+
+
+func eliminated_by(slot_id: int) -> int:
+	if not _active():
+		return -1
+	return _match.eliminated_by(slot_id)
+
+
+func gift_states() -> Array[Dictionary]:
+	if not _active():
+		return []
+	return _match.gift_states()
+
+
+func pending_special_count(slot_id: int) -> int:
+	if not _active():
+		return 0
+	return _match.pending_special_count(slot_id)
+
+
+func next_special(slot_id: int) -> StringName:
+	if not _active():
+		return &""
+	return _match.next_special(slot_id)
+
+
+func after_next_special(slot_id: int) -> StringName:
+	if not _active():
+		return &""
+	return _match.after_next_special(slot_id)
+
+
+func gift_slot_count(slot_id: int) -> int:
+	if not _active():
+		return 0
+	return _match.gift_slot_count(slot_id)
+
+
+func stats() -> RefCounted:
+	if not _active():
+		return null
+	return _match.stats()
