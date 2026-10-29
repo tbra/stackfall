@@ -32,10 +32,7 @@ func _action(action: StringName, pressed: bool = true) -> InputEventAction:
 
 
 func _seat_rows(lobby: Lobby) -> Array[LobbySeatRow]:
-	var rows: Array[LobbySeatRow] = []
-	for node: Node in lobby._players_panel._player_rows:
-		rows.append(node as LobbySeatRow)
-	return rows
+	return LobbyProbe.seat_rows(lobby)
 
 
 func test_seat_difficulty_is_a_cycler_stepped_by_pad_keyboard_and_mouse() -> void:
@@ -62,10 +59,10 @@ func test_default_difficulty_is_a_cycler_and_keeps_its_config_round_trip() -> vo
 	cycler._gui_input(_action(&"ui_left"))
 	cycler._gui_input(_action(&"ui_left", false))
 	assert_eq(cycler.selected(), MatchConfig.AiDifficulty.EASY)
-	assert_eq(lobby._config_from_controls().ai_difficulty, MatchConfig.AiDifficulty.EASY)
+	assert_eq(LobbyProbe.published_config(lobby).ai_difficulty, MatchConfig.AiDifficulty.EASY, "the pick is published")
 	var config: MatchConfig = MatchConfig.new()
 	config.ai_difficulty = MatchConfig.AiDifficulty.HARD
-	lobby._apply_data(config.to_dict())
+	Events.net_lobby_data_changed.emit(config.to_dict())
 	assert_eq(cycler.selected(), MatchConfig.AiDifficulty.HARD)
 	cycler.next_button.button_down.emit()
 	cycler.next_button.button_up.emit()
@@ -73,6 +70,11 @@ func test_default_difficulty_is_a_cycler_and_keeps_its_config_round_trip() -> vo
 
 
 # --- .38: gravity meter ----------------------------------------------------------------------
+
+## The gravity multiplier the host publishes after the meter moved.
+func _gravity(lobby: Lobby) -> float:
+	return float(LobbyProbe.published(lobby).get("gravity_multiplier"))
+
 
 func test_gravity_meter_steps_exactly_a_tenth_and_reaches_one() -> void:
 	var lobby: Lobby = _make_lobby(0)
@@ -82,15 +84,15 @@ func test_gravity_meter_steps_exactly_a_tenth_and_reaches_one() -> void:
 	var previous: float = -1.0
 	for cells: int in range(1, Lobby.GRAVITY_CELLS + 1):
 		meter.value = cells
-		assert_almost_eq(lobby._gravity_value, 0.1 * float(cells), STEP_TOLERANCE, "cell %d" % cells)
+		assert_almost_eq(_gravity(lobby), 0.1 * float(cells), STEP_TOLERANCE, "cell %d" % cells)
 		if previous >= 0.0:
-			assert_almost_eq(lobby._gravity_value - previous, 0.1, STEP_TOLERANCE, "each step is 0.1x")
-		previous = lobby._gravity_value
+			assert_almost_eq(_gravity(lobby) - previous, 0.1, STEP_TOLERANCE, "each step is 0.1x")
+		previous = _gravity(lobby)
 	meter.value = 10
-	assert_almost_eq(lobby._gravity_value, 1.0, STEP_TOLERANCE, "1.0x is a cell")
+	assert_almost_eq(_gravity(lobby), 1.0, STEP_TOLERANCE, "1.0x is a cell")
 	meter.value = 0
-	assert_almost_eq(lobby._gravity_value, MatchConfig.GRAVITY_MIN, STEP_TOLERANCE, "an empty meter is the minimum")
+	assert_almost_eq(_gravity(lobby), MatchConfig.GRAVITY_MIN, STEP_TOLERANCE, "an empty meter is the minimum")
 	meter.value = Lobby.GRAVITY_CELLS
-	assert_almost_eq(lobby._gravity_value, MatchConfig.GRAVITY_MAX, STEP_TOLERANCE)
+	assert_almost_eq(_gravity(lobby), MatchConfig.GRAVITY_MAX, STEP_TOLERANCE)
 	assert_eq(Lobby._gravity_cells_for(1.0), 10)
 	assert_eq(Lobby._gravity_cells_for(MatchConfig.GRAVITY_MIN), 1)
