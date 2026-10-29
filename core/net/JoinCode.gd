@@ -111,3 +111,13 @@ static func _to_int(octets: Array[int]) -> int:
 	for octet: int in octets:
 		value = (value << OCTET_BITS) | octet
 	return value
+
+
+## Code or address text -> {"valid", "address", "port"[, "reason"]}. Stub: not yet implemented.
+static func resolve_text(_text: String) -> Dictionary:
+	return {"valid": false}
+
+
+## "1.2.3.4" or "1.2.3.4:port" -> {"valid", "address", "port"[, "reason"]}. Stub: not yet implemented.
+static func parse_address(_text: String) -> Dictionary:
+	return {"valid": false}
