@@ -688,6 +688,12 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/debug/PerfSampler.gd:set_wanted",
+   "reason": "P12-Sdbg2 interface stub (docs/plans/P12_PLAN.md 2.3): no caller until P12-Iperf wires it; that package removes this entry",
+   "consumer": "P12-Iperf"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
    "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController radius scan; that bead removes this entry",
    "consumer": "P11-Ibotswap"
@@ -829,6 +835,12 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "test-only-var",
+   "entry": "game/debug/PerfSampler.gd:demand_driven",
+   "reason": "P12-Sdbg2 interface stub (docs/plans/P12_PLAN.md 2.3): read only once P12-Iperf lands; that package removes this entry",
+   "consumer": "P12-Iperf"
   }
  ]
 }
