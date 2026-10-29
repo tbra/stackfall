@@ -1,7 +1,6 @@
 extends GutTest
 ## NetPing.jitter_ms(peer_id): mean absolute deviation of the peer's kept RTT
 ## samples, in ms. Driven on a synthetic millisecond clock like test_net_ping.
-## The method is called by name so the file runs (red) before it exists.
 
 const PEER: int = 2
 const OTHER_PEER: int = 3
@@ -26,7 +25,7 @@ func before_each() -> void:
 
 
 func _jitter(peer_id: int) -> float:
-	return float(_ping.call(&"jitter_ms", peer_id))
+	return _ping.jitter_ms(peer_id)
 
 
 ## Round trip number `index`: the ping goes out and the echo returns `rtt_ms` later.
@@ -115,4 +114,4 @@ func test_reset_clears_the_jitter() -> void:
 
 
 func test_net_reports_zero_jitter_for_an_unknown_peer() -> void:
-	assert_eq(float(Net.call(&"peer_rtt_jitter_ms", UNKNOWN_PEER)), 0.0)
+	assert_eq(Net.peer_rtt_jitter_ms(UNKNOWN_PEER), 0.0)

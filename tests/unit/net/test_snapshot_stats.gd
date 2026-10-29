@@ -2,10 +2,7 @@ extends GutTest
 ## The snapshot numbers the F3 panel reads, through their public getters:
 ## SnapshotSync.snapshots_total() and last_snapshot_bytes/bodies/fragments()
 ## (host sends and client applies), arrival_jitter_ms() and dropped_unknown()
-## (client), and Interpolator.jitter_ms(). New getters are called by name so
-## the file runs (red) before they exist.
-
-const SnapshotSyncScript: GDScript = preload("res://net/SnapshotSync.gd")
+## (client), and Interpolator.jitter_ms().
 
 const PEER_ID: int = 2
 const TICK: float = 1.0 / 60.0
@@ -29,7 +26,8 @@ var _disc: Node3D = null
 var _next_net_id: int = FIRST_NET_ID
 
 
-## The production host path with its two network seams replaced.
+## The production SnapshotSync with its two network seams replaced. The host
+## sends through it and the client applies through it.
 class PeerStubSync:
 	extends "res://net/SnapshotSync.gd"
 	var has_peer: bool = true
@@ -93,12 +91,12 @@ func _empty_registry() -> EmptyRegistry:
 	return registry
 
 
-func _client() -> Node:
+func _client() -> PeerStubSync:
 	var registry: EmptyRegistry = _empty_registry()
-	var sync: Node = SnapshotSyncScript.new() as Node
+	var sync: PeerStubSync = PeerStubSync.new()
 	add_child_autofree(sync)
-	sync.call("bind_session", FakeSessionPort.new(FakeNet.client(0)))
-	sync.call("begin_match", registry, _map)
+	sync.bind_session(FakeSessionPort.new(FakeNet.client(0)))
+	sync.begin_match(registry, _map)
 	return sync
 
 
@@ -119,10 +117,10 @@ func _snapshot(sequence: int, body_count: int) -> Array[PackedByteArray]:
 	)
 
 
-func _deliver(sync: Node, sequence: int, body_count: int) -> Array[PackedByteArray]:
+func _deliver(sync: PeerStubSync, sequence: int, body_count: int) -> Array[PackedByteArray]:
 	var packets: Array[PackedByteArray] = _snapshot(sequence, body_count)
 	for packet: PackedByteArray in packets:
-		sync.call("receive_packet", packet)
+		sync.receive_packet(packet)
 	return packets
 
 
@@ -133,8 +131,8 @@ func _total_size(packets: Array[PackedByteArray]) -> int:
 	return total
 
 
-func _total(sync: Node) -> int:
-	return int(sync.call(&"snapshots_total"))
+func _total(sync: PeerStubSync) -> int:
+	return sync.snapshots_total()
 
 
 # --- Host: snapshots_total ---------------------------------------------------------
@@ -178,41 +176,41 @@ func test_a_new_match_restarts_the_snapshot_count() -> void:
 
 func test_a_host_reports_nothing_before_its_first_snapshot() -> void:
 	var sync: PeerStubSync = _host(FEW_BODIES)
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), 0)
-	assert_eq(int(sync.call(&"last_snapshot_bodies")), 0)
-	assert_eq(int(sync.call(&"last_snapshot_fragments")), 0)
+	assert_eq(sync.last_snapshot_bytes(), 0)
+	assert_eq(sync.last_snapshot_bodies(), 0)
+	assert_eq(sync.last_snapshot_fragments(), 0)
 
 
 func test_a_host_reports_the_snapshot_it_just_sent() -> void:
 	var sync: PeerStubSync = _host(FEW_BODIES)
 	sync.host_tick(ONE_SNAPSHOT_S)
 	assert_eq(sync.sent.size(), 1, "fixture: a few bodies fit one fragment")
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), _total_size(sync.sent))
-	assert_eq(int(sync.call(&"last_snapshot_bodies")), FEW_BODIES, "the first snapshot carries every body")
-	assert_eq(int(sync.call(&"last_snapshot_fragments")), 1)
+	assert_eq(sync.last_snapshot_bytes(), _total_size(sync.sent))
+	assert_eq(sync.last_snapshot_bodies(), FEW_BODIES, "the first snapshot carries every body")
+	assert_eq(sync.last_snapshot_fragments(), 1)
 
 
 func test_a_host_reports_every_fragment_of_a_large_snapshot() -> void:
 	var sync: PeerStubSync = _host(MANY_BODIES)
 	sync.host_tick(ONE_SNAPSHOT_S)
 	assert_gt(sync.sent.size(), 1, "fixture: several fragments")
-	assert_eq(int(sync.call(&"last_snapshot_fragments")), sync.sent.size())
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), _total_size(sync.sent))
-	assert_eq(int(sync.call(&"last_snapshot_bodies")), MANY_BODIES)
+	assert_eq(sync.last_snapshot_fragments(), sync.sent.size())
+	assert_eq(sync.last_snapshot_bytes(), _total_size(sync.sent))
+	assert_eq(sync.last_snapshot_bodies(), MANY_BODIES)
 
 
 func test_the_last_snapshot_is_the_newest_not_a_sum() -> void:
 	var sync: PeerStubSync = _host(MANY_BODIES)
 	sync.host_tick(ONE_SNAPSHOT_S)
-	var first_bytes: int = int(sync.call(&"last_snapshot_bytes"))
+	var first_bytes: int = sync.last_snapshot_bytes()
 	sync.sent.clear()
 	for _i: int in range(4):
 		sync.host_tick(TICK)
 		if not sync.sent.is_empty():
 			break
 	assert_false(sync.sent.is_empty(), "fixture: a second snapshot went out")
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), _total_size(sync.sent))
-	assert_lt(int(sync.call(&"last_snapshot_bytes")), first_bytes, "all-asleep deltas are smaller than the full snapshot")
+	assert_eq(sync.last_snapshot_bytes(), _total_size(sync.sent))
+	assert_lt(sync.last_snapshot_bytes(), first_bytes, "all-asleep deltas are smaller than the full snapshot")
 	assert_eq(_total(sync), 2)
 
 
@@ -223,89 +221,89 @@ func test_a_client_starts_with_no_snapshots() -> void:
 
 
 func test_each_distinct_sequence_a_client_applies_adds_one() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	for sequence: int in range(1, SNAPSHOTS + 1):
 		_deliver(sync, sequence, FEW_BODIES)
 		assert_eq(_total(sync), sequence)
 
 
 func test_the_fragments_of_one_snapshot_count_once() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	var packets: Array[PackedByteArray] = _deliver(sync, 1, MANY_BODIES)
 	assert_gt(packets.size(), 1, "fixture: several fragments")
 	assert_eq(_total(sync), 1)
 
 
 func test_a_repeated_sequence_does_not_count_again() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	_deliver(sync, 1, FEW_BODIES)
 	_deliver(sync, 1, FEW_BODIES)
 	assert_eq(_total(sync), 1)
 
 
 func test_an_undecodable_packet_counts_nothing() -> void:
-	var sync: Node = _client()
-	sync.call("receive_packet", PackedByteArray())
+	var sync: PeerStubSync = _client()
+	sync.receive_packet(PackedByteArray())
 	assert_eq(_total(sync), 0)
 
 
 func test_a_client_new_match_restarts_the_snapshot_count() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	_deliver(sync, 1, FEW_BODIES)
-	sync.call("begin_match", _empty_registry(), _map)
+	sync.begin_match(_empty_registry(), _map)
 	assert_eq(_total(sync), 0)
 
 
 # --- Client: last_snapshot_bytes -----------------------------------------------------
 
 func test_a_client_reports_the_bytes_of_the_newest_applied_snapshot() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	var small: Array[PackedByteArray] = _deliver(sync, 1, 0)
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), _total_size(small))
+	assert_eq(sync.last_snapshot_bytes(), _total_size(small))
 	var larger: Array[PackedByteArray] = _deliver(sync, 2, FEW_BODIES)
-	assert_eq(int(sync.call(&"last_snapshot_bytes")), _total_size(larger))
+	assert_eq(sync.last_snapshot_bytes(), _total_size(larger))
 	assert_ne(_total_size(larger), _total_size(small), "fixture: the two sizes differ")
 
 
 # --- Client: dropped_unknown and arrival jitter ----------------------------------------
 
 func test_unspawned_bodies_are_counted_as_dropped() -> void:
-	var sync: Node = _client()
-	assert_eq(int(sync.call(&"dropped_unknown")), 0)
+	var sync: PeerStubSync = _client()
+	assert_eq(sync.dropped_unknown(), 0)
 	_deliver(sync, 1, FEW_BODIES)
-	assert_eq(int(sync.call(&"dropped_unknown")), FEW_BODIES, "the registry has none of these ids")
+	assert_eq(sync.dropped_unknown(), FEW_BODIES, "the registry has none of these ids")
 	_deliver(sync, 2, FEW_BODIES)
-	assert_eq(int(sync.call(&"dropped_unknown")), 2 * FEW_BODIES)
+	assert_eq(sync.dropped_unknown(), 2 * FEW_BODIES)
 
 
 func test_a_new_match_clears_the_dropped_count() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	_deliver(sync, 1, FEW_BODIES)
-	sync.call("begin_match", _empty_registry(), _map)
-	assert_eq(int(sync.call(&"dropped_unknown")), 0)
+	sync.begin_match(_empty_registry(), _map)
+	assert_eq(sync.dropped_unknown(), 0)
 
 
 func test_arrival_jitter_is_zero_before_two_snapshots() -> void:
-	var sync: Node = _client()
-	assert_eq(float(sync.call(&"arrival_jitter_ms")), 0.0)
+	var sync: PeerStubSync = _client()
+	assert_eq(sync.arrival_jitter_ms(), 0.0)
 	_deliver(sync, 1, 0)
-	assert_eq(float(sync.call(&"arrival_jitter_ms")), 0.0, "one arrival has no gap to measure")
+	assert_eq(sync.arrival_jitter_ms(), 0.0, "one arrival has no gap to measure")
 
 
 func test_snapshots_arriving_off_the_beat_show_arrival_jitter() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	# Delivered back to back, far faster than the snapshot interval.
 	for sequence: int in range(1, SNAPSHOTS + 1):
 		_deliver(sync, sequence, 0)
-	assert_gt(float(sync.call(&"arrival_jitter_ms")), 0.0)
+	assert_gt(sync.arrival_jitter_ms(), 0.0)
 
 
 func test_a_new_match_clears_the_arrival_jitter() -> void:
-	var sync: Node = _client()
+	var sync: PeerStubSync = _client()
 	for sequence: int in range(1, SNAPSHOTS + 1):
 		_deliver(sync, sequence, 0)
-	sync.call("begin_match", _empty_registry(), _map)
-	assert_eq(float(sync.call(&"arrival_jitter_ms")), 0.0)
+	sync.begin_match(_empty_registry(), _map)
+	assert_eq(sync.arrival_jitter_ms(), 0.0)
 
 
 # --- Interpolator.jitter_ms ------------------------------------------------------------
@@ -320,34 +318,34 @@ func _interpolator_stream(interp: Interpolator, offset_s: float, count: int) -> 
 func test_a_steady_stream_has_no_jitter() -> void:
 	var interp: Interpolator = Interpolator.new(_config)
 	_interpolator_stream(interp, 0.0, 12)
-	assert_almost_eq(float(interp.call(&"jitter_ms")), 0.0, CALM_JITTER_MS)
+	assert_almost_eq(interp.jitter_ms(), 0.0, CALM_JITTER_MS)
 
 
 func test_a_stream_arriving_off_the_beat_has_jitter() -> void:
 	var interp: Interpolator = Interpolator.new(_config)
 	_interpolator_stream(interp, JITTER_OFFSET_S, 12)
-	assert_gt(float(interp.call(&"jitter_ms")), MIN_JITTERY_MS)
+	assert_gt(interp.jitter_ms(), MIN_JITTERY_MS)
 
 
 func test_jitter_is_zero_before_the_second_snapshot() -> void:
 	var interp: Interpolator = Interpolator.new(_config)
-	assert_eq(float(interp.call(&"jitter_ms")), 0.0)
+	assert_eq(interp.jitter_ms(), 0.0)
 	interp.note_snapshot(1, 0, 0.0)
-	assert_eq(float(interp.call(&"jitter_ms")), 0.0)
+	assert_eq(interp.jitter_ms(), 0.0)
 
 
 func test_clearing_the_interpolator_clears_the_jitter() -> void:
 	var interp: Interpolator = Interpolator.new(_config)
 	_interpolator_stream(interp, JITTER_OFFSET_S, 12)
 	interp.clear()
-	assert_eq(float(interp.call(&"jitter_ms")), 0.0)
+	assert_eq(interp.jitter_ms(), 0.0)
 
 
 func test_a_duplicate_sequence_is_not_jitter() -> void:
 	var interp: Interpolator = Interpolator.new(_config)
 	_interpolator_stream(interp, 0.0, 6)
 	interp.note_snapshot(6, 5 * HOST_TIME_STEP_MS, 5.0 / _config.snapshot_hz + BEHIND_S)
-	assert_almost_eq(float(interp.call(&"jitter_ms")), 0.0, CALM_JITTER_MS)
+	assert_almost_eq(interp.jitter_ms(), 0.0, CALM_JITTER_MS)
 
 
 func test_dropped_unknown_count_still_counts_unspawned_ids() -> void:

@@ -74,7 +74,7 @@ func test_set_simulation_on_the_source_reaches_the_simulator() -> void:
 	var stats: NetStats = _source.read()
 	assert_eq(stats.sim_lag_ms, LAG_MS)
 	assert_almost_eq(stats.sim_loss, LOSS, 0.0001)
-	assert_eq(float(Net.call(&"simulated_lag_ms")), LAG_MS, "Net itself reports the same state")
+	assert_eq(Net.simulated_lag_ms(), LAG_MS, "Net itself reports the same state")
 
 
 func test_set_simulation_to_zero_clears_it() -> void:
