@@ -846,6 +846,18 @@
    "entry": "net/session/NetPing.gd:jitter_ms",
    "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
    "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/debug/DebugTools.gd",
+   "reason": "P12-Sdbg interface stub (docs/plans/P12_PLAN.md 2.4): unwired until P12-Idbg wires it; that package removes this entry",
+   "consumer": "P12-Idbg"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/debug/RoundDebugPanels.gd",
+   "reason": "P12-Sdbg interface stub (docs/plans/P12_PLAN.md 2.4): unwired until P12-Iround wires it; that package removes this entry",
+   "consumer": "P12-Iround"
   }
  ]
 }
