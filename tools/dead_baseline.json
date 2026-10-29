@@ -273,12 +273,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchFeed.gd:feed_progress",
    "reason": "live: autoload/Match.gd:732 (untyped or dynamic call)"
   },
@@ -757,12 +751,6 @@
    "id": "test-only-func",
    "entry": "game/sky/Skybox.gd:start_cycle",
    "reason": "game/debug/AgentProbe.gd:235,244 skybox.call(&start_cycle) (string call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
   },
   {
    "id": "test-only-func",

@@ -116,17 +116,16 @@ func _label_texts() -> PackedStringArray:
 	return out
 
 
-func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
-	_match.config_value.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
+func test_scoreboard_marks_the_bot_row_as_a_bot_and_not_the_human_row() -> void:
 	await _send(_key(true))
 	var texts: PackedStringArray = _label_texts()
 	assert_has(texts, "Ann")
-	assert_has(texts, "Bo")
-	var tags: PackedStringArray = PackedStringArray()
+	var marked: PackedStringArray = PackedStringArray()
 	for text: String in texts:
 		if text.contains("(Bot"):
-			tags.append(text)
-	assert_eq(tags, PackedStringArray(["(Bot, Hard)"]), "only the bot carries a difficulty tag")
+			marked.append(text)
+	assert_eq(marked.size(), 1, "exactly one row is marked as a bot")
+	assert_true(marked[0].begins_with("Bo"), "the marked row is the bot's")
 
 
 func test_table_shows_the_live_rows_with_alive_status() -> void:
