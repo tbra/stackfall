@@ -38,7 +38,7 @@ extends CanvasLayer
 ## construction (a block's toon material, a beacon's geometry, a HUD panel's StyleBoxFlat), so an
 ## edit takes effect for anything built from here on (see _on_field_changed()).
 ## DECISION: these five resources are not added to reset_all() / save_overrides() /
-## build_copy_text() / TuningOverrides.apply_saved() below.
+## TuningOverrides.copy_text() / TuningOverrides.apply_saved() below.
 ##
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad pause_menu[Start] + X). While
 ## open: the mouse is released and gameplay input is suppressed (PlayerController.input_enabled).
@@ -79,11 +79,6 @@ const NAME_COLUMN_WIDTH: float = 380.0
 ## and a smaller font, so the sentence reads as a sub-label and the name stays the primary line.
 const CAPTION_THEME_VARIATION: StringName = &"CaptionLabel"
 const MODIFIED_MARKER: String = "• "
-
-## get_property_list() usage flags an @export'd script variable carries: STORAGE (serialized),
-## EDITOR (inspector-visible), SCRIPT_VARIABLE (script-declared, not a base property like
-## resource_path). Anything missing one of these is skipped.
-const EXPORT_USAGE_MASK: int = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_SCRIPT_VARIABLE
 
 ## Tabs whose content is hidden from a client (see class doc "Availability"). Indices match the
 ## order rebuild() adds tabs in: every client-visible tab (the SFX tab too, audio is local) comes
@@ -214,9 +209,6 @@ var _field: Field = null
 ## for a given resource field without walking the tree.
 var _rows: Array[Dictionary] = []
 
-## One {"resource", "title"} per section built.
-var _group_titles: Array[Dictionary] = []
-
 ## Open/closed state of each foldable section ("Class/Title" -> bool), kept
 ## across rebuild() and panel re-opens for the whole session.
 static var _fold_open: Dictionary = {}
@@ -258,7 +250,7 @@ func _ready() -> void:
 	_selected_tab_index = _load_selected_tab_index()
 
 
-# --- Wiring (game/main/Main.gd / LocalPlayer.gd / Sandbox.gd) -------------------------
+# --- Wiring (game/main/LocalPlayer.gd / game/player/SpectatorController.gd) ------------
 
 ## Called once by game/main/LocalPlayer.gd: the controller whose Controls/Physics tabs this panel
 ## reads (both fields default to the same preloaded singletons a bare test constructs this panel
@@ -271,8 +263,7 @@ func set_controller(controller: PlayerController) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/LocalPlayer.gd and game/sandbox/Sandbox.gd (through their own
-## set_camera_rig()) with the shared CameraRig.
+## Called by game/main/LocalPlayer.gd and game/player/SpectatorController.gd with the shared CameraRig.
 func set_camera_rig(rig: CameraRig) -> void:
 	_camera_rig = rig
 	if rig != null:
@@ -280,7 +271,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 	_rebuild_if_built()
 
 
-## Called once by game/main/LocalPlayer.gd and game/sandbox/Sandbox.gd with the shared Field, for the
+## Called by game/main/LocalPlayer.gd and game/player/SpectatorController.gd with the shared Field, for the
 ## Territory tab and refresh_territory_visuals_live()'s overlay push.
 func set_field(field: Field) -> void:
 	_field = field
@@ -459,7 +450,6 @@ func _free_ui() -> void:
 	_tab_container = null
 	_status_label = null
 	_rows.clear()
-	_group_titles.clear()
 	_pending_tabs.clear()
 
 
@@ -477,7 +467,6 @@ func rebuild() -> void:
 		# emitter mid-emission is a Godot error / potential crash.
 		child.queue_free()
 	_rows.clear()
-	_group_titles.clear()
 	_pending_tabs.clear()
 	_fresh_sky_cycle = null
 
@@ -632,7 +621,7 @@ func _build_resource_rows(resource: Resource, tab_name: String, first_on_tab: bo
 	var types: Dictionary = {}
 	var names: Array[String] = []
 	for prop: Dictionary in resource.get_property_list():
-		if not _is_exported_field(prop):
+		if not TuningOverrides.is_exported_field(prop):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		var type: int = int(prop.get("type", TYPE_NIL))
@@ -666,7 +655,6 @@ func _build_resource_rows(resource: Resource, tab_name: String, first_on_tab: bo
 		var shown_title: String = title if tag.is_empty() else "%s: %s" % [tag, title]
 		var fold_class: String = class_label if tag.is_empty() else "%s/%s" % [class_label, tag]
 		list.add_child(_build_section(fold_class, shown_title, built, default_open))
-		_group_titles.append({"resource": resource, "title": title})
 	return list
 
 
@@ -718,7 +706,7 @@ func _section_header_text(title: String, count: int, is_open: bool) -> String:
 ## exactly what Reset
 ## restores: the shipped .tres loaded fresh (CACHE_MODE_IGNORE, never the
 ## cached live instance) when `resource` has a resource_path, so the label and
-## highlight can never disagree with _reset_resource(). Only a path-less
+## highlight can never disagree with TuningOverrides.reset_resource(). Only a path-less
 ## resource falls back to a fresh instance of its own script (.gd @export
 ## defaults). Sky tab: the active theme is whichever resource is live, and its
 ## own resource_path picks sunset/night, so the baseline follows the theme.
@@ -741,11 +729,6 @@ func _fresh_instance_for(resource: Resource) -> Resource:
 		return null
 	var script: Script = resource.get_script() as Script
 	return script.new() as Resource
-
-
-func _is_exported_field(prop: Dictionary) -> bool:
-	var usage: int = int(prop.get("usage", 0))
-	return (usage & EXPORT_USAGE_MASK) == EXPORT_USAGE_MASK
 
 
 func _class_label_for(resource: Resource) -> String:
@@ -1157,7 +1140,7 @@ func apply_physics_preset(preset_id: String) -> void:
 	if preset == null:
 		return
 	for prop: Dictionary in preset.get_property_list():
-		if not _is_exported_field(prop):
+		if not TuningOverrides.is_exported_field(prop):
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		physics_tuning.set(prop_name, preset.get(prop_name))
@@ -1586,7 +1569,7 @@ func apply_sky_def_live() -> void:
 
 func _copy_plain_fields(from: Resource, to: Resource) -> void:
 	for prop: Dictionary in from.get_property_list():
-		if not _is_exported_field(prop):
+		if not TuningOverrides.is_exported_field(prop):
 			continue
 		var type: int = int(prop.get("type", TYPE_NIL))
 		if type == TYPE_BOOL or type == TYPE_INT or type == TYPE_FLOAT or type == TYPE_COLOR:
@@ -1612,17 +1595,11 @@ func _on_reset_pressed() -> void:
 ## Reloads every tuning resource's fields from its .tres on disk, onto the
 ## *same* live instance (never replacing the reference every other system
 ## already holds -- see ResourceLoader.CACHE_MODE_IGNORE's use in
-## _reset_resource()). Public so a test can call it without a real Button.
+## TuningOverrides.reset_resource()). Public so a test can call it without a real Button.
 func reset_all() -> void:
-	_reset_resource(camera_tuning)
-	_reset_resource(ghost_tuning)
-	_reset_resource(physics_tuning)
-	_reset_resource(territory_tuning)
-	_reset_resource(territory_visuals)
-	_reset_resource(arena_side_style)
-	_reset_resource(block_feed_config)
-	_reset_resource(bot_stack_tuning)
-	_reset_resource(skybox_config)
+	for resource: Resource in _tuning_instances().values():
+		TuningOverrides.reset_resource(resource)
+	TuningOverrides.reset_resource(bot_stack_tuning)
 	TuningSfxTab.reset_fields(audio_config)
 	# The sky resources are reset too; Save/Copy/TuningOverrides.apply_saved still skip them.
 	_fresh_sky_cycle = null
@@ -1641,27 +1618,14 @@ func _reset_sky_resources() -> void:
 	for resource: Resource in _sky_resources():
 		var shipped: Resource = _shipped_sky_counterpart(resource)
 		if shipped == null:
-			_reset_resource(resource)
+			TuningOverrides.reset_resource(resource)
 			continue
 		for prop: Dictionary in resource.get_property_list():
 			var type: int = int(prop.get("type", TYPE_NIL))
 			# Sub-resources and the keyframe array stay the live objects; only plain values reload.
-			if _is_exported_field(prop) and type != TYPE_OBJECT and type != TYPE_ARRAY:
+			if TuningOverrides.is_exported_field(prop) and type != TYPE_OBJECT and type != TYPE_ARRAY:
 				var prop_name: String = str(prop.get("name", ""))
 				resource.set(prop_name, shipped.get(prop_name))
-
-
-func _reset_resource(resource: Resource) -> void:
-	if resource == null or resource.resource_path.is_empty():
-		return
-	var fresh: Resource = ResourceLoader.load(resource.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	if fresh == null:
-		return
-	for prop: Dictionary in resource.get_property_list():
-		if not _is_exported_field(prop):
-			continue
-		var prop_name: String = str(prop.get("name", ""))
-		resource.set(prop_name, fresh.get(prop_name))
 
 
 func _on_save_pressed() -> void:
@@ -1679,92 +1643,26 @@ func save_overrides() -> Error:
 		return ERR_UNAVAILABLE
 	var config: ConfigFile = ConfigFile.new()
 	config.load(save_path())
-	_write_overrides(config, "CameraTuning", camera_tuning)
-	_write_overrides(config, "GhostTuning", ghost_tuning)
-	_write_overrides(config, "PhysicsTuning", physics_tuning)
-	_write_overrides(config, "TerritoryTuning", territory_tuning)
-	_write_overrides(config, "TerritoryVisuals", territory_visuals)
-	_write_overrides(config, "ArenaSideStyle", arena_side_style)
-	_write_overrides(config, "BlockFeedConfig", block_feed_config)
-	_write_overrides(config, "SkyboxConfig", skybox_config)
+	TuningOverrides.write_sections(config, _tuning_instances())
 	TuningSfxTab.write_overrides(config, audio_config, Sfx.effect_files())
 	return config.save(save_path())
 
 
-## TYPE_STRING joins the allowed set here (and in _copy_section() below) so
-## config/sky/SkyboxConfig.gd's `theme_name`, the F4 Theme row's own value (not reflection-built),
-## still round-trips through Save override/Copy like every BOOL/INT/FLOAT/COLOR field.
-func _write_overrides(config: ConfigFile, section: String, resource: Resource) -> void:
-	if resource == null:
-		return
-	for prop: Dictionary in resource.get_property_list():
-		if not _is_exported_field(prop):
-			continue
-		var type: int = int(prop.get("type", TYPE_NIL))
-		if (
-			type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT
-			and type != TYPE_COLOR and type != TYPE_STRING
-		):
-			continue
-		var prop_name: String = str(prop.get("name", ""))
-		config.set_value(section, prop_name, resource.get(prop_name))
+## Label -> the panel's current instance of each persisted resource (set_field() and friends swap
+## three of them), keyed like TuningOverrides.SECTIONS.
+func _tuning_instances() -> Dictionary:
+	return {
+		"CameraTuning": camera_tuning,
+		"GhostTuning": ghost_tuning,
+		"PhysicsTuning": physics_tuning,
+		"TerritoryTuning": territory_tuning,
+		"TerritoryVisuals": territory_visuals,
+		"BlockFeedConfig": block_feed_config,
+		"SkyboxConfig": skybox_config,
+		"ArenaSideStyle": arena_side_style,
+	}
 
 
 func _on_copy_pressed() -> void:
-	DisplayServer.clipboard_set(build_copy_text())
+	DisplayServer.clipboard_set(TuningOverrides.copy_text(_tuning_instances()))
 	_status_label.text = "Copied."
-
-
-## The current value of every exported float/int/bool/Color field of every
-## tuning resource, formatted as ".tres"-style `name = value` lines grouped
-## under a "# ClassName" header per resource -- meant to be pasted straight
-## into the matching config/*.tres file. Public (and split from
-## _on_copy_pressed(), which also touches the real clipboard) so a test can
-## check its content headlessly.
-func build_copy_text() -> String:
-	var parts: PackedStringArray = PackedStringArray()
-	parts.append(_copy_section("CameraTuning", camera_tuning))
-	parts.append(_copy_section("GhostTuning", ghost_tuning))
-	parts.append(_copy_section("PhysicsTuning", physics_tuning))
-	parts.append(_copy_section("TerritoryTuning", territory_tuning))
-	parts.append(_copy_section("TerritoryVisuals", territory_visuals))
-	parts.append(_copy_section("ArenaSideStyle", arena_side_style))
-	parts.append(_copy_section("BlockFeedConfig", block_feed_config))
-	parts.append(_copy_section("SkyboxConfig", skybox_config))
-	return "\n\n".join(parts)
-
-
-func _copy_section(section: String, resource: Resource) -> String:
-	if resource == null:
-		return "# %s\n(none)" % section
-	var lines: PackedStringArray = PackedStringArray(["# %s" % section])
-	for prop: Dictionary in resource.get_property_list():
-		if not _is_exported_field(prop):
-			continue
-		var type: int = int(prop.get("type", TYPE_NIL))
-		if (
-			type != TYPE_BOOL and type != TYPE_INT and type != TYPE_FLOAT
-			and type != TYPE_COLOR and type != TYPE_STRING
-		):
-			continue
-		var prop_name: String = str(prop.get("name", ""))
-		lines.append("%s = %s" % [prop_name, _format_value(resource.get(prop_name), type)])
-	return "\n".join(lines)
-
-
-func _format_value(value: Variant, type: int) -> String:
-	match type:
-		TYPE_BOOL:
-			return "true" if bool(value) else "false"
-		TYPE_INT:
-			return str(int(value))
-		TYPE_FLOAT:
-			var text: String = str(float(value))
-			return text if (text.contains(".") or text.contains("e")) else "%s.0" % text
-		TYPE_COLOR:
-			var c: Color = value
-			return "Color(%s, %s, %s, %s)" % [c.r, c.g, c.b, c.a]
-		TYPE_STRING:
-			return "\"%s\"" % String(value)
-		_:
-			return str(value)
