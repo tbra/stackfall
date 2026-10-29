@@ -58,7 +58,14 @@ func test_open_focuses_first_action_and_tab_reaches_every_block() -> void:
 
 
 func test_pad_down_reaches_every_block() -> void:
-	pending("UiFocusTrap self-points the unset up/down neighbours, so D-pad down cannot leave the first block")
+	_dialog.open()
+	await wait_frames(2)
+	var stops: Array[Control] = FocusWalk.loop(_leave, SIDE_BOTTOM)
+	assert_true(FocusWalk.is_closed(stops, _leave, SIDE_BOTTOM), "D-pad down wraps back to the first block")
+	for control: Control in FocusWalk.live_focusable(_dialog.panel):
+		assert_true(stops.has(control), "D-pad down reaches %s" % control.name)
+	var up: Array[Control] = FocusWalk.loop(_leave, SIDE_TOP)
+	assert_eq(up.size(), stops.size(), "D-pad up also visits every block")
 
 
 func test_pressing_an_action_hides_and_emits_its_id() -> void:
