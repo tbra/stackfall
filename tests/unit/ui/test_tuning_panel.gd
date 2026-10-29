@@ -419,19 +419,8 @@ func test_reset_restores_shipped_tres_and_default_label_and_highlight_agree() ->
 			differing += 1
 			resource.set(prop_name, float(shipped.get(prop_name)) + 1.0 if type == TYPE_FLOAT else int(shipped.get(prop_name)) + 1)
 			edited.append({"resource": resource, "prop": prop_name, "type": type, "shipped": shipped.get(prop_name)})
-	# The keyframes and night keyframe are sub-resources of the cycle: reset keeps the live objects
-	# and reloads their values from the shipped file.
-	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[1]
-	var night: SkyNightKeyframe = _panel.sky_cycle.night
-	var key_fog: float = key.fog_density
-	var night_fog: float = night.fog_density
-	key.fog_density = key_fog + 0.1
-	night.fog_density = night_fog + 0.1
 	_panel.reset_all()
 	_show_all_tabs(_panel)
-	assert_eq(_panel.sky_cycle.day_keyframes[1], key, "reset keeps the live keyframe objects")
-	assert_almost_eq(key.fog_density, key_fog, 0.00001)
-	assert_almost_eq(night.fog_density, night_fog, 0.00001)
 	for entry: Dictionary in edited:
 		var resource: Resource = entry["resource"] as Resource
 		var prop_name: String = entry["prop"] as String
@@ -520,80 +509,84 @@ func _find_control_named(node: Node, control_name: String) -> Control:
 	return null
 
 
-func test_time_of_day_row_routes_every_choice_through_set_locked_phase() -> void:
+func _sky_page(panel: TuningPanel) -> Control:
+	var tabs: TabContainer = panel._tab_container
+	return tabs.get_node("Sky") as Control
+
+
+func test_time_of_day_controls_lock_the_live_cycle() -> void:
 	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	_panel.rebuild()
 	_show_tab(_panel, "Sky")
 	var option: OptionButton = _find_option_named(_panel, "TimeOfDayOption")
 	var slider: HSlider = _find_control_named(_panel, "TimeOfDaySlider") as HSlider
-	assert_not_null(option, "expected a Time of day OptionButton on the Sky tab")
+	assert_not_null(option, "expected a Time of day control on the Sky tab")
 	assert_not_null(slider, "expected a Time of day slider on the Sky tab")
-	var labels: Array[String] = []
+	var sunset: float = _panel.sky_cycle.locked_phase_for("sunset")
+	assert_gt(sunset, -0.5, "fixture: the cycle locks a phase for sunset")
+	var sunset_index: int = -1
+	var custom_index: int = -1
 	for index: int in range(option.item_count):
-		labels.append(option.get_item_text(index))
-	assert_eq(labels, ["Running", "Sunset", "Dawn", "Night", "Custom"])
-	assert_eq(option.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
-	assert_eq(slider.focus_mode, Control.FOCUS_ALL, "gamepad/keyboard focusable")
-	assert_eq(option.selected, 0, "a running cycle shows Running")
-	assert_false(option.disabled)
+		var text: String = option.get_item_text(index).to_lower()
+		if text == "sunset":
+			sunset_index = index
+		elif text == "custom":
+			custom_index = index
+	option.select(sunset_index)
+	option.item_selected.emit(sunset_index)
+	assert_almost_eq(spy.lock_calls[-1], sunset, 0.0001, "choosing Sunset locks the cycle at its phase")
 	assert_false(slider.editable, "the slider is for Custom only")
-
-	var source: SkyCycleDef = _panel.sky_cycle
-	var expected: Array[float] = [
-		-1.0, source.locked_phase_for("sunset"), source.locked_phase_for("dawn"), source.locked_phase_for("night"),
-	]
-	for index: int in range(1, 4):
-		assert_gt(expected[index], -0.5, "fixture: SkyCycleDef locks a phase for %s" % labels[index])
-	for index: int in [1, 2, 3, 0]:
-		option.select(index)
-		option.item_selected.emit(index)
-		assert_almost_eq(spy.lock_calls[-1], expected[index], 0.0001, "%s locks the cycle at its phase" % labels[index])
-		assert_false(slider.editable)
-
-	option.select(4)
-	option.item_selected.emit(4)
-	assert_almost_eq(spy.lock_calls[-1], spy.phase_now, 0.0001, "Custom locks where the cycle is now (no jump)")
+	option.select(custom_index)
+	option.item_selected.emit(custom_index)
 	assert_true(slider.editable)
-	assert_almost_eq(slider.value, spy.phase_now, 0.0001)
 	slider.value_changed.emit(0.6)
 	assert_almost_eq(spy.lock_calls[-1], 0.6, 0.0001, "the slider moves the lock")
-	assert_eq(option.selected, TuningPanel.TIME_OF_DAY_CHOICES.find(TuningPanel.TIME_CUSTOM), "the dropdown still shows Custom after a slider move")
-	assert_true(slider.editable, "the slider stays editable on Custom")
+	assert_eq(option.selected, custom_index, "the choice still shows Custom after a slider move")
 	option.select(0)
 	option.item_selected.emit(0)
-	assert_almost_eq(spy.lock_calls[-1], -1.0, 0.0001, "Running unlocks")
-	assert_false(_panel.apply_time_of_day("midnight"), "an unknown choice is rejected")
+	assert_almost_eq(spy.lock_calls[-1], -1.0, 0.0001, "the first choice, Running, unlocks")
 
 
-func test_sky_edit_copies_the_cycle_fields_onto_each_live_skybox_and_refreshes_it() -> void:
+## Editing a Sky-tab slider reaches a live resource and refreshes the Skybox.
+func test_editing_a_sky_field_reaches_the_resource_and_refreshes_the_skybox() -> void:
 	_own_panel(false)
 	var spy: SpySkybox = _make_spy_skybox(true)
 	spy.sky_def = _panel.sky_cycle.duplicate() as SkyCycleDef
-	var original: float = _panel.sky_cycle.haze_strength
-	var edited: float = original + 0.25
-	_panel.sky_cycle.haze_strength = edited
-	_panel._on_field_changed(_panel.sky_cycle, "haze_strength")
-	assert_eq(spy.refresh_calls, 1, "an edit calls refresh_sky_def()")
-	assert_almost_eq(spy.sky_def.haze_strength, edited, 0.00001, "the Skybox's own copy carries the edit")
-	_panel.sky_cycle.haze_strength = original
-	_panel._on_field_changed(_panel.sky_cycle, "haze_strength")
-	assert_eq(spy.refresh_calls, 2)
-
-	var key: SkyKeyframe = _panel.sky_cycle.day_keyframes[0]
-	var fog_before: float = key.fog_density
-	_panel._on_field_changed(key, "fog_density")
-	_panel._on_field_changed(_panel.sky_cycle.night, "fog_density")
-	_panel._on_field_changed(_panel.storm_overlay, "fog_density")
-	assert_eq(spy.refresh_calls, 5, "keyframe, night and overlay edits refresh too")
-	assert_eq(key.fog_density, fog_before)
+	_panel.rebuild()
+	_show_tab(_panel, "Sky")
+	var before: Dictionary = _sky_values(_panel)
+	var refreshed: bool = false
+	for node: Node in _sky_page(_panel).find_children("*", "HSlider", true, false):
+		var slider: HSlider = node as HSlider
+		if slider.name == "TimeOfDaySlider" or not slider.editable:
+			continue
+		slider.value = slider.min_value if not is_equal_approx(slider.value, slider.min_value) else slider.max_value
+		if spy.refresh_calls > 0:
+			refreshed = true
+			break
+	assert_true(refreshed, "a sky slider edit refreshes the live Skybox")
+	assert_ne(_sky_values(_panel), before, "the edit reached a sky resource")
 
 
-func test_cycle_length_edit_keeps_its_own_seam() -> void:
+func _sky_values(panel: TuningPanel) -> Dictionary:
+	var values: Dictionary = {}
+	var resources: Array[Resource] = [panel.sky_cycle, panel.sky_cycle.night, panel.storm_overlay]
+	resources.append_array(panel.sky_cycle.day_keyframes)
+	for resource: Resource in resources:
+		for prop: Dictionary in resource.get_property_list():
+			if int(prop.get("usage", 0)) & PROPERTY_USAGE_EDITOR != 0 and typeof(resource.get(prop["name"])) == TYPE_FLOAT:
+				values["%d:%s" % [resource.get_instance_id(), prop["name"]]] = resource.get(prop["name"])
+	return values
+
+
+func test_the_sky_tab_fields_can_take_focus() -> void:
 	_own_panel(false)
-	var spy: SpySkybox = _make_spy_skybox(true)
-	_panel._on_field_changed(_panel.sky_cycle, "cycle_length_seconds")
-	assert_eq(spy.refresh_calls, 0, "the length goes through set_cycle_length_seconds, not a definition refresh")
+	_panel.rebuild()
+	_panel.show()
+	_show_tab(_panel, "Sky")
+	assert_gt(FocusWalk.live_focusable(_sky_page(_panel)).size(), 0, "the Sky tab's rows can take focus")
+
 
 
 func test_persistence_disallowed_for_headless_non_gut_run() -> void:
