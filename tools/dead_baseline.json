@@ -715,18 +715,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/net/JoinCode.gd:parse_address",
-   "reason": "unwired stub; MainMenu will call it in the join address package",
-   "consumer": "P9-Iaddr"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/net/JoinCode.gd:resolve_text",
-   "reason": "unwired stub; MainMenu will call it in the join address package",
-   "consumer": "P9-Iaddr"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/ClassicObjective.gd:latched_team",
    "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
   },

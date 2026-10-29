@@ -113,11 +113,28 @@ static func _to_int(octets: Array[int]) -> int:
 	return value
 
 
-## Code or address text -> {"valid", "address", "port"[, "reason"]}. Stub: not yet implemented.
-static func resolve_text(_text: String) -> Dictionary:
-	return {"valid": false}
+## Direct-join field text -> {"valid", "address", "port"[, "reason"]}: an IP[:port] or a join code.
+## "reason" is set for a bad code.
+static func resolve_text(text: String) -> Dictionary:
+	if looks_like_code(text):
+		return decode(text)
+	return parse_address(text)
 
 
-## "1.2.3.4" or "1.2.3.4:port" -> {"valid", "address", "port"[, "reason"]}. Stub: not yet implemented.
-static func parse_address(_text: String) -> Dictionary:
-	return {"valid": false}
+## "1.2.3.4" or "1.2.3.4:port" -> {"valid", "address", "port"}; port is 0 when omitted.
+## Rejects anything else without throwing.
+static func parse_address(text: String) -> Dictionary:
+	var host: String = text.strip_edges()
+	var port: int = 0
+	if host.contains(":"):
+		var parts: PackedStringArray = host.split(":")
+		if parts.size() != 2 or not parts[1].is_valid_int():
+			return {"valid": false}
+		host = parts[0]
+		port = int(parts[1])
+		if port < 1 or port > PORT_MAX:
+			return {"valid": false}
+	# parse_ipv4 strips its input, so whitespace beside the colon ("1.2.3.4 :80") needs its own check.
+	if host != host.strip_edges() or parse_ipv4(host).is_empty():
+		return {"valid": false}
+	return {"valid": true, "address": host, "port": port}
