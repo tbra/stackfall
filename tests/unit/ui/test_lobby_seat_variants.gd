@@ -90,10 +90,7 @@ func _show_look(lobby: Lobby, style: int) -> void:
 
 
 func _rows(lobby: Lobby) -> Array[LobbySeatRow]:
-	var rows: Array[LobbySeatRow] = []
-	for node: Node in _panel(lobby)._player_rows:
-		rows.append(node as LobbySeatRow)
-	return rows
+	return LobbyProbe.seat_rows(lobby)
 
 
 func _bot_rows(lobby: Lobby) -> Array[LobbySeatRow]:

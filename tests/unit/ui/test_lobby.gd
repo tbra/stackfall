@@ -114,7 +114,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq((lobby.get_node("%AiDifficultyOption") as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
 	assert_almost_eq(lobby._block_timer_seconds(), 9.5, 0.01)
-	assert_almost_eq(lobby._gravity_value, 1.25, 0.01)
+	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).display_text(), "1.25x")
 	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).value, Lobby._gravity_cells_for(1.25))
 	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, 3)
 	assert_false((lobby.get_node("%GiftsCheck") as UiToggle).button_pressed)
@@ -230,7 +230,7 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 ## -- nothing previously stopped ai_count + connected humans from exceeding
 ## player_count. %AiCountSpin's own max_value must track the empty-seat count
 ## (seats - humans) and clamp an already-too-high value down to it.
-func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
+func test_bot_count_clamps_to_seats_minus_connected_humans() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected humans
@@ -256,11 +256,12 @@ func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
 
 func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	if lobby._special_checkboxes.size() < 2:
+	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
+	if chips.size() < 2:
 		pass_test("fewer than 2 SpecialDef .tres on disk in this checkout; nothing to distinguish")
 		return
 	var unchecked_id: StringName = lobby._special_ids[0]
-	lobby._special_checkboxes[0].button_pressed = false
+	chips[0].button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
@@ -273,10 +274,11 @@ func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> voi
 
 func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	if lobby._special_checkboxes.is_empty():
+	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
+	if chips.is_empty():
 		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
 		return
-	for box: UiChipToggle in lobby._special_checkboxes:
+	for box: UiChipToggle in chips:
 		box.button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
@@ -350,19 +352,23 @@ func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 	_fake_of(host).all_peers_ready_value = true
 	host._update_host_only_state()
 	watch_signals(host)
-	var before: int = int(host._ai_count_spin.value)
+	var host_bots: SpinBox = host.get_node("%AiCountSpin") as SpinBox
+	var before: int = int(host_bots.value)
 	host._unhandled_input(event)
-	assert_eq(int(host._ai_count_spin.value), before + 1, "X adds a bot")
+	assert_eq(int(host_bots.value), before + 1, "X adds a bot")
 	assert_signal_not_emitted(host, "start_requested", "X no longer starts the match")
-	host._set_bot_count(MatchConfig.PLAYER_COUNT_MAX)
-	var full: int = int(host._ai_count_spin.value)
+	(host.get_node("%PlayerCountSpin") as SpinBox).value = MatchConfig.PLAYER_COUNT_MAX
+	host_bots.value = host_bots.max_value
+	var full: int = int(host_bots.value)
+	assert_eq(full, MatchConfig.PLAYER_COUNT_MAX, "every seat is a bot")
 	host._players_panel._refresh_header()
 	host._unhandled_input(event)
-	assert_eq(int(host._ai_count_spin.value), full, "a full lobby ignores X")
+	assert_eq(int(host_bots.value), full, "a full lobby ignores X")
 	var client: Lobby = _make_lobby(false)
-	var client_before: int = int(client._ai_count_spin.value)
+	var client_bots: SpinBox = client.get_node("%AiCountSpin") as SpinBox
+	var client_before: int = int(client_bots.value)
 	client._unhandled_input(event)
-	assert_eq(int(client._ai_count_spin.value), client_before, "a client ignores X")
+	assert_eq(int(client_bots.value), client_before, "a client ignores X")
 
 
 func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
@@ -380,9 +386,10 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	assert_false(game.advanced.visible, "a second pad Y closes it")
 	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
 	assert_true(x_event.is_action_pressed(&"lobby_add_bot"))
-	var bots_before: int = int(lobby._ai_count_spin.value)
+	var bots: SpinBox = lobby.get_node("%AiCountSpin") as SpinBox
+	var bots_before: int = int(bots.value)
 	lobby._unhandled_input(x_event)
-	assert_eq(int(lobby._ai_count_spin.value), bots_before + 1, "pad X adds a bot")
+	assert_eq(int(bots.value), bots_before + 1, "pad X adds a bot")
 	assert_signal_not_emitted(lobby, "start_requested")
 	var start_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_START)
 	assert_true(start_event.is_action_pressed(&"lobby_confirm"))
