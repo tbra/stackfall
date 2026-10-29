@@ -124,9 +124,6 @@ var _loading_screen_node: LoadingScreen = null
 var _loading_screen: LoadingScreen:
 	get:
 		return _ensure_loading_screen()
-var _start_pending: bool = false
-var _first_territory_ready: bool = false
-var _loading_generation: int = 0
 
 
 ## the process-wide caches are released as the game scene leaves the tree.
@@ -541,35 +538,6 @@ func _on_net_mode_changed(mode: int) -> void:
 		_show_lobby()
 
 
-## Match.start_match() runs the whole world build synchronously
-## in one frame, so an overlay shown inside it is never presented before the
-## freeze. The Lobby's Start button therefore lands here first: the overlay (and
-## the clients' net_match_loading) goes up, tuning.pre_start_frames rendered
-## frames pass, and only then _on_lobby_start_requested() starts the match.
-## There is no separate match scene to thread-load: Main already hosts the
-## world, and the skybox jpgs are decoded from raw files, not ResourceLoader
-## resources.
-func _on_lobby_start_pressed(config: MatchConfig) -> void:
-	if not Net.is_host() or _start_pending:
-		return
-	_start_pending = true
-	_ensure_overlays()
-	_loading_screen.show_pending(config)
-	MatchNet.replicate_match_loading()
-	for _i: int in range(_loading_screen.tuning.pre_start_frames):
-		await get_tree().process_frame
-	_start_pending = false
-	if not Net.is_host() or not _loading_screen.is_pending():
-		return
-	_on_lobby_start_requested(config)
-
-
-func _on_lobby_start_requested(config: MatchConfig) -> void:
-	if not Net.is_host():
-		return
-	Match.start_match(config)
-
-
 ## Rarely used scenes load on first use instead of at parse time. No member keeps
 ## the PackedScene: the resource cache holds it while an instance is alive and
 ## releases it afterwards.
@@ -588,33 +556,26 @@ func _prefetch_match_scenes() -> void:
 			ResourceLoader.load_threaded_request(path)
 
 
-## Client side of _on_lobby_start_pressed(): raise the overlay as soon as the host announces.
-func _on_match_loading_announced() -> void:
-	if Match.state() != Match.State.LOBBY:
-		return
-	_prefetch_match_scenes()
-	_ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
-	_loading_screen.show_pending(null)
-
-
-func _on_loading_territory_updated(_raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
-	# DECISION: an applied result can arrive while the staged world is building.
-	if Net.is_host() and _loading_screen_node != null and _loading_screen_node.visible and not _loading_screen_node.is_pending():
-		_first_territory_ready = true
-
-
-func _on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
-	if Net.is_client() and _loading_screen_node != null and _loading_screen_node.visible and not _loading_screen_node.is_pending():
-		_first_territory_ready = true
+# SHORTCUT: forwarders exist because the match flow port loads lazily (not at startup), removed by P7-Inav
+# DECISION: Lobby, loading-screen and Events connects point here so the flow script loads on the first reaction.
+func _on_lobby_start_pressed(config: MatchConfig) -> void:
+	_match_flow_port().on_lobby_start_pressed(config)
 
 
 func _on_loading_readiness_timed_out() -> void:
-	_release_countdown_hold(_loading_generation)
-	_loading_generation += 1
-	if Net.is_host():
-		Match.abort_match()
-	else:
-		Net.leave()
+	_match_flow_port().on_loading_readiness_timed_out()
+
+
+func _on_match_loading_announced() -> void:
+	_match_flow_port().on_match_loading_announced()
+
+
+func _on_loading_territory_updated(raster: TerritoryRaster, groups: TerritoryGroups) -> void:
+	_match_flow_port().on_loading_territory_updated(raster, groups)
+
+
+func _on_loading_territory_replicated(raster: TerritoryRaster) -> void:
+	_match_flow_port().on_loading_territory_replicated(raster)
 
 
 ## ui/lobby/Lobby.gd's %BackButton. _show_lobby() is only entered once Net is HOST
@@ -734,10 +695,6 @@ func _on_match_state_changed(from_state: int, to_state: int) -> void:
 		_ensure_overlays()  # sandbox/bots/test entries never pass the lobby
 	var match_flow: MainMatchFlowPort = _match_flow_port()
 	match_flow.on_match_state_changed(from_state, to_state)
-
-
-func _release_countdown_hold(generation: int) -> void:
-	_match_flow_port().call(&"_release_countdown_hold", generation)
 
 
 func _end_match_world() -> void:
