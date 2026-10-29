@@ -191,12 +191,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/debug/TuningSkyTab.gd",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.2): TuningPanel creates it in _ready once the sky-tab package lands; that bead removes this entry",
-   "consumer": "P12-Isky"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/hud/HudGiftSlot.gd",
    "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Igift",
    "consumer": "P8-Igift"

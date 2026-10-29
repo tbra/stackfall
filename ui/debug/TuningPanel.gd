@@ -17,18 +17,19 @@ extends CanvasLayer
 ##   - PhysicsTuning: apply_physics_live() re-applies damping/material/gravity onto every Block
 ##     already standing (Block.apply_physics_tuning(), via the "tuning_blocks" group).
 ##     BlockFactory.build() already reads the same tuning for new spawns.
-##   - TerritoryVisuals: refresh_territory_visuals_live() calls
+##   - TerritoryVisuals: _refresh_territory_visuals_live() calls
 ##     TerritoryOverlay.refresh_visual_uniforms() (shader uniforms only configure() set, and the
 ##     disk mesh when disk_mesh_segments changed) and Skybox.refresh_from_visuals() on every rig in
 ##     Skybox.TUNING_GROUP (reflection probe / SSR fields).
-##   - CameraTuning: apply_camera_tuning_live() calls CameraRig.apply_follow_tuning() on every rig
+##   - CameraTuning: _apply_camera_tuning_live() calls CameraRig.apply_follow_tuning() on every rig
 ##     in CameraRig.TUNING_GROUP, re-snapshotting follow_distance/follow_pitch_deg (clamped, as
 ##     _ready() does) without disturbing a manual orbit/zoom.
 ##   - Sky tab: edits SkyCycleDef (sky_cycle), its two day SkyKeyframes, the SkyNightKeyframe and the
 ##     storm SkyOverlayDef. Every edit copies the cycle's own fields onto each live Skybox's sky_def
 ##     and calls Skybox.refresh_sky_def() on every rig in Skybox.TUNING_GROUP (the keyframes are
-##     shared sub-resources, so they need no copy); cycle_length_seconds keeps its own seam
-##     (apply_cycle_length_live). The Time-of-day row (Running / Sunset / Dawn / Night / Custom + a
+##     shared sub-resources, so they need no copy); cycle_length_seconds keeps its own seam. All of
+##     that, the section tags and Reset live in TuningSkyTab; the panel keeps the row widgets. The
+##     Time-of-day row (Running / Sunset / Dawn / Night / Custom + a
 ##     0..1 phase slider) locks the cycle through Skybox.set_locked_phase(). Local dev tuning:
 ##     nothing is replicated.
 ##
@@ -109,21 +110,9 @@ const PHYSICS_PRESETS: Array[Dictionary] = [
 	{"id": "original_feel", "label": "Original feel (experimental)", "path": "res://config/physics/presets/original_feel.tres"},
 ]
 
-## Time-of-day row choices, index-parallel to TIME_OF_DAY_LABELS. The three
-## concrete ids are SkyCycleDef.locked_phase_for() keys (MatchConfig.SKY_THEME_IDS).
-const TIME_RUNNING: String = "running"
-const TIME_CUSTOM: String = "custom"
-const TIME_OF_DAY_CHOICES: PackedStringArray = ["running", "sunset", "dawn", "night", "custom"]
+## Time-of-day row labels, index-parallel to TuningSkyTab.TIME_OF_DAY_CHOICES.
 const TIME_OF_DAY_LABELS: PackedStringArray = ["Running", "Sunset", "Dawn", "Night", "Custom"]
-## A live locked phase within this of a preset's phase reads as that preset.
-const TIME_OF_DAY_PHASE_EPSILON: float = 0.001
-## Sky tab section heading prefixes: the day keyframes by position, the night keyframe, the overlay.
-const SKY_TAG_DAY_KEYS: PackedStringArray = ["Day key", "Evening key"]
-const SKY_TAG_NIGHT: String = "Night key"
-const SKY_TAG_STORM: String = "Storm"
 const TIME_OF_DAY_SLIDER_STEP: float = 0.005
-## Custom slider seed when no live cycle can report its phase (0.25 = noon).
-const TIME_OF_DAY_DEFAULT_CUSTOM_PHASE: float = 0.25
 const TIME_OF_DAY_SLIDER_MIN_WIDTH: float = 160.0
 const TIME_OF_DAY_VALUE_FORMAT: String = "%.3f"
 
@@ -231,18 +220,13 @@ var _rebuilding_tabs: bool = false
 ## time its tab is shown (_build_tab_if_pending), then kept until the next rebuild().
 var _pending_tabs: Dictionary = {}
 
-## The Sky tab's Time-of-day row state (TIME_OF_DAY_CHOICES
-## entry, and the phase the Custom slider holds). Session-local: only
-## skybox_config.theme_name = "cycle" persists.
-## The shipped sky_cycle.tres loaded fresh once per rebuild: the baseline of the cycle's own fields
-## and of its keyframes (sub-resources have no file of their own to reload).
-var _fresh_sky_cycle: SkyCycleDef = null
-var _time_of_day_choice: String = TIME_RUNNING
-var _time_of_day_custom_phase: float = TIME_OF_DAY_DEFAULT_CUSTOM_PHASE
-
+## The Sky tab's model (resources, time-of-day state, live apply). Built in _ready from the Sky
+## resources above and freed with the panel.
+var _sky_tab: TuningSkyTab = null
 
 func _ready() -> void:
 	visible = false
+	_sky_tab = TuningSkyTab.new(sky_cycle, storm_overlay, skybox_config, get_tree())
 	net_provider = Net
 	# DECISION: the tab UI (each tab's rows on its first show) is built on first open by rebuild() (or an explicit call, which
 	# tests use) and freed on close by _free_ui(), so a hidden panel costs no nodes. Saved overrides
@@ -272,7 +256,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 
 
 ## Called by game/main/LocalPlayer.gd and game/player/SpectatorController.gd with the shared Field, for the
-## Territory tab and refresh_territory_visuals_live()'s overlay push.
+## Territory tab and _refresh_territory_visuals_live()'s overlay push.
 func set_field(field: Field) -> void:
 	_field = field
 	if field != null:
@@ -468,7 +452,6 @@ func rebuild() -> void:
 		child.queue_free()
 	_rows.clear()
 	_pending_tabs.clear()
-	_fresh_sky_cycle = null
 
 	var plan: Array[Dictionary] = _tab_plan()
 	for entry: Dictionary in plan:
@@ -507,7 +490,7 @@ func _base_tab_plan() -> Array[Dictionary]:
 		{"name": "Ghost & Blocks", "resources": [ghost_tuning, block_visual_tuning, block_effects_config]},
 		{"name": "Territory look", "resources": [territory_visuals, beacon_visual_tuning]},
 		{"name": "HUD", "resources": [hud_visual_tuning]},
-		{"name": "Sky", "resources": _sky_resources()},
+		{"name": "Sky", "resources": _sky_tab.resources()},
 		{"name": TuningSfxTab.TAB_NAME, "resources": []},
 		{"name": "Physics", "resources": [physics_tuning]},
 		{"name": "Territory rules", "resources": [territory_tuning]},
@@ -651,7 +634,7 @@ func _build_resource_rows(resource: Resource, tab_name: String, first_on_tab: bo
 			continue
 		var default_open: bool = first_on_tab and not opened_one
 		opened_one = true
-		var tag: String = _sky_section_tag(resource)
+		var tag: String = _sky_tab.section_tag(resource)
 		var shown_title: String = title if tag.is_empty() else "%s: %s" % [tag, title]
 		var fold_class: String = class_label if tag.is_empty() else "%s/%s" % [class_label, tag]
 		list.add_child(_build_section(fold_class, shown_title, built, default_open))
@@ -718,7 +701,7 @@ func _section_header_text(title: String, count: int, is_open: bool) -> String:
 func _fresh_instance_for(resource: Resource) -> Resource:
 	if resource == null:
 		return null
-	var sky_shipped: Resource = _shipped_sky_counterpart(resource)
+	var sky_shipped: Resource = _sky_tab.shipped_counterpart(resource)
 	if sky_shipped != null:
 		return sky_shipped
 	if not resource.resource_path.is_empty():
@@ -915,14 +898,14 @@ func _build_sfx_row(prop_name: String, available: PackedStringArray) -> Control:
 		value_label.text = option.get_item_text(index)
 		_on_field_changed(audio_config, prop_name)
 	)
-	play.pressed.connect(func() -> void: preview_sfx(prop_name))
+	play.pressed.connect(func() -> void: _preview_sfx(prop_name))
 	_register_row(frame, audio_config, prop_name, holder, default_value, TYPE_STRING, "", 0)
 	return frame["row"] as Control
 
 
 ## Plays `prop_name`'s current file once through Sfx's own pool and volume. False for a missing file
-## (or a field that is not an AudioConfig string). Public so a test can press Play without a Button.
-func preview_sfx(prop_name: String) -> bool:
+## (or a field that is not an AudioConfig string).
+func _preview_sfx(prop_name: String) -> bool:
 	var value: Variant = audio_config.get(prop_name)
 	return value is String and Sfx.preview_file(String(value))
 
@@ -1069,28 +1052,19 @@ func _on_field_changed(resource: Resource, _prop_name: String) -> void:
 	if resource == physics_tuning:
 		apply_physics_live()
 	elif resource == territory_visuals:
-		refresh_territory_visuals_live()
+		_refresh_territory_visuals_live()
 	elif resource == arena_side_style:
-		apply_arena_style_live()
+		_apply_arena_style_live()
 	elif resource == camera_tuning:
-		apply_camera_tuning_live()
+		_apply_camera_tuning_live()
 	elif resource == block_visual_tuning:
 		BlockFactory.refresh_visual_tuning()
 	elif resource == beacon_visual_tuning:
-		apply_beacon_tuning_live()
-	elif _is_sky_resource(resource):
-		# The day/night cycle length is a rate, not a look: it goes through its own seam so the time of
-		# day stays put.
-		if resource == sky_cycle and _prop_name == "cycle_length_seconds":
-			apply_cycle_length_live()
-		else:
-			apply_sky_def_live()
-			# Editing a preset's locked phase moves the sky now when that preset is the selected time of
-			# day.
-			if resource == sky_cycle and _prop_name.begins_with("cycle_locked_phase") and _time_of_day_choice != TIME_CUSTOM:
-				_push_locked_phase(_phase_for_time_choice(_time_of_day_choice))
+		_apply_beacon_tuning_live()
+	else:
+		_sky_tab.on_field_changed(resource, _prop_name)
 	# BlockVisualTuning (BlockFactory.refresh_visual_tuning()) and BeaconVisualTuning
-	# (apply_beacon_tuning_live()) have live hooks. ghost_tuning / territory_tuning /
+	# (_apply_beacon_tuning_live()) have live hooks. ghost_tuning / territory_tuning /
 	# block_feed_config are read live each frame/tick; block_effects_config / camera_shake_config
 	# are read live per event; hud_visual_tuning is baked at HUD build. A value write here still
 	# takes effect for anything built from here on.
@@ -1185,7 +1159,7 @@ func _build_weather_row() -> Control:
 		if host else "Host only: the host decides the weather; you see it as it happens."
 	)
 	option.item_selected.connect(func(index: int) -> void:
-		apply_weather_override(ids[index])
+		_apply_weather_override(ids[index])
 	)
 	row.add_child(_in_control_column(option))
 	if not host:
@@ -1233,8 +1207,8 @@ func apply_breeze_enabled(value: bool) -> bool:
 
 
 ## Forces (or, with &"", releases) the debug weather on the host; false on a
-## client, for an unknown id, or with no Match weather available. Public for tests.
-func apply_weather_override(weather_id: StringName) -> bool:
+## client, for an unknown id, or with no Match weather available.
+func _apply_weather_override(weather_id: StringName) -> bool:
 	var weather: MatchWeather = _weather()
 	if weather == null or not _has_full_access():
 		return false
@@ -1254,90 +1228,7 @@ func _weather_display_name(weather_id: StringName) -> String:
 	return DisplayNames.weather_id_label(weather_id)
 
 
-# --- Sky tab: resources and live apply -----------------------------------------
-
-## The Sky tab's resources in row order: the cycle, its day keyframes, the night keyframe, the storm
-## overlay.
-func _sky_resources() -> Array[Resource]:
-	var found: Array[Resource] = [sky_cycle]
-	for key: SkyKeyframe in sky_cycle.day_keyframes:
-		found.append(key)
-	if sky_cycle.night != null:
-		found.append(sky_cycle.night)
-	found.append(storm_overlay)
-	return found
-
-
-func _is_sky_resource(resource: Resource) -> bool:
-	return resource != null and _sky_resources().has(resource)
-
-
-func _day_key_index(resource: Resource) -> int:
-	if resource is SkyKeyframe:
-		return sky_cycle.day_keyframes.find(resource as SkyKeyframe)
-	return -1
-
-
-## The heading prefix that tells the day keyframes, the night keyframe and the overlay apart ("" for
-## the cycle itself).
-func _sky_section_tag(resource: Resource) -> String:
-	if resource == null or resource == sky_cycle:
-		return ""
-	if resource == sky_cycle.night:
-		return SKY_TAG_NIGHT
-	if resource == storm_overlay:
-		return SKY_TAG_STORM
-	var index: int = _day_key_index(resource)
-	if index < 0:
-		return ""
-	return SKY_TAG_DAY_KEYS[index] if index < SKY_TAG_DAY_KEYS.size() else "Day key %d" % (index + 1)
-
-
-## The shipped value source for a Sky tab resource that has no file of its own (the cycle and its
-## keyframes: sub-resources of sky_cycle.tres). Null for every other resource.
-func _shipped_sky_counterpart(resource: Resource) -> Resource:
-	if resource == null or not _is_sky_cycle_part(resource):
-		return null
-	var shipped: SkyCycleDef = _shipped_sky_cycle()
-	if shipped == null:
-		return null
-	if resource == sky_cycle:
-		return shipped
-	if resource == sky_cycle.night:
-		return shipped.night
-	var index: int = _day_key_index(resource)
-	if index >= 0 and index < shipped.day_keyframes.size():
-		return shipped.day_keyframes[index]
-	return null
-
-
-func _is_sky_cycle_part(resource: Resource) -> bool:
-	return resource == sky_cycle or resource == sky_cycle.night or _day_key_index(resource) >= 0
-
-
-func _shipped_sky_cycle() -> SkyCycleDef:
-	if _fresh_sky_cycle == null:
-		_fresh_sky_cycle = ResourceLoader.load(sky_cycle.resource_path, "", ResourceLoader.CACHE_MODE_IGNORE) as SkyCycleDef
-	return _fresh_sky_cycle
-
-
-func _live_skyboxes() -> Array[Skybox]:
-	var found: Array[Skybox] = []
-	if not is_inside_tree():
-		return found
-	for node: Node in get_tree().get_nodes_in_group(Skybox.TUNING_GROUP):
-		var skybox: Skybox = node as Skybox
-		if skybox != null:
-			found.append(skybox)
-	return found
-
-
-func _any_cycle_active() -> bool:
-	for skybox: Skybox in _live_skyboxes():
-		if skybox.is_cycle_active():
-			return true
-	return false
-
+# --- Sky tab: Time-of-day row (state and live apply live in TuningSkyTab) -----
 
 ## The Sky tab's "Time of day" row. Running / Sunset /
 ## Night / Custom (a 0..1 phase slider, editable for Custom only) drive the
@@ -1345,8 +1236,8 @@ func _any_cycle_active() -> bool:
 ## sky is live (nothing to lock). Local dev tuning like the cycle length:
 ## nothing is replicated or persisted.
 func _build_time_of_day_row() -> Control:
-	_sync_time_of_day_from_live()
-	var active: bool = _any_cycle_active()
+	_sky_tab.sync_from_live()
+	var active: bool = _sky_tab.has_running_cycle()
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", ROW_SEPARATION)
 
@@ -1364,7 +1255,7 @@ func _build_time_of_day_row() -> Control:
 	)
 	for choice_label: String in TIME_OF_DAY_LABELS:
 		option.add_item(choice_label)
-	option.selected = maxi(TIME_OF_DAY_CHOICES.find(_time_of_day_choice), 0)
+	option.selected = maxi(TuningSkyTab.TIME_OF_DAY_CHOICES.find(_sky_tab.time_choice), 0)
 	option.disabled = not active
 	var holder: HBoxContainer = HBoxContainer.new()
 	holder.custom_minimum_size = Vector2(CONTROL_COLUMN_WIDTH, 0.0)
@@ -1378,8 +1269,8 @@ func _build_time_of_day_row() -> Control:
 	slider.min_value = 0.0
 	slider.max_value = 1.0
 	slider.step = TIME_OF_DAY_SLIDER_STEP
-	slider.value = _displayed_time_phase()
-	slider.editable = active and _time_of_day_choice == TIME_CUSTOM
+	slider.value = _sky_tab.displayed_phase()
+	slider.editable = active and _sky_tab.time_choice == TuningSkyTab.TIME_CUSTOM
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	slider.custom_minimum_size = Vector2(TIME_OF_DAY_SLIDER_MIN_WIDTH, 0.0)
 	slider.tooltip_text = "Cycle phase: 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight. Editable with Custom."
@@ -1398,96 +1289,17 @@ func _build_time_of_day_row() -> Control:
 	row.add_child(default_spacer)
 
 	option.item_selected.connect(func(index: int) -> void:
-		var choice: String = TIME_OF_DAY_CHOICES[index]
-		apply_time_of_day(choice)
-		slider.set_value_no_signal(_displayed_time_phase())
-		slider.editable = choice == TIME_CUSTOM
+		var choice: String = TuningSkyTab.TIME_OF_DAY_CHOICES[index]
+		_sky_tab.apply_time_of_day(choice)
+		slider.set_value_no_signal(_sky_tab.displayed_phase())
+		slider.editable = choice == TuningSkyTab.TIME_CUSTOM
 		value_label.text = TIME_OF_DAY_VALUE_FORMAT % slider.value
 	)
 	slider.value_changed.connect(func(value: float) -> void:
-		apply_custom_time_of_day(value)
+		_sky_tab.apply_custom_time_of_day(value)
 		value_label.text = TIME_OF_DAY_VALUE_FORMAT % value
 	)
 	return row
-
-
-## Selects a Time-of-day `choice` (a TIME_OF_DAY_CHOICES entry) on every live
-## cycle Skybox: running -> set_locked_phase(-1), sunset/dawn/night -> the source
-## theme's locked phase, custom -> locks where the cycle is now. False for an
-## unknown choice. Public so a test can drive it without a real OptionButton.
-func apply_time_of_day(choice: String) -> bool:
-	if not TIME_OF_DAY_CHOICES.has(choice):
-		return false
-	_time_of_day_choice = choice
-	if choice == TIME_CUSTOM:
-		var live: float = _live_cycle_phase()
-		if live >= 0.0:
-			_time_of_day_custom_phase = live
-	_push_locked_phase(_phase_for_time_choice(choice))
-	return true
-
-
-## The Custom slider: locks every live cycle Skybox at `phase` (clamped 0..1).
-func apply_custom_time_of_day(phase: float) -> void:
-	_time_of_day_choice = TIME_CUSTOM
-	_time_of_day_custom_phase = clampf(phase, 0.0, 1.0)
-	_push_locked_phase(_time_of_day_custom_phase)
-
-
-## The phase `choice` locks the cycle at; -1.0 for running (and for an
-## unresolvable preset, which then leaves the cycle running).
-func _phase_for_time_choice(choice: String) -> float:
-	if choice == TIME_RUNNING:
-		return -1.0
-	if choice == TIME_CUSTOM:
-		return _time_of_day_custom_phase
-	return sky_cycle.locked_phase_for(choice)
-
-
-## The phase the Custom slider shows for the current choice.
-func _displayed_time_phase() -> float:
-	var phase: float = _phase_for_time_choice(_time_of_day_choice)
-	return phase if phase >= 0.0 else _time_of_day_custom_phase
-
-
-func _push_locked_phase(phase: float) -> void:
-	for skybox: Skybox in _live_skyboxes():
-		if skybox.is_cycle_active():
-			skybox.set_locked_phase(phase)
-
-
-## The phase of the first live cycle Skybox (-1.0 when none runs one).
-func _live_cycle_phase() -> float:
-	for skybox: Skybox in _live_skyboxes():
-		if skybox.is_cycle_active():
-			return skybox.current_cycle_phase()
-	return -1.0
-
-
-## Seeds the row's state from the first live cycle Skybox (a match may have
-## locked it from the lobby): running, a preset whose phase matches, or custom.
-func _sync_time_of_day_from_live() -> void:
-	for skybox: Skybox in _live_skyboxes():
-		if not skybox.is_cycle_active():
-			continue
-		var locked: float = skybox.locked_phase()
-		var current: float = skybox.current_cycle_phase()
-		if current >= 0.0:
-			_time_of_day_custom_phase = current
-		if locked < 0.0:
-			_time_of_day_choice = TIME_RUNNING
-			return
-		_time_of_day_custom_phase = locked
-		_time_of_day_choice = _time_choice_for_phase(locked)
-		return
-
-
-func _time_choice_for_phase(phase: float) -> String:
-	for choice: String in TIME_OF_DAY_CHOICES:
-		var preset: float = sky_cycle.locked_phase_for(choice)
-		if preset >= 0.0 and absf(preset - phase) <= TIME_OF_DAY_PHASE_EPSILON:
-			return choice
-	return TIME_CUSTOM
 
 
 func _physics_preset_resource(preset_id: String) -> PhysicsTuning:
@@ -1511,9 +1323,8 @@ func apply_physics_live() -> void:
 
 ## Pushes camera_tuning's follow_distance/follow_pitch_deg onto every live CameraRig immediately.
 ## Iterates CameraRig.TUNING_GROUP rather than this panel's own _camera_rig, so a bare-panel test
-## that never called set_camera_rig() still reaches a rig. Public so a test can drive it directly
-## instead of dragging a real slider.
-func apply_camera_tuning_live() -> void:
+## that never called set_camera_rig() still reaches a rig.
+func _apply_camera_tuning_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(CameraRig.TUNING_GROUP):
 		var rig: CameraRig = node as CameraRig
 		if rig != null:
@@ -1524,7 +1335,7 @@ func apply_camera_tuning_live() -> void:
 ## re-applies its reflection-probe/SSR fields onto every live Skybox (those only ran once at boot
 ## otherwise; see Skybox.refresh_from_visuals()). Iterates Skybox.TUNING_GROUP, so that half works
 ## in a bare-panel test; the overlay half is a no-op without a wired Field.
-func refresh_territory_visuals_live() -> void:
+func _refresh_territory_visuals_live() -> void:
 	if _field != null:
 		var overlay: TerritoryOverlay = _field.overlay()
 		if overlay != null:
@@ -1537,7 +1348,7 @@ func refresh_territory_visuals_live() -> void:
 
 ## Rebuilds every HomeFlag/GoalFlag beacon in the tree from the
 ## edited beacon_visual_tuning (their geometry and materials are baked in _build()).
-func apply_beacon_tuning_live() -> void:
+func _apply_beacon_tuning_live() -> void:
 	for node: Node in get_tree().get_nodes_in_group(HomeFlag.TUNING_GROUP):
 		var flag: HomeFlag = node as HomeFlag
 		if flag != null:
@@ -1548,41 +1359,12 @@ func apply_beacon_tuning_live() -> void:
 ## surfaces) from arena_side_style. Collision is a separate Field shape and is
 ## untouched; the territory material and its uniforms are kept by
 ## TerritoryOverlay.rebuild_disk_mesh(). No-op without a Field.
-func apply_arena_style_live() -> void:
+func _apply_arena_style_live() -> void:
 	if _field == null:
 		return
 	var overlay: TerritoryOverlay = _field.overlay()
 	if overlay != null:
 		overlay.rebuild_disk_mesh()
-
-
-## Copies the cycle's plain fields onto every live Skybox's own sky_def copy (the keyframes, night
-## and materials are shared sub-resources) and asks each Skybox to re-evaluate through
-## refresh_sky_def(), so a palette edit shows on the next tick. Iterates Skybox.TUNING_GROUP, so it
-## reaches a Skybox even in a bare-panel test.
-func apply_sky_def_live() -> void:
-	for skybox: Skybox in _live_skyboxes():
-		if skybox.sky_def != null and skybox.sky_def != sky_cycle:
-			_copy_plain_fields(sky_cycle, skybox.sky_def)
-		skybox.refresh_sky_def()
-
-
-func _copy_plain_fields(from: Resource, to: Resource) -> void:
-	for prop: Dictionary in from.get_property_list():
-		if not TuningOverrides.is_exported_field(prop):
-			continue
-		var type: int = int(prop.get("type", TYPE_NIL))
-		if type == TYPE_BOOL or type == TYPE_INT or type == TYPE_FLOAT or type == TYPE_COLOR:
-			var prop_name: String = str(prop.get("name", ""))
-			to.set(prop_name, from.get(prop_name))
-
-
-## Pushes the Sky tab's cycle_length_seconds onto every live Skybox running a CYCLE match. Skybox
-## re-bases its phase so the time of day does not jump. Local dev tuning only: nothing is
-## replicated.
-func apply_cycle_length_live() -> void:
-	for skybox: Skybox in _live_skyboxes():
-		skybox.set_cycle_length_seconds(sky_cycle.cycle_length_seconds)
 
 
 # --- Reset / Save / Copy -----------------------------------------------------
@@ -1602,30 +1384,11 @@ func reset_all() -> void:
 	TuningOverrides.reset_resource(bot_stack_tuning)
 	TuningSfxTab.reset_fields(audio_config)
 	# The sky resources are reset too; Save/Copy/TuningOverrides.apply_saved still skip them.
-	_fresh_sky_cycle = null
-	_reset_sky_resources()
+	_sky_tab.reset()
 	apply_physics_live()
-	refresh_territory_visuals_live()
-	apply_arena_style_live()
-	apply_sky_def_live()
+	_refresh_territory_visuals_live()
+	_apply_arena_style_live()
 	rebuild()
-
-
-## Reloads the shipped values of the cycle, its keyframes, the night keyframe and the storm
-## overlay. The keyframes are sub-resources, so they copy from a fresh load of sky_cycle.tres by
-## position.
-func _reset_sky_resources() -> void:
-	for resource: Resource in _sky_resources():
-		var shipped: Resource = _shipped_sky_counterpart(resource)
-		if shipped == null:
-			TuningOverrides.reset_resource(resource)
-			continue
-		for prop: Dictionary in resource.get_property_list():
-			var type: int = int(prop.get("type", TYPE_NIL))
-			# Sub-resources and the keyframe array stay the live objects; only plain values reload.
-			if TuningOverrides.is_exported_field(prop) and type != TYPE_OBJECT and type != TYPE_ARRAY:
-				var prop_name: String = str(prop.get("name", ""))
-				resource.set(prop_name, shipped.get(prop_name))
 
 
 func _on_save_pressed() -> void:

@@ -33,7 +33,7 @@ func set_camera_rig(rig: CameraRig) -> void:
 
 
 ## Same hand-off as set_camera_rig(), for the tuning panel's Territory tab and its
-## refresh_territory_visuals_live() push (Field also lives outside this subtree).
+## _refresh_territory_visuals_live() push (Field also lives outside this subtree).
 func set_field(field: Field) -> void:
 	_tuning_panel.set_field(field)
 
