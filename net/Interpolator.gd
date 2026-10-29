@@ -372,6 +372,11 @@ func clear() -> void:
 	_dropped_unknown = 0
 
 
+## Smoothed snapshot arrival jitter in ms (0.0 until two snapshots have arrived).
+func jitter_ms() -> float:
+	return _jitter_ms
+
+
 ## The delay currently applied, in milliseconds (see the class docs).
 func delay_ms() -> float:
 	return clampf(_delay_ms, _config.min_interp_delay_ms, _config.max_interp_delay_ms)
