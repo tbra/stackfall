@@ -9,7 +9,6 @@ var field: Field = null
 var registry: BlockRegistry = null
 var blocks_container: Node3D = null
 var camera_rig: CameraRig = null
-var world_environment: WorldEnvironment = null
 var skybox: Skybox = null
 var loader: AppLoader = null
 var graphics: GraphicsApplier = null

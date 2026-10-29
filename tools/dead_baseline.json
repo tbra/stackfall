@@ -804,12 +804,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "test-only-var",
-   "entry": "game/main/MainWorld.gd:world_environment",
-   "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
-   "consumer": "P7-Inav"
   }
  ]
 }

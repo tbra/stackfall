@@ -335,8 +335,8 @@ func build_match_world() -> void:
 
 	_build_debug_overlays()
 
-	# Re-applies the current preset once the match world exists. world.world_environment is
-	# a static child of Main, so today this repeats the _ready()-time call; kept
+	# Re-applies the current preset once the match world exists. Main's WorldEnvironment is
+	# a static child, so today this repeats the _ready()-time call; kept
 	# because this is the one shared scene-load path (lobby-driven and headless-bot
 	# matches alike).
 	world.graphics.apply(Settings.current_graphics_preset())

@@ -358,7 +358,6 @@ func _main_world() -> MainWorld:
 		_world.registry = _registry
 		_world.blocks_container = _blocks_container
 		_world.camera_rig = _camera_rig
-		_world.world_environment = _world_environment
 		_world.skybox = _skybox
 		_world.loader = _loader
 		_world.graphics = _graphics_applier
