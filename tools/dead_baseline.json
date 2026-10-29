@@ -233,12 +233,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/menus/LoadingBackdrop.gd",
-   "reason": "unwired UI stub; P9-Iload wires it in",
-   "consumer": "P9-Iload"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/menus/MainMenuJoinPage.gd",
    "reason": "unwired UI stub; P9-Ijoin wires it in",
    "consumer": "P9-Ijoin"

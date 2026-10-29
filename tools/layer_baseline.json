@@ -596,6 +596,7 @@
   "ui/menus/GraphicsSettingsTab.gd",
   "ui/menus/KeyRebindRow.gd",
   "ui/menus/KeyRebindRow.tscn",
+  "ui/menus/LoadingBackdrop.gd",
   "ui/menus/LoadingScreen.gd",
   "ui/menus/MainMenu.gd",
   "ui/menus/MainMenu.tscn",
