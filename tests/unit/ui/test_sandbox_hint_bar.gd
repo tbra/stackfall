@@ -7,6 +7,13 @@ var _bar: SandboxHintBar = null
 
 func before_each() -> void:
 	DebugMode.set_override_for_test(true)
+	# The active device is global and earlier suites may leave it on the gamepad: start from keyboard.
+	# A release alone classifies as keyboard and leaves no key held for later tests.
+	var release: InputEventKey = InputEventKey.new()
+	release.physical_keycode = KEY_A
+	release.pressed = false
+	Input.parse_input_event(release)
+	await wait_process_frames(2)
 	_bar = SandboxHintBar.new()
 	add_child_autofree(_bar)
 
@@ -45,9 +52,11 @@ func test_gamepad_press_switches_the_bar_to_pad_names() -> void:
 	await wait_process_frames(2)
 	assert_eq(Settings.active_input_device(), Settings.DEVICE_GAMEPAD)
 	assert_eq(_glyph_texts(), _expected(true))
+	press.pressed = false
+	Input.parse_input_event(press)
 	var key: InputEventKey = InputEventKey.new()
 	key.physical_keycode = KEY_A
-	key.pressed = true
+	key.pressed = false
 	Input.parse_input_event(key)
 	await wait_process_frames(2)
 	assert_eq(_glyph_texts(), _expected(false), "back to keyboard names")
