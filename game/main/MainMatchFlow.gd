@@ -6,7 +6,7 @@ extends MainMatchFlowPort
 ## reaction (the client's net_match_start RPC arrives with no Main involvement, so the Main
 ## forwarder of `_on_match_state_changed` always ensures this flow first). Per-match node fields live here;
 ## this file reaches Main's scene helpers through `main_node` (DECISION: one
-## module split in two, as MainSandboxFlow does). The loading-generation guard stays on Main
+## module split in two, as MainSandboxFlow does). The loading-generation guard lives here
 ## (`_loading_generation`) and every coroutine here re-checks `is_instance_valid(main)` after an await.
 
 const HUD_SCENE_PATH: String = "res://ui/hud/HUD.tscn"
@@ -32,6 +32,11 @@ var _controller_was_processing: bool = false
 var _controller_was_handling_input: bool = false
 var _world_built: bool = false
 var _world_building: bool = false
+## The Lobby's Start press is awaiting its pre-start frames.
+var _start_pending: bool = false
+var _first_territory_ready: bool = false
+## Bumped on every new load and every return to the lobby; a stale hand-off coroutine sees it differ and stops.
+var _loading_generation: int = 0
 
 # Read-only views of Main's persistent world nodes.
 var _field: Field:
@@ -85,7 +90,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 	Net.set_accepting_joins(to_state == Match.State.LOBBY or mid_match_join)
 
 	if to_state == Match.State.LOBBY:
-		main_node._loading_generation += 1
+		_loading_generation += 1
 		end_match_world()
 		# safety net for a match aborted mid-load -- see
 		# LoadingScreen.cancel()'s own doc.
@@ -102,8 +107,8 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 			else:
 				main_node._show_lobby()
 	elif Match.is_start_transition(from_state, to_state):
-		main_node._loading_generation += 1
-		main_node._first_territory_ready = false
+		_loading_generation += 1
+		_first_territory_ready = false
 		# shown before _build_match_world() below runs, so the
 		# overlay is already queued to composite over this same frame's draw
 		# pass -- see ui/menus/LoadingScreen.gd's own header doc.
@@ -119,7 +124,7 @@ func on_match_state_changed(from_state: int, to_state: int) -> void:
 			Match.set_countdown_held(true)
 		build_match_world()
 	elif to_state == Match.State.COUNTDOWN:
-		_finish_loading_when_ready(main_node._loading_generation)
+		_finish_loading_when_ready(_loading_generation)
 
 
 func _finish_loading_when_ready(generation: int) -> void:
@@ -128,19 +133,19 @@ func _finish_loading_when_ready(generation: int) -> void:
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
 			return
 	if not _loading_screen.visible:
 		_release_countdown_hold(generation)
 		return
 	_loading_screen.set_stage("Solving territory", _loading_screen.tuning.solve_progress)
-	while not main_node._first_territory_ready:
+	while not _first_territory_ready:
 		await main_node.get_tree().process_frame
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
 			return
 	_loading_screen.set_stage("Warming materials", _loading_screen.tuning.materials_progress)
@@ -150,7 +155,7 @@ func _finish_loading_when_ready(generation: int) -> void:
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_release_countdown_hold(generation)
 			return
 		_loading_screen.set_stage("Stabilizing view", lerpf(_loading_screen.tuning.stabilize_start_progress, _loading_screen.tuning.stabilize_end_progress, float(frame + 1) / maxf(float(_loading_screen.tuning.stable_frames), 1.0)))
@@ -175,15 +180,82 @@ func _finish_loading_when_ready(generation: int) -> void:
 ## stale generation belongs to a newer load, which owns the hold now, so only the
 ## current generation releases.
 func _release_countdown_hold(generation: int) -> void:
-	if generation == main_node._loading_generation:
+	if generation == _loading_generation:
 		Match.set_countdown_held(false)
+
+
+## Match.start_match() runs the whole world build synchronously
+## in one frame, so an overlay shown inside it is never presented before the
+## freeze. The Lobby's Start button therefore lands here first: the overlay (and
+## the clients' net_match_loading) goes up, tuning.pre_start_frames rendered
+## frames pass, and only then _start_requested_match() starts the match.
+## There is no separate match scene to thread-load: Main already hosts the
+## world, and the skybox jpgs are decoded from raw files, not ResourceLoader
+## resources.
+func on_lobby_start_pressed(config: MatchConfig) -> void:
+	if not Net.is_host() or _start_pending:
+		return
+	_start_pending = true
+	main_node._ensure_overlays()
+	_loading_screen.show_pending(config)
+	MatchNet.replicate_match_loading()
+	for _i: int in range(_loading_screen.tuning.pre_start_frames):
+		await main_node.get_tree().process_frame
+		# Main may be freed while this coroutine is suspended.
+		if not is_instance_valid(main):
+			return
+	_start_pending = false
+	if not Net.is_host() or not _loading_screen.is_pending():
+		return
+	_start_requested_match(config)
+
+
+func _start_requested_match(config: MatchConfig) -> void:
+	if not Net.is_host():
+		return
+	Match.start_match(config)
+
+
+## Client side of on_lobby_start_pressed(): raise the overlay as soon as the host announces.
+func on_match_loading_announced() -> void:
+	if Match.state() != Match.State.LOBBY:
+		return
+	main_node._prefetch_match_scenes()
+	main_node._ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
+	_loading_screen.show_pending(null)
+
+
+func on_loading_territory_updated(_raster: TerritoryRaster, _groups: TerritoryGroups) -> void:
+	# DECISION: an applied result can arrive while the staged world is building.
+	if Net.is_host() and _loading_screen_is_running():
+		_first_territory_ready = true
+
+
+func on_loading_territory_replicated(_raster: TerritoryRaster) -> void:
+	if Net.is_client() and _loading_screen_is_running():
+		_first_territory_ready = true
+
+
+func on_loading_readiness_timed_out() -> void:
+	_release_countdown_hold(_loading_generation)
+	_loading_generation += 1
+	if Net.is_host():
+		Match.abort_match()
+	else:
+		Net.leave()
+
+
+## The overlay exists, is up and is past its pending stage. Reads the raw node: the getter would build it.
+func _loading_screen_is_running() -> bool:
+	var screen: LoadingScreen = main_node._loading_screen_node
+	return screen != null and screen.visible and not screen.is_pending()
 
 
 func build_match_world() -> void:
 	if _world_built or _world_building:
 		return
 	_world_building = true
-	var generation: int = main_node._loading_generation
+	var generation: int = _loading_generation
 	# the single new-match entry (host, client and headless
 	# alike) -- starts from the launch camera and a dry arena whatever the
 	# previous match left behind, and tells the persistent owners (Events.
@@ -204,7 +276,7 @@ func build_match_world() -> void:
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
 			return
 	_field.place_flags(config.player_count, config.player_colors, config.effective_goal_flag_count())
@@ -214,7 +286,7 @@ func build_match_world() -> void:
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
 			return
 	_field.set_overlay_source(Match.raster(), config.territory_colors())
@@ -230,7 +302,7 @@ func build_match_world() -> void:
 		# DECISION: Main may be freed while this coroutine is suspended.
 		if not is_instance_valid(main):
 			return
-		if generation != main_node._loading_generation or not _loading_screen.visible:
+		if generation != _loading_generation or not _loading_screen.visible:
 			_world_building = false
 			return
 

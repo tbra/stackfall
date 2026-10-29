@@ -519,7 +519,7 @@ static func restore_stems(saved: Dictionary) -> void:
 # --- persistent UI / Main state -------------------------------------------------------
 
 static func _capture_ui(main: Node, out: Dictionary) -> void:
-	# _first_territory_ready is left out: it is only re-armed by the LOBBY -> LOADING lobby path
+	# the flow's _first_territory_ready is left out: it is only re-armed by the LOBBY -> LOADING lobby path
 	# and read only inside that path's _finish_loading_when_ready().
 	out["ui.main_world_built"] = MainNodes.world_is_built(main)
 	# Node holders: the live child of that class under Main (the key keeps the old field name).
