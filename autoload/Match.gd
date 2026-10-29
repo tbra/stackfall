@@ -54,10 +54,6 @@ static func is_in_progress(state: int) -> bool:
 	return MatchPhase.is_in_progress(state)
 
 
-static func is_pregame(state: int) -> bool:
-	return MatchPhase.is_pregame(state)
-
-
 static func is_lobby_or_end(state: int) -> bool:
 	return MatchPhase.is_lobby_or_end(state)
 

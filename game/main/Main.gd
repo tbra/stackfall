@@ -404,6 +404,7 @@ func _ensure_results_screen() -> ResultsScreen:
 func _ensure_scoreboard() -> ScoreboardOverlay:
 	if _scoreboard_node == null:
 		_scoreboard_node = _loader.load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
+		_scoreboard_node.match_context = MatchContext.current()
 		add_child(_scoreboard_node)
 		# Created while a sandbox is live (the sandbox flow only suppresses an existing one).
 		_scoreboard_node.suppressed = _main_world().sandbox != null and is_instance_valid(_main_world().sandbox)
