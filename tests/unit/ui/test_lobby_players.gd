@@ -84,32 +84,23 @@ func _last_published(lobby: Lobby) -> Dictionary:
 	return calls[calls.size() - 1]
 
 
-## A row's pieces: layout child 0 is the colour box, child 1 the name/subtitle column;
-## the Ready badge is the layout's last child (team / difficulty / remove controls sit
-## between them when a row has any).
-func _row_layout(row: Node) -> HBoxContainer:
-	return row.get_child(0) as HBoxContainer
-
-
 func _row_name(row: Node) -> String:
-	return ((_row_layout(row).get_child(1) as VBoxContainer).get_child(0) as Label).text
+	return (row as LobbySeatRow).name_label.text
 
 
 func _row_subtitle(row: Node) -> String:
-	return ((_row_layout(row).get_child(1) as VBoxContainer).get_child(1) as Label).text
+	return (row as LobbySeatRow).subtitle_label.text
 
 
 func _row_badge(row: Node) -> String:
-	var layout: HBoxContainer = _row_layout(row)
-	var badge: UiStatusBadge = layout.get_child(layout.get_child_count() - 1) as UiStatusBadge
+	var badge: UiStatusBadge = (row as LobbySeatRow).badge
 	if UiStatusBadge.has_mark(badge.variant):
 		return "tick" if badge.variant == UiStatusBadge.Look.READY else "hourglass"
 	return badge.label.text
 
 
 func _row_badge_name(row: Node) -> String:
-	var layout: HBoxContainer = _row_layout(row)
-	return (layout.get_child(layout.get_child_count() - 1) as PanelContainer).get_accessibility_name()
+	return (row as LobbySeatRow).badge.get_accessibility_name()
 
 
 func _rows_of(lobby: Lobby) -> Array[LobbySeatRow]:
@@ -146,8 +137,7 @@ func test_human_rows_name_subtitle_and_ready_badge() -> void:
 
 
 func _assert_host_crown(row: Node) -> void:
-	var layout: HBoxContainer = _row_layout(row)
-	var badge: PanelContainer = layout.get_child(layout.get_child_count() - 1) as PanelContainer
+	var badge: UiStatusBadge = (row as LobbySeatRow).badge
 	var crown: TextureRect = badge.get_node_or_null("HostCrown") as TextureRect
 	assert_not_null(crown, "the host row shows a crown, not the Ready pill")
 	assert_eq(crown.texture, UiArtTable.shared().lobby_icon(UiArtTable.KEY_HOST_CROWN))
@@ -464,13 +454,13 @@ func test_a_client_may_change_only_its_own_colour_and_team() -> void:
 	assert_true(rows[2].difficulty_option.disabled, "a bot's difficulty stays the host's")
 	assert_null(rows[1].remove_button, "no remove button for anyone but the host")
 	assert_eq(_panel_of(lobby).focus_entries(), [rows[1].color_button, rows[1].team_button] as Array[Control], "only the own row joins the loop")
-	# A client has no Start button, so walk the loop from its first visible stop.
-	var chain: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	assert_true(chain.has(rows[1].color_button) and chain.has(rows[1].team_button))
-	assert_false(chain.has(rows[0].color_button), "the host's row is no focus stop for a client")
-	for index: int in range(chain.size()):
-		var current: Control = chain[index]
-		assert_eq(current.get_node(current.focus_neighbor_bottom), chain[(index + 1) % chain.size()], "%s leads on" % current.name)
+	# A client has no Start button: the pad loop through its own row closes and never stops on an invisible one.
+	var stops: Array[Control] = FocusWalk.loop(rows[1].color_button)
+	assert_true(stops.has(rows[1].team_button), "the own team number is on the loop")
+	assert_false(stops.has(rows[0].color_button), "the host's row is no focus stop for a client")
+	assert_true(FocusWalk.is_closed(stops, rows[1].color_button), "the loop wraps back to where it started")
+	for stop: Control in stops:
+		assert_true(stop.is_visible_in_tree(), "%s is no invisible stop" % stop.name)
 
 
 func test_a_clients_colour_click_asks_the_host_for_the_next_colour_and_changes_nothing_locally() -> void:
