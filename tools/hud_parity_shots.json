@@ -1,0 +1,5 @@
+[
+  {"name": "hud_live_solo", "target": "match", "seats": 1, "bots": 0, "hud": true, "frames": 120, "pin_sky_time": "100,50", "rng_seed": 1},
+  {"name": "hud_live_solo_late", "target": "match", "seats": 1, "bots": 0, "hud": true, "frames": 900, "pin_sky_time": "100,50", "rng_seed": 1},
+  {"name": "hud_hidden_control", "target": "match", "seats": 1, "bots": 0, "hud": false, "frames": 120, "pin_sky_time": "100,50", "rng_seed": 1}
+]
