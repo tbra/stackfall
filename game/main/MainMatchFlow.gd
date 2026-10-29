@@ -188,7 +188,7 @@ func _release_countdown_hold(generation: int) -> void:
 ## in one frame, so an overlay shown inside it is never presented before the
 ## freeze. The Lobby's Start button therefore lands here first: the overlay (and
 ## the clients' net_match_loading) goes up, tuning.pre_start_frames rendered
-## frames pass, and only then _start_requested_match() starts the match.
+## frames pass, and only then Match.start_match() starts the match.
 ## There is no separate match scene to thread-load: Main already hosts the
 ## world, and the skybox jpgs are decoded from raw files, not ResourceLoader
 ## resources.
@@ -196,6 +196,7 @@ func on_lobby_start_pressed(config: MatchConfig) -> void:
 	if not Net.is_host() or _start_pending:
 		return
 	_start_pending = true
+	# SHORTCUT: upward read of Main's overlay builder, removed by P7-Inav when the flow owns its overlays
 	main_node._ensure_overlays()
 	_loading_screen.show_pending(config)
 	MatchNet.replicate_match_loading()
@@ -207,12 +208,6 @@ func on_lobby_start_pressed(config: MatchConfig) -> void:
 	_start_pending = false
 	if not Net.is_host() or not _loading_screen.is_pending():
 		return
-	_start_requested_match(config)
-
-
-func _start_requested_match(config: MatchConfig) -> void:
-	if not Net.is_host():
-		return
 	Match.start_match(config)
 
 
@@ -220,6 +215,7 @@ func _start_requested_match(config: MatchConfig) -> void:
 func on_match_loading_announced() -> void:
 	if Match.state() != Match.State.LOBBY:
 		return
+	# SHORTCUT: upward calls into Main's prefetch and overlay builder, removed by P7-Inav
 	main_node._prefetch_match_scenes()
 	main_node._ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
 	_loading_screen.show_pending(null)
@@ -247,6 +243,7 @@ func on_loading_readiness_timed_out() -> void:
 
 ## The overlay exists, is up and is past its pending stage. Reads the raw node: the getter would build it.
 func _loading_screen_is_running() -> bool:
+	# SHORTCUT: upward read of Main's raw loading-screen node, removed by P7-Inav
 	var screen: LoadingScreen = main_node._loading_screen_node
 	return screen != null and screen.visible and not screen.is_pending()
 

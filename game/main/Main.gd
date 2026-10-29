@@ -556,6 +556,8 @@ func _prefetch_match_scenes() -> void:
 			ResourceLoader.load_threaded_request(path)
 
 
+# SHORTCUT: forwarders exist because the match flow port loads lazily (not at startup), removed by P7-Inav
+# DECISION: Lobby, loading-screen and Events connects point here so the flow script loads on the first reaction.
 func _on_lobby_start_pressed(config: MatchConfig) -> void:
 	_match_flow_port().on_lobby_start_pressed(config)
 
@@ -564,7 +566,6 @@ func _on_loading_readiness_timed_out() -> void:
 	_match_flow_port().on_loading_readiness_timed_out()
 
 
-# The Events connects stay lazy: the flow script loads on the first reaction, not at startup.
 func _on_match_loading_announced() -> void:
 	_match_flow_port().on_match_loading_announced()
 
