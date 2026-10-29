@@ -115,6 +115,24 @@
   },
   {
    "id": "dead-file",
+   "entry": "core/net/NetRateMeter.gd",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inet wires it; that package removes this entry",
+   "consumer": "P12-Inet"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/NetStats.gd",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/net/NetStatsSource.gd",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
    "entry": "core/rules/LobbySeatBudget.gd",
    "reason": "unwired stub; the Lobby seat budget wiring package consumes it",
    "consumer": "P9-Ibudget"
@@ -127,6 +145,12 @@
   },
   {
    "id": "dead-file",
+   "entry": "net/NetStatsLive.gd",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },
@@ -134,6 +158,24 @@
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.tscn",
    "reason": "designer gallery scene (stackfall-designer tool)"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/DebugRow.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/UiDebugGraph.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Ipb"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/UiDebugPanel.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Iperf"
   },
   {
    "id": "dead-file",
@@ -768,24 +810,6 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/DebugRow.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugGraph.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Ipb"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugPanel.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Iperf"
   }
  ]
 }
