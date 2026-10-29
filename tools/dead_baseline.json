@@ -644,6 +644,30 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/rules/LobbySeatBudget.gd",
+   "reason": "unwired stub; the Lobby seat budget wiring package consumes it",
+   "consumer": "P9-Ibudget"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/rules/ResultsText.gd",
+   "reason": "unwired stub; the results formatting package moves ResultsScreen statics here",
+   "consumer": "P9-Ires"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/net/JoinCode.gd:resolve_text",
+   "reason": "unwired stub; MainMenu will call it in the join address package",
+   "consumer": "P9-Iaddr"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "core/net/JoinCode.gd:parse_address",
+   "reason": "unwired stub; MainMenu will call it in the join address package",
+   "consumer": "P9-Iaddr"
   }
  ]
 }
