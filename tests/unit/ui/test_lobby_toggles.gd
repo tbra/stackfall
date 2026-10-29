@@ -1,11 +1,8 @@
 extends GutTest
-## The round-length row reads "Round length" in every game mode (no
-## "required" wording anywhere), a gifts switch that is off hides Frequency and the GIFTS Advanced bar,
+## A gifts switch that is off hides Frequency and the GIFTS Advanced bar from focus,
 ## the new Experiments master switch hides its Advanced bar and starts matches with no experiment
 ## active, and it replicates host -> client like the gifts switch.
 
-const ROUND_LENGTH_TEXT: String = "Round length (min)"
-const OLD_TIMER_TEXT: String = "Match timer (min)"
 const MAX_STOPS: int = 60
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 
@@ -21,19 +18,13 @@ func _make_lobby(is_host: bool = true) -> Lobby:
 	return lobby
 
 
-func _all_texts(node: Node, out: PackedStringArray) -> void:
-	for child: Node in node.get_children():
-		var label: Label = child as Label
-		if label != null:
-			out.append(label.text)
-		var button: Button = child as Button
-		if button != null:
-			out.append(button.text)
-		_all_texts(child, out)
+func _start_of(lobby: Lobby) -> Control:
+	return lobby.get_node("%StartButton") as Control
 
 
+## Every stop one focus-down loop visits from the footer's Start button.
 func _stops(lobby: Lobby) -> Array[Control]:
-	return lobby._visible_chain(lobby._main_chain)
+	return FocusWalk.loop(_start_of(lobby))
 
 
 func _pad_press(button: JoyButton) -> void:
@@ -56,7 +47,7 @@ func _action_press(action: StringName) -> void:
 
 ## Walks the loop with synthetic pad D-pad-down presses; returns every focused control it lands on.
 func _walk_with_pad(lobby: Lobby) -> Array[Control]:
-	var first: Control = _stops(lobby)[0]
+	var first: Control = _start_of(lobby)
 	first.grab_focus()
 	var seen: Array[Control] = [first]
 	for _i: int in range(MAX_STOPS):
