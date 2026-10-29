@@ -20,7 +20,8 @@ extends RefCounted
 ## weather=<id>:<intensity> (snaps the CloudCeiling fade, e.g. storm:0.5),
 ## pin_sky_time=<sky_time_s>[,<cloud_drift_s>] (Skybox.set_capture_pin, parity captures; the drift
 ## defaults to 0), rng_seed=<n >= 0> (match and sandbox targets: a fixed MatchConfig.rng_seed so block
-## bags and weather rolls repeat run to run). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
+## bags and weather rolls repeat run to run), backdrop_seed=<n >= 0> (seeds the global RNG while the args
+## are parsed, before Main is built, so the random menu/lobby backdrop plate repeats run to run). Run parity captures with the engine flag `--fixed-fps 60` before `--`, so TIME
 ## advances by a fixed step per frame.
 
 const TARGET_MAIN_MENU: String = "main_menu"
@@ -86,6 +87,7 @@ const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
 	"scroll", "gifts_off", "teams", "weather", "pin_sky_time", "rng_seed",
+	"backdrop_seed",
 ]
 
 
@@ -134,6 +136,12 @@ static func parse_args(args: PackedStringArray, file_reader: Callable = Callable
 		shots.append(shot)
 	_uniquify_names(shots)
 	result["shots"] = shots
+	for shot: Dictionary in shots:
+		if int(shot["backdrop_seed"]) != NO_VALUE:
+			# DECISION: MenuBackdrop picks its plate with the global randf() once per launch, while Main is
+			# built; parse_args runs before that, so seeding here pins the pick without a production hook.
+			seed(int(shot["backdrop_seed"]))
+			break
 	return result
 
 
@@ -179,7 +187,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		"watch": false, "follow": NO_VALUE, "difficulty": "", "path": "", "overlays": PackedStringArray(),
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
-		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(), "rng_seed": NO_VALUE,
+		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(), "rng_seed": NO_VALUE, "backdrop_seed": NO_VALUE,
 	}
 	for key: Variant in raw:
 		if not SHOT_KEYS.has(str(key)):
@@ -191,7 +199,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 	for key: String in ["name", "page", "tab", "preset", "mode", "difficulty", "path", "sky", "f4_tab"]:
 		if raw.has(key):
 			shot[key] = str(raw[key]).strip_edges()
-	for key: String in ["seats", "bots", "follow", "frames", "rng_seed"]:
+	for key: String in ["seats", "bots", "follow", "frames", "rng_seed", "backdrop_seed"]:
 		if raw.has(key):
 			var number: Variant = _as_int(raw[key])
 			if number == null:
@@ -199,6 +207,8 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 			shot[key] = int(number)
 	if raw.has("rng_seed") and int(shot["rng_seed"]) < 0:
 		return _failed(shot, "rng_seed must be >= 0")
+	if raw.has("backdrop_seed") and int(shot["backdrop_seed"]) < 0:
+		return _failed(shot, "backdrop_seed must be >= 0")
 	var sky_id: String = str(shot["sky"])
 	if not sky_id.is_empty() and sky_id != AgentProbe.SKY_CYCLE_ID and not MatchConfig.SKY_THEME_IDS.has(sky_id):
 		return _failed(shot, "unknown sky '%s' (cycle, %s)" % [sky_id, ", ".join(MatchConfig.SKY_THEME_IDS)])

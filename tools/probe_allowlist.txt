@@ -3,3 +3,5 @@
 # probe is meant to be tracked. Lines starting with # are comments.
 # The HUD parity shot list read by tools/hud_parity.py (P8 pixel gate): a tracked input, not a probe.
 tools/hud_parity_shots.json
+# The lobby parity shot list read by tools/lobby_parity.py (P9 pixel gate): a tracked input, not a probe.
+tools/lobby_parity_shots.json

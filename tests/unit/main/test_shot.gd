@@ -134,3 +134,12 @@ func test_sky_ids_are_cycle_or_a_locked_id_and_rng_seed_is_a_non_negative_int() 
 	assert_eq(seeded["rng_seed"], 42)
 	assert_ne(str(ShotTargets.normalize_shot({"target": "match", "rng_seed": "-3"})["error"]), "")
 	assert_eq(ShotTargets.normalize_shot({"target": "match"})["rng_seed"], ShotTargets.NO_VALUE)
+
+
+func test_backdrop_seed_pins_the_global_rng_and_rejects_a_negative_seed() -> void:
+	var args: PackedStringArray = PackedStringArray(["--out=x", "--shots=[{\"target\":\"match\",\"backdrop_seed\":7}]"])
+	assert_eq(str(ShotTargets.parse_args(args)["error"]), "")
+	var first: float = randf()
+	ShotTargets.parse_args(args)
+	assert_eq(randf(), first)
+	assert_ne(str(ShotTargets.normalize_shot({"target": "match", "backdrop_seed": "-1"})["error"]), "")
