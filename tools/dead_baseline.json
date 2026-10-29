@@ -116,8 +116,8 @@
   {
    "id": "dead-file",
    "entry": "core/net/NetRateMeter.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inet wires it; that package removes this entry",
-   "consumer": "P12-Inet"
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires NetStatsLive, its only reader; P12-Inetui removes this entry",
+   "consumer": "P12-Inetui"
   },
   {
    "id": "dead-file",
@@ -804,6 +804,72 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:peer_rtt_jitter_ms",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:simulated_lag_ms",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:simulated_loss",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/Interpolator.gd:jitter_ms",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:snapshots_total",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:last_snapshot_bytes",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:last_snapshot_bodies",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:last_snapshot_fragments",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:arrival_jitter_ms",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/SnapshotSync.gd:dropped_unknown",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/session/NetPing.gd:jitter_ms",
+   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
+   "consumer": "P12-Inetui"
   },
   {
    "id": "test-only-func",

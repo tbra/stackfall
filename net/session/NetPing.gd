@@ -83,6 +83,18 @@ func _average_ms(peer_id: int) -> float:
 	return total / samples.size()
 
 
+## Mean absolute deviation of `peer_id`'s kept RTT samples in ms; 0.0 with fewer than two.
+func jitter_ms(peer_id: int) -> float:
+	var samples: Array = _samples.get(peer_id, [])
+	if samples.size() < 2:
+		return 0.0
+	var mean: float = _average_ms(peer_id)
+	var total: float = 0.0
+	for sample: float in samples:
+		total += absf(sample - mean)
+	return total / samples.size()
+
+
 ## A peer left: its samples and last ping go with it.
 func forget_peer(peer_id: int) -> void:
 	_samples.erase(peer_id)
