@@ -13,6 +13,8 @@ var field: Field = null
 var soak_enabled: bool = false
 ## Build the soak intent fuzzer (the "soak-fuzz" command-line flag).
 var soak_fuzz_enabled: bool = false
+## Session extras on: logger, soak, fuzzer and continuous sampling (Main sets it from DebugMode.is_enabled()).
+var session_extras: bool = false
 
 
 func _ready() -> void:
