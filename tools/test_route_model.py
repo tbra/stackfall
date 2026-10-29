@@ -59,6 +59,17 @@ class RoutePolicyTests(unittest.TestCase):
             feature = router.route("Build fix", "Write it", ["net/a.gd"], "feature", 0, diff_lines=10)
         self.assertEqual([r["model"] for r in (small, large, unknown, feature)], ["sonnet", "opus", "opus", "opus"])
 
+    def test_plan_and_review_never_split(self):
+        reply = {"answers": {"model": {"choice": "sonnet", "confidence": 0.9}, "split_first": {"noul": 0.9}}}
+        many = ["ui/f%d.gd" % i for i in range(12)]
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": "test"}), patch.object(router, "_request", return_value=reply):
+            verdicts = [router.route("Work", "Brief", many, kind, 0)["split_first"]
+                        for kind in ("plan", "review", "feature")]
+        with patch.dict(os.environ, {"TYPESAFE_API_KEY": ""}):
+            offline = [router.route("Work", "Brief", many, kind, 0)["split_first"] for kind in ("plan", "feature")]
+        self.assertEqual(verdicts, [False, False, True])
+        self.assertEqual(offline, [False, True])
+
     def test_test_removal_forces_review_on_every_path(self):
         reply = {"answers": {"model": {"choice": "sonnet", "confidence": 0.9}, "needs_review": {"noul": 0.01}}}
         tests = ["tests/unit/blocks/test_a.gd"]

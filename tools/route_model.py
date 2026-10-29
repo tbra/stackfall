@@ -219,6 +219,8 @@ def forced_review(title: str, brief: str, files: List[str], kind: str) -> bool:
 # DECISION (review routing): a review of a small diff runs on Sonnet; Opus reviewers spent most
 # of a usage window while small Sonnet reviews lost nothing.
 SMALL_REVIEW_DIFF_LINES = 50
+# A plan is the split itself and a review covers one candidate: these kinds never get split=yes.
+NO_SPLIT_KINDS = ("plan", "review")
 
 
 def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: int,
@@ -230,6 +232,8 @@ def route(title: str, brief: str, files: List[str], kind: str, prior_attempts: i
     if kind == "review" and diff_lines is not None and diff_lines < SMALL_REVIEW_DIFF_LINES and result["model"] == "opus":
         result["model"] = "sonnet"
         result["reason"] += "; small review (%d diff lines) capped at sonnet" % diff_lines
+    if kind in NO_SPLIT_KINDS:
+        result["split_first"] = False
     return result
 
 
