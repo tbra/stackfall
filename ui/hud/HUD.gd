@@ -1499,16 +1499,16 @@ func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 		_set_glue_active(false)
 
 
-## The player-stat rows and minimap otherwise fill in only on the first
-## territory_share_changed, which the solver emits once play begins, so the countdown
-## would show an empty stats panel and no minimap. Called on LOADING/COUNTDOWN (the
-## HUD is loaded behind the Ready screen): builds one zero-share row per team and
-## pushes the map/raster/homes to the minimap.
 func _catch_up_pregame() -> void:
 	if Match.is_in_progress(Match.state()):
 		prime_pregame_widgets()
 
 
+## The player-stat rows and minimap otherwise fill in only on the first
+## territory_share_changed, which the solver emits once play begins, so the countdown
+## would show an empty stats panel and no minimap. Called on LOADING/COUNTDOWN (the
+## HUD is loaded behind the Ready screen): builds one zero-share row per team and
+## pushes the map/raster/homes to the minimap.
 func prime_pregame_widgets() -> void:
 	if match_provider == null:
 		return

@@ -898,32 +898,27 @@
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:after_next_special",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
+   "reason": "live: autoload/Match.gd:504 forwards to it (name-ambiguous with MatchContext.after_next_special)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:gift_states",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
+   "reason": "live: autoload/Match.gd:1027 forwards to it (name-ambiguous with MatchContext.gift_states)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchLifecycle.gd:countdown_remaining",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
+   "reason": "live: autoload/Match.gd:359 forwards to it (name-ambiguous with MatchContext.countdown_remaining)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchLifecycle.gd:match_timer_left",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
+   "reason": "live: autoload/Match.gd:373 forwards to it (name-ambiguous with MatchContext.match_timer_left)"
   },
   {
    "id": "test-only-func",
    "entry": "autoload/match/MatchLifecycle.gd:eliminated_by",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
+   "reason": "live: autoload/Match.gd:993 forwards to it (name-ambiguous with MatchContext.eliminated_by)"
   },
   {
    "id": "test-only-func",
