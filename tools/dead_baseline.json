@@ -644,6 +644,24 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/DebugRow.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Inetui"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/UiDebugGraph.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Ipb"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/components/UiDebugPanel.gd",
+   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
+   "consumer": "P12-Iperf"
   }
  ]
 }
