@@ -85,6 +85,11 @@ func sky_cycle_seconds() -> float:
 		return maxf(_interpolator.render_time_ms(), 0.0) / 1000.0
 	return _host_clock_ms / 1000.0
 var _last_snapshot_bytes: int = 0
+## Bodies and fragments of the newest snapshot the host sent (0 on a client).
+var _last_snapshot_bodies: int = 0
+var _last_snapshot_fragments: int = 0
+## Snapshots since begin_match(): sent (host) or distinct sequences applied (client).
+var _snapshots_total: int = 0
 ## Cumulative snapshot bytes since begin_match(): sent (host) or applied (client).
 var _snapshot_bytes_total: int = 0
 var _keyframe_cursor: int = 0
@@ -141,6 +146,9 @@ func begin_match(registry: Node, map_def: MapDef) -> void:
 	_stats_accumulator = 0.0
 	_last_noted_sequence = -1
 	_last_snapshot_bytes = 0
+	_last_snapshot_bodies = 0
+	_last_snapshot_fragments = 0
+	_snapshots_total = 0
 	_keyframe_cursor = 0
 	_known_peer_count = 0
 	_order.clear()
@@ -202,6 +210,36 @@ func snapshot_bytes_total() -> int:
 	return _snapshot_bytes_total
 
 
+## Snapshots this match: sent on the host, distinct sequences applied on a client.
+func snapshots_total() -> int:
+	return _snapshots_total
+
+
+## Bytes of the newest snapshot: sent (host) or applied (client).
+func last_snapshot_bytes() -> int:
+	return _last_snapshot_bytes
+
+
+## Bodies in the newest snapshot the host sent; 0 on a client.
+func last_snapshot_bodies() -> int:
+	return _last_snapshot_bodies
+
+
+## Fragments of the newest snapshot the host sent; 0 on a client.
+func last_snapshot_fragments() -> int:
+	return _last_snapshot_fragments
+
+
+## Smoothed snapshot arrival jitter in ms (client).
+func arrival_jitter_ms() -> float:
+	return _interpolator.jitter_ms() if _interpolator != null else 0.0
+
+
+## Snapshot samples naming a body that has not spawned yet, this match (client).
+func dropped_unknown() -> int:
+	return _interpolator.dropped_unknown_count() if _interpolator != null else 0
+
+
 ## Host only: makes the next snapshot carry every body, the
 ## same thing a newly connected peer id triggers in host_tick(). net/MatchNet.gd
 ## calls it once a mid-match joiner acknowledges its world replay: the joiner
@@ -249,6 +287,8 @@ func host_tick(delta: float) -> void:
 		_known_peers = PackedInt32Array()
 		_selector.reset()
 		_last_snapshot_bytes = 0
+		_last_snapshot_bodies = 0
+		_last_snapshot_fragments = 0
 		_send_accumulator = 0.0
 		return
 	var has_new_peer: bool = false
@@ -283,6 +323,9 @@ func host_tick(delta: float) -> void:
 	for packet: PackedByteArray in packets:
 		_last_snapshot_bytes += packet.size()
 	_snapshot_bytes_total += _last_snapshot_bytes
+	_last_snapshot_bodies = bodies.size()
+	_last_snapshot_fragments = packets.size()
+	_snapshots_total += 1
 	_remember_sent(bodies)
 
 	for packet: PackedByteArray in packets:
@@ -447,7 +490,10 @@ func _apply_packet(packet: PackedByteArray) -> void:
 	# One note per snapshot, not per fragment (Interpolator.note_snapshot).
 	if sequence != _last_noted_sequence:
 		_last_noted_sequence = sequence
+		_snapshots_total += 1
+		_last_snapshot_bytes = 0
 		_interpolator.note_snapshot(sequence, host_time_ms, now())
+	_last_snapshot_bytes += packet.size()
 
 	if (int(fragment["flags"]) & SnapshotWire.FLAG_DISK_STATE) != 0:
 		var disk_transform: Transform3D = fragment["disk_transform"] as Transform3D
