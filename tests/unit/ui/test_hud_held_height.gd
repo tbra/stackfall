@@ -35,9 +35,8 @@ func _publish(shape: BlockShape, height: float, is_visible: bool = true) -> void
 func _hud() -> Label:
 	var hud: HUD = autofree((load("res://ui/hud/HUD.tscn") as PackedScene).instantiate()) as HUD
 	add_child_autofree(hud)
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.max_height_by_slot[SLOT] = TOWER_M
-	hud.match_provider = fake_match
+	_fake_context.max_height_by_slot[SLOT] = TOWER_M
+	hud.match_context = _fake_context
 	hud.set_local_slot(SLOT)
 	return hud.get_node("%HeightLabel") as Label
 

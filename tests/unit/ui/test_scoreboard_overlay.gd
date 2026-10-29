@@ -15,34 +15,22 @@ class FakeStats:
 		return payload
 
 
-class ScoreFakeMatch:
-	extends RefCounted
-	var config: MatchConfig = MatchConfig.new()
-	var fake_stats: FakeStats = FakeStats.new()
-	var current_state: MatchAutoload.State = MatchAutoload.State.PLAYING
-
-	## Slot 0 has a live colour; slot 1 is unknown so the default palette applies.
-	func slot(slot_id: int) -> PlayerSlot:
-		if slot_id == 0:
-			return PlayerSlot.new(0, 0, "Ann", Color(0.1, 0.2, 0.3), Vector2.ZERO)
-		return null
-
-	func state() -> MatchAutoload.State:
-		return current_state
-
-	func stats() -> FakeStats:
-		return fake_stats
-
-
 var _overlay: ScoreboardOverlay = null
-var _match: ScoreFakeMatch = null
+var _match: FakeMatchContext = null
+var _stats: FakeStats = null
 
 
 func before_each() -> void:
-	_match = ScoreFakeMatch.new()
-	_match.fake_stats.payload = _live_payload()
+	_match = FakeMatchContext.new()
+	_match.state_value = MatchPhase.State.PLAYING
+	_match.config_value = MatchConfig.new()
+	## Slot 0 has a live colour; slot 1 is unknown so the default palette applies.
+	_match.slot_by_id[0] = PlayerSlot.new(0, 0, "Ann", Color(0.1, 0.2, 0.3), Vector2.ZERO)
+	_stats = FakeStats.new()
+	_stats.payload = _live_payload()
+	_match.stats_value = _stats
 	_overlay = SCENE.instantiate() as ScoreboardOverlay
-	_overlay.match_provider = _match
+	_overlay.match_context = _match
 	add_child_autofree(_overlay)
 
 
@@ -129,7 +117,7 @@ func _label_texts() -> PackedStringArray:
 
 
 func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
-	_match.config.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
+	_match.config_value.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
 	await _send(_key(true))
 	var texts: PackedStringArray = _label_texts()
 	assert_has(texts, "Ann")
@@ -150,12 +138,12 @@ func test_table_shows_the_live_rows_with_alive_status() -> void:
 
 
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:
-	_match.current_state = MatchAutoload.State.END
+	_match.state_value = MatchPhase.State.END
 	await _send(_key(true))
 	assert_false(_overlay._root.visible, "results screen owns the END state")
 	await _send(_key(false))
 
-	_match.current_state = MatchAutoload.State.PLAYING
+	_match.state_value = MatchPhase.State.PLAYING
 	_overlay.suppressed = true
 	await _send(_key(true))
 	assert_false(_overlay._root.visible, "sandbox keeps Tab for sandbox_next_slot")
