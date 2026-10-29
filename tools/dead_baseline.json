@@ -868,30 +868,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:copy_text",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:is_exported_field",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:reset_resource",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:write_sections",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
