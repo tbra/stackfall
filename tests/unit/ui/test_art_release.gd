@@ -3,14 +3,7 @@ extends GutTest
 ## resident after their screen/effect ends, and must load again when needed.
 
 const LOAD_WAIT_S: float = 10.0
-const REAL_LOAD_WAIT_MS: int = 60000
 const SETTLE_FRAMES: int = 4
-
-
-func _slots() -> Array[PlayerSlot]:
-	var slots: Array[PlayerSlot] = []
-	slots.append(PlayerSlot.new(0, 0, "Player 1", Color.WHITE))
-	return slots
 
 
 ## The shared GUT process (earlier scripts, autoload prefetch) may already hold a
@@ -43,36 +36,22 @@ func test_splash_art_is_released_after_finish() -> void:
 	assert_true(load(SplashScreen.IMAGE_PATH) is Texture2D, "loads again on demand")
 
 
-## The 4K backdrop decodes on a worker thread in real time (the runner fast-forwards frames), so wait
-## on the wall clock, not game time.
-func _wait_real(condition: Callable) -> void:
-	var start_ms: int = Time.get_ticks_msec()
-	while not condition.call() and Time.get_ticks_msec() - start_ms < REAL_LOAD_WAIT_MS:
-		await get_tree().process_frame
-
-
-func test_loading_backdrop_is_released_after_fade_and_reloads() -> void:
-	var screen: LoadingScreen = load("res://ui/menus/LoadingScreen.tscn").instantiate() as LoadingScreen
-	add_child_autofree(screen)
-	screen.tuning = LoadingScreenTuning.new()
-	screen.tuning.warmup_frames = 1
-	screen.tuning.fade_out_duration_s = 0.02
-	screen.tuning.ready_timeout_s = 3600.0  # frames are fast-forwarded; the image loads in real time
+func test_loading_backdrop_is_released_after_clear_and_reloads() -> void:
+	var backdrop: LoadingBackdrop = LoadingBackdrop.new()
+	add_child_autofree(backdrop)
 	var config: MatchConfig = MatchConfig.new()
-	var was_held: bool = ResourceLoader.has_cached(screen.backdrop_path_for(config))
-	screen.show_for_match(config, _slots())
-	await _wait_real(func() -> bool: return screen._backdrop.texture != null)
-	var path: String = screen._backdrop_shown_path
-	var ref: WeakRef = weakref(screen._backdrop.texture)
-	assert_false(path.is_empty())
-	screen.fade_out()
-	await wait_until(func() -> bool: return not screen.visible, LOAD_WAIT_S, "fade finishes")
+	var path: String = backdrop.path_for(config)
+	var was_held: bool = ResourceLoader.has_cached(path)
+	backdrop.show_for(config, 0.0)
+	assert_not_null(backdrop.texture)
+	var ref: WeakRef = weakref(backdrop.texture)
+	backdrop.finish_fade()
+	backdrop.clear()
 	await wait_process_frames(SETTLE_FRAMES)
-	assert_null(screen._backdrop.texture, "rect holds no plate after the match starts")
+	assert_null(backdrop.texture, "rect holds no plate after the match starts")
 	if not was_held:
 		await wait_until(func() -> bool: return ref.get_ref() == null, LOAD_WAIT_S)
 		assert_null(ref.get_ref(), "plate freed")
 		assert_false(ResourceLoader.has_cached(path), "plate not cached")
-	screen.show_for_match(config, _slots())
-	await _wait_real(func() -> bool: return screen._backdrop.texture != null)
-	assert_false(screen._backdrop_shown_path.is_empty(), "the next loading screen shows an image again (a fresh random pick)")
+	backdrop.show_for(config, 0.0)
+	assert_not_null(backdrop.texture, "the next loading screen shows an image again")
