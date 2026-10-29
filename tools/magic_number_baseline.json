@@ -87,7 +87,6 @@
  "ui/hud/Minimap.gd": 7,
  "ui/lobby/Lobby.gd": 1,
  "ui/menus/KeyRebindRow.gd": 2,
- "ui/menus/MainMenu.gd": 3,
  "ui/menus/MenuBackdrop.gd": 9,
  "ui/menus/OptionsMenu.gd": 1,
  "ui/menus/ResultsScreen.gd": 3,
