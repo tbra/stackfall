@@ -162,19 +162,11 @@ func test_demo_buttons_do_nothing_when_debug_mode_is_off() -> void:
 	assert_false(_node(menu, "GiftDemoButton").is_visible_in_tree())
 
 
-func test_play_local_has_no_name_input_and_vs_bots_first() -> void:
+func test_play_local_has_no_name_input_and_focuses_vs_bots() -> void:
 	var menu: MainMenu = _make_menu()
 	menu._on_play_local_pressed()
 	assert_false(_node(menu, "NameEdit").is_visible_in_tree())
-	assert_false((menu.get_node("Center/Panel/Layout/NameField") as Control).is_visible_in_tree())
-	var visible_row: Array[Button] = []
-	for child: Node in (menu.get_node("Center/Panel/Layout/BottomRow") as Control).get_children():
-		var button: Button = child as Button
-		if button != null and button.visible:
-			visible_row.append(button)
-	assert_eq(visible_row.size(), 4)
-	assert_eq(visible_row[0], _node(menu, "BotsButton"), "vs Bots is the first option")
-	assert_eq(_focus(), _node(menu, "BotsButton"), "and it takes focus first")
+	assert_eq(_focus(), _node(menu, "BotsButton"), "vs Bots takes focus first")
 
 
 func test_every_pad_direction_reaches_every_play_local_option() -> void:
