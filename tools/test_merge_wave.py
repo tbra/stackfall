@@ -80,19 +80,38 @@ class PureRuleTests(unittest.TestCase):
 
 
 class AllowUnionTests(unittest.TestCase):
-    def test_union_and_differing_reason(self):
-        a = {"checks": {"dead-file": ["x.gd"]}, "allow": [{"id": "dead-file", "entry": "a.gd", "reason": "ra"}]}
-        b = {"checks": {}, "allow": [{"id": "dead-file", "entry": "b.gd", "reason": "rb"},
-                                     {"id": "dead-file", "entry": "a.gd", "reason": "ra"}]}
-        text, reason = mw.merge_allow(json.dumps(a), json.dumps(b))
-        self.assertIsNone(reason)
-        merged = json.loads(text)
-        self.assertEqual([e["entry"] for e in merged["allow"]], ["a.gd", "b.gd"])
-        self.assertEqual(merged["checks"], a["checks"])
-        b["allow"][1]["reason"] = "other"
-        text, reason = mw.merge_allow(json.dumps(a), json.dumps(b))
-        self.assertIsNone(text)
-        self.assertIn("a.gd", reason)
+    @staticmethod
+    def doc(*rows):
+        return json.dumps({"checks": {}, "allow": [{"id": "dead-file", "entry": e, "reason": r} for e, r in rows]})
+
+    def merge(self, ours, theirs, base):
+        text, reason = mw.merge_allow(self.doc(*ours), self.doc(*theirs), self.doc(*base))
+        return (None if text is None else [(e["entry"], e["reason"]) for e in json.loads(text)["allow"]]), reason
+
+    def test_only_ours_changed(self):
+        got, _ = self.merge([("a", "new"), ("b", "r")], [("a", "r"), ("b", "r")], [("a", "r")] )
+        self.assertEqual(got, [("a", "new"), ("b", "r")])
+
+    def test_only_theirs_changed(self):
+        got, _ = self.merge([("a", "r")], [("a", "new"), ("c", "r")], [("a", "r")])
+        self.assertEqual(got, [("a", "new"), ("c", "r")])
+
+    def test_both_changed_equal(self):
+        got, _ = self.merge([("a", "new")], [("a", "new")], [("a", "r")])
+        self.assertEqual(got, [("a", "new")])
+
+    def test_both_changed_different_refused(self):
+        got, reason = self.merge([("a", "x")], [("a", "y")], [("a", "r")])
+        self.assertIsNone(got)
+        self.assertIn("a", reason)
+
+    def test_one_side_removed_unchanged_entry(self):
+        got, _ = self.merge([("a", "r"), ("b", "r")], [("b", "r")], [("a", "r"), ("b", "r")])
+        self.assertEqual(got, [("b", "r")])
+
+    def test_removed_by_one_changed_by_other_refused(self):
+        got, _ = self.merge([], [("a", "new")], [("a", "r")])
+        self.assertIsNone(got)
 
 
 def sh(cwd, *args):
