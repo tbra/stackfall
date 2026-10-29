@@ -644,6 +644,36 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:is_exported_field",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:write_sections",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:copy_text",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:reset_resource",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/debug/TuningSkyTab.gd",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.2): TuningPanel creates it in _ready once the sky-tab package lands; that bead removes this entry",
+   "consumer": "P12-Isky"
   }
  ]
 }

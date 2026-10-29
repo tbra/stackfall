@@ -20,6 +20,7 @@ extends CanvasLayer
 ## DECISION (ui/debug/SandboxPanel.gd): same Variant test seam as ui/hud/HUD.gd's match_provider
 ## and ui/debug/NetDebugOverlay.gd's net_provider; GUT cannot double the plain Match autoload.
 var match_provider: Variant = null
+var match_context: MatchContext = null
 
 ## Emitted by the block-picker / special-spawn dropdowns; game/sandbox/Sandbox.gd connects them. An
 ## empty special id is the "off" entry.
@@ -72,8 +73,10 @@ func _ready() -> void:
 
 ## Called once by game/sandbox/Sandbox.gd after both children exist. `ghost` gives the world
 ## position/orientation the validity reason and the held-block labels read.
-func configure(ghost: GhostPreview) -> void:
+## Transitional: `context` is stored, reads still go through match_provider until the panel switches over.
+func configure(ghost: GhostPreview, context: MatchContext = null) -> void:
 	_ghost = ghost
+	match_context = context
 	_refresh()
 
 
