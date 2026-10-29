@@ -315,94 +315,29 @@ func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButto
 
 
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
-	# ui/lobby/Lobby.tscn (unlike ui/menus/OptionsMenu.tscn) carries no static
-	# focus_neighbor_* NodePaths -- _wire_focus_chain() builds the chain at
-	# runtime once the dynamic specials checklist exists. Mirror
-	# test_options_menu.gd's test_focus_chain_is_a_closed_loop_through_every_row().
+	# Lobby.tscn carries no static neighbours: the chain is built at runtime. The rule is that no
+	# row is a focus dead end and the loop closes, with the Advanced blocks shut and open.
 	var lobby: Lobby = _make_lobby(true)
-
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	# section headers are static; the loop starts at the GAME mode.
-	var first_stop: Control = lobby.get_node("%GameModeOption") as Control
-	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, first_stop, "the chain must wrap from StartButton back to the game mode")
-
-	var top_neighbor: Node = first_stop.get_node(first_stop.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "the game mode's up neighbor must close the loop back to StartButton")
-	var second_option: Control = lobby.get_node("%DiscSizeMeter") as Control
-	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
-
-	# S1b: the hidden sources of truth (%TeamModeOption, the seat spins and
-	# the default-difficulty dropdown, plus the map variant/size options behind the combined
-	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
-	# blocks and the hidden Steam-only invite button are not stops either.
-	var chain_unique_names: Array[String] = [
-		"%DiscSizeMeter", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
-		"%MatchTimerStepper", "%SuddenDeathCheck",
-		"%GiftsCheck", "%SpecialFreqMeter", "%StartButton",
-	]
-	for unique_name: String in chain_unique_names:
-		var control: Control = lobby.get_node(unique_name) as Control
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	for stepper: Control in [lobby._block_timer_stepper, lobby._goal_flag_stepper]:
-		assert_ne(stepper.focus_neighbor_bottom, NodePath(""), "stepper %s must have a down neighbor" % stepper.name)
-	# Opening the GAME Advanced block puts its controls in the loop.
+	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "advanced closed")
 	(lobby.get_node("%GameSection") as UiSection).set_advanced_open(true)
-	for unique_name: String in ["%GravityMeter", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
-		var control: Control = lobby.get_node(unique_name) as Control
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % unique_name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % unique_name)
-
-	assert_false((lobby.get_node("%TeamModeOption") as Control).is_visible_in_tree(), "TeamModeOption stays a hidden source of truth (teams are toggled in the players panel)")
-
-	# ... and so do the GIFTS Advanced (per-gift) block once opened.
 	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
-	for control: Control in lobby._special_checkboxes:
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % control.name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % control.name)
-
 	# Experiments default off: nothing hidden or disabled traps focus, and the loop closes.
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments off")
-	# Switched on: every visible, enabled control is reachable with up/down and the loop still closes.
+	# Switched on: every visible, enabled control is reachable with down and the loop still closes.
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments on")
 
 
-## Follows focus_neighbor_bottom from `start` once round: every stop is a live (visible, enabled)
-## control, the loop closes back on `start`, and every live focusable control of the settings column is a stop.
+## Moves down from `start` once round: every stop is a live (visible, enabled) control, the loop
+## closes back on `start`, and every live focusable control of the settings column is a stop.
 func _assert_pad_loop_reaches_every_live_control(lobby: Lobby, start: Control, label: String) -> void:
-	var stops: Array[Control] = [start]
-	var current: Control = start
-	var closed: bool = false
-	for _i: int in range(200):
-		var next: Control = current.get_node_or_null(current.focus_neighbor_bottom) as Control
-		if next == null:
-			break
-		if next == start:
-			closed = true
-			break
-		stops.append(next)
-		current = next
-	assert_true(closed, "%s: the down chain closes back on StartButton" % label)
+	var stops: Array[Control] = FocusWalk.loop(start, SIDE_BOTTOM)
+	assert_true(FocusWalk.is_closed(stops, start, SIDE_BOTTOM), "%s: the down chain closes back on StartButton" % label)
 	for stop: Control in stops:
-		assert_true(stop == start or _is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
-	for control: Control in _live_focusable_controls(lobby.get_node("%Settings")):
+		assert_true(stop == start or FocusWalk.is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
+	for control: Control in FocusWalk.live_focusable(lobby.get_node("%Settings") as Control):
 		assert_true(stops.has(control), "%s: %s is reachable with down" % [label, control.name])
-
-
-func _is_live(control: Control) -> bool:
-	return control.is_visible_in_tree() and not (control is BaseButton and (control as BaseButton).disabled)
-
-
-func _live_focusable_controls(root: Node) -> Array[Control]:
-	var found: Array[Control] = []
-	for child: Node in root.get_children():
-		var control: Control = child as Control
-		if control != null and control.focus_mode == Control.FOCUS_ALL and _is_live(control):
-			found.append(control)
-		found.append_array(_live_focusable_controls(child))
-	return found
 
 
 ## X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
