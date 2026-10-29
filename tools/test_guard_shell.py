@@ -114,14 +114,17 @@ class FindTest(unittest.TestCase):
     def test_find_refused_for_every_agent(self):
         for cmd in ("find / -name P7_PLAN.md", "find . -type f", "/usr/bin/find . -name x", "find.exe . -name x",
                     '"find" .', "cd /d && find . -name x", "ls | xargs find", "timeout 5 find .",
-                    "env A=1 find .", "A=1 find .", "echo hi; find .", "bash -c 'cd x && find .'"):
+                    "env A=1 find .", "A=1 find .", "echo hi; find .", "bash -c 'cd x && find .'",
+                    'echo "$(find .)"', "echo \"`find .`\"", 'echo "x"; find .', "(find .)"):
             for role in (None, "stackfall-implementer", "stackfall-orchestrator", "stackfall-integrator"):
                 self.assertEqual(g.problem(cmd, role), g.REASON_FIND, (cmd, role))
 
     def test_mentions_that_are_not_the_command_pass(self):
         for cmd in ("echo find", 'grep -n "find" tools/x.py', "git log --grep find", "python tools/find_dead.py",
                     "rg --files tools", "git ls-files", "git commit -m 'find /'", "grep -r find . | head",
-                    "python tools/dep_graph.py --callers A.find", "ls findings.txt", "git -C find status"):
+                    "python tools/dep_graph.py --callers A.find", "ls findings.txt", "git -C find status",
+                    'bd remember --key k "orphaned whole-disk find; then (find stale) | find x"',
+                    "tasklist | grep -iE \"^(find|godot)\"", "echo 'a; find .'", 'echo "a && find ."'):
             for role in (None, "stackfall-orchestrator"):
                 self.assertIsNone(g.problem(cmd, role), (cmd, role))
 

@@ -43,7 +43,7 @@ FULL_SUITE = re.compile(
     r"-gdir=res://tests/?(?=[\s\"']|$)"
     r"|" + _SEP + _PREFIX + r"python\S*\s+(?:\S*[\\/])?full_gate\.py\b",
     re.IGNORECASE)
-_SEGMENT_SPLIT = re.compile(r"[;&|(`\n]|\$\(")
+_SHELLS = frozenset(("bash", "sh", "bash.exe", "sh.exe"))
 _TOKEN = re.compile(r"\"[^\"]*\"|'[^']*'|\S+")
 # Commands that run their first non-option argument; their own option values are skipped loosely.
 _WRAPPERS = frozenset(("timeout", "env", "xargs", "command", "nice", "nohup", "sudo", "exec", "time", "builtin"))
@@ -72,9 +72,48 @@ def _command_index(tokens):
     return i
 
 
-def _is_git_stash(tokens):
-    i = _command_index(tokens)
-    if i >= len(tokens) or _basename(tokens[i]) not in ("git", "git.exe"):
+def _segments(command):
+    """Command segments split at ; & | ( ` newline and $( outside quotes. Single quotes hide everything;
+    double quotes hide all but command substitution, so quoted prose never starts a segment."""
+    segments, start, quote, i = [], 0, None, 0
+    while i < len(command):
+        c = command[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+        elif c == "\\":
+            i += 1
+        elif quote == '"' and c == '"':
+            quote = None
+        elif quote is None and c in "'\"":
+            quote = c
+        elif c == "`" or command.startswith("$(", i) or (quote is None and c in ";&|(\n"):
+            segments.append(command[start:i])
+            i += 2 if command.startswith("$(", i) else 1
+            start = i
+            continue
+        i += 1
+    segments.append(command[start:])
+    return segments
+
+
+def _runs(command, is_command):
+    """True when a segment's command satisfies is_command(tokens, index); recurses into `bash -c '...'`."""
+    for segment in _segments(command):
+        tokens = _TOKEN.findall(segment)
+        i = _command_index(tokens)
+        if i >= len(tokens):
+            continue
+        if _basename(tokens[i]) in _SHELLS and i + 2 < len(tokens) and _word(tokens[i + 1]) == "-c":
+            if _runs(_word(tokens[i + 2]), is_command):
+                return True
+        elif is_command(tokens, i):
+            return True
+    return False
+
+
+def _is_git_stash(tokens, i):
+    if _basename(tokens[i]) not in ("git", "git.exe"):
         return False
     i += 1
     while i < len(tokens) and _word(tokens[i]).startswith("-"):
@@ -84,17 +123,12 @@ def _is_git_stash(tokens):
 
 def git_stash(command):
     """True when a command segment runs `git stash` (any global options or wrapper in front)."""
-    return any(_is_git_stash(_TOKEN.findall(segment)) for segment in _SEGMENT_SPLIT.split(command))
+    return _runs(command, _is_git_stash)
 
 
 def find_command(command):
     """True when a command segment runs `find` (any wrapper, path or quoting in front)."""
-    for segment in _SEGMENT_SPLIT.split(command):
-        tokens = _TOKEN.findall(segment)
-        i = _command_index(tokens)
-        if i < len(tokens) and _basename(tokens[i]) in ("find", "find.exe"):
-            return True
-    return False
+    return _runs(command, lambda tokens, i: _basename(tokens[i]) in ("find", "find.exe"))
 
 
 ORCHESTRATOR_ROLE = "stackfall-orchestrator"
