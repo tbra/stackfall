@@ -59,6 +59,16 @@ func configure(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	_loss = clampf(loss, 0.0, 1.0)
 
 
+## The one-way lag in force, in ms (clamped as configured).
+func lag_ms() -> float:
+	return _lag_ms
+
+
+## The drop fraction in force, 0..1.
+func loss() -> float:
+	return _loss
+
+
 ## True when nothing is being delayed or dropped, so callers can skip the
 ## queue entirely on the common path.
 func is_idle() -> bool:
