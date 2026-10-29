@@ -21,9 +21,6 @@ signal ready_prompt_opened
 @export var tuning: LoadingScreenTuning = preload("res://config/ui/loading_screen_tuning.tres")
 @export var menu_visual_tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 @export var tip_table: LoadingTipTable = preload("res://config/ui/loading_tip_table.tres")
-## test seam: anything answering name_for_slot(slot_id) -> String
-## (Net does). Null means the real Net autoload.
-var name_provider: Variant = null
 
 ## The overlay's content sits on its own CanvasLayer so it covers the HUD (CanvasLayer 1) and its
 ## countdown digit. DECISION: layer, not hiding the HUD -- the countdown simply is not
@@ -36,7 +33,7 @@ var name_provider: Variant = null
 ## the prerendered arena plate (cover-cropped), the flat darkening and
 ## the vignette drawn over it. Dim and Vignette are children of the Backdrop, so they
 ## fade in and out with the plate.
-@onready var _backdrop: TextureRect = %Backdrop
+@onready var _backdrop: LoadingBackdrop = %Backdrop
 @onready var _dim: ColorRect = %Dim
 @onready var _vignette: TextureRect = %Vignette
 @onready var _card: PanelContainer = %Card
@@ -57,12 +54,6 @@ const READY_ACTION: StringName = &"ui_accept"
 const READY_TEXT: String = "Ready"
 const NOT_READY_TEXT: String = "Not ready"
 ## the loading backdrop is one of the main menu's images (MainMenuTuning.backdrop_paths).
-const MENU_TUNING_PATH: String = "res://config/ui/main_menu_tuning.tres"
-## Frames a fetched plate stays referenced so queued RenderingServer commands drain.
-const TEXTURE_RELEASE_FRAMES: int = 3
-## DisplayServer.get_name() of a --headless run, which renders with the dummy rasterizer.
-const HEADLESS_DISPLAY: String = "headless"
-
 ## Stage fraction, kept only for progress() (game/main/Main.gd still reports it).
 var _progress: float = 0.0
 var _is_fading: bool = false
@@ -92,18 +83,6 @@ var _prompt_announced: bool = false
 var _last_tip_index: int = -1
 ## One entry per player-list row: {slot_id: int, is_bot: bool, mark: Control}.
 var _ready_rows: Array[Dictionary] = []
-## backdrop state. _backdrop_path is the plate chosen for the current
-## match ("" = none: no config yet, or no plate on disk); _backdrop_shown_path is the
-## plate whose texture the rect holds. _backdrop_requested: a threaded load of
-## _backdrop_path is in flight. _backdrop_orphans: superseded requests, still to be
-## collected so the loader does not keep them.
-var _backdrop_path: String = ""
-## The image picked for this loading screen; forgotten when the overlay hides so the next one re-rolls.
-var _backdrop_session_path: String = ""
-var _backdrop_shown_path: String = ""
-var _backdrop_requested: bool = false
-var _backdrop_orphans: PackedStringArray = PackedStringArray()
-var _backdrop_tween: Tween = null
 
 const WARM_SHADERS: Array[String] = [
 	"res://shaders/blocks/block_cell_grid.gdshader",
@@ -157,7 +136,7 @@ func show_for_match(config: MatchConfig, slots: Array[PlayerSlot]) -> void:
 	if not keep_tip:
 		_show_next_tip()
 	_refresh_map_icon(config)
-	_select_backdrop(config)
+	_backdrop.show_for(config, tuning.backdrop_fade_in_s)
 	_rebuild_ready_rows(slots)
 	set_stage("Building world", tuning.world_progress)
 	_set_opacity(1.0)
@@ -266,7 +245,6 @@ func _input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	_poll_backdrop(true)
 	if _ready_gate_armed:
 		_refresh_ready_ui()
 	if _is_pending:
@@ -306,12 +284,10 @@ func fade_out() -> void:
 	visible = false
 	set_process(false)
 	_is_fading = false
-	_finish_backdrop_fade()
-	_drain_backdrop_orphans()
+	_backdrop.finish_fade()
 	# the plate is only needed while the screen is up; drop it so the 1920x1080 art leaves memory
-	# (the next show_for_match() re-requests it because the shown path is cleared).
-	_clear_backdrop()
-	_backdrop_session_path = ""
+	# (the next show_for_match() re-requests it and picks a new plate).
+	_backdrop.clear()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -360,10 +336,8 @@ func cancel() -> void:
 	set_process(false)
 	clear_player_rows()
 	_refresh_ready_ui()
-	_abandon_backdrop_request()
-	_finish_backdrop_fade()
-	_drain_backdrop_orphans()
-	_backdrop_session_path = ""
+	# DECISION: a cancelled screen also drops its plate (it used to keep it) so one call ends a screen.
+	_backdrop.clear()
 	if _warm_viewport != null:
 		_warm_viewport.queue_free()
 		_warm_viewport = null
@@ -406,14 +380,9 @@ func _map_display_name(config: MatchConfig) -> String:
 ## keeps its slot label plus tuning.bot_suffix; an unnamed seat stays "Player N".
 func _slot_label_text(slot_item: PlayerSlot) -> String:
 	var shown: String = PlayerNames.label_for_slot(
-		slot_item.slot_id, slot_item.display_name, slot_item.is_bot, String(_names().name_for_slot(slot_item.slot_id))
+		slot_item.slot_id, slot_item.display_name, slot_item.is_bot, String(Net.name_for_slot(slot_item.slot_id))
 	)
 	return "%s%s" % [shown, tuning.bot_suffix if slot_item.is_bot else ""]
-
-
-## The roster's name lookup: the real Net unless a test installed a double.
-func _names() -> Variant:
-	return name_provider if name_provider != null else Net
 
 
 # --- prerendered arena backdrop -----------------------------------
@@ -433,158 +402,6 @@ func _apply_backdrop_styles() -> void:
 	vignette.width = tuning.backdrop_vignette_size_px
 	vignette.height = tuning.backdrop_vignette_size_px
 	_vignette.texture = vignette
-
-
-## The backdrop for this match: one of the main menu's images (MainMenuTuning.backdrop_paths,
-## the single list), chosen at random once per loading screen. "" when there is no config yet
-## (a client's pending overlay: show_for_match() runs again with it) or no image is listed.
-## DECISION: the pick may differ from the main menu's.
-func backdrop_path_for(config: MatchConfig) -> String:
-	if config == null:
-		return ""
-	if _backdrop_session_path.is_empty():
-		var menu_tuning: MainMenuTuning = load(MENU_TUNING_PATH) as MainMenuTuning
-		_backdrop_session_path = MenuBackdrop.pick_path(menu_tuning.backdrop_paths, randf())
-	return _backdrop_session_path if ResourceLoader.exists(_backdrop_session_path) else ""
-
-
-## Chooses the plate and starts loading it on a worker thread, so showing the overlay
-## never stalls on a 1920x1080 decode. The same plate as the previous show (or as the
-## pending overlay's) is kept as it is; a different one drops the stale texture at once
-## so it never flashes, and appears (fading in) when loaded.
-func _select_backdrop(config: MatchConfig) -> void:
-	var path: String = backdrop_path_for(config)
-	if path == _backdrop_path and (path.is_empty() or _backdrop_requested or _backdrop_shown_path == path):
-		return
-	_abandon_backdrop_request()
-	_backdrop_path = path
-	if path != _backdrop_shown_path:
-		_clear_backdrop()
-	if path.is_empty() or path == _backdrop_shown_path:
-		return
-	var orphan_index: int = _backdrop_orphans.find(path)
-	if orphan_index >= 0:
-		_backdrop_orphans.remove_at(orphan_index)
-	if not threaded_texture_loads_safe():
-		_show_backdrop(load(path) as Texture2D, false)
-		return
-	if ResourceLoader.load_threaded_request(path, "Texture2D") != OK:
-		push_warning("LoadingScreen: could not request the backdrop %s." % path)
-		return
-	_backdrop_requested = true
-	# A plate still cached from an earlier match lands now, with no fade.
-	_poll_backdrop(false)
-
-
-## Collects the in-flight plate once the worker thread has it (called every frame while
-## the overlay runs). `animate` fades it in; a plate that was already loaded appears at
-## once.
-func _poll_backdrop(animate: bool) -> void:
-	_drain_backdrop_orphans()
-	if not _backdrop_requested:
-		return
-	var status: ResourceLoader.ThreadLoadStatus = ResourceLoader.load_threaded_get_status(_backdrop_path)
-	if status == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-		return
-	_backdrop_requested = false
-	if status != ResourceLoader.THREAD_LOAD_LOADED:
-		push_warning("LoadingScreen: the backdrop %s failed to load." % _backdrop_path)
-		return
-	_show_backdrop(ResourceLoader.load_threaded_get(_backdrop_path) as Texture2D, animate)
-
-
-## Headless loads on the main thread: Godot's dummy rasterizer keeps texture RIDs in a RID_PtrOwner
-## without a lock ('Parameter "t" is null', texture_storage.h:85; RD/GLES3 use a thread-safe owning
-## handle), and RenderingServer allocates a
-## texture's RID on the calling thread. A plate decoded on a loader thread allocated its RID
-## while the main thread created or freed textures; both threads took the same slot and one
-## texture lost it. A sequential load has no second thread, so headless (the dummy
-## rasterizer) loads the plate on the main thread; a real renderer keeps the worker.
-## DECISION: headless only (tests, dedicated hosts): nobody sees the plate there, and the
-## lossless decode is a one-off main-thread cost.
-static func threaded_texture_loads_safe() -> bool:
-	return DisplayServer.get_name() != HEADLESS_DISPLAY
-
-
-## Shows a fetched plate (null: nothing to show); `animate` fades it in.
-func _show_backdrop(texture: Texture2D, animate: bool) -> void:
-	if texture == null:
-		return
-	_backdrop.texture = texture
-	_backdrop.visible = true
-	_backdrop_shown_path = _backdrop_path
-	_kill_backdrop_tween()
-	if animate and tuning.backdrop_fade_in_s > 0.0:
-		_backdrop.modulate.a = 0.0
-		_backdrop_tween = create_tween()
-		_backdrop_tween.tween_property(_backdrop, ^"modulate:a", 1.0, tuning.backdrop_fade_in_s)
-	else:
-		_backdrop.modulate.a = 1.0
-
-
-## Drops the shown plate (and any fade), leaving only the plain background.
-func _clear_backdrop() -> void:
-	_kill_backdrop_tween()
-	release_later(_backdrop.texture)
-	_backdrop.texture = null
-	_backdrop.visible = false
-	_backdrop.modulate.a = 0.0
-	_backdrop_shown_path = ""
-
-
-## A hidden overlay keeps its plate fully visible, so the next show of the same plate
-## (a rematch) is not left mid fade-in.
-func _finish_backdrop_fade() -> void:
-	if _backdrop_shown_path.is_empty():
-		return
-	_kill_backdrop_tween()
-	_backdrop.modulate.a = 1.0
-
-
-func _kill_backdrop_tween() -> void:
-	if _backdrop_tween != null and _backdrop_tween.is_valid():
-		_backdrop_tween.kill()
-	_backdrop_tween = null
-
-
-## A load in flight for a plate this match no longer wants is collected later (a
-## threaded request holds its result until it is fetched).
-func _abandon_backdrop_request() -> void:
-	if _backdrop_requested and not _backdrop_orphans.has(_backdrop_path):
-		_backdrop_orphans.append(_backdrop_path)
-	_backdrop_requested = false
-
-
-## Fetches (and drops) every abandoned plate whose worker has finished.
-func _drain_backdrop_orphans() -> void:
-	var still_loading: PackedStringArray = PackedStringArray()
-	for path: String in _backdrop_orphans:
-		if ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-			still_loading.append(path)
-		else:
-			release_later(ResourceLoader.load_threaded_get(path))
-	_backdrop_orphans = still_loading
-
-
-func _exit_tree() -> void:
-	_abandon_backdrop_request()
-	for path: String in _backdrop_orphans:
-		release_later(ResourceLoader.load_threaded_get(path))
-	_backdrop_orphans = PackedStringArray()
-
-
-## Holds the last reference to a just-fetched plate for a few frames so the RenderingServer
-## commands its loader thread queued drain before the texture is freed. A cheap guard (a
-## main-thread free flushes that queue first). A static coroutine: it outlives the node that
-## called it.
-static func release_later(resource: Resource) -> void:
-	if resource == null:
-		return
-	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	if tree == null:
-		return
-	for _frame: int in TEXTURE_RELEASE_FRAMES:
-		await tree.process_frame
 
 
 # --- the overlay's own CanvasLayer ------------------------------
