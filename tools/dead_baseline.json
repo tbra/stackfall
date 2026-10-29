@@ -376,12 +376,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/match/MatchContextLive.gd:sudden_death_active",
    "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
    "consumer": "P8-Ihud"
@@ -944,12 +938,6 @@
    "entry": "game/world/MatchContext.gd:qol_timer_paused",
    "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
    "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
   },
   {
    "id": "test-only-func",
