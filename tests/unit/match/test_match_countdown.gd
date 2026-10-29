@@ -6,18 +6,6 @@ extends "res://tests/unit/match/match_world_test.gd"
 
 const HUD_SCENE: PackedScene = preload("res://ui/hud/HUD.tscn")
 
-class CountdownProvider:
-	extends RefCounted
-	var remaining: float = 0.0
-	var match_state: int = MatchAutoload.State.COUNTDOWN
-
-	func countdown_remaining() -> float:
-		return remaining
-
-	func state() -> int:
-		return match_state
-
-
 func _config(seconds: float = MatchConfig.COUNTDOWN_SECONDS_DEFAULT) -> MatchConfig:
 	var config: MatchConfig = load("res://config/match/match_defaults.tres").duplicate(true) as MatchConfig
 	config.set_script(load("res://tests/support/TinyMapMatchConfig.gd"))
@@ -69,21 +57,21 @@ func test_zero_seconds_and_sandbox_skip_the_countdown() -> void:
 
 func test_hud_label_shows_host_remaining_then_go_then_nothing() -> void:
 	var hud: HUD = autofree(HUD_SCENE.instantiate())
-	var provider: CountdownProvider = CountdownProvider.new()
-	hud.match_provider = provider
+	var provider: FakeMatchContext = FakeMatchContext.new()
+	provider.state_value = MatchPhase.State.COUNTDOWN
+	hud.match_context = provider
 	add_child_autofree(hud)
-	hud.match_provider = provider
 	var label: Label = hud.find_child("CountdownLabel", true, false) as Label
 	assert_false(label.visible)
-	provider.remaining = 2.4
+	provider.countdown_remaining_value = 2.4
 	hud._process(0.016)
 	assert_true(label.visible)
 	assert_eq(label.text, "3")
-	provider.remaining = 1.0
+	provider.countdown_remaining_value = 1.0
 	hud._process(0.016)
 	assert_eq(label.text, "1")
-	provider.remaining = 0.0
-	provider.match_state = MatchAutoload.State.PLAYING
+	provider.countdown_remaining_value = 0.0
+	provider.state_value = MatchPhase.State.PLAYING
 	hud._process(0.016)
 	assert_eq(label.text, hud.hud_visual_tuning.countdown_go_text)
 	assert_true(label.visible)

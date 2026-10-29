@@ -107,7 +107,7 @@ func _run_client() -> void:
 		return
 	_hud = (load("res://ui/hud/HUD.tscn") as PackedScene).instantiate() as HUD
 	add_child(_hud)
-	_hud.match_provider = Match
+	_hud.match_context = MatchContext.current()
 	_hud.set_local_slot(CLIENT_SLOT)
 	print("ELIMENET client playing held=%s" % [Match.held_shape(CLIENT_SLOT) != null])
 	var end_at: int = Time.get_ticks_msec() + int(OBSERVE_S * 1000.0)

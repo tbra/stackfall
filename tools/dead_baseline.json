@@ -250,31 +250,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "autoload/Match.gd:feed_progress",
-   "reason": "live: ui/hud/HUD.gd:437 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_slot_count",
-   "reason": "live: ui/hud/HUD.gd:1747 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:pending_special_count",
-   "reason": "live: ui/hud/HUD.gd:1393 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:sudden_death_active",
-   "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:name_for_slot",
-   "reason": "live: ui/hud/HUD.gd:1185 and ui/menus/LoadingScreen.gd:409 call it through a duck-typed provider (name-ambiguous with HudPlayerLookup.name_for_slot)"
-  },
-  {
-   "id": "test-only-func",
    "entry": "autoload/Net.gd:peer_rtt_jitter_ms",
    "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
    "consumer": "P12-Inetui"
@@ -295,96 +270,6 @@
    "id": "test-only-func",
    "entry": "autoload/match/CatSession.gd:setup",
    "reason": "MatchGifts.setup (typed call), itself reached from Match.late_activate through the untyped _gifts"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:after_next_special",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:countdown_remaining",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:eliminated_by",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:feed_progress",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:gift_slot_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:gift_states",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:match_timer_left",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:max_height_for_slot",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:next_shape",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:next_special",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:pending_special_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:qol_backlog_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:qol_timer_paused",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/match/MatchContextLive.gd:sudden_death_active",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
   },
   {
    "id": "test-only-func",
@@ -869,96 +754,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:after_next_special",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:countdown_remaining",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:eliminated_by",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:feed_progress",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:gift_slot_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:gift_states",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:match_timer_left",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:max_height_for_slot",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:next_shape",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:next_special",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:pending_special_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:qol_backlog_count",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:qol_timer_paused",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:stats",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Iscore"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/world/MatchContext.gd:sudden_death_active",
-   "reason": "P8-Sctx port stub (docs/plans/P8_PLAN.md 2.1): declared, unread until the HUD reads it through match_context; that package removes this entry",
-   "consumer": "P8-Ihud"
-  },
-  {
-   "id": "test-only-func",
    "entry": "net/Interpolator.gd:jitter_ms",
    "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
    "consumer": "P12-Inetui"
@@ -1009,11 +804,6 @@
    "entry": "net/session/NetPing.gd:jitter_ms",
    "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
    "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/session/NetRoster.gd:name_at_slot",
-   "reason": "live: autoload/Net.gd:437 name_for_slot delegates to it (reached only through the name-ambiguous name_for_slot chain)"
   },
   {
    "id": "test-only-func",

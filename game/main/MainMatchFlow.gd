@@ -307,6 +307,7 @@ func build_match_world() -> void:
 		build_spectator(config)
 	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
 		var local_player: LocalPlayer = world.loader.load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
+		local_player.match_context = MatchContext.current()
 		_local_player = local_player
 		world.parent.add_child(local_player)
 		local_player.set_camera_rig(_camera_rig)
@@ -371,7 +372,7 @@ func build_spectator(config: MatchConfig) -> void:
 	_spectator = spectator
 	world.parent.add_child(spectator)
 	spectator.setup(_camera_rig, config.player_count)
-	spectator.build_presentation(world.loader.load_scene(HUD_SCENE_PATH), world.loader.load_scene(TUNING_PANEL_SCENE_PATH), _field)
+	spectator.build_presentation(world.loader.load_scene(HUD_SCENE_PATH), world.loader.load_scene(TUNING_PANEL_SCENE_PATH), _field, MatchContext.current())
 
 
 ## One BotController per bot slot (the trailing `config.ai_count` slots, matching

@@ -19,15 +19,6 @@ const SEAT_DIFFICULTIES: Array[int] = [
 ]
 
 
-class RasterFakeMatch:
-	extends FakeMatch
-	## HUD._update_minimap() only forwards colours to the minimap when the match
-	## provider can answer raster() (the real Match can, plain FakeMatch cannot).
-
-	func raster() -> TerritoryRaster:
-		return null
-
-
 class FakeMatchNet:
 	extends RefCounted
 
@@ -108,20 +99,20 @@ func _start_world(config: MatchConfig) -> void:
 	await get_tree().process_frame
 
 
-func _make_hud(fake_match: FakeMatch) -> HUD:
+func _make_hud(fake_match: FakeMatchContext) -> HUD:
 	var hud: HUD = autofree(HUD_SCENE.instantiate())
-	add_child_autofree(hud)
-	# After add_child: HUD._ready() points match_provider at the real Match.
 	if fake_match != null:
-		hud.match_provider = fake_match
+		hud.match_context = fake_match
+	add_child_autofree(hud)
 	return hud
 
 
-func _fake_match_with(config: MatchConfig) -> RasterFakeMatch:
-	var fake_match: RasterFakeMatch = RasterFakeMatch.new()
-	fake_match.config = config
+func _fake_match_with(config: MatchConfig) -> FakeMatchContext:
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
+	fake_match.config_value = config
+	fake_match.slot_count_value = config.player_count
 	for slot_id: int in range(config.player_count):
-		fake_match.slots_by_id[slot_id] = PlayerSlot.new(
+		fake_match.slot_by_id[slot_id] = PlayerSlot.new(
 			slot_id, config.team_of_slot(slot_id), "P%d" % (slot_id + 1), config.player_colors[slot_id]
 		)
 	return fake_match

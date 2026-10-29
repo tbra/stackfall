@@ -68,8 +68,9 @@ func setup(rig: CameraRig, slot_count: int) -> void:
 
 ## Adds the on-screen parts: the match HUD (scoreboard, round timer, the followed bot's held/next cards),
 ## the F4 tuning panel and the corner labels. Separate from setup() so the logic runs in a bare tree.
-func build_presentation(hud_scene: PackedScene, tuning_panel_scene: PackedScene, field: Field) -> void:
+func build_presentation(hud_scene: PackedScene, tuning_panel_scene: PackedScene, field: Field, context: MatchContext) -> void:
 	_hud = hud_scene.instantiate() as HUD
+	_hud.match_context = context
 	add_child(_hud)
 	var panel: TuningPanel = tuning_panel_scene.instantiate() as TuningPanel
 	add_child(panel)
