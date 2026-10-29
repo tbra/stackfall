@@ -116,25 +116,25 @@
   {
    "id": "dead-file",
    "entry": "core/net/NetRateMeter.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): named only by NetDebugOverlay until P12-Inet wires it; that package removes this entry",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inet wires it; that package removes this entry",
    "consumer": "P12-Inet"
   },
   {
    "id": "dead-file",
    "entry": "core/net/NetStats.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): named only by NetDebugOverlay until P12-Inetui wires it; that package removes this entry",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
    "consumer": "P12-Inetui"
   },
   {
    "id": "dead-file",
    "entry": "core/net/NetStatsSource.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): named only by NetDebugOverlay until P12-Inetui wires it; that package removes this entry",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
    "consumer": "P12-Inetui"
   },
   {
    "id": "dead-file",
    "entry": "net/NetStatsLive.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): named only by NetDebugOverlay until P12-Inetui wires it; that package removes this entry",
+   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
    "consumer": "P12-Inetui"
   },
   {
