@@ -236,3 +236,65 @@ func submit_cat_target(_slot_id: int, _point: Vector3) -> void:
 
 func note_aim(_slot_id: int, _forward: Vector3) -> void:
 	pass
+
+
+# --- HUD reads (null object: nothing to show) ------------------------------------
+
+func next_shape(_slot_id: int) -> BlockShape:
+	return null
+
+
+func feed_progress(_slot_id: int) -> float:
+	return 1.0
+
+
+func qol_backlog_count(_slot_id: int) -> int:
+	return 0
+
+
+func qol_timer_paused(_slot_id: int) -> bool:
+	return false
+
+
+func max_height_for_slot(_slot_id: int) -> float:
+	return 0.0
+
+
+func match_timer_left() -> float:
+	return 0.0
+
+
+func sudden_death_active() -> bool:
+	return false
+
+
+func countdown_remaining() -> float:
+	return 0.0
+
+
+func eliminated_by(_slot_id: int) -> int:
+	return -1
+
+
+func gift_states() -> Array[Dictionary]:
+	return []
+
+
+func pending_special_count(_slot_id: int) -> int:
+	return 0
+
+
+func next_special(_slot_id: int) -> StringName:
+	return &""
+
+
+func after_next_special(_slot_id: int) -> StringName:
+	return &""
+
+
+func gift_slot_count(_slot_id: int) -> int:
+	return 0
+
+
+func stats() -> RefCounted:
+	return null
