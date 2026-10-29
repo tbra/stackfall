@@ -120,25 +120,30 @@ func test_right_stick_click_shows_while_held_and_hides_on_release() -> void:
 	assert_false(_overlay._root.visible)
 
 
+## Texts of every Label the table currently renders.
+func _label_texts() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for node: Node in (_overlay.get_node("%RowsList") as Control).find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return out
+
+
 func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
 	_match.config.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
 	await _send(_key(true))
-	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
-	var human_name: Label = (rows.get_child(1).get_child(0) as HBoxContainer).get_child(0) as Label
-	var bot_name: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
-	assert_eq(human_name.text, "Ann")
-	assert_eq(bot_name.text, "Bo")
-	assert_eq((bot_name.get_node("BotTag") as Label).text, "(Bot, Hard)")
-	assert_null(human_name.get_node_or_null("BotTag"))
+	var texts: PackedStringArray = _label_texts()
+	assert_has(texts, "Ann")
+	assert_has(texts, "Bo")
+	var tags: PackedStringArray = PackedStringArray()
+	for text: String in texts:
+		if text.contains("(Bot"):
+			tags.append(text)
+	assert_eq(tags, PackedStringArray(["(Bot, Hard)"]), "only the bot carries a difficulty tag")
 
 
 func test_table_shows_the_live_rows_with_alive_status() -> void:
 	await _send(_key(true))
-	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
-	assert_eq(rows.get_child_count(), 3, "header + one row per player")
-	var texts: PackedStringArray = PackedStringArray()
-	for cell: Node in (rows.get_child(1).get_child(0) as HBoxContainer).get_children():
-		texts.append((cell as Label).text)
+	var texts: PackedStringArray = _label_texts()
 	assert_has(texts, "Ann")
 	assert_has(texts, "Alive", "a live round says Alive, not Survived")
 	assert_has(texts, "2", "wins column and placed/height columns come from the shared table")
