@@ -41,6 +41,21 @@ var active_cat_value: RigidBody3D = null
 var submit_place_result: StringName = &""
 var submit_throw_result: StringName = &""
 var submit_use_gift_slot_result: bool = false
+var next_shape_by_slot: Dictionary = {}
+var feed_progress_by_slot: Dictionary = {}
+var qol_backlog_by_slot: Dictionary = {}
+var qol_paused_by_slot: Dictionary = {}
+var max_height_by_slot: Dictionary = {}
+var match_timer_left_value: float = 0.0
+var sudden_death_value: bool = false
+var countdown_remaining_value: float = 0.0
+var eliminated_by_slot: Dictionary = {}
+var gift_states_value: Array[Dictionary] = []
+var pending_special_count_by_slot: Dictionary = {}
+var next_special_by_slot: Dictionary = {}
+var after_next_special_by_slot: Dictionary = {}
+var gift_slot_count_by_slot: Dictionary = {}
+var stats_value: RefCounted = null
 
 var start_cat_calls: Array[Dictionary] = []
 var end_cat_calls: Array[Dictionary] = []
@@ -233,3 +248,63 @@ func add_match_child(node: Node) -> void:
 	add_match_child_calls.append({"node": node})
 	if node != null and not add_match_child_adopts:
 		node.queue_free()
+
+
+func next_shape(slot_id: int) -> BlockShape:
+	return next_shape_by_slot.get(slot_id, null) as BlockShape
+
+
+func feed_progress(slot_id: int) -> float:
+	return float(feed_progress_by_slot.get(slot_id, 1.0))
+
+
+func qol_backlog_count(slot_id: int) -> int:
+	return int(qol_backlog_by_slot.get(slot_id, 0))
+
+
+func qol_timer_paused(slot_id: int) -> bool:
+	return bool(qol_paused_by_slot.get(slot_id, false))
+
+
+func max_height_for_slot(slot_id: int) -> float:
+	return float(max_height_by_slot.get(slot_id, 0.0))
+
+
+func match_timer_left() -> float:
+	return match_timer_left_value
+
+
+func sudden_death_active() -> bool:
+	return sudden_death_value
+
+
+func countdown_remaining() -> float:
+	return countdown_remaining_value
+
+
+func eliminated_by(slot_id: int) -> int:
+	return int(eliminated_by_slot.get(slot_id, -1))
+
+
+func gift_states() -> Array[Dictionary]:
+	return gift_states_value
+
+
+func pending_special_count(slot_id: int) -> int:
+	return int(pending_special_count_by_slot.get(slot_id, 0))
+
+
+func next_special(slot_id: int) -> StringName:
+	return StringName(next_special_by_slot.get(slot_id, &""))
+
+
+func after_next_special(slot_id: int) -> StringName:
+	return StringName(after_next_special_by_slot.get(slot_id, &""))
+
+
+func gift_slot_count(slot_id: int) -> int:
+	return int(gift_slot_count_by_slot.get(slot_id, 0))
+
+
+func stats() -> RefCounted:
+	return stats_value

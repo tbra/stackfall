@@ -17,6 +17,8 @@ const SCOREBOARD_LAYER: int = 20
 ## Test seam (Variant): defaults to the Match autoload; needs state(), stats()
 ## (with live_payload()) and `config`.
 var match_provider: Variant = null
+## The match port the scoreboard reads once match_provider is gone.
+var match_context: MatchContext = MatchContext.new()
 ## game/main/Main.gd sets this true while a sandbox is running: there Tab keeps its
 ## sandbox_next_slot meaning and no scoreboard exists (DECISION).
 var suppressed: bool = false

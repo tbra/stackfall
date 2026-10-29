@@ -64,6 +64,13 @@ var match_provider: Variant = null
 ## where a human seat's replicated name comes from, anything
 ## answering name_for_slot(slot_id) -> String. Null means the real Net autoload.
 var name_provider: Variant = null
+## The match port the HUD reads once the provider seams are gone. A late assignment catches up on
+## a match already in its pre-game states.
+var match_context: MatchContext = MatchContext.new():
+	set(value):
+		match_context = value
+		if is_node_ready():
+			_catch_up_pregame()
 
 @onready var _timer_ring: Control = %TimerRing
 ## The match clock in the top-right corner (UiRoundTimer).
@@ -1497,6 +1504,11 @@ func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
 ## would show an empty stats panel and no minimap. Called on LOADING/COUNTDOWN (the
 ## HUD is loaded behind the Ready screen): builds one zero-share row per team and
 ## pushes the map/raster/homes to the minimap.
+func _catch_up_pregame() -> void:
+	if Match.is_in_progress(Match.state()):
+		prime_pregame_widgets()
+
+
 func prime_pregame_widgets() -> void:
 	if match_provider == null:
 		return
