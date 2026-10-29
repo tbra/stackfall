@@ -120,6 +120,10 @@ Before every dispatch, run `python tools/dispatch_prep.py --bead <id> --role <pr
   docstring. Use `--merge-only` (no Godot) for a conflict precheck while workers run;
   `--dry-run` still runs the full gate. Run the full gate in the background and keep
   working.
+  Before the full gate on a wave with writer/tester pairs, run every pair's named tests on the
+  combined branch (`merge_wave.py`, checked out with `new_worktree.py <name> --base <its branch>`,
+  then `tools/run_gut.ps1 -Path <that checkout>`); a pair that fails there goes back to its writer
+  or tester, not to the gate.
   When several branches changed `tools/*baseline*.json`, build the combined branch with `python tools/merge_wave.py --branches wt/a wt/b` (docstring owns the rules) and pass its `MERGE WAVE READY` branch to `integrate_batch.py`.
 - Push only after reading a green verdict, as a separate `git push origin main`; then
   verify `git ls-remote origin main`, record the evidence and close the beads. The

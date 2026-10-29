@@ -1,12 +1,15 @@
 # CPU/Godot watchdog (promoted from scratch/cpumon) for the orchestrator (PC crashed under ~11 Godot processes).
 # Samples every 10 s, appends to cpumon.log, and EXITS with an ALERT line when a limit is crossed
 # (the orchestrator is re-invoked on exit). Exits quietly after MaxMinutes so it can be re-armed.
+# Also reports (never kills) Godot and find processes older than OrphanMinutes whose parent is gone,
+# once per PID as an ORPHAN line: workers that stop or finish can leave them running for hours.
 param(
     [int]$MaxGodot = 3,          # real Godot game processes (console wrappers excluded)
     [int]$CpuHighPct = 90,       # sustained CPU load threshold
     [int]$CpuHighSamples = 6,    # consecutive samples (6 x 10 s = 1 min)
     [double]$MinFreeGB = 3.0,
     [int]$MaxMinutes = 120,
+    [int]$OrphanMinutes = 20,
     [string]$Log = ""
 )
 . (Join-Path $PSScriptRoot "repo_paths.ps1")
@@ -14,6 +17,20 @@ $toolsRoot = Get-StackfallToolsRoot
 if ($Log -eq "") { $Log = Join-Path $toolsRoot "scratch/cpumon/cpumon.log" }
 $deadline = (Get-Date).AddMinutes($MaxMinutes)
 $high = 0
+$sample = 0
+$reported = @{}
+function Get-Orphans([int]$minutes) {
+    $procs = @(Get-CimInstance Win32_Process)
+    $born = @{}
+    foreach ($p in $procs) { $born[[int]$p.ProcessId] = $p.CreationDate }
+    $cut = (Get-Date).AddMinutes(-$minutes)
+    foreach ($p in $procs) {
+        if ($p.Name -notmatch '^(godot|find\.exe$)' -or $p.Name -match 'godot-ai' -or $p.CreationDate -gt $cut) { continue }
+        $parentBorn = $born[[int]$p.ParentProcessId]
+        # A reused parent PID started after its child, so it counts as gone.
+        if ($null -eq $parentBorn -or $parentBorn -gt $p.CreationDate) { $p }
+    }
+}
 while ((Get-Date) -lt $deadline) {
     $load = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
     $freeGB = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory / 1MB
@@ -27,6 +44,19 @@ while ((Get-Date) -lt $deadline) {
     for ($try = 0; $try -lt 5; $try++) {
         try { Add-Content -Path $Log -Value $line -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 200 }
     }
+    if ($sample % 6 -eq 0) {
+        foreach ($o in @(Get-Orphans $OrphanMinutes)) {
+            if ($reported.ContainsKey([int]$o.ProcessId)) { continue }
+            $reported[[int]$o.ProcessId] = $true
+            $age = [int]((Get-Date) - $o.CreationDate).TotalMinutes
+            $msg = 'ORPHAN pid={0} name={1} age={2}m parent={3} gone' -f $o.ProcessId, $o.Name, $age, $o.ParentProcessId
+            Write-Output $msg
+            for ($try = 0; $try -lt 5; $try++) {
+                try { Add-Content -Path $Log -Value $msg -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 200 }
+            }
+        }
+    }
+    $sample++
     if ($load -ge $CpuHighPct) { $high++ } else { $high = 0 }
     if ($n -gt $MaxGodot) { Write-Output "ALERT godot=$n > $MaxGodot | $line"; exit 2 }
     if ($high -ge $CpuHighSamples) { Write-Output "ALERT cpu>=$CpuHighPct% for $high samples | $line"; exit 3 }
