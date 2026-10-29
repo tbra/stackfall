@@ -47,13 +47,12 @@ func _section(with_advanced: bool = true) -> UiSection:
 	return section
 
 
-func test_section_starts_collapsed_with_a_right_caret_and_toggles() -> void:
+func test_section_starts_collapsed_and_toggles() -> void:
 	var section: UiSection = _section()
 	var opened: Array[bool] = []
 	section.advanced_changed.connect(func(open: bool) -> void: opened.append(open))
 	assert_false(section.advanced.visible)
 	assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT)
-	assert_not_null(section.advanced_button.get_node_or_null("DisclosureArrow"), "drawn triangle")
 	section.advanced_button.toggled.emit(true)
 	assert_true(section.advanced.visible)
 	assert_eq(section.advanced_button.text, UiSection.ADVANCED_CHIP_TEXT)

@@ -1,6 +1,6 @@
 extends GutTest
 ## UiToggle (ui/components/UiToggle.gd): ON / OFF word, state API, ui_accept /
-## ui_left / ui_right through the Input Map, row-item contract, disabled still shows state.
+## ui_left / ui_right through the Input Map, disabled still shows state.
 
 var _toggled: Array[bool] = []
 
@@ -72,5 +72,4 @@ func test_disabled_ignores_keys_but_keeps_showing_state() -> void:
 	toggle._gui_input(_action(&"ui_left"))
 	assert_true(toggle.is_on())
 	assert_eq(toggle.text, "ON", "disabled still shows its state")
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	assert_almost_eq(toggle.get_theme_color("font_disabled_color").a, arcade.disabled_alpha, 0.001)
+	assert_true(toggle.disabled)

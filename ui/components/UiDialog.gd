@@ -101,6 +101,7 @@ func open() -> void:
 		return
 	_return_focus = get_viewport().gui_get_focus_owner() if is_inside_tree() else null
 	visible = true
+	_wire_vertical_chain()
 	UiFocusTrap.trap(panel)
 	var first: Control = _actions[0] if not _actions.is_empty() else _cancel_button
 	for button: UiBlockButton in _actions:
@@ -134,6 +135,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"ui_cancel") or event.is_action_pressed(&"pause_menu"):
 		dismiss()
 		get_viewport().set_input_as_handled()
+
+
+## Links the enabled blocks top to bottom (wrapping) so D-pad / stick up and down move between
+## them; the trap would otherwise point those unset neighbours at the block itself.
+func _wire_vertical_chain() -> void:
+	var blocks: Array[UiBlockButton] = []
+	for button: UiBlockButton in _actions:
+		if not button.disabled and button.focus_mode != Control.FOCUS_NONE:
+			blocks.append(button)
+	blocks.append(_cancel_button)
+	var count: int = blocks.size()
+	for i: int in range(count):
+		var block: UiBlockButton = blocks[i]
+		block.focus_neighbor_top = block.get_path_to(blocks[(i - 1 + count) % count])
+		block.focus_neighbor_bottom = block.get_path_to(blocks[(i + 1) % count])
 
 
 func _make_block(id: StringName, label: String, look: UiBlockButton.Look) -> UiBlockButton:
