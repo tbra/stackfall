@@ -4,6 +4,9 @@ extends Node
 ## One self-contained subtree dropped into Main as a single instance. It decides
 ## no rules of its own: every placement still goes through Match.request_place().
 
+## The match port the HUD reads; the builder assigns it before add_child (null = the installed one).
+var match_context: MatchContext = null
+
 @onready var _controller: PlayerController = $PlayerController
 @onready var _ghost: GhostPreview = $GhostPreview
 @onready var _hud: HUD = $HUDLayer
@@ -20,6 +23,7 @@ extends Node
 ## captures the OS cursor (PlayerController.enable_mouse_capture()). Safe to call
 ## unconditionally: it is a silent no-op headless.
 func _ready() -> void:
+	_hud.match_context = _context()
 	_controller.bind_session(SessionPort.new(Net))
 	_controller.enable_mouse_capture()
 	_tuning_panel.set_controller(_controller)
@@ -50,8 +54,13 @@ func bind_local_slot(slot_id: int) -> void:
 	# The HUD's per-slot widgets (HELD/NEXT cards, timer ring) follow the local slot
 	# from here, not from the first PLAYING-time turn_changed, so the first block
 	# issued at countdown start lands in the cards.
+	_hud.match_context = _context()
 	_hud.set_local_slot(slot_id)
 	_controller.pull_current_held()
+
+
+func _context() -> MatchContext:
+	return match_context if match_context != null else MatchContext.current()
 
 
 func controller() -> PlayerController:
