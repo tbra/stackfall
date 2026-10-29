@@ -644,6 +644,48 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/lobby/LobbySettingsCard.gd",
+   "reason": "unwired UI stub; P9-Icard wires it in",
+   "consumer": "P9-Icard"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/lobby/LobbySettingsCard.tscn",
+   "reason": "unwired UI stub; P9-Icard wires it in",
+   "consumer": "P9-Icard"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/lobby/LobbyFocusWiring.gd",
+   "reason": "unwired UI stub; P9-Ifocus wires it in",
+   "consumer": "P9-Ifocus"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/menus/OptionsOverlay.gd",
+   "reason": "unwired UI stub; P9-Ioverlay wires it in",
+   "consumer": "P9-Ioverlay"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/menus/LoadingBackdrop.gd",
+   "reason": "unwired UI stub; P9-Iload wires it in",
+   "consumer": "P9-Iload"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/menus/MainMenuJoinPage.gd",
+   "reason": "unwired UI stub; P9-Ijoin wires it in",
+   "consumer": "P9-Ijoin"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/menus/MainMenuJoinPage.tscn",
+   "reason": "unwired UI stub; P9-Ijoin wires it in",
+   "consumer": "P9-Ijoin"
   }
  ]
 }
