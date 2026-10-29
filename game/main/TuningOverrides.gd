@@ -46,14 +46,32 @@ static func is_exported_field(prop: Dictionary) -> bool:
 	return (usage & EXPORT_USAGE_MASK) == EXPORT_USAGE_MASK
 
 
-## Stub (filled by the save package): writes one section per SECTIONS key present in `instances`.
-static func write_sections(_config: ConfigFile, _instances: Dictionary) -> void:
-	pass
+## Writes one section per SECTIONS key present in `instances` (label -> live resource): every
+## exported bool/int/float/Color/String field. TYPE_STRING is included so SkyboxConfig.theme_name
+## round-trips like the rest.
+static func write_sections(config: ConfigFile, instances: Dictionary) -> void:
+	for label: String in SECTIONS:
+		var resource: Resource = instances.get(label) as Resource
+		if resource == null:
+			continue
+		for prop_name: String in _saved_field_names(resource):
+			config.set_value(label, prop_name, resource.get(prop_name))
 
 
-## Stub (filled by the save package): "# Label" blocks in SECTIONS order.
-static func copy_text(_instances: Dictionary) -> String:
-	return ""
+## ".tres"-style `name = value` lines under a "# Label" header per SECTIONS entry, in SECTIONS
+## order, meant to be pasted into the matching config/*.tres file.
+static func copy_text(instances: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for label: String in SECTIONS:
+		var resource: Resource = instances.get(label) as Resource
+		if resource == null:
+			parts.append("# %s\n(none)" % label)
+			continue
+		var lines: PackedStringArray = PackedStringArray(["# %s" % label])
+		for prop_name: String in _saved_field_names(resource):
+			lines.append("%s = %s" % [prop_name, _format_value(resource.get(prop_name))])
+		parts.append("\n".join(lines))
+	return "\n\n".join(parts)
 
 
 ## Reloads the resource's file (cache ignored) onto the live instance.
@@ -68,6 +86,35 @@ static func reset_resource(resource: Resource) -> void:
 			continue
 		var prop_name: String = str(prop.get("name", ""))
 		resource.set(prop_name, fresh.get(prop_name))
+
+
+## Names of the exported fields whose type is persisted and copied.
+static func _saved_field_names(resource: Resource) -> PackedStringArray:
+	var names: PackedStringArray = PackedStringArray()
+	for prop: Dictionary in resource.get_property_list():
+		if not is_exported_field(prop):
+			continue
+		match int(prop.get("type", TYPE_NIL)):
+			TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_COLOR, TYPE_STRING:
+				names.append(str(prop.get("name", "")))
+	return names
+
+
+static func _format_value(value: Variant) -> String:
+	match typeof(value):
+		TYPE_BOOL:
+			return "true" if bool(value) else "false"
+		TYPE_INT:
+			return str(int(value))
+		TYPE_FLOAT:
+			var text: String = str(float(value))
+			return text if (text.contains(".") or text.contains("e")) else "%s.0" % text
+		TYPE_COLOR:
+			return var_to_str(value)
+		TYPE_STRING:
+			return "\"%s\"" % String(value)
+		_:
+			return str(value)
 
 
 static func _apply_saved_section(config: ConfigFile, section: String, resource: Resource) -> void:
