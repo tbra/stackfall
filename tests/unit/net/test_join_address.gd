@@ -116,3 +116,8 @@ func test_resolve_text_invalid_address_has_no_code_reason() -> void:
 	var r: Dictionary = JoinCode.resolve_text("1.2.3.999")
 	assert_false(bool(r.get("valid")))
 	assert_false(r.has("address"))
+
+
+func test_whitespace_around_the_colon_is_rejected() -> void:
+	assert_false(bool(JoinCode.parse_address("1.2.3.4 :80").get("valid")), "space before colon")
+	assert_false(bool(JoinCode.parse_address("1.2.3.4: 80").get("valid")), "space after colon")

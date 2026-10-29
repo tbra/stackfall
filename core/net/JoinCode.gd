@@ -134,6 +134,7 @@ static func parse_address(text: String) -> Dictionary:
 		port = int(parts[1])
 		if port < 1 or port > PORT_MAX:
 			return {"valid": false}
-	if parse_ipv4(host).is_empty():
+	# parse_ipv4 strips its input, so whitespace beside the colon ("1.2.3.4 :80") needs its own check.
+	if host != host.strip_edges() or parse_ipv4(host).is_empty():
 		return {"valid": false}
 	return {"valid": true, "address": host, "port": port}
