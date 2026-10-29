@@ -7,11 +7,6 @@ extends MainHeadlessBotsFlowPort
 ## Diagnostics-only cadence of the `HEADLESS_BOTS` progress line; not a gameplay tunable.
 const HEADLESS_BOTS_REPORT_INTERVAL_S: float = 5.0
 
-## The Main node, typed (the port's `main` is the Node3D it binds); only for `match_config`.
-var main_node: Main:
-	get:
-		return main as Main
-
 ## Diagnostics state, null/0 whenever no headless bot match runs.
 var _headless_bots_report_timer: Timer = null
 var _headless_bots_start_msec: int = 0
@@ -21,6 +16,8 @@ var _headless_bots_placements: int = 0
 var _headless_loop_enabled: bool = false
 var _headless_loop_index: int = 0
 var _headless_loop_args: PackedStringArray = PackedStringArray()
+## The lobby defaults every loop match starts from (Main's match_config).
+var _base_match_config: MatchConfig = null
 var _headless_loop_seed: int = -1
 var _headless_loop_restart_pending: bool = false
 
@@ -44,7 +41,7 @@ var _headless_bots_start_physics_frame: int = 0
 # to build a match in that case rather than running every bot against a session
 # nothing can join.
 
-func start_match_with_args(args: PackedStringArray) -> void:
+func start_match_with_args(args: PackedStringArray, base_config: MatchConfig) -> void:
 	var bots: int = _bots_arg(args)
 	if bots <= 0:
 		# Feature off by default: every existing `--headless-host`-only
@@ -64,6 +61,7 @@ func start_match_with_args(args: PackedStringArray) -> void:
 	Match.register_world(world.field, world.registry, world.blocks_container)
 	_headless_loop_enabled = _has_loop_matches_arg(args)
 	_headless_loop_args = args
+	_base_match_config = base_config
 	_headless_loop_index = 0
 	if _headless_loop_enabled:
 		Events.match_state_changed.connect(_on_headless_loop_state_changed)
@@ -132,7 +130,7 @@ func _start_headless_loop_match(bots: int, args: PackedStringArray) -> void:
 	# DECISION: Net.match_config_override() (--match-config=<path>) replaces the default config as the source.
 	var base_config: MatchConfig = Net.match_config_override()
 	if base_config == null:
-		base_config = main_node.match_config
+		base_config = _base_match_config
 	var config: MatchConfig = MatchLaunch.headless_bot_config(base_config, bots, args)
 	_headless_loop_index += 1
 	var has_match_seed: bool = MatchLaunch.has_match_seed_arg(args)

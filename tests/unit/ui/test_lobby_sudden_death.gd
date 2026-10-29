@@ -219,8 +219,7 @@ func test_hidden_stepper_is_not_a_focus_stop_outside_classic() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	var stepper: UiStepper = _stepper(lobby)
-	for control: Control in lobby._visible_chain(lobby._main_chain):
-		assert_ne(control, stepper, "a hidden stepper is never a focus stop")
+	assert_false(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "a hidden stepper is never a focus stop")
 
 
 func test_client_stepper_is_read_only() -> void:
@@ -244,10 +243,9 @@ func test_host_stepper_follows_the_sudden_death_toggle() -> void:
 	assert_false(stepper.disabled, "the toggle on makes the length editable")
 	toggle.button_pressed = false
 	assert_false(stepper.visible, "the toggle off hides it again")
-	for control: Control in lobby._visible_chain(lobby._main_chain):
-		assert_ne(control, stepper, "a hidden stepper is never a focus stop")
+	assert_false(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "a hidden stepper is never a focus stop")
 	toggle.button_pressed = true
-	assert_true(lobby._visible_chain(lobby._main_chain).has(stepper), "shown again, it is a focus stop")
+	assert_true(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "shown again, it is a focus stop")
 
 
 func test_non_host_stepper_is_hidden_off_and_read_only_on() -> void:

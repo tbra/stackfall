@@ -4,6 +4,13 @@ extends MainFlowPort
 ## empty; game/main/MainMatchFlow.gd (MF3) overrides them. MatchConfig is already in the autoload
 ## closure, so this port adds nothing heavy to Main's compile closure.
 
+## The menu and lobby nodes must go: a match world is being built.
+signal menus_clear_requested
+## The local player exists; Main hands it to the mode (sandbox/tutorial) flow.
+signal local_player_built(player: Node)
+## The built world was torn down (headless bot diagnostics stop with it).
+signal world_ended
+
 
 func end_match_world() -> void:
 	pass

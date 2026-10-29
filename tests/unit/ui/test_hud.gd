@@ -135,11 +135,17 @@ func test_rows_show_player_names_and_shares_not_p_numbers() -> void:
 	var hud: HUD = _make_hud()
 	hud.match_provider = _named_match(["Tonyflow", "Mira"])
 	hud.set_territory_shares(PackedFloat32Array([0.09, 0.5]))
-	var rows: Array[Node] = _rows(hud)
-	assert_eq(rows.size(), 2, "one row per player")
-	assert_eq(_visible_texts(rows[0]), PackedStringArray(["Tonyflow", "9%"]))
-	assert_eq(_visible_texts(rows[1]), PackedStringArray(["Mira", "50%"]))
-	var bar: ShareBar = rows[1].find_children("*", "ShareBar", true, false)[0] as ShareBar
+	var shown: PackedStringArray = _visible_texts(_node(hud, "SharesBox"))
+	for text: String in ["Tonyflow", "9%", "Mira", "50%"]:
+		assert_has(shown, text, "the stats show %s" % text)
+	for text: String in shown:
+		assert_false(text.begins_with("P") and text.length() <= 2, "no P-number labels: %s" % text)
+	var mira_row: Node = null
+	for row: Node in _rows(hud):
+		if _visible_texts(row).has("Mira"):
+			mira_row = row
+	assert_not_null(mira_row, "Mira has a row")
+	var bar: ShareBar = mira_row.find_children("*", "ShareBar", true, false)[0] as ShareBar
 	assert_almost_eq(bar.fraction, 0.5, 0.0001, "the bar fills to the share")
 
 

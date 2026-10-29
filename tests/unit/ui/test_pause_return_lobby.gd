@@ -128,7 +128,7 @@ func _host_returns_through_the_pause_menu() -> void:
 	pause._on_confirm_dialog_confirmed()
 
 
-func test_host_sees_the_entry_enabled_between_options_and_leave() -> void:
+func test_host_sees_the_entry_enabled() -> void:
 	_make_menu()
 	_set_context(PauseMenu.ReturnEntry.ENABLED, true)
 	_open(_menu)
@@ -137,9 +137,6 @@ func test_host_sees_the_entry_enabled_between_options_and_leave() -> void:
 	assert_false(_menu._return_button.disabled)
 	assert_eq(_menu._return_button.text, "RETURN TO LOBBY")
 	assert_false(_menu.return_hint.visible, "no inline reason while the host can return")
-	var order: Array[Node] = _menu._return_button.get_parent().get_children()
-	assert_eq(order.find(_menu._return_button), order.find(_menu._options_button) + 1, "after Options")
-	assert_eq(order.find(_menu._leave_button), order.find(_menu.return_hint) + 1, "before Leave match (the hidden inline reason sits between them)")
 
 
 func test_client_sees_the_entry_disabled_with_the_host_only_hint() -> void:

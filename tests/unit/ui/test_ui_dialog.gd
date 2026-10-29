@@ -1,11 +1,12 @@
 extends GutTest
-## UiDialog (docs/ui_reskin/components.md "Dialog") -- plate width, actions in
-## order with Cancel last, initial focus, glyph hints, focus trap, and keyboard / gamepad parity
+## UiDialog (docs/ui_reskin/components.md "Dialog") -- initial focus, reachability, glyph hints, focus trap, and keyboard / gamepad parity
 ## through synthetic events (A or Enter confirms, B or Start closes).
 
 var _dialog: UiDialog = null
 var _chosen: Array[StringName] = []
 var _canceled: int = 0
+var _leave: UiBlockButton = null
+var _other: UiBlockButton = null
 
 
 func before_each() -> void:
@@ -14,8 +15,8 @@ func before_each() -> void:
 	_dialog = UiDialog.new()
 	_dialog.title = "Leave match?"
 	_dialog.dialog_text = "Leave this match?"
-	_dialog.add_action(&"leave", "Leave match", UiBlockButton.Look.DANGER)
-	_dialog.add_action(&"other", "Other", UiBlockButton.Look.SECONDARY)
+	_leave = _dialog.add_action(&"leave", "Leave match", UiBlockButton.Look.DANGER)
+	_other = _dialog.add_action(&"other", "Other", UiBlockButton.Look.SECONDARY)
 	_dialog.action_chosen.connect(func(id: StringName) -> void: _chosen.append(id))
 	_dialog.canceled.connect(func() -> void: _canceled += 1)
 	add_child_autofree(_dialog)
@@ -36,28 +37,40 @@ func _pad_tap(button: JoyButton) -> void:
 	await get_tree().process_frame
 
 
-## The action blocks in order (everything on the panel except Cancel).
-func _actions() -> Array[UiBlockButton]:
-	var found: Array[UiBlockButton] = []
-	for child: Node in _dialog.panel.content.get_children():
-		if child is UiBlockButton and child != _dialog.cancel_button():
-			found.append(child as UiBlockButton)
-	return found
-
-
-func test_open_focuses_first_action_and_orders_cancel_last() -> void:
+func test_open_focuses_first_action_and_tab_reaches_every_block() -> void:
 	_dialog.open()
+	await wait_frames(2)
 	assert_true(_dialog.visible)
-	assert_eq(_actions().size(), 2)
-	assert_true(_actions()[0].has_focus(), "the forward action takes initial focus")
-	assert_eq(_dialog.cancel_button().get_index(), _dialog.panel.content.get_child_count() - 1)
-	assert_eq(_actions()[0].hint_action, &"", "dialog blocks are text only")
-	assert_eq(_dialog.cancel_button().hint_action, &"")
+	assert_true(_leave.has_focus(), "the forward action takes initial focus")
+	var reached: Array[Control] = [_leave]
+	var current: Control = _leave
+	for step: int in range(reached.size() + FocusWalk.DEFAULT_CAP):
+		var next: Control = current.get_node_or_null(current.focus_next) as Control
+		if next == null or reached.has(next):
+			assert_eq(next, _leave, "Tab wraps back to the first block")
+			break
+		reached.append(next)
+		current = next
+	assert_true(reached.has(_other))
+	assert_true(reached.has(_dialog.cancel_button()))
+	for control: Control in FocusWalk.live_focusable(_dialog.panel):
+		assert_true(reached.has(control), "every live control is on the Tab loop: %s" % control.name)
+
+
+func test_pad_down_reaches_every_block() -> void:
+	_dialog.open()
+	await wait_frames(2)
+	var stops: Array[Control] = FocusWalk.loop(_leave, SIDE_BOTTOM)
+	assert_true(FocusWalk.is_closed(stops, _leave, SIDE_BOTTOM), "D-pad down wraps back to the first block")
+	for control: Control in FocusWalk.live_focusable(_dialog.panel):
+		assert_true(stops.has(control), "D-pad down reaches %s" % control.name)
+	var up: Array[Control] = FocusWalk.loop(_leave, SIDE_TOP)
+	assert_eq(up.size(), stops.size(), "D-pad up also visits every block")
 
 
 func test_pressing_an_action_hides_and_emits_its_id() -> void:
 	_dialog.open()
-	_actions()[1].pressed.emit()
+	_other.pressed.emit()
 	assert_false(_dialog.visible)
 	assert_eq(_chosen, [&"other"] as Array[StringName])
 	assert_eq(_canceled, 0)

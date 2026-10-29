@@ -262,46 +262,41 @@ func _physics_process(delta: float) -> void:
 	PerfProbe.stop(&"snapshot", probe_snapshot)
 
 
-# SHORTCUT: forwarder for MainMatchFlow.gd's re-apply after the world is built, removed with P7-Inav when the flow owns its own call.
-func _apply_graphics_preset(preset: GraphicsPreset) -> void:
-	_graphics_applier.apply(preset)
-
-
 # --- Hot-seat / sandbox / tutorial: forwarders -------
 #
 # The bodies live in game/main/MainSandboxFlow.gd, loaded on demand through the prewarm queue.
 
 func _start_sandbox_match() -> void:
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_sandbox_match()
+	sandbox_flow.start_sandbox_match(match_config, sandbox_config)
 
 
 func start_sandbox_from_menu() -> void:
 	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_sandbox_from_menu()
+	sandbox_flow.start_sandbox_from_menu(match_config, sandbox_config)
 
 
 func start_gift_demo_from_menu() -> void:
 	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_gift_demo_from_menu()
+	sandbox_flow.start_gift_demo_from_menu(match_config, sandbox_config)
 
 
 func start_tower_topple_from_menu() -> void:
 	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, SANDBOX_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_tower_topple_from_menu()
+	sandbox_flow.start_tower_topple_from_menu(match_config, sandbox_config)
 
 
 func start_tutorial_from_menu() -> void:
 	if not await _loader.await_prewarmed(PackedStringArray([SANDBOX_FLOW_SCRIPT_PATH, TUTORIAL_SCENE_PATH])):
 		return
 	var sandbox_flow: MainSandboxFlowPort = _sandbox_flow_port()
-	sandbox_flow.start_tutorial_from_menu()
+	sandbox_flow.start_tutorial_from_menu(match_config)
 
 
 ## The sandbox flow, loaded through the serial prewarm queue on first use. DECISION: the queue
@@ -310,15 +305,24 @@ func _sandbox_flow_port() -> MainSandboxFlowPort:
 	if _sandbox_flow == null:
 		var flow_script: GDScript = _loader.ensure_script(SANDBOX_FLOW_SCRIPT_PATH)
 		_sandbox_flow = flow_script.new() as MainSandboxFlowPort
-		_sandbox_flow.bind(self)
 		_sandbox_flow.bind_world(_main_world())
+		_connect_flow_signals(_sandbox_flow)
 	return _sandbox_flow
 
 
-## every mode that builds a world (match, sandbox, tutorial)
-## gets the same sky: the config's theme / cycle.
-func _apply_match_sky(config: MatchConfig) -> void:
-	_skybox.configure_match_sky(config)
+## Navigation and overlay requests every flow can raise.
+func _connect_flow_signals(flow: MainFlowPort) -> void:
+	flow.lobby_requested.connect(_show_lobby)
+	flow.menu_requested.connect(_show_main_menu)
+	flow.overlays_suppressed.connect(_on_overlays_suppressed)
+
+
+## A mode's overlay gates (sandbox: no scoreboard; tutorial: it owns Escape). The scoreboard is
+## only gated once it exists: a later build reads the sandbox state itself.
+func _on_overlays_suppressed(scoreboard: bool, pause_menu: bool) -> void:
+	if _scoreboard_node != null:
+		_scoreboard_node.suppressed = scoreboard
+	_pause_menu.suppressed = pause_menu
 
 
 # --- Headless bot match ------------------
@@ -327,10 +331,9 @@ func _apply_match_sky(config: MatchConfig) -> void:
 # the headless/CLI path stays synchronous.
 
 func _start_headless_bot_match_with_args(args: PackedStringArray) -> void:
-	_headless_bots_flow_port().start_match_with_args(args)
+	_headless_bots_flow_port().start_match_with_args(args, match_config)
 
 
-# SHORTCUT: forwarder for the headless bots flow, removed by P7-Inav
 ## Only a loaded flow can have started diagnostics, so teardown never loads it.
 func _stop_headless_bots_diagnostics() -> void:
 	if _headless_bots_flow != null:
@@ -342,8 +345,8 @@ func _headless_bots_flow_port() -> MainHeadlessBotsFlowPort:
 	if _headless_bots_flow == null:
 		var flow_script: GDScript = _loader.ensure_script(HEADLESS_BOTS_FLOW_SCRIPT_PATH)
 		_headless_bots_flow = flow_script.new() as MainHeadlessBotsFlowPort
-		_headless_bots_flow.bind(self)
 		_headless_bots_flow.bind_world(_main_world())
+		_connect_flow_signals(_headless_bots_flow)
 	return _headless_bots_flow
 
 
@@ -355,7 +358,6 @@ func _main_world() -> MainWorld:
 		_world.registry = _registry
 		_world.blocks_container = _blocks_container
 		_world.camera_rig = _camera_rig
-		_world.world_environment = _world_environment
 		_world.skybox = _skybox
 		_world.loader = _loader
 		_world.graphics = _graphics_applier
@@ -379,7 +381,7 @@ func _build_app_loader() -> AppLoader:
 ## when it is still prewarming, plain load() otherwise). Each _ensure_* creates once.
 func _ensure_pause_menu() -> PauseMenu:
 	if _pause_menu_node == null:
-		var menu: PauseMenu = _load_scene(PAUSE_MENU_SCENE_PATH).instantiate() as PauseMenu
+		var menu: PauseMenu = _loader.load_scene(PAUSE_MENU_SCENE_PATH).instantiate() as PauseMenu
 		add_child(menu)
 		menu.leave_match_requested.connect(_on_pause_leave_requested)
 		# Return to lobby (host ends the match for everyone).
@@ -388,19 +390,20 @@ func _ensure_pause_menu() -> PauseMenu:
 		# inert until a match/sandbox world exists (flows clear it).
 		menu.suppressed = true
 		_pause_menu_node = menu
+		_main_world().pause_menu = menu
 	return _pause_menu_node
 
 
 func _ensure_results_screen() -> ResultsScreen:
 	if _results_screen_node == null:
-		_results_screen_node = _load_scene(RESULTS_SCREEN_SCENE_PATH).instantiate() as ResultsScreen
+		_results_screen_node = _loader.load_scene(RESULTS_SCREEN_SCENE_PATH).instantiate() as ResultsScreen
 		add_child(_results_screen_node)
 	return _results_screen_node
 
 
 func _ensure_scoreboard() -> ScoreboardOverlay:
 	if _scoreboard_node == null:
-		_scoreboard_node = _load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
+		_scoreboard_node = _loader.load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
 		add_child(_scoreboard_node)
 		# Created while a sandbox is live (the sandbox flow only suppresses an existing one).
 		_scoreboard_node.suppressed = _main_world().sandbox != null and is_instance_valid(_main_world().sandbox)
@@ -409,10 +412,11 @@ func _ensure_scoreboard() -> ScoreboardOverlay:
 
 func _ensure_loading_screen() -> LoadingScreen:
 	if _loading_screen_node == null:
-		var screen: LoadingScreen = _load_scene(LOADING_SCREEN_SCENE_PATH).instantiate() as LoadingScreen
+		var screen: LoadingScreen = _loader.load_scene(LOADING_SCREEN_SCENE_PATH).instantiate() as LoadingScreen
 		add_child(screen)
 		screen.readiness_timed_out.connect(_on_loading_readiness_timed_out)
 		_loading_screen_node = screen
+		_main_world().loading_screen = screen
 	return _loading_screen_node
 
 
@@ -495,7 +499,7 @@ func _show_lobby() -> void:
 	_ensure_overlays()
 	_pause_menu_node.force_close()
 	_pause_menu_node.suppressed = true
-	_lobby = _load_scene(LOBBY_SCENE_PATH).instantiate()
+	_lobby = _loader.load_scene(LOBBY_SCENE_PATH).instantiate()
 	add_child(_lobby)
 	_lobby.connect(&"start_requested", _on_lobby_start_pressed)
 	_lobby.connect(&"back_requested", _on_lobby_back_requested)
@@ -538,16 +542,8 @@ func _on_net_mode_changed(mode: int) -> void:
 		_show_lobby()
 
 
-## Rarely used scenes load on first use instead of at parse time. No member keeps
-## the PackedScene: the resource cache holds it while an instance is alive and
-## releases it afterwards.
-# SHORTCUT: forwarder for the flows that still call main_node._load_scene, removed by P7-Inav
-func _load_scene(path: String) -> PackedScene:
-	return _loader.load_scene(path)
-
-
 ## Threaded prefetch of the match-start scene set so the world build's
-## _load_scene() calls do not hitch (called while the lobby / loading screen is up).
+## loader.load_scene() calls do not hitch (called while the lobby / loading screen is up).
 func _prefetch_match_scenes() -> void:
 	if _loader.is_background():
 		return  # the serial queue owns these (a second threaded request could hang)
@@ -556,9 +552,11 @@ func _prefetch_match_scenes() -> void:
 			ResourceLoader.load_threaded_request(path)
 
 
-# SHORTCUT: forwarders exist because the match flow port loads lazily (not at startup), removed by P7-Inav
-# DECISION: Lobby, loading-screen and Events connects point here so the flow script loads on the first reaction.
+# DECISION: Lobby, loading-screen and Events connects point here (not at the flow) because the
+# match flow script loads lazily: a client's net_match_loading arrives before any flow exists.
+# The overlays the flow drives are built here, before it runs.
 func _on_lobby_start_pressed(config: MatchConfig) -> void:
+	_ensure_overlays()
 	_match_flow_port().on_lobby_start_pressed(config)
 
 
@@ -567,6 +565,8 @@ func _on_loading_readiness_timed_out() -> void:
 
 
 func _on_match_loading_announced() -> void:
+	_prefetch_match_scenes()
+	_ensure_overlays()  # a client may reach LOADING without ever having built the lobby overlays
 	_match_flow_port().on_match_loading_announced()
 
 
@@ -667,19 +667,6 @@ func _on_pause_return_to_lobby_requested() -> void:
 
 # --- Building the match world (host and client alike) ------------------------
 
-## Collected into a plain array so ui/menus/LoadingScreen.gd never reaches for the
-## Match singleton (same injection shape as ui/hud/HUD.gd's match_provider seam).
-## Every slot's display_name/is_bot is already final: MatchLifecycle's slot build
-## ran before the LOBBY -> LOADING emit this feeds.
-func _loading_screen_slots() -> Array[PlayerSlot]:
-	var slots: Array[PlayerSlot] = []
-	for i: int in range(Match.slot_count()):
-		var slot_item: PlayerSlot = Match.slot(i)
-		if slot_item != null:
-			slots.append(slot_item)
-	return slots
-
-
 # --- Match world: forwarders --------------------------
 #
 # The bodies live in game/main/MainMatchFlow.gd. `_on_match_state_changed` is connected in _ready()
@@ -693,6 +680,8 @@ func _loading_screen_slots() -> Array[PlayerSlot]:
 func _on_match_state_changed(from_state: int, to_state: int) -> void:
 	if to_state == Match.State.LOADING:
 		_ensure_overlays()  # sandbox/bots/test entries never pass the lobby
+	else:
+		_ensure_loading_screen()  # the flow cancels/fades it on every other state
 	var match_flow: MainMatchFlowPort = _match_flow_port()
 	match_flow.on_match_state_changed(from_state, to_state)
 
@@ -707,8 +696,11 @@ func _match_flow_port() -> MainMatchFlowPort:
 	if _match_flow == null:
 		var flow_script: GDScript = _loader.ensure_script(MATCH_FLOW_SCRIPT_PATH)
 		_match_flow = flow_script.new() as MainMatchFlowPort
-		_match_flow.bind(self)
 		_match_flow.bind_world(_main_world())
+		_connect_flow_signals(_match_flow)
+		_match_flow.menus_clear_requested.connect(_clear_menu_and_lobby)
+		_match_flow.local_player_built.connect(_attach_mode_extras)
+		_match_flow.world_ended.connect(_stop_headless_bots_diagnostics)
 	return _match_flow
 
 
