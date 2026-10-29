@@ -64,3 +64,15 @@ extends Resource
 ## role draws (0: the design's text has no outline; this also cancels a theme outline).
 @export var text_value_font_px: int = 16
 @export var text_outline_px: int = 0
+
+## UiDebugPanel / UiDebugGraph (look B, glass ledger): the translucent plate, hairlines, the warn band and sizes.
+## Alphas multiply token colours (disc_950 plate, disc_500 hairline, flare warn band).
+@export var debug_panel_alpha: float = 0.72
+@export var debug_hairline_alpha: float = 0.9
+@export var debug_warn_alpha: float = 0.3
+@export var debug_panel_min_width_px: int = 220
+@export var debug_font_px: int = 13
+@export var debug_hairline_px: int = 1
+@export var debug_column_gap_px: int = 16
+@export var debug_graph_height_px: int = 48
+@export var debug_graph_line_px: float = 1.5
