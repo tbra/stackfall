@@ -137,6 +137,30 @@
   },
   {
    "id": "dead-file",
+   "entry": "ui/debug/TuningSkyTab.gd",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.2): TuningPanel creates it in _ready once the sky-tab package lands; that bead removes this entry",
+   "consumer": "P12-Isky"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudGiftSlot.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Igift",
+   "consumer": "P8-Igift"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudPlayerLookup.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ilook",
+   "consumer": "P8-Ilook"
+  },
+  {
+   "id": "dead-file",
+   "entry": "ui/hud/HudShares.gd",
+   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ishares",
+   "consumer": "P8-Ishares"
+  },
+  {
+   "id": "dead-file",
    "entry": "ui/lobby/LobbyFocusWiring.gd",
    "reason": "unwired UI stub; P9-Ifocus wires it in",
    "consumer": "P9-Ifocus"
@@ -201,6 +225,11 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:sudden_death_active",
    "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/Net.gd:name_for_slot",
+   "reason": "live: ui/hud/HUD.gd:1185 and ui/menus/LoadingScreen.gd:409 call it through a duck-typed provider (name-ambiguous with HudPlayerLookup.name_for_slot)"
   },
   {
    "id": "test-only-func",
@@ -652,6 +681,30 @@
   },
   {
    "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:copy_text",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:is_exported_field",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:reset_resource",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "game/main/TuningOverrides.gd:write_sections",
+   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
+   "consumer": "P12-Isave"
+  },
+  {
+   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
@@ -679,6 +732,11 @@
    "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "net/session/NetRoster.gd:name_at_slot",
+   "reason": "live: autoload/Net.gd:437 name_for_slot delegates to it (reached only through the name-ambiguous name_for_slot chain)"
   },
   {
    "id": "test-only-func",
@@ -710,36 +768,6 @@
    "entry": "game/main/MainWorld.gd:world_environment",
    "reason": "P7 stub, callerless until its filler wires it; removed by P7-Isbx (remaining fields P7-Inav)",
    "consumer": "P7-Inav"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:is_exported_field",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:write_sections",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:copy_text",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:reset_resource",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/debug/TuningSkyTab.gd",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.2): TuningPanel creates it in _ready once the sky-tab package lands; that bead removes this entry",
-   "consumer": "P12-Isky"
   }
  ]
 }
