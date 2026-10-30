@@ -12,6 +12,9 @@ extends RefCounted
 ##   sandbox  preset=default|gift_demo|tower_topple|tutorial
 ##   match    mode=<name>, bots=B, seats=N, watch=1 (all-bot spectator match), follow=<bot index>,
 ##            difficulty=easy|normal|hard|mixed
+##   loading  seats=N, bots=B, fade=<0..1>   the real loading screen over the menu (LoadingScreen.show_for_match with
+##            the base config); fade = how far the backdrop plate has faded in: 1 (default) fully shown, 0.5 mid-fade.
+##            Pair with backdrop_seed to repeat the plate.
 ##   scene    path=res://...tscn   any scene, instanced alone.
 ## Setup keys valid for every target: overlays=[f1,f2,f3,f4,f9], f4_tab=<index|title>, hud=0|1,
 ## sky=cycle|sunset|dawn|night (cycle runs the day/night cycle, the others lock it at that sky's
@@ -30,9 +33,11 @@ const TARGET_OPTIONS: String = "options"
 const TARGET_LOBBY: String = "lobby"
 const TARGET_SANDBOX: String = "sandbox"
 const TARGET_MATCH: String = "match"
+const TARGET_LOADING: String = "loading"
 const TARGET_SCENE: String = "scene"
 const TARGETS: PackedStringArray = [
-	TARGET_MAIN_MENU, TARGET_MENU, TARGET_OPTIONS, TARGET_LOBBY, TARGET_SANDBOX, TARGET_MATCH, TARGET_SCENE,
+	TARGET_MAIN_MENU, TARGET_MENU, TARGET_OPTIONS, TARGET_LOBBY, TARGET_SANDBOX, TARGET_MATCH, TARGET_LOADING,
+	TARGET_SCENE,
 ]
 const LOBBY_BOTS: String = "bots"
 const LOBBY_HOSTED: String = "hosted"
@@ -87,7 +92,7 @@ const SHOT_KEYS: PackedStringArray = [
 	"name", "target", "page", "tab", "kind", "seats", "bots", "style", "advanced", "preset", "mode", "watch",
 	"follow", "difficulty", "path", "overlays", "f4_tab", "hud", "sky", "time", "cam", "frames", "speed",
 	"scroll", "gifts_off", "teams", "weather", "pin_sky_time", "rng_seed",
-	"backdrop_seed",
+	"backdrop_seed", "fade",
 ]
 
 
@@ -188,6 +193,7 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		"f4_tab": "", "hud": NO_VALUE, "sky": "", "time": -1.0, "cam": PackedFloat32Array(),
 		"frames": DEFAULT_FRAMES, "speed": DEFAULT_SPEED,
 		"weather": "", "weather_intensity": 0.0, "pin": PackedFloat32Array(), "rng_seed": NO_VALUE, "backdrop_seed": NO_VALUE,
+		"fade": 1.0,
 	}
 	for key: Variant in raw:
 		if not SHOT_KEYS.has(str(key)):
@@ -235,6 +241,11 @@ static func normalize_shot(raw: Dictionary) -> Dictionary:
 		if pin.size() > WEATHER_PARTS or not pin[0].is_valid_float() or (pin.size() == WEATHER_PARTS and not pin[1].is_valid_float()):
 			return _failed(shot, "pin_sky_time must be <sky_time_s>[,<cloud_drift_s>]")
 		shot["pin"] = PackedFloat32Array([float(pin[0]), float(pin[1]) if pin.size() == WEATHER_PARTS else 0.0])
+	if raw.has("fade"):
+		var fade: String = str(raw["fade"])
+		if not fade.is_valid_float() or float(fade) < 0.0 or float(fade) > 1.0:
+			return _failed(shot, "fade must be 0..1")
+		shot["fade"] = float(fade)
 	if raw.has("speed"):
 		var speed: String = str(raw["speed"])
 		if not speed.is_valid_float() or float(speed) <= 0.0 or float(speed) > MAX_SPEED:
@@ -368,6 +379,8 @@ static func setup(host: Node, vp: SubViewport, main: Node, shot: Dictionary) -> 
 			error = await _sandbox(host, main, shot)
 		TARGET_MATCH:
 			error = await _match(host, main, shot)
+		TARGET_LOADING:
+			error = await _loading(host, main, shot)
 	if not error.is_empty():
 		return error
 	return await finish_setup(host, vp, main, shot)
@@ -634,6 +647,38 @@ static func _match(host: Node, main: Node, shot: Dictionary) -> String:
 	return _seed_error(shot)
 
 
+## Raises the real loading screen over the menu the way MainMatchFlow does at LOADING (seats and bots from the
+## shot, Main's base config) and holds it there; return_to_menu() cancels it.
+static func _loading(host: Node, main: Node, shot: Dictionary) -> String:
+	var loading: LoadingScreen = main.get("_loading_screen") as LoadingScreen
+	var config: MatchConfig = main.get("match_config") as MatchConfig
+	if loading == null or config == null:
+		return "Main has no loading screen or base config"
+	var seats: int = int(shot["seats"])
+	var bots: int = clampi(maxi(int(shot["bots"]), 0), 0, seats - 1)
+	var slots: Array[PlayerSlot] = []
+	for i: int in range(seats):
+		var slot: PlayerSlot = PlayerSlot.new(i, i, PLAYER_NAME if i == 0 else "Player %d" % (i + 1), Color.WHITE)
+		slot.is_bot = i >= seats - bots
+		slots.append(slot)
+	if int(shot["backdrop_seed"]) != NO_VALUE:
+		seed(int(shot["backdrop_seed"]))  # each screen picks its plate with randf(); repeat the pick per shot
+	return await show_loading(host, loading, config, slots, float(shot["fade"]))
+
+
+## Shows `loading` for `config`/`slots`, waits for its backdrop plate and freezes the plate's fade-in at `fade`
+## (1 = fully shown). "" on success.
+static func show_loading(host: Node, loading: LoadingScreen, config: MatchConfig, slots: Array[PlayerSlot], fade: float) -> String:
+	loading.show_for_match(config, slots)
+	var backdrop: LoadingBackdrop = loading.find_child("Backdrop", true, false) as LoadingBackdrop
+	if backdrop == null or not await wait_for(host, func() -> bool: return backdrop.texture != null):
+		return "the loading backdrop plate did not load"
+	backdrop.finish_fade()  # ends the real fade-in tween so the frozen fraction below is what renders
+	backdrop.modulate.a = fade
+	await settle(host, SETTLE_FRAMES)
+	return ""
+
+
 ## "" unless the shot asked for an rng_seed the running match does not use.
 static func _seed_error(shot: Dictionary) -> String:
 	if int(shot["rng_seed"]) != NO_VALUE and Match.config.rng_seed != int(shot["rng_seed"]):
@@ -649,6 +694,9 @@ static func return_to_menu(host: Node, main: Node) -> void:
 	var tutorial: Object = _first_of(main, "Tutorial")
 	if tutorial != null:
 		tutorial.call("_end_tutorial")
+	var loading: LoadingScreen = main.get("_loading_screen_node") as LoadingScreen  # not built just to be cancelled
+	if loading != null:
+		loading.cancel()
 	main.call("_on_pause_leave_requested")
 	await settle(host, LONG_SETTLE_FRAMES)
 
