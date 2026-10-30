@@ -1,4 +1,9 @@
 extends GutTest
+
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+
+var _saved_async_min_circles: int = 0
+var _saved_defer_max_s: float = 0.0
 ## game/gifts/GiftCrate.gd's own claim-pop effect and not-claimable
 ## hint pulse (see config/gifts/GiftConfig.gd's "-- Claim feedback --"/
 ## "-- Not-claimable hint --" sections for the tunables these read).
@@ -13,6 +18,11 @@ var _saved_context: MatchContext = null
 
 
 func before_each() -> void:
+	# Match._process solves synchronously and without deferral under these knobs; after_each restores them.
+	_saved_async_min_circles = _tuning.async_solve_min_circles
+	_saved_defer_max_s = _tuning.solve_defer_max_s
+	_tuning.async_solve_min_circles = 0
+	_tuning.solve_defer_max_s = 0.0
 	Match.set_process(false)
 	Match.abort_match()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
@@ -30,6 +40,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.async_solve_min_circles = _saved_async_min_circles
+	_tuning.solve_defer_max_s = _saved_defer_max_s
 	MatchContext.current().local_held().clear()
 	MatchContext.install(_saved_context)
 	Match.abort_match()
@@ -53,9 +65,9 @@ func _start_playing(config: MatchConfig) -> void:
 
 
 func _step_territory(times: int = 1) -> void:
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	var step: float = 1.0 / _tuning.solve_hz
 	for _i: int in range(times):
-		Match._territory._run_territory_step(step)
+		Match._process(step)
 		Match._gifts.tick_host(step)
 
 
