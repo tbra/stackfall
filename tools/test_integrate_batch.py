@@ -636,6 +636,19 @@ class ProbeLintTests(unittest.TestCase):
         self.assertIn("wt/b: tools/capture_x.gd", err.detail)
         self.assertFalse([n for n in fake.names() if n.startswith("merge_")])
 
+    def test_branch_allowlist_line_permits_its_own_input(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\ntools/capture_x.gd.uid\n"),
+                     "probeallow_wt_b": (0, "# header\ntools/capture_x.gd*\n")})
+        err, out, res = run(fake)
+        self.assertTrue(err is None or err.step != "probes")
+
+    def test_branch_allowlist_without_matching_line_still_fails(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\ntools/capture_x.gd.uid\n"),
+                     "probeallow_wt_b": (0, "# header\ntools/capture_y.gd*\n")})
+        err, out, res = run(fake)
+        self.assertEqual(err.step, "probes")
+        self.assertIn("wt/b: tools/capture_x.gd", err.detail)
+
     def test_allow_probes_skips_check(self):
         fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\n")})
         err, out, res = run(fake, allow_probes=True)
