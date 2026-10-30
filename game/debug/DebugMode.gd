@@ -1,9 +1,9 @@
 class_name DebugMode
 extends RefCounted
-## The single "is debug mode on?" answer. Off for players; the F1 perf
-## overlay, F3 net overlay, F4 tuning panel,
-## sandbox F5-F11 hotkeys, --force-special and the perf CSV logger all check
-## is_enabled() first. F12 screenshots stay ungated.
+## The single "is debug mode on?" answer. Off for players; the sandbox F5-F11
+## hotkeys, --force-special, the debug menu entries, Watch bots, the lobby row
+## style and the perf CSV logger all check is_enabled() first. The F1-F4 and F9
+## developer panels and F12 screenshots are available in every build.
 ##
 ## DECISION (game/debug/DebugMode.gd): sources, first match wins:
 ##   1. CLI `-- --no-debug` -> off
