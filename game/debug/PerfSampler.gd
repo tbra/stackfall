@@ -22,6 +22,10 @@ var history_frame_ms: PackedFloat32Array = PackedFloat32Array()
 var history_physics_ms: PackedFloat32Array = PackedFloat32Array()
 var history_blocks: PackedFloat32Array = PackedFloat32Array()
 
+## False = sample continuously (debug builds, logger and soak need that);
+## true = sample only while set_wanted(true): hidden, the sampler does no work.
+var demand_driven: bool = false
+
 var _window_s: float = 0.0
 var _frames: int = 0
 var _frame_sum_ms: float = 0.0
@@ -46,6 +50,7 @@ var _effects_manager: Node = null
 ## manager (menus, effects off) costs one tree walk per window, not per frame.
 var _effects_searched_this_window: bool = false
 var _session_start_msec: int = 0
+var _wanted: bool = false
 
 
 func _ready() -> void:
@@ -53,6 +58,35 @@ func _ready() -> void:
 		config = DebugConfig.new()
 	_session_start_msec = Time.get_ticks_msec()
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_apply_wanted()
+
+
+## Turns sampling on or off for a demand-driven sampler (no-op otherwise). The rising edge starts a fresh
+## stats window and drops the stale snapshot, so the first reading after opening covers only the open time.
+func set_wanted(wanted: bool) -> void:
+	if not demand_driven:
+		return
+	if wanted and not _wanted:
+		_reset_window()
+		_bucket_s = 0.0
+		_bucket_frame_max_ms = 0.0
+		_bucket_physics_max_ms = 0.0
+		_last_physics_frames = -1
+		latest = {}
+		history_frame_ms.clear()
+		history_physics_ms.clear()
+		history_blocks.clear()
+	_wanted = wanted
+	_apply_wanted()
+
+
+## Process callbacks and the PerfProbe sites follow `_wanted` for a demand-driven sampler.
+func _apply_wanted() -> void:
+	if not demand_driven:
+		return
+	set_process(_wanted)
+	set_physics_process(_wanted)
+	PerfProbe.enabled = _wanted
 
 
 func _process(delta: float) -> void:
@@ -152,6 +186,15 @@ func sample_now() -> Dictionary:
 		"effects_peak": _effects_peak,
 	}
 	var window: float = _window_s
+	_reset_window()
+	latest = collect(stats, window)
+	latest["time_s"] = float(Time.get_ticks_msec() - _session_start_msec) / 1000.0
+	_last_blocks = int(latest["blocks_total"])
+	sampled.emit(latest)
+	return latest
+
+
+func _reset_window() -> void:
 	_window_s = 0.0
 	_frames = 0
 	_frame_sum_ms = 0.0
@@ -162,11 +205,6 @@ func sample_now() -> Dictionary:
 	_steps_peak = 0
 	_steps_multi_frames = 0
 	_effects_peak = _effects_current
-	latest = collect(stats, window)
-	latest["time_s"] = float(Time.get_ticks_msec() - _session_start_msec) / 1000.0
-	_last_blocks = int(latest["blocks_total"])
-	sampled.emit(latest)
-	return latest
 
 
 func _push_history(frame_ms: float, physics_ms: float, blocks: float) -> void:
@@ -206,11 +244,7 @@ func collect(stats: Dictionary, interval_s: float) -> Dictionary:
 	m["weather_id"] = String(weather.active_id()) if weather != null else ""
 	m["weather_intensity"] = weather.active_intensity() if weather != null else 0.0
 
-	var net: Dictionary = Net.stats()
-	m["net_mode"] = int(net.get("mode", 0))
-	m["net_peers"] = int(net.get("peers", 0))
-	m["net_ping_ms"] = float(net.get("ping_ms", 0.0))
-	m["net_snapshot_bps"] = float(net.get("snapshot_bps", 0.0))
+	m["net_mode"] = int(Net.mode())
 
 	# Probe windows are per drain (interval_s of wall time); report the average
 	# per rendered frame's worth of physics ticks plus the worst single call.

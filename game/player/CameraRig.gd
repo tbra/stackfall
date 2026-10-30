@@ -532,7 +532,7 @@ func _on_fov_override_changed(_degrees: float) -> void:
 ## F4 tuning panel live-apply: re-snapshots _distance/_pitch
 ## from tuning.follow_distance/follow_pitch_deg, clamped exactly as _ready()
 ## does. Called once by _ready() and again by ui/debug/TuningPanel.gd's
-## apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
+## _apply_camera_tuning_live() whenever camera_tuning changes on the F4 panel
 ## -- never every frame, so a manual orbit/zoom the player already did (see
 ## _unhandled_input()/_process() above) is only overwritten by an explicit
 ## tuning push, not silently fought every tick. A no-op while

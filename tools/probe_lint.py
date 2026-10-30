@@ -42,16 +42,16 @@ def _git(repo, *a):
     return p.stdout
 
 
+def parse_allowlist(text):
+    return [l.strip() for l in text.splitlines() if l.strip() and not l.strip().startswith("#")]
+
+
 def read_allowlist(repo):
     path = os.path.join(repo, *ALLOWLIST.split("/"))
-    globs = []
-    if os.path.isfile(path):
-        with open(path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    globs.append(line)
-    return globs
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        return parse_allowlist(fh.read())
 
 
 def is_probe(path):

@@ -1,4 +1,5 @@
 """Unit tests for the shard/serial split in full_gate.py (no Godot launched)."""
+import json
 import os
 import sys
 import tempfile
@@ -161,6 +162,126 @@ class UnloadableScriptTest(unittest.TestCase):
     def test_missing_log_reports_every_script(self):
         out = full_gate.find_unloadable([self.GOOD], "/nonexistent/shard.log")
         self.assertEqual(len(out), 1)
+
+
+class NotRunTest(unittest.TestCase):
+    """pending and risky tests are named, not just counted, so a near-total cannot hide them."""
+
+    XML = "\n".join([
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<testsuites name="GutTests" failures="1" tests="4" >',
+        '  <testsuite name="tests/unit/test_a.gd" tests="4" failures="1" skipped="1" time="1" >',
+        '      <testcase name="test_ok" assertions="1" status="pass" classname="tests/unit/test_a.gd" time="0.1" >',
+        '      </testcase>',
+        '      <testcase name="test_later" assertions="0" status="pending" classname="tests/unit/test_a.gd" time="0.1" >',
+        '      <skipped message="pending"><![CDATA[needs a Match field]]></skipped></testcase>',
+        '      <testcase name="test_silent" assertions="0" status="no asserts" classname="tests/unit/test_a.gd" time="0.1" >',
+        '      </testcase>',
+        '      <testcase name="test_bad" assertions="1" status="fail" classname="tests/unit/test_a.gd" time="0.1" >',
+        '      <failure message="failed"><![CDATA[x]]></failure></testcase>',
+        '  </testsuite>',
+        '</testsuites>', ""])
+
+    def test_junit_names_pending_and_risky_only(self):
+        with tempfile.TemporaryDirectory() as out:
+            with open(os.path.join(out, "shard0.xml"), "w", encoding="utf-8") as fh:
+                fh.write(self.XML)
+            got = full_gate.junit_not_run(out, "shard0")
+            self.assertEqual(full_gate.junit_not_run(out, "missing"), [])
+        self.assertEqual(got, [
+            {"script": "res://tests/unit/test_a.gd", "test": "test_later", "status": "pending", "reason": "needs a Match field"},
+            {"script": "res://tests/unit/test_a.gd", "test": "test_silent", "status": "no asserts", "reason": ""}])
+
+    def test_totals_read_guts_risky_pending_line(self):
+        fd, path = tempfile.mkstemp(suffix=".log")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write("Tests              1080\nPassing Tests      1079\nRisky/Pending         1\n")
+        self.addCleanup(os.remove, path)
+        totals, _failing = full_gate.parse(path)
+        self.assertEqual(totals.get("Risky/Pending"), 1)
+
+
+class LiveProgressTest(unittest.TestCase):
+    """the progress file a watcher polls while shards run."""
+
+    ESC = chr(27)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.log = os.path.join(self.tmp.name, "shard0.log")
+        open(self.log, "w").close()
+
+    def append(self, text):
+        with open(self.log, "a", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def test_counts_follow_a_growing_log_without_double_counting(self):
+        c = full_gate.LiveCounts(self.log)
+        self.append(self.ESC + "[4m\nres://tests/unit/test_a.gd\n" + self.ESC + "[0m* test_one\n* test_t")
+        c.read()
+        self.assertEqual((c.started, len(c.failed)), (1, 0))
+        self.append("wo\n    " + self.ESC + "[31m[Failed]" + self.ESC + "[0m: no\n    [Failed]: again\n")
+        c.read()
+        self.assertEqual((c.started, len(c.failed)), (2, 1))
+        # The run summary repeats failures under "- test_" lines; they are not new.
+        self.append("= Run Summary\nres://tests/unit/test_a.gd\n- test_two\n    [Failed]: no\n* test_x\n")
+        c.read()
+        self.assertEqual((c.started, len(c.failed)), (2, 1))
+
+    def test_progress_file_tracks_phases_shards_and_counts(self):
+        clock = [100.0]
+        d = os.path.join(self.tmp.name, "progress")
+        p = full_gate.Progress("/repo", "/out", directory=d, now=lambda: clock[0])
+        files = os.listdir(d)
+        self.assertEqual(len(files), 1)
+        def read():
+            with open(os.path.join(d, files[0]), encoding="utf-8") as fh:
+                return json.load(fh)
+        self.assertEqual(read()["phase"], "lint")
+        p.update(phase="shards", shards=1, expected=3)
+        p.data["shard_state"]["shard0"] = "waiting"
+        p.shard("shard0", "running", self.log)
+        self.append("res://tests/unit/test_a.gd\n* test_one\n* test_two\n    [Failed]: x\n* test_three\n")
+        p.tick()
+        self.assertEqual(read()["run"], 0)  # throttled
+        clock[0] += full_gate.PROGRESS_EVERY_S
+        p.tick()
+        got = read()
+        self.assertEqual((got["run"], got["passed"], got["failed"]), (2, 1, 1))
+        self.assertEqual(got["shard_state"], {"shard0": "running"})
+        p.shard("shard0", "done")
+        got = read()
+        self.assertEqual((got["run"], got["passed"], got["failed"], got["shard_state"]["shard0"]), (3, 2, 1, "done"))
+        self.assertEqual(got["updated"], clock[0])
+        self.assertFalse([n for n in os.listdir(d) if n.endswith(".tmp")])
+
+    def test_old_progress_files_are_pruned(self):
+        d = os.path.join(self.tmp.name, "progress")
+        os.makedirs(d)
+        for i in range(full_gate.PROGRESS_KEEP + 5):
+            open(os.path.join(d, "20200101_%06d_1.json" % i), "w").close()
+        full_gate.Progress("/repo", "/out", directory=d)
+        names = sorted(os.listdir(d))
+        self.assertEqual(len(names), full_gate.PROGRESS_KEEP)
+        self.assertNotIn("20200101_000000_1.json", names)
+
+    def test_unwritable_folder_never_fails_the_gate(self):
+        blocker = os.path.join(self.tmp.name, "file")
+        open(blocker, "w").close()
+        p = full_gate.Progress("/repo", "/out", directory=os.path.join(blocker, "sub"))
+        p.update(phase="done")
+
+    def test_expected_counts_test_functions(self):
+        with open(os.path.join(self.tmp.name, "test_a.gd"), "w", encoding="utf-8") as fh:
+            fh.write("extends GutTest\nfunc test_one():\n\tpass\nfunc helper():\n\tpass\nfunc test_two():\n\tpass\n")
+        self.assertEqual(full_gate.expected_tests(self.tmp.name, ["res://test_a.gd", "res://gone.gd"]), 2)
+
+    def test_main_feeds_progress_through_every_phase(self):
+        src = open(full_gate.__file__, encoding="utf-8").read()
+        for phase in ('phase="shards"', 'phase="serial"', 'phase="retry"', 'phase="done"'):
+            self.assertIn(phase, src)
+        self.assertIn("not_run=result[\"not_run\"]", src)
 
 
 if __name__ == "__main__":

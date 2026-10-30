@@ -1,4 +1,9 @@
 extends GutTest
+
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+
+var _saved_async_min_circles: int = 0
+var _saved_defer_max_s: float = 0.0
 ## (P2 bug report: "I grabbed a yellow cube but nothing seemed to
 ## happen", windowed `godot --path . -- --headless-host --bots=3 --players=4`,
 ## human is slot 0).
@@ -41,6 +46,11 @@ var _tiny_map: MapDef
 
 
 func before_each() -> void:
+	# Match._process solves synchronously and without deferral under these knobs; after_each restores them.
+	_saved_async_min_circles = _tuning.async_solve_min_circles
+	_saved_defer_max_s = _tuning.solve_defer_max_s
+	_tuning.async_solve_min_circles = 0
+	_tuning.solve_defer_max_s = 0.0
 	Match.set_process(false)
 	Match.abort_match()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
@@ -56,6 +66,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.async_solve_min_circles = _saved_async_min_circles
+	_tuning.solve_defer_max_s = _saved_defer_max_s
 	Match._gifts._gift_config = load("res://config/gifts/gift_config.tres") as GiftConfig
 	Match.abort_match()
 	Match.set_process(true)
@@ -89,9 +101,9 @@ func _start_playing(config: MatchConfig) -> void:
 
 
 func _step_territory(times: int = 1) -> void:
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	var step: float = 1.0 / _tuning.solve_hz
 	for _i: int in range(times):
-		Match._territory._run_territory_step(step)
+		Match._process(step)
 		Match._gifts.tick_host(step)
 
 

@@ -46,6 +46,7 @@ func _config() -> MatchConfig:
 
 func _make_hud() -> HUD:
 	var hud: HUD = autofree(HUD_SCENE.instantiate()) as HUD
+	hud.match_context = MatchContext.current()
 	add_child_autofree(hud)
 	return hud
 

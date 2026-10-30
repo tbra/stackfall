@@ -539,8 +539,8 @@ func _actions() -> Dictionary:
 	# DECISION (tools/bootstrap_project.gd): the networking design asks for
 	# net_debug_toggle as "F3 + gamepad Back+Y". Every face/shoulder/stick
 	# button on the pad is already claimed by placement and camera controls
-	# (spec 2.5), so there is no free single button left for a debug-only
-	# feature. The Input Map action itself can only bind single events, not a
+	# (spec 2.5), so there is no free single button left for a developer
+	# panel. The Input Map action itself can only bind single events, not a
 	# two-button chord, so its gamepad half is bound to Y (already
 	# rotate_reset's button — two actions sharing one physical event is normal
 	# in Godot) and ui/debug/NetDebugOverlay.gd requires camera_snap_home (Back) to
@@ -570,8 +570,8 @@ func _actions() -> Dictionary:
 	# already claimed by placement and camera controls (spec 2.5) or by
 	# net_debug_toggle's own Back+Y chord, so these reach for the buttons
 	# nothing else uses: BACK for the one binding the brief asked for by name
-	# (accepting that it doubles up with camera_snap_home — a debug-only
-	# overlap, not a shipped one, the same tolerance net_debug_toggle already
+	# (accepting that it doubles up with camera_snap_home — an
+	# overlap of developer panels, the same tolerance net_debug_toggle already
 	# established for sharing Y with rotate_reset) and the PADDLE1-4 buttons
 	# (JOY_BUTTON_PADDLE1..4, only present on Xbox Elite/DualSense-class pads)
 	# for the rest, rather than "Y+Back" for sandbox_toggle_timer as first
@@ -618,27 +618,27 @@ func _actions() -> Dictionary:
 	a["sandbox_pause_physics"] = [_key(KEY_F11), _pad(JOY_BUTTON_PADDLE2)]
 
 	# DECISION (tools/bootstrap_project.gd): perf_overlay_toggle
-	# is the debug-only F1 performance overlay (ui/debug/PerfOverlay.gd, gated by
-	# game/debug/DebugMode.gd). JOY_BUTTON_RIGHT_STICK is the one standard-pad button
+	# is the F1 performance overlay (ui/debug/PerfOverlay.gd, a developer panel
+	# available in every build). JOY_BUTTON_RIGHT_STICK is the one standard-pad button
 	# nothing else binds (hover_raise/lower moved to the shoulders long ago),
-	# but a stray stick click must not flip a debug overlay, so ui/debug/PerfOverlay.gd
+	# but a stray stick click must not flip a developer panel, so ui/debug/PerfOverlay.gd
 	# only accepts the pad press while Back (camera_snap_home) is held -- the
 	# same action-built chord net_debug_toggle uses -- and avoids Start, whose
 	# press opens the pause menu.
 	a["perf_overlay_toggle"] = [_key(KEY_F1), _pad(JOY_BUTTON_RIGHT_STICK)]
 
-	# DECISION (tools/bootstrap_project.gd): bot_cost_overlay_toggle is the debug-only F9 bot
-	# think cost overlay (ui/debug/PerfBotCostOverlay.gd, gated by game/debug/DebugMode.gd). R3 already belongs to F1 (and
+	# DECISION (tools/bootstrap_project.gd): bot_cost_overlay_toggle is the F9 bot
+	# think cost overlay (ui/debug/PerfBotCostOverlay.gd, available in every build). R3 already belongs to F1 (and
 	# show_scores), so its pad half is the left-stick click, accepted by the overlay only while Back
 	# (camera_snap_home) is held, like F1/F3. L3 is camera_modifier, a hold modifier that only matters
 	# together with camera stick motion, so a Back+L3 press does no harm; a bare L3 press is ignored.
 	a["bot_cost_overlay_toggle"] = [_key(KEY_F9), _pad(JOY_BUTTON_LEFT_STICK)]
 
-	# DECISION (tools/bootstrap_project.gd): pose_overlay_toggle is the debug-only F2 pose panel
-	# (ui/debug/PoseOverlay.gd, gated by game/debug/DebugMode.gd). R3 and L3 belong to F1 and F9 and
+	# DECISION (tools/bootstrap_project.gd): pose_overlay_toggle is the F2 pose panel
+	# (ui/debug/PoseOverlay.gd, available in every build). R3 and L3 belong to F1 and F9 and
 	# every other button is taken, so its pad half is D-pad left, accepted by the overlay only while
 	# Back (camera_snap_home) is held, like F1/F3. The one overlap is the F9 bot overlay's own
-	# Back + left/right selector, which only acts while that overlay is shown (debug-only tolerance).
+	# Back + left/right selector, which only acts while that overlay is shown (developer-panel tolerance).
 	a["pose_overlay_toggle"] = [_key(KEY_F2), _pad(JOY_BUTTON_DPAD_LEFT)]
 
 	# --- Gift demo ---------------------------------------------

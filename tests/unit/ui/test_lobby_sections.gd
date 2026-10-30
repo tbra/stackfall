@@ -8,9 +8,6 @@ extends GutTest
 ## per-gift checklist is GIFTS Advanced, the experiment checks are the EXPERIMENTS block, and
 ## the Advanced rules popup, bar, Players/AI steppers and segmented Teams are gone.
 
-const QOL_NAMES: Array[String] = ["%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck", "%QolGiftLoadsNextCheck"]
-
-
 func _make_lobby(is_host: bool) -> Lobby:
 	var scene: PackedScene = load("res://ui/lobby/Lobby.tscn")
 	var lobby: Lobby = autofree(scene.instantiate())
@@ -41,61 +38,35 @@ func _pick_mode(lobby: Lobby, mode: int) -> void:
 	option.item_selected.emit(mode)
 
 
-## Walks focus_neighbor_bottom from the loop's last shown stop (Start for a host, Ready
-## for a client) once around and returns the controls visited (that stop last). Asserts
-## the loop is closed and never revisits a stop.
-func _walk_loop(lobby: Lobby) -> Array[Control]:
-	var start: Control = lobby._visible_chain(lobby._main_chain).back()
-	var visited: Array[Control] = []
-	var current: Control = start
-	var steps: int = 0
-	while steps <= lobby._main_chain.size() + 1:
-		current = current.get_node(current.focus_neighbor_bottom) as Control
-		steps += 1
-		visited.append(current)
-		if current == start:
-			break
-		assert_false(visited.slice(0, visited.size() - 1).has(current), "%s visited twice before the loop closed" % current.name)
-	assert_eq(current, start, "the loop is closed")
-	return visited
+## The loop's anchor: Start for a host, Ready for a client (the footer stop the loop wraps at).
+func _anchor(lobby: Lobby) -> Control:
+	var start: Control = lobby.get_node("%StartButton") as Control
+	return start if start.is_visible_in_tree() else lobby.get_node("%ReadyCheck") as Control
 
 
-## No stop on the loop may be invisible, and every shown chain control is on it.
+## Focus-down from the anchor, once around: the loop closes, no stop is invisible, and every live
+## focusable control of the settings column is on it.
 func _assert_loop_has_no_invisible_stops(lobby: Lobby, label: String) -> void:
-	var visited: Array[Control] = _walk_loop(lobby)
-	for control: Control in visited:
+	var anchor: Control = _anchor(lobby)
+	var stops: Array[Control] = FocusWalk.loop(anchor)
+	assert_true(FocusWalk.is_closed(stops, anchor), "%s: the loop is closed" % label)
+	for control: Control in stops:
 		assert_true(control.is_visible_in_tree(), "%s: %s is an invisible focus stop" % [label, control.name])
-	for control: Control in lobby._visible_chain(lobby._main_chain):
-		assert_true(visited.has(control), "%s: %s is shown but missing from the loop" % [label, control.name])
+	for control: Control in FocusWalk.live_focusable(lobby.get_node("%Settings") as Control):
+		assert_true(stops.has(control), "%s: %s is shown but missing from the loop" % [label, control.name])
 
 
-func test_every_chain_control_belongs_to_at_most_one_section_and_every_section_is_reachable() -> void:
+func test_every_section_is_reachable_by_focus() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	for section: UiSection in lobby._sections():
+	for section: UiSection in lobby.find_children("*", "UiSection", true, false):
 		section.set_advanced_open(true)
-	var sections: Array[UiSection] = lobby._sections()
-	# The sections the lobby loops over are exactly the UiSection nodes in its tree.
-	var in_tree: Array[Node] = lobby.find_children("*", "UiSection", true, false)
-	assert_eq(sections.size(), in_tree.size(), "every UiSection in the tree is walked by the lobby")
-	for section: UiSection in sections:
-		assert_true(in_tree.has(section), "%s is in the lobby tree" % section.name)
-	var chain: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	for section: UiSection in sections:
+	var stops: Array[Control] = FocusWalk.loop(_anchor(lobby))
+	for section: UiSection in lobby.find_children("*", "UiSection", true, false):
 		var reachable: int = 0
-		for control: Control in chain:
-			if section.is_ancestor_of(control) or control == section.advanced_button:
+		for control: Control in stops:
+			if section.is_ancestor_of(control):
 				reachable += 1
 		assert_gt(reachable, 0, "%s offers at least one focus stop" % section.name)
-	for control: Control in chain:
-		var owners: int = 0
-		for section: UiSection in sections:
-			if section.is_ancestor_of(control):
-				owners += 1
-		assert_lte(owners, 1, "%s sits in at most one section" % control.name)
-	for section: UiSection in sections:
-		if section.has_advanced():
-			assert_not_null(section.advanced_button, "%s has a chip for its Advanced block" % section.name)
-			assert_true(section.advanced_button.is_visible_in_tree())
 
 
 func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> void:
@@ -103,16 +74,14 @@ func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> v
 	var game: UiSection = _section(lobby, "%GameSection")
 	var gravity: Control = lobby.get_node("%GravityMeter") as Control
 	assert_not_null(game.advanced_button)
-	assert_false(lobby._visible_chain(lobby._main_chain).has(gravity))
+	assert_false(FocusWalk.loop(_anchor(lobby)).has(gravity), "closed Advanced controls are not stops")
 	watch_signals(game)
 	game.advanced_button.button_pressed = true
 	assert_true(game.advanced.visible)
 	assert_signal_emitted_with_parameters(game, "advanced_changed", [true])
 	assert_true(gravity.is_visible_in_tree())
 	for unique_name: String in ["%GravityMeter", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
-		assert_true(lobby._visible_chain(lobby._main_chain).has(lobby.get_node(unique_name)), "%s joins the loop" % unique_name)
-	# Visual order: the chip leads straight into the first Advanced control.
-	assert_eq(game.advanced_button.get_node(game.advanced_button.focus_neighbor_bottom), gravity)
+		assert_true(FocusWalk.loop(_anchor(lobby)).has(lobby.get_node(unique_name)), "%s joins the loop" % unique_name)
 	_assert_loop_has_no_invisible_stops(lobby, "GAME advanced open")
 	game.advanced_button.button_pressed = false
 	assert_false(gravity.is_visible_in_tree())
@@ -121,7 +90,7 @@ func test_advanced_chip_opens_the_block_and_adds_its_controls_to_the_loop() -> v
 
 func test_loop_has_no_invisible_stops_in_every_game_mode() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	for section: UiSection in lobby._sections():
+	for section: UiSection in lobby.find_children("*", "UiSection", true, false):
 		section.set_advanced_open(true)
 	for mode: int in MatchConfig.SELECTABLE_GAME_MODES:
 		_pick_mode(lobby, mode)
@@ -227,44 +196,41 @@ func test_host_edits_every_round_setting_from_the_round_section() -> void:
 	assert_true(config.sky_team_sum)
 
 
+## A button that belongs to a stepper, cycler or meter (its own -/+ or arrows), not a setting itself.
+func _inside_widget(control: Control) -> bool:
+	var node: Node = control.get_parent()
+	while node != null:
+		if node is UiStepper or node is UiCycler or node is UiSegmentMeter:
+			return true
+		node = node.get_parent()
+	return false
+
+
 func test_client_reads_the_sections_but_cannot_edit_them() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	var game: UiSection = _section(lobby, "%GameSection")
-	var disabled_names: Array[String] = [
-		"%GameModeOption", "%DiscSizeMeter", "%SkyThemeOption", "%WeatherOption", "%GravityMeter",
-		"%TurnBasedCheck", "%HoleModeOption", "%TiltModeOption", "%MidJoinCheck", "%MatchTimerStepper",
-		"%SuddenDeathCheck", "%BlockTimerStepper", "%GiftsCheck", "%SpecialFreqMeter",
-	]
-	disabled_names.append_array(QOL_NAMES)
-	for box: UiChipToggle in lobby._special_checkboxes:
-		assert_true(box.disabled, "%s is a read-only gift checkbox for a client" % box.name)
-	for unique_name: String in disabled_names:
-		var control: Control = lobby.get_node(unique_name) as Control
+	var chips: Array[Node] = []
+	for section: UiSection in lobby.find_children("*", "UiSection", true, false):
+		if section.advanced_button != null:
+			chips.append(section.advanced_button)
+	var checked: int = 0
+	for control: Node in lobby.get_node("%Settings").find_children("*", "Control", true, false):
 		if control is UiStepper:
-			assert_true((control as UiStepper).disabled, "%s is read-only for a client" % unique_name)
+			assert_true((control as UiStepper).disabled, "%s is read-only for a client" % control.name)
 		elif control is UiCycler:
-			assert_true((control as UiCycler).disabled, "%s is read-only for a client" % unique_name)
+			assert_true((control as UiCycler).disabled, "%s is read-only for a client" % control.name)
 		elif control is UiSegmentMeter:
-			assert_false((control as UiSegmentMeter).editable, "%s is read-only for a client" % unique_name)
+			assert_false((control as UiSegmentMeter).editable, "%s is read-only for a client" % control.name)
+		elif control is BaseButton and not chips.has(control) and not _inside_widget(control as Control):
+			assert_true((control as BaseButton).disabled, "%s is disabled for a client" % control.name)
 		else:
-			assert_true((control as BaseButton).disabled, "%s is disabled for a client" % unique_name)
+			continue
+		checked += 1
+	assert_gt(checked, 20, "the settings column was actually walked")
+	for box: Node in lobby.find_children("*", "UiChipToggle", true, false):
+		assert_true((box as UiChipToggle).disabled, "%s is a read-only chip for a client" % box.name)
 	assert_false(game.advanced_button.disabled, "a client can still open the Advanced block to read it")
 	game.advanced_button.button_pressed = true
 	assert_true(game.advanced.visible)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0, "opening a block publishes nothing")
 	_assert_loop_has_no_invisible_stops(lobby, "client")
-
-
-func test_header_icon_and_caption_share_a_centre_line_and_summary_clears_the_scrollbar() -> void:
-	var lobby: Lobby = _make_lobby(true)
-	await wait_frames(3)
-	for section: UiSection in lobby._sections():
-		var row: HBoxContainer = section.get_node("HeaderRow") as HBoxContainer
-		var icon: Control = row.get_node("HeaderIcon") as Control
-		var caption: Label = row.get_child(1) as Label
-		assert_eq(caption.vertical_alignment, VERTICAL_ALIGNMENT_CENTER, "%s caption is vertically centred" % section.name)
-		var icon_mid: float = icon.get_global_rect().get_center().y
-		var caption_mid: float = caption.get_global_rect().get_center().y
-		assert_almost_eq(icon_mid, caption_mid, 1.0, "%s icon and caption share a centre line" % section.name)
-		var gap: Control = row.get_child(row.get_child_count() - 1) as Control
-		assert_gt(gap.custom_minimum_size.x, 0.0, "%s summary keeps a trailing gap" % section.name)

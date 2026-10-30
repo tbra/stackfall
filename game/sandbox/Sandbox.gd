@@ -98,7 +98,6 @@ func _exit_tree() -> void:
 		Events.pause_menu_opened.disconnect(_on_pause_menu_opened)
 		Events.pause_menu_closed.disconnect(_on_pause_menu_closed)
 	_set_block_physics_frozen(false)
-	Match._territory_cache_enabled = true
 	# Only undo what this instance set: after an F5 rebuild the old node leaves at
 	# frame end, after the new one may already have toggled its own tools.
 	if _slow_motion_active:
@@ -331,13 +330,12 @@ func _set_active_slot(slot_id: int) -> void:
 	_push_panel_state()
 
 
-## sandbox_reset_field (F5): restore the territory state, then restart the
-## match for the same config. The rebuild frees this node and attaches a fresh
-## Sandbox, which re-places flags, the preset towers and the forced special and
-## resets the slot, slow motion and height record.
+## sandbox_reset_field (F5): restart the match for the same config; the
+## territory state comes back with the restart. The rebuild frees this node and
+## attaches a fresh Sandbox, which re-places flags, the preset towers and the
+## forced special and resets the slot, slow motion and height record.
 func _reset_field() -> void:
 	_set_block_physics_frozen(false)
-	Match._territory_cache_enabled = true
 	if Match.config == null:
 		return
 	Match.start_match(Match.config)

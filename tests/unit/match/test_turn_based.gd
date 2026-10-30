@@ -1,4 +1,5 @@
 extends "res://tests/unit/match/match_world_test.gd"
+const TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 ## Spec 1.2 turn-based: the next turn starts once every placed block has settled or after
 ## TerritoryTuning.turn_based_max_settle_s.
 
@@ -27,7 +28,7 @@ func test_advance_turn_fires_once_all_settled_turns_true() -> void:
 
 	var tuning: PhysicsTuning = load("res://config/physics/physics_tuning.tres")
 	var ticks: int = int(ceil(tuning.sleep_settle_time * Engine.physics_ticks_per_second)) + 5
-	var max_wait_ticks: int = int(ceil(Match._territory_tuning.turn_based_max_settle_s * Engine.physics_ticks_per_second))
+	var max_wait_ticks: int = int(ceil(TUNING.turn_based_max_settle_s * Engine.physics_ticks_per_second))
 	assert_lt(ticks, max_wait_ticks,
 		"fixture: the block must settle well before the safety cap, or this test can't tell settling from timeout")
 
@@ -47,7 +48,7 @@ func test_a_never_settling_block_advances_at_exactly_the_safety_cap() -> void:
 	var spawned: Block = _blocks_root.get_child(0) as Block
 	spawned.linear_velocity = Vector3(10.0, 0.0, 0.0)  # far above sleep_linear_threshold: never settles
 
-	var cap: float = Match._territory_tuning.turn_based_max_settle_s
+	var cap: float = TUNING.turn_based_max_settle_s
 	var frames_just_under: int = int(cap * Engine.physics_ticks_per_second) - 1
 	for _i: int in range(frames_just_under):
 		await _tick_one_physics_and_match_frame()

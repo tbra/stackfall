@@ -1,11 +1,8 @@
 extends GutTest
-## The round-length row reads "Round length" in every game mode (no
-## "required" wording anywhere), a gifts switch that is off hides Frequency and the GIFTS Advanced bar,
+## A gifts switch that is off hides Frequency and the GIFTS Advanced bar from focus,
 ## the new Experiments master switch hides its Advanced bar and starts matches with no experiment
 ## active, and it replicates host -> client like the gifts switch.
 
-const ROUND_LENGTH_TEXT: String = "Round length (min)"
-const OLD_TIMER_TEXT: String = "Match timer (min)"
 const MAX_STOPS: int = 60
 const _NET_SCRIPT: GDScript = preload("res://autoload/Net.gd")
 
@@ -21,19 +18,13 @@ func _make_lobby(is_host: bool = true) -> Lobby:
 	return lobby
 
 
-func _all_texts(node: Node, out: PackedStringArray) -> void:
-	for child: Node in node.get_children():
-		var label: Label = child as Label
-		if label != null:
-			out.append(label.text)
-		var button: Button = child as Button
-		if button != null:
-			out.append(button.text)
-		_all_texts(child, out)
+func _start_of(lobby: Lobby) -> Control:
+	return lobby.get_node("%StartButton") as Control
 
 
+## Every stop one focus-down loop visits from the footer's Start button.
 func _stops(lobby: Lobby) -> Array[Control]:
-	return lobby._visible_chain(lobby._main_chain)
+	return FocusWalk.loop(_start_of(lobby))
 
 
 func _pad_press(button: JoyButton) -> void:
@@ -56,7 +47,7 @@ func _action_press(action: StringName) -> void:
 
 ## Walks the loop with synthetic pad D-pad-down presses; returns every focused control it lands on.
 func _walk_with_pad(lobby: Lobby) -> Array[Control]:
-	var first: Control = _stops(lobby)[0]
+	var first: Control = _start_of(lobby)
 	first.grab_focus()
 	var seen: Array[Control] = [first]
 	for _i: int in range(MAX_STOPS):
@@ -74,7 +65,7 @@ func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 	await wait_frames(2)
 	var freq: Control = lobby.get_node("%SpecialFreqMeter")
 	var section: UiSection = lobby.get_node("%GiftsSection")
-	var chips: Array[UiChipToggle] = lobby._special_checkboxes
+	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
 	assert_true(freq.is_visible_in_tree(), "gifts default on: Frequency shown")
 	assert_true(section.advanced_button.visible)
 	section.set_advanced_open(true)
@@ -110,7 +101,6 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	var chip: UiChipToggle = lobby._qol_checks[0]
 	assert_false(check.button_pressed, "default OFF: no experiment runs until the host opts in")
 	assert_null(section.advanced_button, "experiments have no Advanced sub-section")
-	assert_false(lobby._config_from_controls().experiments_enabled)
 	assert_false(chip.is_visible_in_tree(), "default off: options hidden")
 	assert_false(_stops(lobby).has(chip))
 
@@ -121,9 +111,10 @@ func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -
 	assert_true(check.button_pressed, "ui_accept switched it on")
 	assert_true(chip.is_visible_in_tree(), "experiments on: options shown")
 	assert_true(_stops(lobby).has(chip))
-	assert_true(lobby._config_from_controls().experiments_enabled)
+	assert_true(LobbyProbe.published_config(lobby).experiments_enabled, "the switch is published on")
 	check.button_pressed = false
 	await wait_frames(2)
+	assert_false(LobbyProbe.published_config(lobby).experiments_enabled, "and published off again")
 	assert_false(chip.is_visible_in_tree(), "experiments off again: options hidden")
 	assert_false(_stops(lobby).has(chip))
 	var walked: Array[Control] = await _walk_with_pad(lobby)
@@ -149,9 +140,9 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	(lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGoalRadiusCheck") as UiChipToggle).button_pressed = true
 	(lobby.get_node("%QolGiftLoadsNextCheck") as UiChipToggle).button_pressed = true
-	assert_true(_any_toggle_on(lobby._config_from_controls().qol), "on: the chips apply")
+	assert_true(_any_toggle_on(LobbyProbe.published_config(lobby).qol), "on: the chips apply")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = false
-	var off_config: MatchConfig = lobby._config_from_controls()
+	var off_config: MatchConfig = LobbyProbe.published_config(lobby)
 	assert_false(off_config.experiments_enabled)
 	assert_true((lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed, "chip selection kept")
 	# The round trip a real start takes: dict -> from_dict -> sanitize (MatchLifecycle.start_match).
@@ -162,7 +153,7 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	assert_false(_any_toggle_on(started.qol), "off: no experiment active in the started match")
 	assert_true(started.qol.gift_after_next_in_force(), "off: the gift-loads-next chip falls back to the after-next rule")
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
-	var again: MatchConfig = MatchConfig.from_dict(lobby._config_from_controls().to_dict())
+	var again: MatchConfig = LobbyProbe.published_config(lobby)
 	again.sanitize()
 	assert_true(again.qol.backlog_enabled and again.qol.goal_radius_enabled, "on again: the previous selection applies")
 

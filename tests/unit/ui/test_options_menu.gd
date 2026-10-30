@@ -188,7 +188,9 @@ func test_every_rebindable_action_has_a_keyboard_or_mouse_binding() -> void:
 ## built row set matches REBINDABLE_ACTIONS, not their relative order.
 func test_options_menu_builds_one_row_per_rebindable_action() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var rows: Array[KeyRebindRow] = menu._rows
+	var rows: Array[KeyRebindRow] = []
+	for node: Node in menu.find_children("*", "KeyRebindRow", true, false):
+		rows.append(node as KeyRebindRow)
 	assert_eq(rows.size(), OptionsMenu.REBINDABLE_ACTIONS.size())
 	var built_actions: Array[StringName] = []
 	for row: KeyRebindRow in rows:
@@ -228,59 +230,65 @@ func test_pressing_the_controls_tab_shows_the_controls_page_and_hides_settings()
 	assert_false((menu.get_node("%SettingsPage") as Control).visible)
 
 
-func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
+## Pad and keyboard reach every control of the open page: the down loop closes, every stop is
+## live, and no live focusable control of the page is left off the loop (tab buttons sit above
+## the pages and are reached by ui_up, so they are not loop stops).
+func test_down_loop_is_closed_and_reaches_every_live_control_on_each_page() -> void:
 	var menu: OptionsMenu = _make_menu()
-	var rows: Array[KeyRebindRow] = menu._rows
-	assert_gt(rows.size(), 0, "expected at least one rebind row")
+	Settings._input(InputEventJoypadButton.new())
+	for tab_name: String in ["%SettingsTabButton", "%GraphicsTabButton", "%ControlsTabButton"]:
+		(menu.get_node(tab_name) as Button).button_pressed = true
+		await wait_frames(3)
+		_assert_page_loop(menu, tab_name)
 
-	var window_mode_option: Control = menu.get_node("%WindowModeOption") as Control
-	var back_button: Control = menu.get_node("%BackButton") as Control
-	var back_bottom: Node = back_button.get_node(back_button.focus_neighbor_bottom)
-	assert_eq(back_bottom, window_mode_option, "the chain must wrap from BackButton back to WindowModeOption")
 
-	var camera_shake_check: Control = menu.get_node("%CameraShakeCheck") as Control
-	assert_ne(camera_shake_check.focus_neighbor_top, NodePath(""), "CameraShakeCheck must have an up neighbor")
-	assert_ne(camera_shake_check.focus_neighbor_bottom, NodePath(""), "CameraShakeCheck must have a down neighbor")
+func _page_stops(menu: OptionsMenu) -> Array[Control]:
+	var stops: Array[Control] = []
+	for control: Control in FocusWalk.live_focusable(menu):
+		if not _is_tab_strip(menu, control):
+			stops.append(control)
+	return stops
 
-	# Orchestrator review correction: the chain now matches the Settings tab's
-	# own visual row order top to bottom -- PresetOption -> WindowModeOption ->
-	# CameraShakeCheck -> Master/Music/SFX mute+volume -> Rumble toggle+
-	# intensity -> MoveSpeedSlider (Controls tab) -> first rebind row.
-	# Computed via the same get_path_to() NodePaths the rest of this test
-	# already checks (a real gamepad D-pad/stick "move focus down" sends
-	# ui_down, which Godot's own Control focus-neighbor resolution consumes
-	# via these NodePaths -- there is no separate synthetic-input path to
-	# drive here).
-	# UiScaleSlider sits between WindowModeOption and CameraShakeCheck.
-	var ui_scale_slider: Control = menu.get_node("%UiScaleSlider") as Control
-	assert_eq(window_mode_option.get_node(window_mode_option.focus_neighbor_bottom), ui_scale_slider, "WindowModeOption must move focus down to UiScaleSlider")
-	# HudScaleSlider and MinimapSizeOption follow the UI scale row.
-	var hud_scale_slider: Control = menu.get_node("%HudScaleSlider") as Control
-	var minimap_option: Control = menu.get_node("%MinimapSizeOption") as Control
-	assert_eq(ui_scale_slider.get_node(ui_scale_slider.focus_neighbor_bottom), hud_scale_slider, "UiScaleSlider must move focus down to HudScaleSlider")
-	assert_eq(hud_scale_slider.get_node(hud_scale_slider.focus_neighbor_bottom), minimap_option, "HudScaleSlider must move focus down to MinimapSizeOption")
-	assert_eq(minimap_option.get_node(minimap_option.focus_neighbor_bottom), camera_shake_check, "MinimapSizeOption must move focus down to CameraShakeCheck")
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_top), minimap_option, "CameraShakeCheck must move focus up to MinimapSizeOption")
 
-	var master_mute: Control = menu.get_node("%MasterMuteButton") as Control
-	var rumble_check: Control = menu.get_node("%RumbleEnabledCheck") as Control
-	var rumble_slider: Control = menu.get_node("%RumbleStrengthSlider") as Control
-	var move_speed_slider: Control = menu.get_node("%MoveSpeedSlider") as Control
-	var adaptive_check: Control = menu.get_node("%AdaptiveQualityCheck") as Control
-	assert_eq(camera_shake_check.get_node(camera_shake_check.focus_neighbor_bottom), adaptive_check, "CameraShakeCheck must move focus down to AdaptiveQualityCheck")
-	var fov_slider: Control = menu.get_node("%FovSlider") as Control
-	assert_eq(adaptive_check.get_node(adaptive_check.focus_neighbor_bottom), fov_slider, "AdaptiveQualityCheck must move focus down to FovSlider")
-	assert_eq(fov_slider.get_node(fov_slider.focus_neighbor_bottom), master_mute, "FovSlider must move focus down to MasterMuteButton")
-	assert_eq(rumble_check.get_node(rumble_check.focus_neighbor_bottom), rumble_slider, "RumbleEnabledCheck must move focus down to RumbleStrengthSlider")
-	assert_eq(rumble_slider.get_node(rumble_slider.focus_neighbor_bottom), move_speed_slider, "RumbleStrengthSlider must move focus down to MoveSpeedSlider")
-	assert_eq(move_speed_slider.get_node(move_speed_slider.focus_neighbor_bottom), rows[0].rebind_button(), "MoveSpeedSlider must move focus down to the first rebind row")
+func _is_tab_strip(menu: OptionsMenu, control: Control) -> bool:
+	for tabs: Node in menu.find_children("*", "UiTabs", true, false):
+		if tabs.is_ancestor_of(control):
+			return true
+	return false
 
-	for row: KeyRebindRow in rows:
-		if not row.is_available_on_active_device():
-			continue  # hidden rows (snap while disabled) are not focus stops.
-		var button: Control = row.rebind_button()
-		assert_ne(button.focus_neighbor_top, NodePath(""), "%s's rebind button must have an up neighbor" % row._action)
-		assert_ne(button.focus_neighbor_bottom, NodePath(""), "%s's rebind button must have a down neighbor" % row._action)
+
+func _assert_page_loop(menu: OptionsMenu, label: String) -> void:
+	var live: Array[Control] = _page_stops(menu)
+	assert_gt(live.size(), 0, "%s: expected live focusable controls" % label)
+	if live.is_empty():
+		return
+	var start: Control = menu.get_node("%BackButton") as Control
+	var stops: Array[Control] = FocusWalk.loop(start)
+	assert_true(FocusWalk.is_closed(stops, start), "%s: ui_down loop closes" % label)
+	for stop: Control in stops:
+		assert_true(FocusWalk.is_live(stop), "%s: %s is a live stop" % [label, stop.name])
+	for control: Control in live:
+		assert_true(stops.has(control), "%s: %s is reachable by ui_down" % [label, control.name])
+
+
+## The real ui_down path (what a D-pad sends) lands where the engine resolves the neighbour.
+func test_real_dpad_down_lands_on_the_resolved_neighbour() -> void:
+	var menu: OptionsMenu = _make_menu()
+	await wait_frames(2)
+	var start: Control = menu.get_node("%BackButton") as Control
+	start.grab_focus()
+	var expected: Control = start.find_valid_focus_neighbor(SIDE_BOTTOM)
+	assert_not_null(expected)
+	var down: InputEventJoypadButton = InputEventJoypadButton.new()
+	down.button_index = JOY_BUTTON_DPAD_DOWN
+	down.pressed = true
+	Input.parse_input_event(down)
+	await get_tree().process_frame
+	var up: InputEventJoypadButton = InputEventJoypadButton.new()
+	up.button_index = JOY_BUTTON_DPAD_DOWN
+	Input.parse_input_event(up)
+	await get_tree().process_frame
+	assert_eq(get_viewport().gui_get_focus_owner(), expected, "D-pad down moves to the resolved neighbour")
 
 
 func test_ui_cancel_emits_closed_when_no_row_is_listening() -> void:

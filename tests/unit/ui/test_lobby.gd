@@ -114,7 +114,7 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	assert_eq((lobby.get_node("%AiDifficultyOption") as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
 	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
 	assert_almost_eq(lobby._block_timer_seconds(), 9.5, 0.01)
-	assert_almost_eq(lobby._gravity_value, 1.25, 0.01)
+	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).display_text(), "1.25x")
 	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).value, Lobby._gravity_cells_for(1.25))
 	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, 3)
 	assert_false((lobby.get_node("%GiftsCheck") as UiToggle).button_pressed)
@@ -230,7 +230,7 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 ## -- nothing previously stopped ai_count + connected humans from exceeding
 ## player_count. %AiCountSpin's own max_value must track the empty-seat count
 ## (seats - humans) and clamp an already-too-high value down to it.
-func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
+func test_bot_count_clamps_to_seats_minus_connected_humans() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected humans
@@ -256,11 +256,12 @@ func test_ai_count_spin_clamps_to_seats_minus_connected_humans() -> void:
 
 func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	if lobby._special_checkboxes.size() < 2:
+	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
+	if chips.size() < 2:
 		pass_test("fewer than 2 SpecialDef .tres on disk in this checkout; nothing to distinguish")
 		return
 	var unchecked_id: StringName = lobby._special_ids[0]
-	lobby._special_checkboxes[0].button_pressed = false
+	chips[0].button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
@@ -273,10 +274,11 @@ func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> voi
 
 func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	if lobby._special_checkboxes.is_empty():
+	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
+	if chips.is_empty():
 		pass_test("no SpecialDef .tres on disk in this checkout; nothing to uncheck")
 		return
-	for box: UiChipToggle in lobby._special_checkboxes:
+	for box: UiChipToggle in chips:
 		box.button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
@@ -315,94 +317,29 @@ func _pad_press_release_action_event(button: JoyButton) -> InputEventJoypadButto
 
 
 func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
-	# ui/lobby/Lobby.tscn (unlike ui/menus/OptionsMenu.tscn) carries no static
-	# focus_neighbor_* NodePaths -- _wire_focus_chain() builds the chain at
-	# runtime once the dynamic specials checklist exists. Mirror
-	# test_options_menu.gd's test_focus_chain_is_a_closed_loop_through_every_row().
+	# Lobby.tscn carries no static neighbours: the chain is built at runtime. The rule is that no
+	# row is a focus dead end and the loop closes, with the Advanced blocks shut and open.
 	var lobby: Lobby = _make_lobby(true)
-
 	var start_button: Control = lobby.get_node("%StartButton") as Control
-	# section headers are static; the loop starts at the GAME mode.
-	var first_stop: Control = lobby.get_node("%GameModeOption") as Control
-	var start_bottom: Node = start_button.get_node(start_button.focus_neighbor_bottom)
-	assert_eq(start_bottom, first_stop, "the chain must wrap from StartButton back to the game mode")
-
-	var top_neighbor: Node = first_stop.get_node(first_stop.focus_neighbor_top)
-	assert_eq(top_neighbor, start_button, "the game mode's up neighbor must close the loop back to StartButton")
-	var second_option: Control = lobby.get_node("%DiscSizeMeter") as Control
-	assert_eq(first_stop.get_node(first_stop.focus_neighbor_bottom), second_option, "the map picker follows the mode picker")
-
-	# S1b: the hidden sources of truth (%TeamModeOption, the seat spins and
-	# the default-difficulty dropdown, plus the map variant/size options behind the combined
-	# map dropdown) are never stops a Tab press could not visibly land on. Collapsed Advanced
-	# blocks and the hidden Steam-only invite button are not stops either.
-	var chain_unique_names: Array[String] = [
-		"%DiscSizeMeter", "%GameModeOption", "%SkyThemeOption", "%WeatherOption",
-		"%MatchTimerStepper", "%SuddenDeathCheck",
-		"%GiftsCheck", "%SpecialFreqMeter", "%StartButton",
-	]
-	for unique_name: String in chain_unique_names:
-		var control: Control = lobby.get_node(unique_name) as Control
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor" % unique_name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor" % unique_name)
-	for stepper: Control in [lobby._block_timer_stepper, lobby._goal_flag_stepper]:
-		assert_ne(stepper.focus_neighbor_bottom, NodePath(""), "stepper %s must have a down neighbor" % stepper.name)
-	# Opening the GAME Advanced block puts its controls in the loop.
+	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "advanced closed")
 	(lobby.get_node("%GameSection") as UiSection).set_advanced_open(true)
-	for unique_name: String in ["%GravityMeter", "%TiltModeOption", "%HoleModeOption", "%TurnBasedCheck", "%MidJoinCheck"]:
-		var control: Control = lobby.get_node(unique_name) as Control
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % unique_name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % unique_name)
-
-	assert_false((lobby.get_node("%TeamModeOption") as Control).is_visible_in_tree(), "TeamModeOption stays a hidden source of truth (teams are toggled in the players panel)")
-
-	# ... and so do the GIFTS Advanced (per-gift) block once opened.
 	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
-	for control: Control in lobby._special_checkboxes:
-		assert_ne(control.focus_neighbor_top, NodePath(""), "%s must have an up neighbor once opened" % control.name)
-		assert_ne(control.focus_neighbor_bottom, NodePath(""), "%s must have a down neighbor once opened" % control.name)
-
 	# Experiments default off: nothing hidden or disabled traps focus, and the loop closes.
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments off")
-	# Switched on: every visible, enabled control is reachable with up/down and the loop still closes.
+	# Switched on: every visible, enabled control is reachable with down and the loop still closes.
 	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments on")
 
 
-## Follows focus_neighbor_bottom from `start` once round: every stop is a live (visible, enabled)
-## control, the loop closes back on `start`, and every live focusable control of the settings column is a stop.
+## Moves down from `start` once round: every stop is a live (visible, enabled) control, the loop
+## closes back on `start`, and every live focusable control of the settings column is a stop.
 func _assert_pad_loop_reaches_every_live_control(lobby: Lobby, start: Control, label: String) -> void:
-	var stops: Array[Control] = [start]
-	var current: Control = start
-	var closed: bool = false
-	for _i: int in range(200):
-		var next: Control = current.get_node_or_null(current.focus_neighbor_bottom) as Control
-		if next == null:
-			break
-		if next == start:
-			closed = true
-			break
-		stops.append(next)
-		current = next
-	assert_true(closed, "%s: the down chain closes back on StartButton" % label)
+	var stops: Array[Control] = FocusWalk.loop(start, SIDE_BOTTOM)
+	assert_true(FocusWalk.is_closed(stops, start, SIDE_BOTTOM), "%s: the down chain closes back on StartButton" % label)
 	for stop: Control in stops:
-		assert_true(stop == start or _is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
-	for control: Control in _live_focusable_controls(lobby.get_node("%Settings")):
+		assert_true(stop == start or FocusWalk.is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
+	for control: Control in FocusWalk.live_focusable(lobby.get_node("%Settings") as Control):
 		assert_true(stops.has(control), "%s: %s is reachable with down" % [label, control.name])
-
-
-func _is_live(control: Control) -> bool:
-	return control.is_visible_in_tree() and not (control is BaseButton and (control as BaseButton).disabled)
-
-
-func _live_focusable_controls(root: Node) -> Array[Control]:
-	var found: Array[Control] = []
-	for child: Node in root.get_children():
-		var control: Control = child as Control
-		if control != null and control.focus_mode == Control.FOCUS_ALL and _is_live(control):
-			found.append(control)
-		found.append_array(_live_focusable_controls(child))
-	return found
 
 
 ## X / keyboard X (lobby_add_bot) adds a bot for the host while a seat is free,
@@ -415,19 +352,23 @@ func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 	_fake_of(host).all_peers_ready_value = true
 	host._update_host_only_state()
 	watch_signals(host)
-	var before: int = int(host._ai_count_spin.value)
+	var host_bots: SpinBox = host.get_node("%AiCountSpin") as SpinBox
+	var before: int = int(host_bots.value)
 	host._unhandled_input(event)
-	assert_eq(int(host._ai_count_spin.value), before + 1, "X adds a bot")
+	assert_eq(int(host_bots.value), before + 1, "X adds a bot")
 	assert_signal_not_emitted(host, "start_requested", "X no longer starts the match")
-	host._set_bot_count(MatchConfig.PLAYER_COUNT_MAX)
-	var full: int = int(host._ai_count_spin.value)
+	(host.get_node("%PlayerCountSpin") as SpinBox).value = MatchConfig.PLAYER_COUNT_MAX
+	host_bots.value = host_bots.max_value
+	var full: int = int(host_bots.value)
+	assert_eq(full, MatchConfig.PLAYER_COUNT_MAX, "every seat is a bot")
 	host._players_panel._refresh_header()
 	host._unhandled_input(event)
-	assert_eq(int(host._ai_count_spin.value), full, "a full lobby ignores X")
+	assert_eq(int(host_bots.value), full, "a full lobby ignores X")
 	var client: Lobby = _make_lobby(false)
-	var client_before: int = int(client._ai_count_spin.value)
+	var client_bots: SpinBox = client.get_node("%AiCountSpin") as SpinBox
+	var client_before: int = int(client_bots.value)
 	client._unhandled_input(event)
-	assert_eq(int(client._ai_count_spin.value), client_before, "a client ignores X")
+	assert_eq(int(client_bots.value), client_before, "a client ignores X")
 
 
 func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
@@ -445,9 +386,10 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	assert_false(game.advanced.visible, "a second pad Y closes it")
 	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
 	assert_true(x_event.is_action_pressed(&"lobby_add_bot"))
-	var bots_before: int = int(lobby._ai_count_spin.value)
+	var bots: SpinBox = lobby.get_node("%AiCountSpin") as SpinBox
+	var bots_before: int = int(bots.value)
 	lobby._unhandled_input(x_event)
-	assert_eq(int(lobby._ai_count_spin.value), bots_before + 1, "pad X adds a bot")
+	assert_eq(int(bots.value), bots_before + 1, "pad X adds a bot")
 	assert_signal_not_emitted(lobby, "start_requested")
 	var start_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_START)
 	assert_true(start_event.is_action_pressed(&"lobby_confirm"))

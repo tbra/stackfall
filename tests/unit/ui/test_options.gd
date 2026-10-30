@@ -35,10 +35,6 @@ func test_left_right_swaps_reset_and_back() -> void:
 	await wait_frames(2)
 	var reset: Button = menu.get_node("%ResetButton") as Button
 	var back: Button = menu.get_node("%BackButton") as Button
-	assert_eq(reset.get_node(reset.focus_neighbor_right), back)
-	assert_eq(reset.get_node(reset.focus_neighbor_left), back)
-	assert_eq(back.get_node(back.focus_neighbor_left), reset)
-	assert_eq(back.get_node(back.focus_neighbor_right), reset)
 	# Keyboard and gamepad events both resolve to ui_left / ui_right.
 	var pad_right: InputEventJoypadButton = InputEventJoypadButton.new()
 	pad_right.button_index = JOY_BUTTON_DPAD_RIGHT

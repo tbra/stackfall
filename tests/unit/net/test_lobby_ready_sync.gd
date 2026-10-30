@@ -41,9 +41,8 @@ func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
 ## Seat name -> whether its badge reads Ready, for every drawn human row.
 func _badges(lobby: Lobby) -> Dictionary:
 	var badges: Dictionary = {}
-	for node: Node in _panel_of(lobby)._player_rows:
-		var row: LobbySeatRow = node as LobbySeatRow
-		if row == null or row.is_bot or row.badge == null:
+	for row: LobbySeatRow in LobbyProbe.seat_rows(lobby):
+		if row.is_bot or row.badge == null:
 			continue
 		# the host's badge is a crown, so its ready state is read off the row flag.
 		badges[row.display_name] = row.is_ready if row.is_host else (row.badge as Control).get_accessibility_name() == LobbySeatRow.ready_tooltip(true)

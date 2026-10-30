@@ -714,7 +714,7 @@ func _on_refresh_pressed() -> void:
 
 
 func _on_direct_join_pressed() -> void:
-	var parsed: Dictionary = resolve_join_text(_direct_ip_edit.text)
+	var parsed: Dictionary = JoinCode.resolve_text(_direct_ip_edit.text)
 	if not bool(parsed.get("valid", false)):
 		_show_status(str(parsed.get("reason", "Enter an address like 1.2.3.4 or 1.2.3.4:47999")))
 		return
@@ -891,43 +891,3 @@ func show_status(text: String) -> void:
 
 func _show_status(text: String) -> void:
 	_status_label.text = text
-
-
-## the direct-join field takes an IP[:port] or a join code (core/net/JoinCode.gd).
-## Returns parse_address()'s shape, plus a "reason" for a bad code.
-static func resolve_join_text(text: String) -> Dictionary:
-	if JoinCode.looks_like_code(text):
-		return JoinCode.decode(text)
-	return parse_address(text)
-
-
-## Split out from the button handler so it can be unit-tested without a
-## scene tree (mirrors net/LanDiscovery.gd's encode_advert/decode_advert
-## split). Accepts "1.2.3.4" and "1.2.3.4:47999" (spec 2.6's direct-IP
-## fallback); rejects anything else without throwing.
-static func parse_address(text: String) -> Dictionary:
-	var trimmed: String = text.strip_edges()
-	if trimmed.is_empty():
-		return {"valid": false}
-	var host: String = trimmed
-	var port: int = 0
-	if trimmed.contains(":"):
-		var parts: PackedStringArray = trimmed.split(":")
-		if parts.size() != 2:
-			return {"valid": false}
-		host = parts[0]
-		if not parts[1].is_valid_int():
-			return {"valid": false}
-		port = int(parts[1])
-		if port < 1 or port > 65535:
-			return {"valid": false}
-	var octets: PackedStringArray = host.split(".")
-	if octets.size() != 4:
-		return {"valid": false}
-	for octet: String in octets:
-		if not octet.is_valid_int():
-			return {"valid": false}
-		var value: int = int(octet)
-		if value < 0 or value > 255:
-			return {"valid": false}
-	return {"valid": true, "address": host, "port": port}

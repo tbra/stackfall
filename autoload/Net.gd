@@ -417,6 +417,11 @@ func peer_info(peer_id: int) -> Dictionary:
 	return net_roster.peer_info(peer_id)
 
 
+## Mean absolute deviation of the host's RTT samples for `peer_id`, in ms (host only; 0.0 otherwise).
+func peer_rtt_jitter_ms(peer_id: int) -> float:
+	return _ping.jitter_ms(peer_id)
+
+
 ## Which PlayerSlot a peer holds, or -1. The host assigns these and broadcasts
 ## the roster; a client never invents one.
 func slot_of_peer(peer_id: int) -> int:
@@ -748,6 +753,16 @@ func stop_discovery() -> void:
 func set_simulation(lag_ms: float, jitter_ms: float, loss: float) -> void:
 	_sim.configure(lag_ms, jitter_ms, loss)
 	SnapshotSync.set_simulation(lag_ms, jitter_ms, loss)
+
+
+## The lag in force on this instance's simulator, in ms (what the F3 sliders show).
+func simulated_lag_ms() -> float:
+	return _sim.lag_ms()
+
+
+## The drop fraction in force on this instance's simulator, 0..1.
+func simulated_loss() -> float:
+	return _sim.loss()
 
 
 # --- Debug stats ------------------------------------------------------------

@@ -30,17 +30,6 @@ func after_each() -> void:
 	Net.stop_discovery()
 
 
-# --- parse_address (static, no scene tree needed) ---------------------------
-
-func test_parse_address_rejects_junk() -> void:
-	var junk_values: PackedStringArray = [
-		"", "not an ip", "1.2.3", "1.2.3.4.5", "1.2.3.999", "1.2.3.4:notaport", "1.2.3.4:0", "1.2.3.4:99999",
-	]
-	for junk: String in junk_values:
-		var result: Dictionary = MainMenu.parse_address(junk)
-		assert_false(result.get("valid"), "%s should be rejected" % junk)
-
-
 # --- Host / Join / Quit -------------------------------------------------------
 
 func test_host_button_opens_transport_dialog_before_hosting() -> void:

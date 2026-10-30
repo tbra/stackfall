@@ -378,11 +378,11 @@ func _intents_sent(slot_id: int) -> int:
 
 
 func _intents_accepted(slot_id: int) -> int:
-	return int(_match_net.call(&"intents_accepted", slot_id))
+	return int(_match_net.counters.accepted_count(slot_id))
 
 
 func _intents_refused(slot_id: int) -> int:
-	return int(_match_net.call(&"intents_refused", slot_id))
+	return int(_match_net.counters.refused_count(slot_id))
 
 
 ## follow-up: the real invariant is

@@ -307,6 +307,7 @@ func build_match_world() -> void:
 		build_spectator(config)
 	elif config.ai_count < config.player_count and Net.local_slot() >= 0:
 		var local_player: LocalPlayer = world.loader.load_scene(Main.LOCAL_PLAYER_SCENE_PATH).instantiate() as LocalPlayer
+		local_player.match_context = MatchContext.current()
 		_local_player = local_player
 		world.parent.add_child(local_player)
 		local_player.set_camera_rig(_camera_rig)
@@ -356,9 +357,11 @@ func _build_debug_overlays() -> void:
 		pose.set(&"config", debug_config)
 		pose.set(&"camera", _camera_rig.get_camera())
 		pose.set(&"field", _field)
+		pose.set(&"match_context", MatchContext.current())
 		_debug_overlays.append(pose)
 		var bot_cost: Node = (load(BOT_COST_OVERLAY_PATH) as GDScript).new() as Node
 		bot_cost.set(&"config", debug_config)
+		bot_cost.set(&"match_context", MatchContext.current())
 		_debug_overlays.append(bot_cost)
 	for overlay: Node in _debug_overlays:
 		world.parent.add_child(overlay)
@@ -371,7 +374,7 @@ func build_spectator(config: MatchConfig) -> void:
 	_spectator = spectator
 	world.parent.add_child(spectator)
 	spectator.setup(_camera_rig, config.player_count)
-	spectator.build_presentation(world.loader.load_scene(HUD_SCENE_PATH), world.loader.load_scene(TUNING_PANEL_SCENE_PATH), _field)
+	spectator.build_presentation(world.loader.load_scene(HUD_SCENE_PATH), world.loader.load_scene(TUNING_PANEL_SCENE_PATH), _field, MatchContext.current())
 
 
 ## One BotController per bot slot (the trailing `config.ai_count` slots, matching

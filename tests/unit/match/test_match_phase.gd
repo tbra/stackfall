@@ -16,7 +16,6 @@ func _table() -> Dictionary:
 		"is_replicating": [C, P, S],
 		"is_resetting": [LO, L, E],
 		"is_in_progress": [LO, C, P, S],
-		"is_pregame": [LO, C],
 		"is_lobby_or_end": [L, E],
 	}
 
@@ -29,6 +28,11 @@ func test_truth_table_and_forwards() -> void:
 			var want: bool = expected.has(state)
 			assert_eq(Callable(MatchPhase, name).call(state), want, "%s(%d)" % [name, state])
 			assert_eq(Callable(MatchAutoload, name).call(state), want, "forward %s(%d)" % [name, state])
+
+
+func test_is_pregame_is_loading_and_countdown() -> void:
+	for state: int in range(MatchPhase.State.size()):
+		assert_eq(MatchPhase.is_pregame(state), state == LO or state == C, "is_pregame(%d)" % state)
 
 
 func test_start_transition() -> void:

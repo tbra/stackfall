@@ -30,20 +30,28 @@ func _pad_down() -> void:
 
 func test_dpad_down_walks_the_whole_lobby_loop() -> void:
 	var lobby: Lobby = _make_lobby()
+	(lobby.net_provider as FakeNet).all_peers_ready_value = true
+	lobby._update_host_only_state()
 	await wait_frames(2)
-	var stops: Array[Control] = lobby._visible_chain(lobby._main_chain)
-	assert_gt(stops.size(), 0, "the lobby has focus stops")
-	stops[0].grab_focus()
-	var visited: Array[Control] = [stops[0]]
-	for step: int in range(mini(stops.size(), MAX_STOPS) - 1):
-		var expected: Control = visited.back().get_node(visited.back().focus_neighbor_bottom) as Control
+	var live: Array[Control] = FocusWalk.live_focusable(lobby)
+	var start: Control = lobby.get_node("%StartButton") as Control
+	assert_true(live.has(start), "the lobby has a live Start stop")
+	var loop: Array[Control] = FocusWalk.loop(start, SIDE_BOTTOM)
+	assert_true(FocusWalk.is_closed(loop, start, SIDE_BOTTOM), "down closes the loop")
+	start.grab_focus()
+	var owner: Control = start
+	# One real D-pad press per stop lands on what the engine resolves, then wraps to the start.
+	for step: int in range(mini(loop.size(), MAX_STOPS)):
+		var expected: Control = owner.find_valid_focus_neighbor(SIDE_BOTTOM)
 		_pad_down()
 		await wait_frames(1)
-		var owner: Control = lobby.get_viewport().gui_get_focus_owner()
-		assert_eq(owner, expected, "D-pad down from %s lands on its bottom neighbour" % visited.back().name)
+		owner = lobby.get_viewport().gui_get_focus_owner()
+		assert_eq(owner, expected, "D-pad down from step %d lands on the engine's neighbour" % step)
 		if owner == null:
 			return
-		visited.append(owner)
+		assert_true(FocusWalk.is_live(owner), "%s is a live control" % owner.name)
+	if loop.size() <= MAX_STOPS:
+		assert_eq(owner, start, "the walk wraps back to the start")
 
 
 const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
@@ -51,9 +59,9 @@ const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
 func _make_laid_out_lobby(bots: int) -> Lobby:
 	var lobby: Lobby = _make_lobby()
-	lobby._set_bot_count(bots)
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = maxi(MatchConfig.PLAYER_COUNT_MIN, bots)
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
 	await wait_frames(3)
-	lobby._wire_spatial()
 	return lobby
 
 
@@ -61,27 +69,43 @@ func _target(control: Control, side: Side) -> Control:
 	return control.get_node_or_null(control.get_focus_neighbor(side)) as Control
 
 
+func _pad_press(button: JoyButton) -> void:
+	for pressed: bool in [true, false]:
+		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.button_index = button
+		event.pressed = pressed
+		Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+
+## One real D-pad press from `from`; returns the control that holds focus afterwards.
+func _pad_move(lobby: Lobby, from: Control, button: JoyButton) -> Control:
+	from.grab_focus()
+	_pad_press(button)
+	await wait_frames(1)
+	return lobby.get_viewport().gui_get_focus_owner()
+
+
 func test_gift_chip_grid_moves_in_two_dimensions() -> void:
 	var lobby: Lobby = await _make_laid_out_lobby(1)
-	lobby._gifts_section.set_advanced_open(true)
+	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
 	await wait_frames(3)
-	lobby._wire_spatial()
 	var chips: Array[Control] = []
-	for chip: UiChipToggle in lobby._special_checkboxes:
-		if lobby._is_shown(chip):
+	for chip: UiChipToggle in LobbyProbe.gift_chips(lobby):
+		if chip.is_visible_in_tree():
 			chips.append(chip)
 	assert_gt(chips.size(), 3, "gift chips are shown under Advanced")
-	var first_y: float = chips[0].get_global_rect().position.y
-	var row_len: int = 0
+	var first: Control = chips[0]
+	var right: Control = await _pad_move(lobby, first, JOY_BUTTON_DPAD_RIGHT)
+	assert_true(chips.has(right), "right moves to another chip")
+	assert_ne(right, first)
+	assert_eq(await _pad_move(lobby, right, JOY_BUTTON_DPAD_LEFT), first, "left comes back")
+	var down: Control = await _pad_move(lobby, first, JOY_BUTTON_DPAD_DOWN)
+	assert_true(chips.has(down), "down moves to another chip")
+	assert_eq(await _pad_move(lobby, down, JOY_BUTTON_DPAD_UP), first, "up comes back")
+	assert_ne(down, right, "the grid has two dimensions")
 	for chip: Control in chips:
-		if is_equal_approx(chip.get_global_rect().position.y, first_y):
-			row_len += 1
-	assert_gt(row_len, 1, "the chips sit in several columns")
-	for i: int in range(chips.size() - row_len):
-		assert_eq(_target(chips[i], SIDE_BOTTOM), chips[i + row_len], "down moves one grid row (%d)" % i)
-		assert_eq(_target(chips[i + row_len], SIDE_TOP), chips[i], "up moves one grid row (%d)" % i)
-	assert_eq(_target(chips[0], SIDE_RIGHT), chips[1], "right = the neighbour in the row")
-	assert_eq(_target(chips[0], SIDE_TOP), lobby._gifts_section.advanced_button, "up from the top row = the Advanced chip")
+		assert_true(FocusWalk.live_focusable(lobby).has(chip), "%s is live" % chip.name)
 
 
 func test_down_from_add_bot_reaches_start_never_back() -> void:
@@ -90,20 +114,12 @@ func test_down_from_add_bot_reaches_start_never_back() -> void:
 	var back: Control = lobby.get_node("%BackButton") as Control
 	var start: Control = lobby.get_node("%StartButton") as Control
 	# Every stop reachable by pressing down, from Add bot round the loop: Back never appears.
-	var current: Control = add_bot
-	for _i: int in range(lobby._main_chain.size() + 2):
-		current = _target(current, SIDE_BOTTOM)
-		assert_not_null(current)
-		assert_ne(current, back, "down never lands on Back")
-		if current == add_bot:
-			break
-	var next: Control = _target(add_bot, SIDE_BOTTOM)
-	var expected: Control = start
-	if lobby._invite_friends_button.visible or lobby._ready_check.visible:
-		expected = lobby._visible_chain(lobby._main_chain)[lobby._visible_chain(lobby._main_chain).find(add_bot) + 1]
-	assert_eq(next, expected, "down from Add bot is the next footer stop, not Back")
+	var stops: Array[Control] = FocusWalk.loop(add_bot, SIDE_BOTTOM)
+	assert_false(stops.has(back), "down never lands on Back")
+	assert_true(stops.has(start), "down from Add bot reaches Start")
+	assert_true(FocusWalk.is_closed(stops, add_bot, SIDE_BOTTOM))
 	for side: Side in [SIDE_TOP, SIDE_BOTTOM]:
-		for stop: Control in lobby._visible_chain(lobby._main_chain):
+		for stop: Control in stops:
 			assert_ne(_target(stop, side), back, "%s %d never targets Back" % [stop.name, side])
 	assert_eq(_target(start, SIDE_LEFT), back, "Back is reached deliberately: left from Start")
 

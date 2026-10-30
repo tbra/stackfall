@@ -24,6 +24,9 @@ const PAGE_TEXT: int = 4
 const PAGE_CLOCK: int = 5
 const PAGE_CHAT: int = 6
 const PAGE_DIALOG: int = 7
+const PAGE_DEBUG: int = 8
+const DEBUG_PANEL_WIDTH_UNITS: int = 7
+const DEBUG_GRAPH_SAMPLES: PackedFloat32Array = [0.2, 0.35, 0.3, 0.5, 0.45, 0.9, 0.6, 0.4, 0.55, 0.5, 0.7, 0.65]
 const CHAT_SAMPLE_NAMES: PackedStringArray = ["Tester", "Blue Fox", "Mint", "Goldie", "Violet", "Orange", "Teal", "Pinky"]
 const CHAT_SAMPLE_TEXTS: PackedStringArray = [
 	"anyone ready?", "[b]x[/b] stays literal [url]", "drop it on the left edge", "nice tower", "good game",
@@ -67,7 +70,7 @@ const BADGES: Array[Dictionary] = [
 ]
 
 ## 0 = buttons + badges, 1 = toggles, chips, steppers and tabs (C1b), 2 = dropdown, field and
-## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a), 6 = chat panel (lobby and HUD skins), 7 = dialog plates. One page fits one capture.
+## segment meter, 3 = section, panel and title row (C2), 4 = text roles and well (C4a), 6 = chat panel (lobby and HUD skins), 7 = dialog plates, 8 = debug panel (UiDebugPanel, UiDebugGraph). One page fits one capture.
 @export var page: int = 0
 
 
@@ -115,6 +118,9 @@ func _ready() -> void:
 		columns.add_child(_dialog_plate("Leave match?", "Leave this match and return to the main menu?", UiBlockButton.Look.DANGER, "Leave match", "", false))
 		columns.add_child(_dialog_plate("Host game", "How should friends connect?", UiBlockButton.Look.PRIMARY, "Host locally", "Host on Steam", false))
 		columns.add_child(_dialog_plate("Host game", "How should friends connect?", UiBlockButton.Look.PRIMARY, "Host locally", "Host on Steam", true))
+	elif page == PAGE_DEBUG:
+		columns.add_child(_debug_stage(arcade.sand_color))
+		columns.add_child(_debug_stage(arcade.disc_800_color))
 	elif page == PAGE_CHAT:
 		columns.add_child(_chat_lobby_panel())
 		columns.add_child(_chat_hud_column())
@@ -203,6 +209,46 @@ func _chat_hud_column() -> VBoxContainer:
 		column.add_child(UiText.make(UiText.Role.CAPTION, "HUD " + state))
 		column.add_child(stage)
 	return column
+
+
+## The debug panel over a stand-in sky (a light and a dark ground, so the translucent plate is judged on both):
+## sections, a table with a warn row, a note, the graph, an empty section (hidden) and the key chip (the pad chord shows on a pad).
+func _debug_stage(ground: Color) -> Control:
+	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
+	var stage: PanelContainer = PanelContainer.new()
+	stage.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var backdrop: StyleBoxFlat = StyleBoxFlat.new()
+	backdrop.bg_color = ground
+	backdrop.set_content_margin_all(float(arcade.space_4_px))
+	stage.add_theme_stylebox_override("panel", backdrop)
+	var column: VBoxContainer = VBoxContainer.new()
+	column.add_theme_constant_override("separation", arcade.space_4_px)
+	stage.add_child(column)
+	for panel_heading: String in ["PERF", "NET"]:
+		var panel: UiDebugPanel = UiDebugPanel.new()
+		panel.heading = panel_heading
+		panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		panel.custom_minimum_size.x = float(arcade.space_7_px * DEBUG_PANEL_WIDTH_UNITS)
+		panel.toggle_action = &"net_debug_toggle"
+		panel.modifier_action = &"camera_snap_home"
+		panel.set_section(&"frame", "Frame", [
+			DebugRow.pair("fps", "143"), DebugRow.pair("physics tick", "5.44 ms"), DebugRow.pair("blocks", "3 (0 awake)", true),
+		] as Array[DebugRow])
+		panel.set_section(&"empty", "Hidden section", [] as Array[DebugRow])
+		var heavy: DebugRow = DebugRow.new()
+		heavy.cells = PackedStringArray(["MEASURE", "12688.4", "16473.0"])
+		heavy.warn = true
+		var light: DebugRow = DebugRow.new()
+		light.cells = PackedStringArray(["PICK", "62.6", "70.0"])
+		panel.set_table(&"cost", "Cost", PackedStringArray(["phase", "mean us", "p95 us"]), [light, heavy] as Array[DebugRow])
+		panel.set_note(&"note", "measured on the host")
+		var graph: UiDebugGraph = UiDebugGraph.new()
+		graph.set_series(0, DEBUG_GRAPH_SAMPLES, 1.0, arcade.mint_color)
+		graph.set_series(1, DEBUG_GRAPH_SAMPLES.slice(2), 1.0, arcade.flare_color)
+		panel.content().add_child(graph)
+		column.add_child(panel)
+	return stage
 
 
 ## One dialog's plate (UiDialog in the gallery: the plate only, no scrim; [param focused] previews

@@ -1,76 +1,66 @@
 class_name NetDebugOverlay
 extends CanvasLayer
-## Debug overlay: ping, snapshot size, interpolation delay and packet loss, plus controls for
-## core/net/NetSim.gd's simulated lag/loss.
+## F3 network panel, available in every build: link, snapshot and intent figures from a NetStatsSource plus
+## controls for the lag/loss simulator (core/net/NetSim.gd, applied through the source).
 ##
-## It reads and never writes game state: every label comes straight from Net.stats(), refreshed on
-## Events.net_stats_updated; the only things this script writes are the simulator's own tunables,
-## through Net.set_simulation().
+## It polls the source only while visible, at NetConfig.stats_hz, and reads and never writes game state:
+## the only thing it writes is the simulator, through NetStatsSource.set_simulation().
 
-## DECISION (ui/debug/NetDebugOverlay.gd): same `Variant` test seam as
-## ui/menus/MainMenu.gd, ui/lobby/Lobby.gd and ui/hud/HUD.gd's match_provider.
-var net_provider: Variant = null
+const NO_VALUE: String = "-"
+const ROLE_NAMES: PackedStringArray = ["Offline", "Host", "Client"]
+const PERCENT_PER_FRACTION: float = 100.0
+# DECISION: slider steps are named constants here, not NetConfig fields: they only shape this panel's controls.
+const LAG_STEP_MS: float = 5.0
+const LOSS_STEP: float = 0.01
 
-## DECISION (ui/debug/NetDebugOverlay.gd): a second `Variant` test seam, like net_provider, for the
-## per-slot counters net/MatchNet.gd keeps (intents_sent/accepted/refused, cursors_refused). Tests
-## hand it a small double; _ready() points it at the MatchNet autoload.
-var match_net_provider: Variant = null
-
+## Where the numbers come from. Transitional default: the live autoloads, until the round panels hand one in.
+var source: NetStatsSource = NetStatsLive.new()
 @export var net_config: NetConfig = preload("res://config/net/net_config.tres")
 ## Layout tunables (the gaps); the parent may hand one in before add_child, else the debug-mode one.
 var config: DebugConfig = null
 
-@onready var _panel: PanelContainer = %Panel
-@onready var _mode_label: Label = %ModeLabel
-@onready var _ping_label: Label = %PingLabel
-@onready var _snapshot_label: Label = %SnapshotLabel
-@onready var _interp_label: Label = %InterpLabel
-@onready var _loss_label: Label = %LossLabel
-## One Label per slot (sized to MatchConfig.PLAYER_COUNT_MAX), indexed by scene order: child 0 is
-## slot 0. _refresh_slot_rows() shows/hides each one rather than creating nodes at runtime.
-@onready var _slot_rows: VBoxContainer = %SlotRows
-@onready var _lag_slider: HSlider = %LagSlider
-@onready var _lag_value_label: Label = %LagValueLabel
-@onready var _loss_slider: HSlider = %LossSlider
-@onready var _loss_value_label: Label = %LossValueLabel
-@onready var _preset_button: Button = %PresetButton
-@onready var _off_button: Button = %OffButton
-
-## Set while a preset/off button writes both sliders, so Net.set_simulation() is not called with a
-## half-applied pair of values.
-var _applying_preset: bool = false
+var _panel: UiDebugPanel = null
+var _lag_slider: HSlider = null
+var _lag_value_label: UiText = null
+var _loss_slider: HSlider = null
+var _loss_value_label: UiText = null
+var _poll_left_s: float = 0.0
 
 
 func _ready() -> void:
 	if config == null:
 		config = DebugMode.config()
-	net_provider = Net
-	match_net_provider = MatchNet
 	visible = false
-	_lag_slider.max_value = net_config.max_interp_delay_ms
-	_loss_slider.min_value = 0.0
-	_loss_slider.max_value = 1.0
-	_lag_slider.value_changed.connect(_on_lag_changed)
-	_loss_slider.value_changed.connect(_on_loss_changed)
-	_preset_button.pressed.connect(_on_preset_pressed)
-	_off_button.pressed.connect(_on_off_pressed)
-	Events.net_stats_updated.connect(_on_stats_updated)
-	_refresh_labels(net_provider.stats() if net_provider != null else {})
-	_refresh_slot_rows()
+	_panel = UiDebugPanel.new()
+	_panel.heading = "NETWORK"
+	_panel.toggle_action = &"net_debug_toggle"
+	_panel.modifier_action = &"camera_snap_home"
+	# Created empty and in display order; _show fills them.
+	var no_rows: Array[DebugRow] = []
+	_panel.set_note(&"offline", "")
+	_panel.set_section(&"link", "Link", no_rows)
+	_panel.set_section(&"snapshots", "Snapshots", no_rows)
+	_panel.set_table(&"peers", "Peers", PackedStringArray(), no_rows)
+	_panel.set_table(&"intents", "Intents", PackedStringArray(), no_rows)
+	_build_simulator(_panel.content())
+	_panel.visible = false
+	add_child(_panel)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed(&"net_debug_toggle"):
-		return
-	# F3 is debug-only (game/debug/DebugMode.gd).
-	if not DebugMode.is_enabled():
-		return
-	# The gamepad half of this action is bound to Y alone, so a joypad press only counts while
-	# camera_snap_home (Back) is also held (the Back+Y chord). A keyboard press (F3) needs no modifier.
-	if event is InputEventJoypadButton and not Input.is_action_pressed(&"camera_snap_home"):
-		return
-	visible = not visible
-	get_viewport().set_input_as_handled()
+	if event.is_action_pressed(&"net_debug_toggle"):
+		# The pad half of this action is Y alone, so a pad press only counts with Back held (the Back + Y chord).
+		if event is InputEventJoypadButton and not Input.is_action_pressed(&"camera_snap_home"):
+			return
+		visible = not visible
+		_panel.visible = visible
+		if visible:
+			_poll(true)
+		get_viewport().set_input_as_handled()
+	elif visible and event is InputEventJoypadButton and event.is_action_pressed(&"ui_accept") \
+			and Input.is_action_pressed(&"camera_snap_home"):
+		_apply_preset()
+		get_viewport().set_input_as_handled()
 
 
 func _exit_tree() -> void:
@@ -78,97 +68,148 @@ func _exit_tree() -> void:
 
 
 ## Bottom-right stack, right above F2's panel (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible:
 		DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.NET, 0.0)
 		return
+	_poll_left_s -= delta
+	if _poll_left_s <= 0.0:
+		_poll(false)
 	DebugOverlayLayout.report_stack_height(DebugOverlayLayout.Stack.NET, _panel.size.y)
 	DebugOverlayLayout.place_stack(_panel, DebugOverlayLayout.Stack.NET, config)
 
 
 # --- Stats display ------------------------------------------------------------
 
-func _on_stats_updated(stats: Dictionary) -> void:
-	_refresh_labels(stats)
-	_refresh_slot_rows()
-
-
-func _refresh_labels(stats: Dictionary) -> void:
-	var mode_names: PackedStringArray = ["Offline", "Host", "Client"]
-	var mode: int = int(stats.get("mode", 0))
-	_mode_label.text = "Mode: %s (%d peers)" % [
-		mode_names[clampi(mode, 0, mode_names.size() - 1)], int(stats.get("peers", 0))
-	]
-	_ping_label.text = "Ping: %.0f ms" % float(stats.get("ping_ms", 0.0))
-	_snapshot_label.text = "Snapshot: %.0f B/s (last %d B)" % [
-		float(stats.get("snapshot_bps", 0.0)), int(stats.get("snapshot_last_bytes", 0))
-	]
-	_interp_label.text = "Interp delay: %.0f ms" % float(stats.get("interp_delay_ms", 0.0))
-	_loss_label.text = "Loss: %.1f%%" % (float(stats.get("loss_pct", 0.0)) * 100.0)
-
-
-## net/MatchNet.gd's per-slot intent/cursor counters are host-only, so a client's copies stay
-## empty even for its own slot. All-zero rows would read as "nobody is being refused" when the truth
-## is "this instance can't see it", so the whole section is gated on net_provider.is_host().
-##
-## Row visibility is activity-gated rather than driven by a slot count: a slot's row appears once
-## any of its four counters goes non-zero and hides again after MatchNet.reset_counters() (a new
-## match), so this script needs no notion of the current roster.
-func _refresh_slot_rows() -> void:
-	var rows: Array[Node] = _slot_rows.get_children()
-	var is_host: bool = net_provider != null and match_net_provider != null and bool(
-		net_provider.is_host()
-	)
-	for slot_id: int in range(rows.size()):
-		var label: Label = rows[slot_id] as Label
+## One reading. `opening` also points the simulator sliders at the live simulation; while open they are the user's.
+func _poll(opening: bool) -> void:
+	_poll_left_s = 1.0 / maxf(net_config.stats_hz, 0.01)
+	var stats: NetStats = source.read()
+	if opening:
+		_set_sliders(stats.sim_lag_ms, stats.sim_loss)
+	var role: String = ROLE_NAMES[clampi(int(stats.role), 0, ROLE_NAMES.size() - 1)]
+	var is_host: bool = stats.role == NetStats.Role.HOST
+	var online: bool = stats.role != NetStats.Role.OFFLINE
+	_panel.set_note(&"offline", "" if online else "Offline: no network session.")
+	var link: Array[DebugRow] = [DebugRow.pair("role", role)]
+	var snapshots: Array[DebugRow] = []
+	if online:
+		link.append(DebugRow.pair("slot", str(stats.local_slot)))
 		if not is_host:
-			label.visible = false
-			continue
-		var sent: int = int(match_net_provider.intents_sent(slot_id))
-		var accepted: int = int(match_net_provider.intents_accepted(slot_id))
-		var refused: int = int(match_net_provider.intents_refused(slot_id))
-		var cursors_refused: int = int(match_net_provider.cursors_refused(slot_id))
-		if sent == 0 and accepted == 0 and refused == 0 and cursors_refused == 0:
-			label.visible = false
-			continue
-		label.visible = true
-		label.text = "Slot %d: intents %d ok / %d no, cursors refused %d" % [
-			slot_id, accepted, refused, cursors_refused
-		]
+			link.append(DebugRow.pair("rtt", "%.0f ms" % stats.local_rtt_ms))
+			link.append(DebugRow.pair("interp delay", "%.0f ms" % stats.interp_delay_ms))
+			link.append(DebugRow.pair("arrival jitter", "%.0f ms" % stats.arrival_jitter_ms))
+			link.append(DebugRow.pair("loss", "%.1f%%" % (stats.loss_fraction * PERCENT_PER_FRACTION)))
+			link.append(DebugRow.pair("dropped unknown", str(stats.dropped_unknown)))
+		snapshots.append(DebugRow.pair("per second", "%.0f" % stats.snapshots_per_s))
+		snapshots.append(DebugRow.pair("bytes per second", "%.0f B/s" % stats.snapshot_bytes_per_s))
+		snapshots.append(DebugRow.pair("last bytes", str(stats.last_snapshot_bytes) if is_host else NO_VALUE))
+		snapshots.append(DebugRow.pair("last bodies", str(stats.last_snapshot_bodies) if is_host else NO_VALUE))
+		snapshots.append(DebugRow.pair("last fragments", str(stats.last_snapshot_fragments) if is_host else NO_VALUE))
+	_panel.set_section(&"link", "Link", link)
+	_panel.set_section(&"snapshots", "Snapshots", snapshots)
+	_panel.set_table(&"peers", "Peers", PackedStringArray(["player", "rtt ms", "jitter ms"]), _peer_rows(stats))
+	_panel.set_table(&"intents", "Intents", PackedStringArray(["player", "sent", "ok", "no", "cursors no"]), _intent_rows(stats))
+
+
+func _peer_rows(stats: NetStats) -> Array[DebugRow]:
+	var rows: Array[DebugRow] = []
+	for peer: NetStats.PeerRow in stats.peers:
+		var row: DebugRow = DebugRow.new()
+		row.cells = PackedStringArray([peer.name, "%.0f" % peer.rtt_ms, "%.0f" % peer.rtt_jitter_ms])
+		rows.append(row)
+	return rows
+
+
+## A host row has all four counters; a client only knows its own `sent`, so the rest read "-".
+func _intent_rows(stats: NetStats) -> Array[DebugRow]:
+	var rows: Array[DebugRow] = []
+	var is_host: bool = stats.role == NetStats.Role.HOST
+	for intent: NetStats.IntentRow in stats.intents:
+		var row: DebugRow = DebugRow.new()
+		row.cells = PackedStringArray([_player_name(stats, intent.slot_id), str(intent.sent)])
+		for count: int in [intent.accepted, intent.refused, intent.cursors_refused]:
+			row.cells.append(str(count) if is_host else NO_VALUE)
+		rows.append(row)
+	return rows
+
+
+func _player_name(stats: NetStats, slot_id: int) -> String:
+	for peer: NetStats.PeerRow in stats.peers:
+		if peer.slot_id == slot_id:
+			return peer.name
+	return "slot %d" % slot_id
 
 
 # --- Simulated lag/loss controls ---------------------------------------------
 
-func _on_lag_changed(value: float) -> void:
-	_lag_value_label.text = "%.0f ms" % value
-	if not _applying_preset:
-		_push_simulation()
+func _build_simulator(box: VBoxContainer) -> void:
+	box.add_child(UiText.make(UiText.Role.CAPTION, "Simulator"))
+	_lag_slider = _slider_row(box, "lag", net_config.max_interp_delay_ms, LAG_STEP_MS)
+	_loss_slider = _slider_row(box, "loss", 1.0, LOSS_STEP)
+	_lag_value_label = _value_label(_lag_slider)
+	_loss_value_label = _value_label(_loss_slider)
+	_lag_slider.value_changed.connect(_on_slider_changed)
+	_loss_slider.value_changed.connect(_on_slider_changed)
+	var buttons: HBoxContainer = HBoxContainer.new()
+	var preset: UiBlockButton = UiBlockButton.new()
+	preset.name = &"PresetButton"
+	preset.text = "Preset %.0f ms / %.0f%%" % [net_config.sim_preset_lag_ms, net_config.sim_preset_loss * PERCENT_PER_FRACTION]
+	preset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	preset.pressed.connect(_apply_preset)
+	buttons.add_child(preset)
+	var off: UiBlockButton = UiBlockButton.new()
+	off.name = &"OffButton"
+	off.text = "Off"
+	off.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	off.pressed.connect(_apply_off)
+	buttons.add_child(off)
+	box.add_child(buttons)
 
 
-func _on_loss_changed(value: float) -> void:
-	_loss_value_label.text = "%.1f%%" % (value * 100.0)
-	if not _applying_preset:
-		_push_simulation()
+## A name, a slider and a value label in one row; the value label is the row's last child.
+func _slider_row(box: VBoxContainer, title: String, high: float, step: float) -> HSlider:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_child(UiText.make(UiText.Role.CAPTION, title))
+	var slider: HSlider = HSlider.new()
+	slider.max_value = high
+	slider.step = step
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(slider)
+	row.add_child(UiText.make(UiText.Role.CAPTION))
+	box.add_child(row)
+	return slider
 
 
-func _push_simulation() -> void:
-	if net_provider != null:
-		net_provider.set_simulation(_lag_slider.value, 0.0, _loss_slider.value)
+func _value_label(slider: HSlider) -> UiText:
+	var row: Node = slider.get_parent()
+	return row.get_child(row.get_child_count() - 1) as UiText
 
 
-## The one-key acceptance condition ("a client with 100 ms of simulated lag and 2% packet loss");
-## net_config.sim_preset_lag_ms / sim_preset_loss are the tunables.
-func _on_preset_pressed() -> void:
-	_applying_preset = true
-	_lag_slider.value = net_config.sim_preset_lag_ms
-	_loss_slider.value = net_config.sim_preset_loss
-	_applying_preset = false
+func _set_sliders(lag_ms: float, loss: float) -> void:
+	_lag_slider.set_value_no_signal(lag_ms)
+	_loss_slider.set_value_no_signal(loss)
+	_lag_value_label.text = "%.0f ms" % _lag_slider.value
+	_loss_value_label.text = "%.0f%%" % (_loss_slider.value * PERCENT_PER_FRACTION)
+
+
+func _on_slider_changed(_value: float) -> void:
 	_push_simulation()
 
 
-func _on_off_pressed() -> void:
-	_applying_preset = true
-	_lag_slider.value = 0.0
-	_loss_slider.value = 0.0
-	_applying_preset = false
+func _push_simulation() -> void:
+	_set_sliders(_lag_slider.value, _loss_slider.value)
+	source.set_simulation(_lag_slider.value, _loss_slider.value)
+
+
+## The one-key acceptance condition ("a client with 100 ms of simulated lag and 2% packet loss"):
+## net_config.sim_preset_lag_ms / sim_preset_loss. On a pad: Back + A while the panel is open.
+func _apply_preset() -> void:
+	_set_sliders(net_config.sim_preset_lag_ms, net_config.sim_preset_loss)
+	_push_simulation()
+
+
+func _apply_off() -> void:
+	_set_sliders(0.0, 0.0)
 	_push_simulation()

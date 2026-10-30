@@ -1,0 +1,5 @@
+[
+  {"name": "lobby_hosted_classic", "target": "lobby", "kind": "hosted", "seats": 8, "bots": 3, "style": "classic", "advanced": true, "gifts_off": true, "rng_seed": 1, "pin_sky_time": "100,50", "backdrop_seed": 1},
+  {"name": "lobby_hosted_sky_teams", "target": "lobby", "kind": "hosted", "seats": 8, "bots": 3, "style": "classic", "advanced": true, "gifts_off": true, "mode": "reach_the_sky", "teams": true, "rng_seed": 1, "pin_sky_time": "100,50", "backdrop_seed": 1},
+  {"name": "lobby_hosted_scrolled", "target": "lobby", "kind": "hosted", "seats": 8, "bots": 3, "style": "classic", "advanced": true, "gifts_off": true, "scroll": true, "rng_seed": 1, "pin_sky_time": "100,50", "backdrop_seed": 1}
+]

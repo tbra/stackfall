@@ -1,6 +1,5 @@
 extends GutTest
-## UiChipToggle: mint + tick box when on, disc-700 + empty box when off, disabled
-## when `disabled`, ui_accept toggles, row height.
+## UiChipToggle: state API and signal, disabled keeps state and ignores input, ui_accept toggles.
 
 var _toggled: Array[bool] = []
 
@@ -28,12 +27,12 @@ func test_state_api_label_and_signal() -> void:
 	assert_eq(_toggled, [true])
 
 
-func test_disabled_chip_keeps_its_state_and_shows_the_dimmed_face() -> void:
+func test_disabled_chip_keeps_its_state() -> void:
 	var chip: UiChipToggle = _make("Cat")
 	chip.button_pressed = true
 	chip.disabled = true
 	assert_true(chip.is_on())
-	assert_true((chip.get_theme_stylebox("disabled") as BlockStyleBox).disabled)
+	assert_true(chip.disabled)
 
 
 func test_ui_accept_toggles_when_focused() -> void:

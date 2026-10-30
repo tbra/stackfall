@@ -1,6 +1,7 @@
 """Mocked-subprocess tests for tools/integrate_batch.py.
 Run: python tools/test_integrate_batch.py
 """
+import json
 import os
 import subprocess
 import sys
@@ -554,6 +555,68 @@ class Tests(unittest.TestCase):
         self.assertNotIn("br_delete", names)
 
 
+class StatusFileTests(unittest.TestCase):
+    """the status.json a watcher polls while a batch runs."""
+
+    def _main(self, extra, behave):
+        fake = Fake()
+        log_dir = tempfile.mkdtemp()
+
+        def fake_integrate(args, ctx, say, res):
+            ctx.log_path("fetch")
+            say("worktree  ok   W/integrate-tmp-1 @ base111")
+            res["worktree"], res["branch"], res["result"] = "W/integrate-tmp-1", "integrate/tmp-1", "result22"
+            ctx.log_path("gate")
+            behave(res)
+        with mock.patch.object(ib, "run_cmd", fake), mock.patch.object(ib, "integrate", fake_integrate):
+            try:
+                code = ib.main(["--branches", "wt/a", "wt/b", "--beads", "B-1", "--log-dir", log_dir] + extra)
+            except RuntimeError:
+                code = "raised"
+        with open(os.path.join(log_dir, ib.STATUS_FILE), encoding="utf-8") as fh:
+            return code, json.load(fh)
+
+    def test_success_records_branches_lines_and_ok(self):
+        def green(res):
+            res["verdict"] = "GREEN"
+        code, st = self._main(["--no-push"], green)
+        self.assertEqual(code, 0)
+        self.assertEqual((st["state"], st["mode"], st["branches"], st["beads"]), ("ok", "no-push", ["wt/a", "wt/b"], ["B-1"]))
+        self.assertEqual((st["worktree"], st["result"], st["verdict"]), ("W/integrate-tmp-1", "result22", "GREEN"))
+        self.assertEqual(st["lines"][0], "worktree  ok   W/integrate-tmp-1 @ base111")
+        self.assertTrue(st["lines"][-1].startswith("INTEGRATE OK"))
+        self.assertEqual(st["pid"], os.getpid())
+
+    def test_failed_step_and_detail_are_recorded(self):
+        def red(res):
+            raise ib.StepFailed("gate", "verdict RED; log /log/gate")
+        code, st = self._main([], red)
+        self.assertEqual(code, 1)
+        self.assertEqual((st["state"], st["failed_step"], st["step"]), ("failed", "gate", "gate"))
+        self.assertIn("verdict RED", st["detail"])
+        self.assertEqual(st["worktree"], "W/integrate-tmp-1")
+
+    def test_a_crash_is_recorded_and_still_raised(self):
+        def boom(res):
+            raise RuntimeError("disk gone")
+        code, st = self._main([], boom)
+        self.assertEqual(code, "raised")
+        self.assertEqual(st["state"], "crashed")
+        self.assertIn("RuntimeError: disk gone", st["detail"])
+
+    def test_step_follows_the_log_being_written(self):
+        log_dir = tempfile.mkdtemp()
+        ctx = ib.Ctx(log_dir, ib.Status(log_dir, args_for(merge_only=True)))
+        ctx.log_path("merge_wt_a")
+        with open(os.path.join(log_dir, ib.STATUS_FILE), encoding="utf-8") as fh:
+            st = json.load(fh)
+        self.assertEqual((st["step"], st["mode"], st["state"]), ("merge_wt_a", "merge-only", "running"))
+
+    def test_unwritable_log_dir_never_fails_the_batch(self):
+        status = ib.Status(os.path.join(tempfile.gettempdir(), "no", "such", "dir"), args_for())
+        status.line("x")
+        status.end("ok", {})
+
 
 def git_run(cwd, *a):
     subprocess.run(["git", "-C", cwd, *a], check=True, capture_output=True, text=True)
@@ -572,6 +635,19 @@ class ProbeLintTests(unittest.TestCase):
         self.assertEqual(err.step, "probes")
         self.assertIn("wt/b: tools/capture_x.gd", err.detail)
         self.assertFalse([n for n in fake.names() if n.startswith("merge_")])
+
+    def test_branch_allowlist_line_permits_its_own_input(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\ntools/capture_x.gd.uid\n"),
+                     "probeallow_wt_b": (0, "# header\ntools/capture_x.gd*\n")})
+        err, out, res = run(fake)
+        self.assertTrue(err is None or err.step != "probes")
+
+    def test_branch_allowlist_without_matching_line_still_fails(self):
+        fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\ntools/capture_x.gd.uid\n"),
+                     "probeallow_wt_b": (0, "# header\ntools/capture_y.gd*\n")})
+        err, out, res = run(fake)
+        self.assertEqual(err.step, "probes")
+        self.assertIn("wt/b: tools/capture_x.gd", err.detail)
 
     def test_allow_probes_skips_check(self):
         fake = Fake({"probes_wt_b": (0, "tools/capture_x.gd\n")})

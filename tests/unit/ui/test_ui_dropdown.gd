@@ -55,9 +55,13 @@ func test_ui_left_right_do_not_change_the_value() -> void:
 	assert_eq(_picked.size(), 0)
 
 
-## The row of a popup list (a VBox of rows is its only child).
+## The row of a popup list for item `index` (rows found by class, in item order).
 func _row_at(list: UiDropdown.DropdownList, index: int) -> UiDropdown.DropdownList.Row:
-	return list.get_child(0).get_child(index) as UiDropdown.DropdownList.Row
+	var rows: Array[UiDropdown.DropdownList.Row] = []
+	for found: Node in list.find_children("*", "", true, false):
+		if found is UiDropdown.DropdownList.Row:
+			rows.append(found as UiDropdown.DropdownList.Row)
+	return rows[index]
 
 
 func test_pad_a_opens_the_list_and_focus_lands_on_the_current_row() -> void:

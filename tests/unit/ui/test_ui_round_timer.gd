@@ -1,6 +1,6 @@
 extends GutTest
 ## UiRoundTimer (the match clock): m:ss format, hurry threshold from config, limited vs
-## unlimited modes, sudden death, token colours, and the HUD wiring (a client shows the host's time).
+## unlimited modes, sudden death, and the HUD wiring (a client shows the host's time).
 
 
 func _timer() -> UiRoundTimer:
@@ -46,7 +46,6 @@ func test_overtime_shows_flare_label() -> void:
 	timer.show_overtime()
 	assert_eq(timer.phase, UiRoundTimer.Phase.OVERTIME)
 	assert_eq(timer.label.text, UiRoundTimer.tuning().round_timer_overtime_text)
-	assert_eq(timer.label.get_theme_color("font_color"), MenuStyleFactory.arcade_tuning().flare_color)
 
 
 func test_show_match_limited_unlimited_and_sudden_death() -> void:

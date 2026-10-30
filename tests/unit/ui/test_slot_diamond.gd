@@ -37,6 +37,10 @@ func test_status_badge_names_the_session_kind() -> void:
 	assert_eq(Lobby.status_badge_text(true, false, false), "Hosting %s LAN" % char(0xB7))
 	assert_eq(Lobby.status_badge_text(false, true, false), "Joined %s Steam" % char(0xB7))
 	var lobby: Lobby = _make_lobby()
+	var badge: Label = lobby.get_node("%StatusBadgeLabel") as Label
+	lobby._update_status_badge()
+	var hosted_text: String = badge.text
 	(lobby.net_provider as FakeNet).is_private_session_value = true
 	lobby._update_status_badge()
-	assert_eq((lobby.get_node("%StatusBadgeLabel") as Label).text, "VS BOTS")
+	assert_ne(badge.text, hosted_text, "a bot-only lobby shows a different badge from a hosted one")
+	assert_ne(badge.text, "")

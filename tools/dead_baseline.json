@@ -115,24 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/net/NetRateMeter.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inet wires it; that package removes this entry",
-   "consumer": "P12-Inet"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/NetStats.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/NetStatsSource.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
    "entry": "core/rules/LobbySeatBudget.gd",
    "reason": "unwired stub; the Lobby seat budget wiring package consumes it",
    "consumer": "P9-Ibudget"
@@ -145,9 +127,15 @@
   },
   {
    "id": "dead-file",
-   "entry": "net/NetStatsLive.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
+   "entry": "core/territory/SolveClock.gd",
+   "reason": "interface stub: unwired until the solve-clock writer package makes MatchTerritory own it; that package removes this entry",
+   "consumer": "W-CLOCK"
+  },
+  {
+   "id": "dead-file",
+   "entry": "game/debug/RoundDebugPanels.gd",
+   "reason": "P12-Sdbg interface stub (docs/plans/P12_PLAN.md 2.4): unwired until P12-Iround wires it; that package removes this entry",
+   "consumer": "P12-Iround"
   },
   {
    "id": "dead-file",
@@ -158,30 +146,6 @@
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.tscn",
    "reason": "designer gallery scene (stackfall-designer tool)"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/DebugRow.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugGraph.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Ipb"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugPanel.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Iperf"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/debug/TuningSkyTab.gd",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.2): TuningPanel creates it in _ready once the sky-tab package lands; that bead removes this entry",
-   "consumer": "P12-Isky"
   },
   {
    "id": "dead-file",
@@ -221,12 +185,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/menus/LoadingBackdrop.gd",
-   "reason": "unwired UI stub; P9-Iload wires it in",
-   "consumer": "P9-Iload"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/menus/MainMenuJoinPage.gd",
    "reason": "unwired UI stub; P9-Ijoin wires it in",
    "consumer": "P9-Ijoin"
@@ -247,31 +205,6 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:bot_mode_goal",
    "reason": "live: game/bots/BotController.gd:938 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:feed_progress",
-   "reason": "live: ui/hud/HUD.gd:437 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:gift_slot_count",
-   "reason": "live: ui/hud/HUD.gd:1747 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:pending_special_count",
-   "reason": "live: ui/hud/HUD.gd:1393 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Match.gd:sudden_death_active",
-   "reason": "live: autoload/match/MatchGifts.gd:615 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:name_for_slot",
-   "reason": "live: ui/hud/HUD.gd:1185 and ui/menus/LoadingScreen.gd:409 call it through a duck-typed provider (name-ambiguous with HudPlayerLookup.name_for_slot)"
   },
   {
    "id": "test-only-func",
@@ -315,8 +248,18 @@
   },
   {
    "id": "test-only-func",
+   "entry": "autoload/match/MatchGifts.gd:after_next_special",
+   "reason": "live: autoload/Match.gd:504 forwards to it (name-ambiguous with MatchContext.after_next_special)"
+  },
+  {
+   "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:gift_slot_count",
    "reason": "live: autoload/Match.gd:778 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchGifts.gd:gift_states",
+   "reason": "live: autoload/Match.gd:1027 forwards to it (name-ambiguous with MatchContext.gift_states)"
   },
   {
    "id": "test-only-func",
@@ -332,6 +275,21 @@
    "id": "test-only-func",
    "entry": "autoload/match/MatchGifts.gd:setup",
    "reason": "Match.gd _gifts.setup (Match setup chain)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchLifecycle.gd:countdown_remaining",
+   "reason": "live: autoload/Match.gd:359 forwards to it (name-ambiguous with MatchContext.countdown_remaining)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchLifecycle.gd:eliminated_by",
+   "reason": "live: autoload/Match.gd:993 forwards to it (name-ambiguous with MatchContext.eliminated_by)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "autoload/match/MatchLifecycle.gd:match_timer_left",
+   "reason": "live: autoload/Match.gd:373 forwards to it (name-ambiguous with MatchContext.match_timer_left)"
   },
   {
    "id": "test-only-func",
@@ -570,18 +528,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "core/net/JoinCode.gd:parse_address",
-   "reason": "unwired stub; MainMenu will call it in the join address package",
-   "consumer": "P9-Iaddr"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "core/net/JoinCode.gd:resolve_text",
-   "reason": "unwired stub; MainMenu will call it in the join address package",
-   "consumer": "P9-Iaddr"
-  },
-  {
-   "id": "test-only-func",
    "entry": "core/rules/ClassicObjective.gd:latched_team",
    "reason": "MatchTerritory.gd:453 in _fill_classic_goals, reached from bot_mode_goal"
   },
@@ -723,30 +669,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:copy_text",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:is_exported_field",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:reset_resource",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "game/main/TuningOverrides.gd:write_sections",
-   "reason": "P12-S stub (docs/plans/P12_PLAN.md 2.1): TuningPanel.save_overrides/reset_all/_on_copy_pressed call it once the save package lands; that bead removes this entry",
-   "consumer": "P12-Isave"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/sky/CloudSea.gd:refresh_weather_fog",
    "reason": "WeatherFogShader.gd:68 node.call(&refresh_weather_fog) on group"
   },
@@ -774,11 +696,6 @@
    "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/session/NetRoster.gd:name_at_slot",
-   "reason": "live: autoload/Net.gd:437 name_for_slot delegates to it (reached only through the name-ambiguous name_for_slot chain)"
   },
   {
    "id": "test-only-func",

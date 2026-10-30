@@ -6,8 +6,8 @@
 Builds a combined branch off --base in a temp worktree and merges the branches in order
 (git merge --no-ff). A conflict confined to the regenerated baselines
 (layer, dead, magic_number, shader_uniform) keeps the combined side and the merge is committed
-(dead and shader_uniform also keep the union of both sides' reviewed `allow` entries; one key with
-different content on each side is a real conflict and aborts);
+(dead and shader_uniform also 3-way merge both sides' reviewed `allow` entries against the merge base; one key
+changed differently on both sides is a real conflict and aborts);
 any other conflict aborts the merge and the run fails naming the conflicting files. Then only
 lowering updates run, with the merged tree's own lints:
   lint_layers.py --update [--allow-new <file> ...]   lint_dead.py --update-baseline
@@ -150,22 +150,31 @@ def blame(lines, branch_files):
 ALLOW_BASELINES = ("tools/dead_baseline.json", "tools/shader_uniform_baseline.json")
 
 
-def merge_allow(ours_text, theirs_text):
-    """Ours with the union of both sides' reviewed `allow` entries (keyed by id+entry).
-    Returns (json_text, None) or (None, reason) when a key carries different content on each side."""
+def merge_allow(ours_text, theirs_text, base_text="{}"):
+    """3-way merge of the reviewed `allow` entries (keyed by id+entry) over the ours JSON: per key the side
+    that changed it against the merge base wins, an entry one side removed and the other left stays removed.
+    Returns (json_text, None) or (None, reason) when both sides changed one key differently."""
     ours, theirs = json.loads(ours_text), json.loads(theirs_text)
-    merged = {(a.get("id"), a.get("entry")): a for a in ours.get("allow", [])}
-    for a in theirs.get("allow", []):
-        key = (a.get("id"), a.get("entry"))
-        if merged.setdefault(key, a) != a:
-            return None, "allow entry %s %s differs: ours %r vs theirs %r" % (key[0], key[1], merged[key], a)
+    def keyed(d):
+        return {(a.get("id"), a.get("entry")): a for a in d.get("allow", [])}
+    o, t, b = keyed(ours), keyed(theirs), keyed(json.loads(base_text))
+    merged = {}
+    for key in set(o) | set(t):
+        if o.get(key) == t.get(key) or t.get(key) == b.get(key):
+            pick = o.get(key)
+        elif o.get(key) == b.get(key):
+            pick = t.get(key)
+        else:
+            return None, "allow entry %s %s differs: ours %r vs theirs %r" % (key[0], key[1], o.get(key), t.get(key))
+        if pick is not None:
+            merged[key] = pick
     ours["allow"] = sorted(merged.values(), key=lambda a: (str(a.get("id")), str(a.get("entry"))))
     return json.dumps(ours, indent=1) + "\n", None
 
 
 def resolve_baseline_conflict(ctx, wt, files):
     """Keep the combined side of each conflicted baseline; dead/shader also keep the union of both
-    sides' allow entries. Returns None when committed, else the refusal reason."""
+    sides' allow entries (3-way). Returns None when committed, else the refusal reason."""
     if ib.git(ctx, "ours", wt, "checkout", "--ours", "--", *files)[0] != 0:
         return "git checkout --ours failed"
     for f in files:
@@ -174,7 +183,8 @@ def resolve_baseline_conflict(ctx, wt, files):
         stages = [ib.git(ctx, "stage", wt, "show", ":%d:%s" % (n, f)) for n in (2, 3)]
         if any(c != 0 for c, _, _ in stages):
             return "cannot read both sides of " + f
-        text, reason = merge_allow(stages[0][1], stages[1][1])
+        base = ib.git(ctx, "stage_base", wt, "show", ":1:" + f)  # absent on add/add: empty base
+        text, reason = merge_allow(stages[0][1], stages[1][1], base[1] if base[0] == 0 else "{}")
         if text is None:
             return f + ": " + reason
         with open(os.path.join(wt, f), "w", encoding="utf-8", newline="\n") as fh:

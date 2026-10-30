@@ -34,13 +34,14 @@ func _node(hud: HUD, unique_name: String) -> Node:
 	return hud.get_node("%" + unique_name)
 
 
-func _named_match(names: Array[String]) -> FakeMatch:
-	var fake_match: FakeMatch = FakeMatch.new()
+func _named_match(names: Array[String]) -> FakeMatchContext:
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
 	for slot_id: int in range(names.size()):
-		fake_match.slots_by_id[slot_id] = PlayerSlot.new(slot_id, slot_id, names[slot_id], Color.WHITE)
+		fake_match.slot_by_id[slot_id] = PlayerSlot.new(slot_id, slot_id, names[slot_id], Color.WHITE)
 	var config: MatchConfig = MatchConfig.new()
 	config.player_count = names.size()
-	fake_match.config = config
+	fake_match.config_value = config
+	fake_match.slot_count_value = names.size()
 	return fake_match
 
 
@@ -86,19 +87,19 @@ func _special_indicator(hud: HUD) -> Label:
 ## `hud` showing the local slot `slot_id` of `config`'s match.
 func _hud_for_slot(slot_id: int, config: MatchConfig) -> HUD:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.config = config
-	hud.match_provider = fake_match
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
+	fake_match.config_value = config
+	hud.match_context = fake_match
 	hud.set_local_slot(slot_id)
 	return hud
 
 
 func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	fake_match.slots_by_id[0] = PlayerSlot.new(0, 0, "P1", Color.RED)
-	fake_match.slots_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
-	hud.match_provider = fake_match
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
+	fake_match.slot_by_id[0] = PlayerSlot.new(0, 0, "P1", Color.RED)
+	fake_match.slot_by_id[1] = PlayerSlot.new(1, 1, "Rival", Color.BLUE)
+	hud.match_context = fake_match
 	hud.set_local_slot(0)
 	var banner: Label = hud.find_child("EliminatedLabel", true, false) as Label
 	assert_false(banner.visible, "no banner while alive")
@@ -110,7 +111,7 @@ func test_eliminated_banner_names_the_eliminator_or_falls_back() -> void:
 	assert_true(banner.visible)
 	assert_eq(banner.text, hud.hud_visual_tuning.eliminated_text, "plain wording when no eliminator is known")
 
-	fake_match.eliminated_by_slot = 1
+	fake_match.eliminated_by_slot[0] = 1
 	Events.player_eliminated.emit(0, 0)
 	assert_eq(banner.text, hud.hud_visual_tuning.eliminated_by_text % "Rival")
 
@@ -133,21 +134,27 @@ func test_reach_the_sky_height_line_shows_the_target() -> void:
 
 func test_rows_show_player_names_and_shares_not_p_numbers() -> void:
 	var hud: HUD = _make_hud()
-	hud.match_provider = _named_match(["Tonyflow", "Mira"])
+	hud.match_context = _named_match(["Tonyflow", "Mira"])
 	hud.set_territory_shares(PackedFloat32Array([0.09, 0.5]))
-	var rows: Array[Node] = _rows(hud)
-	assert_eq(rows.size(), 2, "one row per player")
-	assert_eq(_visible_texts(rows[0]), PackedStringArray(["Tonyflow", "9%"]))
-	assert_eq(_visible_texts(rows[1]), PackedStringArray(["Mira", "50%"]))
-	var bar: ShareBar = rows[1].find_children("*", "ShareBar", true, false)[0] as ShareBar
+	var shown: PackedStringArray = _visible_texts(_node(hud, "SharesBox"))
+	for text: String in ["Tonyflow", "9%", "Mira", "50%"]:
+		assert_has(shown, text, "the stats show %s" % text)
+	for text: String in shown:
+		assert_false(text.begins_with("P") and text.length() <= 2, "no P-number labels: %s" % text)
+	var mira_row: Node = null
+	for row: Node in _rows(hud):
+		if _visible_texts(row).has("Mira"):
+			mira_row = row
+	assert_not_null(mira_row, "Mira has a row")
+	var bar: ShareBar = mira_row.find_children("*", "ShareBar", true, false)[0] as ShareBar
 	assert_almost_eq(bar.fraction, 0.5, 0.0001, "the bar fills to the share")
 
 
 func test_rows_mark_eliminated_players() -> void:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = _named_match(["A", "B"])
-	(fake_match.slots_by_id[1] as PlayerSlot).home_flag_alive = false
-	hud.match_provider = fake_match
+	var fake_match: FakeMatchContext = _named_match(["A", "B"])
+	(fake_match.slot_by_id[1] as PlayerSlot).home_flag_alive = false
+	hud.match_context = fake_match
 	hud.set_territory_shares(PackedFloat32Array([0.6, 0.4]))
 	var rows: Array[Node] = _rows(hud)
 	assert_eq(_visible_texts(rows[0]), PackedStringArray(["A", "60%"]))
@@ -157,7 +164,7 @@ func test_rows_mark_eliminated_players() -> void:
 
 func test_only_the_local_row_carries_the_you_marker() -> void:
 	var hud: HUD = _make_hud()
-	hud.match_provider = _named_match(["A", "B"])
+	hud.match_context = _named_match(["A", "B"])
 	hud.set_territory_shares(PackedFloat32Array([0.5, 0.5]))
 	hud.set_local_slot(1)
 	var rows: Array[Node] = _rows(hud)
@@ -171,7 +178,7 @@ func test_only_the_local_row_carries_the_you_marker() -> void:
 
 func test_ctf_rows_show_hold_time_and_no_separate_score_line() -> void:
 	var hud: HUD = _make_hud()
-	hud.match_provider = _named_match(["A", "B"])
+	hud.match_context = _named_match(["A", "B"])
 	hud.set_territory_shares(PackedFloat32Array([0.4, 0.6]))
 	Events.mode_state_changed.emit({
 		"mode_id": MatchConfig.GameMode.CAPTURE_THE_FLAG, "scores": [58.0, 0.0], "extra": {}, "round_left": 209.0,
@@ -286,9 +293,9 @@ func test_a_tied_results_payload_announces_a_shared_win() -> void:
 
 func test_release_locked_slot_greys_the_cards_and_shows_no_text() -> void:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
 	fake_match.release_locked_by_slot[0] = true
-	hud.match_provider = fake_match
+	hud.match_context = fake_match
 	var held: Control = _node(hud, "HeldShapeCard") as Control
 	var next: Control = _node(hud, "NextShapeCard") as Control
 
@@ -305,8 +312,8 @@ func test_release_locked_slot_greys_the_cards_and_shows_no_text() -> void:
 
 func test_glue_charges_show_beside_the_pending_special_and_clear_when_spent() -> void:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
+	hud.match_context = fake_match
 	var indicator: Label = _special_indicator(hud)
 	fake_match.glue_drops_by_slot[0] = 3
 	hud.set_local_slot(0)
@@ -324,8 +331,8 @@ func test_glue_charges_show_beside_the_pending_special_and_clear_when_spent() ->
 
 func test_special_indicator_follows_a_claim_for_the_local_slot_only() -> void:
 	var hud: HUD = _make_hud()
-	var fake_match: FakeMatch = FakeMatch.new()
-	hud.match_provider = fake_match
+	var fake_match: FakeMatchContext = FakeMatchContext.new()
+	hud.match_context = fake_match
 	hud.set_local_slot(0)
 	var indicator: Label = _special_indicator(hud)
 	assert_false(indicator.visible)
@@ -369,8 +376,8 @@ func test_gift_claim_toast_reaches_the_claiming_team_only() -> void:
 func test_glue_overlay_clears_on_match_end_and_lobby() -> void:
 	for to_state: int in [Match.State.END, Match.State.LOBBY]:
 		var hud: HUD = _make_hud()
-		var fake_match: FakeMatch = FakeMatch.new()
-		hud.match_provider = fake_match
+		var fake_match: FakeMatchContext = FakeMatchContext.new()
+		hud.match_context = fake_match
 		hud.set_local_slot(0)
 		fake_match.glue_drops_by_slot[0] = 5
 		await wait_frames(1)

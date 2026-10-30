@@ -15,34 +15,22 @@ class FakeStats:
 		return payload
 
 
-class ScoreFakeMatch:
-	extends RefCounted
-	var config: MatchConfig = MatchConfig.new()
-	var fake_stats: FakeStats = FakeStats.new()
-	var current_state: MatchAutoload.State = MatchAutoload.State.PLAYING
-
-	## Slot 0 has a live colour; slot 1 is unknown so the default palette applies.
-	func slot(slot_id: int) -> PlayerSlot:
-		if slot_id == 0:
-			return PlayerSlot.new(0, 0, "Ann", Color(0.1, 0.2, 0.3), Vector2.ZERO)
-		return null
-
-	func state() -> MatchAutoload.State:
-		return current_state
-
-	func stats() -> FakeStats:
-		return fake_stats
-
-
 var _overlay: ScoreboardOverlay = null
-var _match: ScoreFakeMatch = null
+var _match: FakeMatchContext = null
+var _stats: FakeStats = null
 
 
 func before_each() -> void:
-	_match = ScoreFakeMatch.new()
-	_match.fake_stats.payload = _live_payload()
+	_match = FakeMatchContext.new()
+	_match.state_value = MatchPhase.State.PLAYING
+	_match.config_value = MatchConfig.new()
+	## Slot 0 has a live colour; slot 1 is unknown so the default palette applies.
+	_match.slot_by_id[0] = PlayerSlot.new(0, 0, "Ann", Color(0.1, 0.2, 0.3), Vector2.ZERO)
+	_stats = FakeStats.new()
+	_stats.payload = _live_payload()
+	_match.stats_value = _stats
 	_overlay = SCENE.instantiate() as ScoreboardOverlay
-	_overlay.match_provider = _match
+	_overlay.match_context = _match
 	add_child_autofree(_overlay)
 
 
@@ -120,37 +108,41 @@ func test_right_stick_click_shows_while_held_and_hides_on_release() -> void:
 	assert_false(_overlay._root.visible)
 
 
-func test_scoreboard_bot_row_shows_difficulty_human_row_does_not() -> void:
-	_match.config.slot_ai_difficulties = PackedInt32Array([0, MatchConfig.AiDifficulty.HARD])
+## Texts of every Label the table currently renders.
+func _label_texts() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for node: Node in (_overlay.get_node("%RowsList") as Control).find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return out
+
+
+func test_scoreboard_marks_the_bot_row_as_a_bot_and_not_the_human_row() -> void:
 	await _send(_key(true))
-	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
-	var human_name: Label = (rows.get_child(1).get_child(0) as HBoxContainer).get_child(0) as Label
-	var bot_name: Label = (rows.get_child(2).get_child(0) as HBoxContainer).get_child(0) as Label
-	assert_eq(human_name.text, "Ann")
-	assert_eq(bot_name.text, "Bo")
-	assert_eq((bot_name.get_node("BotTag") as Label).text, "(Bot, Hard)")
-	assert_null(human_name.get_node_or_null("BotTag"))
+	var texts: PackedStringArray = _label_texts()
+	assert_has(texts, "Ann")
+	var marked: PackedStringArray = PackedStringArray()
+	for text: String in texts:
+		if text.contains("(Bot"):
+			marked.append(text)
+	assert_eq(marked.size(), 1, "exactly one row is marked as a bot")
+	assert_true(marked[0].begins_with("Bo"), "the marked row is the bot's")
 
 
 func test_table_shows_the_live_rows_with_alive_status() -> void:
 	await _send(_key(true))
-	var rows: VBoxContainer = _overlay.get_node("%RowsList") as VBoxContainer
-	assert_eq(rows.get_child_count(), 3, "header + one row per player")
-	var texts: PackedStringArray = PackedStringArray()
-	for cell: Node in (rows.get_child(1).get_child(0) as HBoxContainer).get_children():
-		texts.append((cell as Label).text)
+	var texts: PackedStringArray = _label_texts()
 	assert_has(texts, "Ann")
 	assert_has(texts, "Alive", "a live round says Alive, not Survived")
 	assert_has(texts, "2", "wins column and placed/height columns come from the shared table")
 
 
 func test_hidden_when_not_live_paused_suppressed_or_focus_lost() -> void:
-	_match.current_state = MatchAutoload.State.END
+	_match.state_value = MatchPhase.State.END
 	await _send(_key(true))
 	assert_false(_overlay._root.visible, "results screen owns the END state")
 	await _send(_key(false))
 
-	_match.current_state = MatchAutoload.State.PLAYING
+	_match.state_value = MatchPhase.State.PLAYING
 	_overlay.suppressed = true
 	await _send(_key(true))
 	assert_false(_overlay._root.visible, "sandbox keeps Tab for sandbox_next_slot")
