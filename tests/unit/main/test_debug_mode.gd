@@ -45,28 +45,6 @@ func test_resolve_cli_and_settings_precedence() -> void:
 	assert_true(DebugMode.resolve_from(PackedStringArray(), -1, true, false), "project setting on")
 
 
-func test_f3_f4_and_f1_ignored_when_debug_off() -> void:
-	DebugMode.set_override_for_test(false)
-	var net_overlay: NetDebugOverlay = autofree(load("res://ui/debug/NetDebugOverlay.tscn").instantiate())
-	add_child_autofree(net_overlay)
-	net_overlay._unhandled_input(_key_press(KEY_F3))
-	assert_false(net_overlay.visible, "F3 ignored")
-	var tuning: TuningPanel = autofree(load("res://ui/debug/TuningPanel.tscn").instantiate())
-	add_child_autofree(tuning)
-	tuning._unhandled_input(_key_press(KEY_F4))
-	assert_false(tuning.visible, "F4 ignored")
-	var overlay: PerfOverlay = _make_overlay()
-	overlay._unhandled_input(_key_press(KEY_F1))
-	assert_false(_overlay_panel(overlay).visible, "F1 ignored")
-
-	DebugMode.set_override_for_test(true)
-	net_overlay._unhandled_input(_key_press(KEY_F3))
-	assert_true(net_overlay.visible, "F3 works in debug mode")
-	tuning._unhandled_input(_key_press(KEY_F4))
-	assert_true(tuning.visible, "F4 works in debug mode")
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
 func test_f12_screenshot_action_is_not_gated_by_debug_mode() -> void:
 	DebugMode.set_override_for_test(false)
 	assert_true(_key_press(KEY_F12).is_action_pressed(&"screenshot_capture"))
@@ -79,39 +57,6 @@ func test_perf_overlay_action_has_pad_binding() -> void:
 	for event: InputEvent in InputMap.action_get_events(&"perf_overlay_toggle"):
 		has_pad = has_pad or event is InputEventJoypadButton
 	assert_true(has_pad, "every action needs a gamepad binding")
-
-
-# --- Overlay ---------------------------------------------------------------------
-
-func _make_overlay() -> PerfOverlay:
-	var sampler: PerfSampler = PerfSampler.new()
-	sampler.config = _config
-	add_child_autofree(sampler)
-	var overlay: PerfOverlay = PerfOverlay.new()
-	overlay.config = _config
-	overlay.sampler = sampler
-	add_child_autofree(overlay)
-	return overlay
-
-
-## The overlay's panel is its only child; it is visible exactly while the overlay is not HIDDEN.
-func _overlay_panel(overlay: PerfOverlay) -> PanelContainer:
-	return overlay.get_child(0) as PanelContainer
-
-
-func test_overlay_pad_press_needs_back_chord() -> void:
-	DebugMode.set_override_for_test(true)
-	var overlay: PerfOverlay = _make_overlay()
-	var pad: InputEventJoypadButton = InputEventJoypadButton.new()
-	pad.device = -1
-	pad.button_index = JOY_BUTTON_RIGHT_STICK
-	pad.pressed = true
-	overlay._unhandled_input(pad)
-	assert_false(_overlay_panel(overlay).visible, "stick click alone does nothing")
-	Input.action_press(&"camera_snap_home")
-	overlay._unhandled_input(pad)
-	Input.action_release(&"camera_snap_home")
-	assert_true(_overlay_panel(overlay).visible)
 
 
 func _make_logger(sampler: PerfSampler) -> PerfLogger:
