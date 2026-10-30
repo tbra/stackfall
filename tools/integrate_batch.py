@@ -667,10 +667,16 @@ def check_tools_scripts(ctx, base, wt):
 
 
 def check_probes(ctx, repo, base, branches):
-    """Fail step `probes` when a branch adds throwaway probe/capture files."""
-    allow = probe_lint.read_allowlist(repo)
+    """Fail step `probes` when a branch adds throwaway probe/capture files.
+    Each branch is judged against the allowlist as merged: the checkout's lines plus the lines in
+    the branch's own tools/probe_allowlist.txt (a union, so a line the branch removes still counts
+    from the checkout). An offender with no allowlist line in either still fails."""
+    base_allow = probe_lint.read_allowlist(repo)
     bad = []
     for b in branches:
+        acode, atext, _ = git(ctx, "probeallow_" + b.replace("/", "_"), repo, "show",
+                              b + ":" + probe_lint.ALLOWLIST)
+        allow = base_allow + (probe_lint.parse_allowlist(atext) if acode == 0 else [])
         # --no-renames: a moved script and its moved .uid both count as added; with rename
         # detection the .uid shows as a rename and the script looks like it lost its .uid.
         code, text, _ = git(ctx, "probes_" + b.replace("/", "_"), repo, "diff", "--no-renames",
