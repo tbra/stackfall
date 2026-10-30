@@ -1,4 +1,9 @@
 extends GutTest
+
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+
+var _saved_async_min_circles: int = 0
+var _saved_defer_max_s: float = 0.0
 ## autoload/match/MatchGifts.gd: spawn rolls, the territory-tick claim/expire
 ## sweep, the pending-special array, and the three replicated gift events
 ## (spec 1.6).
@@ -18,6 +23,11 @@ var _next_injected_id: int = 1000
 
 
 func before_each() -> void:
+	# Match._process solves synchronously and without deferral under these knobs; after_each restores them.
+	_saved_async_min_circles = _tuning.async_solve_min_circles
+	_saved_defer_max_s = _tuning.solve_defer_max_s
+	_tuning.async_solve_min_circles = 0
+	_tuning.solve_defer_max_s = 0.0
 	_next_injected_id = 1000
 	Match.set_process(false)
 	Match.abort_match()
@@ -37,6 +47,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.async_solve_min_circles = _saved_async_min_circles
+	_tuning.solve_defer_max_s = _saved_defer_max_s
 	# Several tests below install a custom Callable via set_special_drawer();
 	# Match is a singleton that outlives any one test, so a lingering custom
 	# drawer (whose closure may capture a now-out-of-scope index array) would
@@ -104,9 +116,9 @@ func _start_playing(config: MatchConfig) -> void:
 
 
 func _step_territory(times: int = 1) -> void:
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
+	var step: float = 1.0 / _tuning.solve_hz
 	for _i: int in range(times):
-		Match._territory._run_territory_step(step)
+		Match._process(step)
 		Match._gifts.tick_host(step)
 
 

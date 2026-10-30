@@ -1,5 +1,10 @@
 extends GutTest
 
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+
+var _saved_async_min_circles: int = 0
+var _saved_defer_max_s: float = 0.0
+
 const MAIN_SCENE: PackedScene = preload("res://game/main/Main.tscn")
 const CAMERA_RIG_SCENE: PackedScene = preload("res://game/player/CameraRig.tscn")
 ## Physics frames a dropped block gets to come to rest and freeze.
@@ -19,6 +24,11 @@ var _tiny_map: MapDef
 
 
 func before_each() -> void:
+	# Match._process solves synchronously and without deferral under these knobs; after_each restores them.
+	_saved_async_min_circles = _tuning.async_solve_min_circles
+	_saved_defer_max_s = _tuning.solve_defer_max_s
+	_tuning.async_solve_min_circles = 0
+	_tuning.solve_defer_max_s = 0.0
 	# Match ticks on real frames; these tests drive _process() by hand where a
 	# state must advance, so automatic processing is off for the duration
 	# (same fixture as test_match_flow.gd/test_match_lifecycle.gd).
@@ -39,6 +49,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.async_solve_min_circles = _saved_async_min_circles
+	_tuning.solve_defer_max_s = _saved_defer_max_s
 	# several sandbox_force_special tests below install a
 	# forced Callable via Match.set_special_drawer() (game/sandbox/Sandbox.gd's
 	# force_special_by_id()); Match._gifts.reset() (run by abort_match() right
@@ -126,10 +138,10 @@ func _claim_crate_for_slot(slot_id: int) -> StringName:
 	Events.gift_claimed.connect(on_claim)
 	var gift_id: int = 900 + slot_id
 	Match._gifts.apply_replicated_spawn(gift_id, Match.slot(slot_id).home_position)
-	# One territory solve claims a crate on its owner's own home flag (the step
-	# test_gift_claim.gd drives); Match._process alone defers it to a worker.
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
-	Match._territory._run_territory_step(step)
+	# One synchronous territory solve (before_each turns deferral and the async worker off)
+	# claims a crate on its owner's own home flag.
+	var step: float = 1.0 / _tuning.solve_hz
+	Match._process(step)
 	Match._gifts.tick_host(step)
 	Events.gift_claimed.disconnect(on_claim)
 	return drawn[0] if not drawn.is_empty() else &""
