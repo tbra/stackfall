@@ -123,8 +123,8 @@ func _make_lobby() -> Lobby:
 
 func test_lobby_game_mode_focus_explains_the_selected_mode() -> void:
 	var lobby: Lobby = _make_lobby()
-	var line: UiHelpLine = lobby.get_node("%HelpLine") as UiHelpLine
-	var mode: UiCycler = lobby.get_node("%GameModeOption") as UiCycler
+	var line: UiHelpLine = lobby.find_child("HelpLine", true, false) as UiHelpLine
+	var mode: UiCycler = lobby.find_child("GameModeOption", true, false) as UiCycler
 	var table: OptionHelpTable = OptionHelpTable.shared()
 	mode.select(MatchConfig.GameMode.ELIMINATION)
 	mode.grab_focus()
@@ -138,11 +138,11 @@ func test_lobby_game_mode_focus_explains_the_selected_mode() -> void:
 
 func test_lobby_gift_chip_explains_its_gift() -> void:
 	var lobby: Lobby = _make_lobby()
-	var line: UiHelpLine = lobby.get_node("%HelpLine") as UiHelpLine
-	var chip: UiChipToggle = lobby._special_checkboxes[0]
+	var line: UiHelpLine = lobby.find_child("HelpLine", true, false) as UiHelpLine
+	var chip: UiChipToggle = LobbyProbe.gift_chips(lobby)[0]
 	line.hover_source = func() -> Control: return chip
 	line.refresh()
-	assert_eq(line.label.text, OptionHelpTable.shared().text_for(OptionHelpTable.gift_key(lobby._special_ids[0])))
+	assert_eq(line.label.text, OptionHelpTable.shared().text_for(OptionHelpTable.gift_key(SpecialDef.load_selectable_specials()[0].id)))
 
 
 # --- Options -------------------------------------------------------------------

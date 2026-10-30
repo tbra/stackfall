@@ -28,7 +28,7 @@ func _make_lobby(is_host: bool) -> Lobby:
 
 
 func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: UiCycler = lobby.get_node("%GameModeOption")
+	var option: UiCycler = lobby.find_child("GameModeOption", true, false) as UiCycler
 	option.select(mode)
 	option.item_selected.emit(mode)
 
@@ -79,19 +79,19 @@ func test_non_sandbox_classic_still_wins_on_the_hold() -> void:
 
 func test_lobby_forces_a_timer_for_domination() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var slider: UiStepper = lobby.get_node("%RoundTimerStepper")
+	var slider: UiStepper = lobby.find_child("RoundTimerStepper", true, false) as UiStepper
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	assert_eq(slider.value, MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
 	_pick_mode(lobby, MatchConfig.GameMode.DOMINATION)
-	assert_true((lobby.get_node("%RoundTimerCol") as Control).visible)
+	assert_true((lobby.find_child("RoundTimerCol", true, false) as Control).visible)
 	assert_eq(slider.min_value, MatchConfig.ROUND_TIMER_MIN_MINUTES, "cannot be set to off")
 	assert_eq(slider.value, MatchConfig.DOMINATION_ROUND_MINUTES_DEFAULT)
 	slider.value = 0
 	assert_gte(slider.value, MatchConfig.ROUND_TIMER_MIN_MINUTES)
 	var fake: FakeNet = lobby.net_provider as FakeNet
 	assert_gte(int(fake.set_lobby_data_calls[-1]["round_timer_minutes"]), MatchConfig.ROUND_TIMER_MIN_MINUTES)
-	assert_null(lobby.get_node_or_null("%RoundTimerValue"), "no \"required\" readout")
-	assert_false(OptionHelpTable.shared().text_for(UiHelpLine.key_of(lobby.get_node("%GameModeOption").get_parent()), 0).is_empty(), "mode description")
+	assert_null(lobby.find_child("RoundTimerValue", true, false), "no \"required\" readout")
+	assert_false(OptionHelpTable.shared().text_for(UiHelpLine.key_of(lobby.find_child("GameModeOption", true, false).get_parent()), 0).is_empty(), "mode description")
 
 
 # --- round timer slider ------------------
@@ -117,7 +117,7 @@ func _dpad_step(slider: UiStepper, button: JoyButton) -> void:
 func test_gamepad_left_right_changes_the_focused_timer_slider() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = lobby.net_provider as FakeNet
-	var match_slider: UiStepper = lobby.get_node("%MatchTimerStepper")
+	var match_slider: UiStepper = lobby.find_child("MatchTimerStepper", true, false) as UiStepper
 	_dpad_step(match_slider, JOY_BUTTON_DPAD_RIGHT)
 	assert_eq(match_slider.value, 2, "right from Off skips the 1-minute gap")
 	_dpad_step(match_slider, JOY_BUTTON_DPAD_RIGHT)
@@ -127,7 +127,7 @@ func test_gamepad_left_right_changes_the_focused_timer_slider() -> void:
 	_dpad_step(match_slider, JOY_BUTTON_DPAD_LEFT)
 	assert_eq(match_slider.value, 0, "left from 2 minutes reaches Off")
 	_pick_mode(lobby, MatchConfig.GameMode.CAPTURE_THE_FLAG)
-	var round_slider: UiStepper = lobby.get_node("%RoundTimerStepper")
+	var round_slider: UiStepper = lobby.find_child("RoundTimerStepper", true, false) as UiStepper
 	_dpad_step(round_slider, JOY_BUTTON_DPAD_RIGHT)
 	assert_eq(round_slider.value, 6)
 	_dpad_step(round_slider, JOY_BUTTON_DPAD_LEFT)

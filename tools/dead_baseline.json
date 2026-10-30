@@ -167,18 +167,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/lobby/LobbySettingsCard.gd",
-   "reason": "unwired UI stub; P9-Icard wires it in",
-   "consumer": "P9-Icard"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/lobby/LobbySettingsCard.tscn",
-   "reason": "unwired UI stub; P9-Icard wires it in",
-   "consumer": "P9-Icard"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/menus/MainMenuJoinPage.gd",
    "reason": "unwired UI stub; P9-Ijoin wires it in",
    "consumer": "P9-Ijoin"

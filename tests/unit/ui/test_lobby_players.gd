@@ -57,7 +57,7 @@ func _make_lobby(is_host: bool, panel_script: Script = null) -> Lobby:
 	var lobby: Lobby = autofree(scene.instantiate())
 	if panel_script != null:
 		# Before _ready(): the swapped script's @onready vars resolve normally.
-		(lobby.get_node("%PlayersPanel") as Node).set_script(panel_script)
+		(lobby.find_child("PlayersPanel", true, false) as Node).set_script(panel_script)
 	add_child_autofree(lobby)
 	var fake: FakeNet = FakeNet.new()
 	fake.is_host_value = is_host
@@ -72,7 +72,7 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 
 
 func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
-	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
+	return lobby.find_child("PlayersPanel", true, false) as LobbyPlayersPanel
 
 
 func _header_of(lobby: Lobby) -> Label:
@@ -169,7 +169,7 @@ func test_the_seat_table_round_trips_through_lobby_data() -> void:
 
 func test_teams_toggled_writes_off_or_four_teams_and_publishes() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: OptionButton = lobby.get_node("%TeamModeOption") as OptionButton
+	var option: OptionButton = lobby.find_child("TeamModeOption", true, false) as OptionButton
 	_panel_of(lobby).teams_toggled.emit(true)
 	assert_eq(option.selected, int(MatchConfig.TeamMode.TEAMS_4), "on = up to 4 teams (plan D8)")
 	assert_eq(int(_last_published(lobby).get("team_mode")), int(MatchConfig.TeamMode.TEAMS_4))
@@ -215,7 +215,7 @@ func test_remove_bot_shrinks_bots_and_seats_together() -> void:
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
 	panel.add_bot_requested.emit()
 	panel.add_bot_requested.emit()
-	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 2)
+	assert_eq(int((lobby.find_child("AiCountSpin", true, false) as SpinBox).value), 2)
 	panel.remove_bot_requested.emit(0)
 	assert_eq(int(_last_published(lobby).get("ai_count")), 1)
 	assert_eq(int(_last_published(lobby).get("player_count")), 2)
@@ -223,7 +223,7 @@ func test_remove_bot_shrinks_bots_and_seats_together() -> void:
 	assert_eq(int(_last_published(lobby).get("ai_count")), 0)
 	assert_eq(_header_of(lobby).text.substr(0, 9), "1 player ", "no bots left to announce")
 	panel.remove_bot_requested.emit(0)
-	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 0, "never below zero")
+	assert_eq(int((lobby.find_child("AiCountSpin", true, false) as SpinBox).value), 0, "never below zero")
 
 
 func test_a_start_blocker_disables_start_explains_it_and_gates_every_start_path() -> void:
@@ -231,7 +231,7 @@ func test_a_start_blocker_disables_start_explains_it_and_gates_every_start_path(
 	var panel: HookPanel = _panel_of(lobby) as HookPanel
 	var fake: FakeNet = _fake_of(lobby)
 	fake.all_peers_ready_value = true
-	var start: Button = lobby.get_node("%StartButton") as Button
+	var start: Button = lobby.find_child("StartButton", true, false) as Button
 	lobby._update_host_only_state()
 	assert_false(start.disabled, "ready and unblocked: Start is live")
 	assert_eq(start.tooltip_text, "")
@@ -267,8 +267,8 @@ func _host_lobby(humans: int, bots: int = 0, teams_on: bool = false) -> Lobby:
 	var fake: FakeNet = _fake_of(lobby)
 	for index: int in range(humans):
 		fake.slots_by_peer[index + 1] = index
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = clampi(humans + bots, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
-	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = clampi(humans + bots, MatchConfig.PLAYER_COUNT_MIN, MatchConfig.PLAYER_COUNT_MAX)
+	(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = bots
 	if teams_on:
 		_panel_of(lobby).teams_toggled.emit(true)
 	lobby._on_setting_changed()
@@ -525,7 +525,7 @@ func test_start_is_blocked_with_one_team_and_the_reason_is_shown_near_start() ->
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
 	lobby._update_host_only_state()
 	assert_eq(panel.start_blocker(), TeamAssigner.BLOCKER_ONE_TEAM)
-	var start: Button = lobby.get_node("%StartButton") as Button
+	var start: Button = lobby.find_child("StartButton", true, false) as Button
 	assert_true(start.disabled)
 	assert_eq(_blocker_label(lobby).text, TeamAssigner.BLOCKER_ONE_TEAM, "the reason is written under the rows")
 	assert_true(_blocker_label(lobby).visible, "the reason is written under the rows, not only in a tooltip")
@@ -655,7 +655,7 @@ func test_over_enet_a_clients_colour_and_team_requests_reach_the_hosts_start_con
 	add_child_autofree(lobby)
 	lobby.net_provider = host
 	lobby._update_host_only_state()
-	(lobby.get_node("%TeamModeOption") as OptionButton).select(MatchConfig.TeamMode.TEAMS_4)
+	(lobby.find_child("TeamModeOption", true, false) as OptionButton).select(MatchConfig.TeamMode.TEAMS_4)
 	lobby._on_setting_changed()
 	var client_id: int = client.local_peer_id()
 	var panel: LobbyPlayersPanel = _panel_of(lobby)
@@ -705,9 +705,9 @@ func test_host_start_needs_no_own_ready_and_hides_the_ready_toggle_but_a_client_
 	var host: Lobby = _host_lobby(1, 3)
 	_fake_of(host).all_peers_ready_value = true
 	host._update_host_only_state()
-	assert_false((host.get_node("%StartButton") as Button).disabled, "every other seat ready: Start is live")
-	assert_false((host.get_node("%ReadyCheck") as CheckButton).visible, "the host's Ready toggle is redundant")
+	assert_false((host.find_child("StartButton", true, false) as Button).disabled, "every other seat ready: Start is live")
+	assert_false((host.find_child("ReadyCheck", true, false) as CheckButton).visible, "the host's Ready toggle is redundant")
 	assert_not_null(_press_start(host), "pressing Start emits the start request")
 	var client: Lobby = _make_lobby(false)
-	assert_true((client.get_node("%ReadyCheck") as CheckButton).visible, "a client still readies up")
-	assert_false((client.get_node("%StartButton") as Button).visible)
+	assert_true((client.find_child("ReadyCheck", true, false) as CheckButton).visible, "a client still readies up")
+	assert_false((client.find_child("StartButton", true, false) as Button).visible)

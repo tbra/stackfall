@@ -77,7 +77,7 @@ func test_lobby_back_button_leaves_the_hosted_session_and_returns_to_the_main_me
 	assert_true(Net.is_host())
 	assert_not_null(MainNodes.lobby(_main), "hosting swaps the menu for the lobby synchronously")
 
-	(MainNodes.lobby(_main).get_node("%BackButton") as Button).pressed.emit()
+	(MainNodes.lobby(_main).find_child("BackButton", true, false) as Button).pressed.emit()
 
 	assert_true(Net.is_offline(), "the back pill must leave the hosted session")
 	assert_eq(Match.state(), Match.State.LOBBY, "the match never started, so no abort_match() round trip")

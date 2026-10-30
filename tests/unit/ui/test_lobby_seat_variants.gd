@@ -41,8 +41,8 @@ func _host_lobby(style: int, hosted: bool, humans: int, bots: int, teams: bool) 
 	lobby.net_provider = fake
 	var panel: LobbyPlayersPanel = _panel(lobby)
 	panel.mute_column_override = func() -> bool: return hosted
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = humans + bots
-	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = humans + bots
+	(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = bots
 	lobby._on_setting_changed()
 	await wait_frames(2)
 	if teams:
@@ -80,7 +80,7 @@ func _client_lobby(style: int) -> Lobby:
 
 
 func _panel(lobby: Lobby) -> LobbyPlayersPanel:
-	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
+	return lobby.find_child("PlayersPanel", true, false) as LobbyPlayersPanel
 
 
 ## Switch the open lobby to `style` (the debug-only switch) and let the rows rebuild.
@@ -149,8 +149,8 @@ func test_host_can_operate_difficulty_remove_team_and_mute_in_every_look() -> vo
 	var panel: LobbyPlayersPanel = _panel(lobby)
 	for style: int in STYLES:
 		# Each look removes a bot below, so seat the full bot count again first.
-		(lobby.get_node("%PlayerCountSpin") as SpinBox).value = HUMANS + BOTS
-		(lobby.get_node("%AiCountSpin") as SpinBox).value = BOTS + 1
+		(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = HUMANS + BOTS
+		(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = BOTS + 1
 		lobby._on_setting_changed()
 		await _show_look(lobby, style)
 		var label: String = _style_label(style)

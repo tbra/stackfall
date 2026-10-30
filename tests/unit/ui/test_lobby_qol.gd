@@ -8,7 +8,7 @@ extends GutTest
 ## numeric parameters stay in the shared config/match/qol_experiments.tres (F4).
 
 const CHECK_NAMES: Array[String] = [
-	"%QolTimerPauseCheck", "%QolBacklogCheck", "%QolGoalRadiusCheck", "%QolGiftSlotCheck",
+	"QolTimerPauseCheck", "QolBacklogCheck", "QolGoalRadiusCheck", "QolGiftSlotCheck",
 ]
 
 ## Snapshot of the shared F4 resource, restored after every test that edits it.
@@ -27,7 +27,7 @@ func after_each() -> void:
 ## The shared F4 resource the lobby folds its toggles onto. A function, because
 ## GDScript rejects assigning a property through the constant itself.
 func _shared() -> QolExperiments:
-	return Lobby.QOL_SHARED
+	return LobbySettingsCard.QOL_SHARED
 
 
 func _make_lobby(is_host: bool) -> Lobby:
@@ -47,7 +47,7 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 
 
 func _check(lobby: Lobby, unique_name: String) -> UiChipToggle:
-	return lobby.get_node(unique_name) as UiChipToggle
+	return lobby.find_child(unique_name, true, false) as UiChipToggle
 
 
 ## The first four flags in with_toggles() order, as the controls currently show them.
@@ -98,7 +98,7 @@ func test_wire_garbage_in_qol_is_ignored_safely() -> void:
 
 # --- Gift-loads-next experiment chip --------------------------
 
-const AFTER_NEXT_CHIP: String = "%QolGiftLoadsNextCheck"
+const AFTER_NEXT_CHIP: String = "QolGiftLoadsNextCheck"
 
 
 func test_the_host_publishes_the_gift_loads_next_chip_and_a_client_mirrors_it() -> void:
@@ -135,16 +135,16 @@ func test_start_requested_config_carries_the_toggles() -> void:
 	var config: MatchConfig = get_signal_parameters(lobby, "start_requested")[0]
 	assert_not_null(config.qol, "the start config always carries qol, so Match keeps it over the F4 snapshot")
 	assert_eq(_qol_flags(config.qol), [false, true, true, false])
-	assert_true(config.qol != Lobby.QOL_SHARED, "the match gets a copy, never the shared resource")
+	assert_true(config.qol != LobbySettingsCard.QOL_SHARED, "the match gets a copy, never the shared resource")
 
 
 func test_experiment_checkboxes_join_the_main_loop_once_the_section_opens() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var section: UiSection = lobby.get_node("%ExperimentsSection") as UiSection
+	var section: UiSection = lobby.find_child("ExperimentsSection", true, false) as UiSection
 	assert_null(section.advanced_button, "the Experiments checks sit directly in the section")
-	var chip: Control = lobby.get_node("%ExperimentsCheck") as Control
-	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
-	var start: Control = lobby.get_node("%StartButton") as Control
+	var chip: Control = lobby.find_child("ExperimentsCheck", true, false) as Control
+	(lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = true
+	var start: Control = lobby.find_child("StartButton", true, false) as Control
 	var stops: Array[Control] = FocusWalk.loop(start, SIDE_BOTTOM)
 	assert_true(FocusWalk.is_closed(stops, start, SIDE_BOTTOM), "the loop stays closed with the experiments open")
 	assert_true(stops.has(chip), "the Experiments chip is a stop")

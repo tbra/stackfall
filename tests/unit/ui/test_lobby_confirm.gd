@@ -42,7 +42,7 @@ func test_action_has_keyboard_and_pad_bindings() -> void:
 func test_host_enter_and_pad_start_start_the_match_from_a_focused_button() -> void:
 	for event: InputEvent in [_key(KEY_ENTER), _key(KEY_KP_ENTER), _pad_start()]:
 		var lobby: Lobby = _make_lobby(true)
-		var back: Button = lobby.get_node("%BackButton") as Button
+		var back: Button = lobby.find_child("BackButton", true, false) as Button
 		back.grab_focus()
 		watch_signals(lobby)
 		lobby._input(event)

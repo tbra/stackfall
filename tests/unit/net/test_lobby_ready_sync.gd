@@ -31,11 +31,11 @@ func after_each() -> void:
 # --- Helpers ----------------------------------------------------------------------
 
 func _toggle(lobby: Lobby) -> CheckButton:
-	return lobby.get_node("%ReadyCheck") as CheckButton
+	return lobby.find_child("ReadyCheck", true, false) as CheckButton
 
 
 func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
-	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
+	return lobby.find_child("PlayersPanel", true, false) as LobbyPlayersPanel
 
 
 ## Seat name -> whether its badge reads Ready, for every drawn human row.

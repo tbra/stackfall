@@ -27,8 +27,17 @@ static func seat_rows(lobby: Lobby) -> Array[LobbySeatRow]:
 ## The gift chips of the GIFTS Advanced block, in the order they are listed.
 static func gift_chips(lobby: Lobby) -> Array[UiChipToggle]:
 	var chips: Array[UiChipToggle] = []
-	for node: Node in (lobby.get_node("%SpecialsChecklist") as Node).get_children():
+	for node: Node in (lobby.find_child("SpecialsChecklist", true, false) as Node).get_children():
 		var chip: UiChipToggle = node as UiChipToggle
 		if chip != null and not chip.is_queued_for_deletion():
 			chips.append(chip)
 	return chips
+
+
+## Every Label text drawn inside the named settings section (header caption and one-line summary).
+static func section_text(lobby: Lobby, section_name: String) -> String:
+	var section: Node = lobby.find_child(section_name, true, false)
+	var parts: PackedStringArray = []
+	for node: Node in section.find_children("*", "Label", true, false):
+		parts.append((node as Label).text)
+	return " ".join(parts)

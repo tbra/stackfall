@@ -104,7 +104,7 @@ func test_scrollable_menus_open_at_the_top() -> void:
 	var lobby: Lobby = autofree(LOBBY_SCENE.instantiate()) as Lobby
 	add_child_autofree(lobby)
 	await _settle()
-	var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
+	var scroll: ScrollContainer = lobby.find_child("SettingsScroll", true, false) as ScrollContainer
 	assert_eq(scroll.scroll_vertical, 0, "the lobby settings column opens at the top")
 	scroll.scroll_vertical = 50
 	lobby.hide()
