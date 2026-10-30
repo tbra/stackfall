@@ -180,6 +180,12 @@ func _fingerprint_playing_b(main: Node) -> Dictionary:
 ## What a fresh launch shows for B (host + lobby match). Returns the checkpoints.
 func _reference_lobby_match(config_factory: Callable) -> Dictionary:
 	var main: Node = _new_main(_map)
+	# A launch has not built the pause, results, scoreboard and loading overlays; the lobby
+	# entry builds them. Round-trip through the lobby so the menu checkpoint compares like for
+	# like with a session that has already used them.
+	_host()
+	Net.leave()
+	await _settle()
 	var out: Dictionary = {"menu": MatchFingerprint.capture(main)}
 	_host()
 	_start(main, config_factory.call() as MatchConfig)
