@@ -357,9 +357,11 @@ func _build_debug_overlays() -> void:
 		pose.set(&"config", debug_config)
 		pose.set(&"camera", _camera_rig.get_camera())
 		pose.set(&"field", _field)
+		pose.set(&"match_context", MatchContext.current())
 		_debug_overlays.append(pose)
 		var bot_cost: Node = (load(BOT_COST_OVERLAY_PATH) as GDScript).new() as Node
 		bot_cost.set(&"config", debug_config)
+		bot_cost.set(&"match_context", MatchContext.current())
 		_debug_overlays.append(bot_cost)
 	for overlay: Node in _debug_overlays:
 		world.parent.add_child(overlay)

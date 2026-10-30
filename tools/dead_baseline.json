@@ -173,21 +173,9 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/components/DebugRow.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/UiDebugGraph.gd",
    "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
    "consumer": "P12-Ipb"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugPanel.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Iperf"
   },
   {
    "id": "dead-file",
@@ -247,6 +235,12 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:bot_mode_goal",
    "reason": "live: game/bots/BotController.gd:938 (untyped or dynamic call)"
+  },
+  {
+   "id": "test-only-func",
+   "entry": "ui/components/UiDebugPanel.gd:content",
+   "reason": "P12 debug kit extension point for the F4 shell, which P12-Itune builds on it and then removes this entry",
+   "consumer": "P12-Itune"
   },
   {
    "id": "test-only-func",

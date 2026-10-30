@@ -1,39 +1,36 @@
 class_name PoseOverlay
 extends CanvasLayer
-## Debug-only pose panel. `pose_overlay_toggle` (F2, gamepad Back + D-pad left) shows or hides the
+## Pose panel, in every build. `pose_overlay_toggle` (F2, gamepad Back + D-pad left) shows or hides the
 ## world pose of the held block, the camera and the disc tilt, refreshed every frame while shown.
-## Gated by game/debug/DebugMode.gd like F1; reads only, never writes game state.
-## The parent hands in `camera` and `field` before add_child; the held block comes from the
-## published MatchContext.current().local_held().
+## Reads only, never writes game state. The parent hands in `camera`, `field` and `match_context`
+## before add_child; the held block comes from `match_context.local_held()`, read only while shown.
+## Built on UiDebugPanel.
 
 const NO_VALUE: String = "-"
 const RAD_TO_DEG_FACTOR: float = 180.0 / PI
-const HELD_LINE: String = "held   pos %s  rot %s deg"
-const CAMERA_LINE: String = "camera pos %s  rot %s deg"
+const HEADING: String = "POSE"
+const SECTION_ID: StringName = &"pose"
+const SECTION_TITLE: String = "World pose"
 const TILT_LINE: String = "disc tilt %s deg about %s"
 
 var config: DebugConfig = null
 var camera: Camera3D = null
 var field: Field = null
+var match_context: MatchContext = null
 
-@onready var _panel: PanelContainer = %Panel
-@onready var _held_label: Label = %HeldLabel
-@onready var _camera_label: Label = %CameraLabel
-@onready var _tilt_label: Label = %TiltLabel
+var _panel: UiDebugPanel = null
 
 
 func _ready() -> void:
 	if config == null:
 		config = DebugConfig.new()
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = config.overlay_background_color()
-	style.set_content_margin_all(float(arcade.space_2_px))
-	style.set_corner_radius_all(arcade.radius_chip_px)
-	_panel.add_theme_stylebox_override(&"panel", style)
+	_panel = UiDebugPanel.new()
+	_panel.heading = HEADING
+	_panel.toggle_action = &"pose_overlay_toggle"
+	_panel.modifier_action = &"camera_snap_home"
+	_panel.visible = false
+	add_child(_panel)
 	_place()
-	for label: Label in [_held_label, _camera_label, _tilt_label]:
-		label.add_theme_color_override(&"font_color", config.overlay_text_color())
 
 
 func is_shown() -> bool:
@@ -56,9 +53,6 @@ func _exit_tree() -> void:
 func _process(_delta: float) -> void:
 	if not is_shown():
 		return
-	if not DebugMode.is_enabled():
-		set_shown(false)
-		return
 	refresh()
 	_place()
 
@@ -70,7 +64,7 @@ func _place() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not DebugMode.is_enabled() or not event.is_action_pressed(&"pose_overlay_toggle"):
+	if not event.is_action_pressed(&"pose_overlay_toggle"):
 		return
 	# tools/bootstrap_project.gd's DECISION: the pad half only counts while Back is held.
 	if event is InputEventJoypadButton and not Input.is_action_pressed(&"camera_snap_home"):
@@ -79,17 +73,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-## Rewrites the three lines from the live nodes.
+## Rewrites the rows from the live nodes. Does nothing while hidden (no match-context read).
 func refresh() -> void:
+	if not is_shown():
+		return
 	var decimals: int = config.pose_decimals
-	var held: LocalHeldView = MatchContext.current().local_held()
-	_held_label.text = NO_VALUE if held.shape == null else HELD_LINE % [
-		_vec_text(held.origin, decimals), _vec_text(_held_basis(held).get_euler() * RAD_TO_DEG_FACTOR, decimals)]
-	var cam: Node3D = camera if is_instance_valid(camera) else null
-	_camera_label.text = NO_VALUE if cam == null else CAMERA_LINE % [
-		_vec_text(cam.global_position, decimals),
-		_vec_text(cam.global_basis.orthonormalized().get_euler() * RAD_TO_DEG_FACTOR, decimals)]
-	_tilt_label.text = NO_VALUE if not is_instance_valid(field) else tilt_text(field.global_basis, decimals)
+	var rows: Array[DebugRow] = []
+	var held: LocalHeldView = match_context.local_held() if match_context != null else null
+	if held == null or held.shape == null:
+		rows.append(DebugRow.pair("held", NO_VALUE))
+	else:
+		rows.append(DebugRow.pair("held pos", _vec_text(held.origin, decimals)))
+		rows.append(DebugRow.pair("held rot deg", _vec_text(_held_basis(held).get_euler() * RAD_TO_DEG_FACTOR, decimals)))
+	if is_instance_valid(camera):
+		rows.append(DebugRow.pair("camera pos", _vec_text(camera.global_position, decimals)))
+		rows.append(DebugRow.pair("camera rot deg",
+			_vec_text(camera.global_basis.orthonormalized().get_euler() * RAD_TO_DEG_FACTOR, decimals)))
+	else:
+		rows.append(DebugRow.pair("camera", NO_VALUE))
+	rows.append(DebugRow.pair("disc", NO_VALUE) if not is_instance_valid(field) else _single(tilt_text(field.global_basis, decimals)))
+	_panel.set_section(SECTION_ID, SECTION_TITLE, rows)
+
+
+static func _single(text: String) -> DebugRow:
+	var row: DebugRow = DebugRow.new()
+	row.cells = PackedStringArray([text])
+	return row
 
 
 ## Pure: the held block's world basis, composed the way GhostPreview does.
