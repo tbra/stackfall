@@ -34,7 +34,7 @@ func test_dpad_down_walks_the_whole_lobby_loop() -> void:
 	lobby._update_host_only_state()
 	await wait_frames(2)
 	var live: Array[Control] = FocusWalk.live_focusable(lobby)
-	var start: Control = lobby.get_node("%StartButton") as Control
+	var start: Control = lobby.find_child("StartButton", true, false) as Control
 	assert_true(live.has(start), "the lobby has a live Start stop")
 	var loop: Array[Control] = FocusWalk.loop(start, SIDE_BOTTOM)
 	assert_true(FocusWalk.is_closed(loop, start, SIDE_BOTTOM), "down closes the loop")
@@ -59,8 +59,8 @@ const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
 func _make_laid_out_lobby(bots: int) -> Lobby:
 	var lobby: Lobby = _make_lobby()
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = maxi(MatchConfig.PLAYER_COUNT_MIN, bots)
-	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = maxi(MatchConfig.PLAYER_COUNT_MIN, bots)
+	(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = bots
 	await wait_frames(3)
 	return lobby
 
@@ -88,7 +88,7 @@ func _pad_move(lobby: Lobby, from: Control, button: JoyButton) -> Control:
 
 func test_gift_chip_grid_moves_in_two_dimensions() -> void:
 	var lobby: Lobby = await _make_laid_out_lobby(1)
-	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
+	(lobby.find_child("GiftsSection", true, false) as UiSection).set_advanced_open(true)
 	await wait_frames(3)
 	var chips: Array[Control] = []
 	for chip: UiChipToggle in LobbyProbe.gift_chips(lobby):
@@ -111,8 +111,8 @@ func test_gift_chip_grid_moves_in_two_dimensions() -> void:
 func test_down_from_add_bot_reaches_start_never_back() -> void:
 	var lobby: Lobby = await _make_laid_out_lobby(2)
 	var add_bot: Control = lobby._players_panel.add_bot_button()
-	var back: Control = lobby.get_node("%BackButton") as Control
-	var start: Control = lobby.get_node("%StartButton") as Control
+	var back: Control = lobby.find_child("BackButton", true, false) as Control
+	var start: Control = lobby.find_child("StartButton", true, false) as Control
 	# Every stop reachable by pressing down, from Add bot round the loop: Back never appears.
 	var stops: Array[Control] = FocusWalk.loop(add_bot, SIDE_BOTTOM)
 	assert_false(stops.has(back), "down never lands on Back")
@@ -127,9 +127,9 @@ func test_down_from_add_bot_reaches_start_never_back() -> void:
 func test_settings_column_is_a_focus_scroll_container_that_scrolls_with_the_right_stick() -> void:
 	var lobby: Lobby = _make_lobby()
 	# Grow the settings content so the column always overflows its viewport.
-	(lobby.get_node("%Settings") as Control).custom_minimum_size.y = TALL_SETTINGS_PX
+	(lobby.find_child("Settings", true, false) as Control).custom_minimum_size.y = TALL_SETTINGS_PX
 	await wait_frames(3)
-	var scroll: FocusScrollContainer = lobby.get_node("%SettingsScroll") as FocusScrollContainer
+	var scroll: FocusScrollContainer = lobby.find_child("SettingsScroll", true, false) as FocusScrollContainer
 	assert_not_null(scroll, "SettingsScroll is a FocusScrollContainer")
 	var stick: float = 1.0
 	scroll.scroll_axis_reader = func() -> float: return stick

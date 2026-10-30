@@ -22,20 +22,24 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 	return lobby.net_provider as FakeNet
 
 
+func _card_of(lobby: Lobby) -> LobbySettingsCard:
+	return lobby.find_child("LobbySettingsCard", true, false) as LobbySettingsCard
+
+
 ## E1: the roster title row and rows live in the instanced
 ## ui/lobby/LobbyPlayersPanel.tscn, so %PlayerList and %PlayerCountLabel resolve
 ## through %PlayersPanel (unique names are scoped to their own scene).
 func _panel_of(lobby: Lobby) -> LobbyPlayersPanel:
-	return lobby.get_node("%PlayersPanel") as LobbyPlayersPanel
+	return lobby.find_child("PlayersPanel", true, false) as LobbyPlayersPanel
 
 
 func test_cycle_option_round_trips_through_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var option: UiCycler = lobby.get_node("%SkyThemeOption") as UiCycler
+	var option: UiCycler = lobby.find_child("SkyThemeOption", true, false) as UiCycler
 	assert_eq(option.get_item_count(), MatchConfig.SkyThemeMode.size())
 	assert_eq(option.get_item_text(MatchConfig.SkyThemeMode.CYCLE), "Cycle")
-	option.select(MatchConfig.SkyThemeMode.CYCLE)
-	lobby._on_option_changed(MatchConfig.SkyThemeMode.CYCLE)
+	option.select(MatchConfig.SkyThemeMode.CYCLE - 1)
+	option.nudge(1)
 	var published: MatchConfig = MatchConfig.from_dict(_fake_of(lobby).lobby_data_value)
 	assert_eq(published.sky_theme_mode, MatchConfig.SkyThemeMode.CYCLE)
 	Events.net_lobby_data_changed.emit(published.to_dict())
@@ -54,7 +58,7 @@ func after_each() -> void:
 
 func test_host_changing_a_setting_publishes_lobby_data() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = 6
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(int(calls[0].get("player_count")), 6)
@@ -65,7 +69,7 @@ func test_a_client_teams_toggle_is_ignored() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	_panel_of(lobby).teams_toggled.emit(true)
 	assert_eq(_fake_of(lobby).set_lobby_data_calls.size(), 0)
-	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.OFF)
+	assert_eq((lobby.find_child("TeamModeOption", true, false) as OptionButton).selected, MatchConfig.TeamMode.OFF)
 
 
 ## the disc-size meter defaults to medium (step 2, 100%), publishes the chosen
@@ -73,17 +77,17 @@ func test_a_client_teams_toggle_is_ignored() -> void:
 ## a UiSegmentMeter that lights step + 1 cells.
 func test_disc_size_meter_defaults_to_medium_and_publishes_the_step() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var meter: UiSegmentMeter = lobby.get_node("%DiscSizeMeter") as UiSegmentMeter
+	var meter: UiSegmentMeter = lobby.find_child("DiscSizeMeter", true, false) as UiSegmentMeter
 	assert_eq(meter.value, MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
 	assert_eq(meter.step_count, DiscSizeTuning.shared().step_count())
 	assert_eq(meter.display_text(), "100%")
-	assert_eq(lobby._disc_size_text(), "Medium - 100%")
+	assert_true(LobbyProbe.section_text(lobby, "GameSection").contains("Medium - 100%"), "the Game summary names the size")
 	meter.value = 1
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	assert_eq(int(calls[0].get("disc_size_step")), 0)
 	assert_eq(meter.display_text(), "50%")
-	assert_eq(lobby._disc_size_text(), "Tiny - 50%")
+	assert_true(LobbyProbe.section_text(lobby, "GameSection").contains("Tiny - 50%"), "the Game summary follows the meter")
 
 
 func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
@@ -107,24 +111,24 @@ func test_every_2_8_setting_round_trips_through_to_dict_and_from_dict() -> void:
 	config.sky_theme_mode = MatchConfig.SkyThemeMode.NIGHT
 
 	Events.net_lobby_data_changed.emit(config.to_dict())
-	assert_eq((lobby.get_node("%SkyThemeOption") as UiCycler).selected(), int(MatchConfig.SkyThemeMode.NIGHT))
+	assert_eq((lobby.find_child("SkyThemeOption", true, false) as UiCycler).selected(), int(MatchConfig.SkyThemeMode.NIGHT))
 
-	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), 7)
-	assert_eq(int((lobby.get_node("%AiCountSpin") as SpinBox).value), 3)
-	assert_eq((lobby.get_node("%AiDifficultyOption") as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
-	assert_eq((lobby.get_node("%TeamModeOption") as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
-	assert_almost_eq(lobby._block_timer_seconds(), 9.5, 0.01)
-	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).display_text(), "1.25x")
-	assert_eq((lobby.get_node("%GravityMeter") as UiSegmentMeter).value, Lobby._gravity_cells_for(1.25))
-	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, 3)
-	assert_false((lobby.get_node("%GiftsCheck") as UiToggle).button_pressed)
-	assert_eq(lobby._special_frequency_value, 80)
-	assert_eq((lobby.get_node("%SpecialFreqMeter") as UiSegmentMeter).value, 8)
-	assert_eq((lobby.get_node("%TiltModeOption") as UiCycler).selected(), MatchConfig.TiltMode.PHYSICAL_BALANCE)
-	assert_eq((lobby.get_node("%HoleModeOption") as UiCycler).selected(), MatchConfig.HoleMode.PERMANENT)
-	assert_eq((lobby.get_node("%MatchTimerStepper") as UiStepper).value, 20)
-	assert_true((lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed)
-	assert_true((lobby.get_node("%TurnBasedCheck") as UiToggle).button_pressed)
+	assert_eq(int((lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value), 7)
+	assert_eq(int((lobby.find_child("AiCountSpin", true, false) as SpinBox).value), 3)
+	assert_eq((lobby.find_child("AiDifficultyOption", true, false) as UiCycler).selected(), MatchConfig.AiDifficulty.HARD)
+	assert_eq((lobby.find_child("TeamModeOption", true, false) as OptionButton).selected, MatchConfig.TeamMode.TEAMS_2)
+	assert_almost_eq(_card_of(lobby).config().block_timer, 9.5, 0.01)
+	assert_eq((lobby.find_child("GravityMeter", true, false) as UiSegmentMeter).display_text(), "1.25x")
+	assert_eq((lobby.find_child("GravityMeter", true, false) as UiSegmentMeter).value, roundi(1.25 / MatchConfig.GRAVITY_STEP))
+	assert_eq((lobby.find_child("GoalFlagStepper", true, false) as UiStepper).value, 3)
+	assert_false((lobby.find_child("GiftsCheck", true, false) as UiToggle).button_pressed)
+	assert_eq(_card_of(lobby).config().special_frequency, 80)
+	assert_eq((lobby.find_child("SpecialFreqMeter", true, false) as UiSegmentMeter).value, 8)
+	assert_eq((lobby.find_child("TiltModeOption", true, false) as UiCycler).selected(), MatchConfig.TiltMode.PHYSICAL_BALANCE)
+	assert_eq((lobby.find_child("HoleModeOption", true, false) as UiCycler).selected(), MatchConfig.HoleMode.PERMANENT)
+	assert_eq((lobby.find_child("MatchTimerStepper", true, false) as UiStepper).value, 20)
+	assert_true((lobby.find_child("SuddenDeathCheck", true, false) as UiToggle).button_pressed)
+	assert_true((lobby.find_child("TurnBasedCheck", true, false) as UiToggle).button_pressed)
 
 
 func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
@@ -136,11 +140,11 @@ func test_out_of_range_value_arriving_over_the_wire_is_clamped() -> void:
 		"goal_flag_count": 0,
 	}
 	Events.net_lobby_data_changed.emit(bad_data)
-	assert_eq(int((lobby.get_node("%PlayerCountSpin") as SpinBox).value), MatchConfig.PLAYER_COUNT_MAX)
-	assert_almost_eq(lobby._block_timer_seconds(), MatchConfig.BLOCK_TIMER_MIN, 0.01)
-	assert_eq(lobby._special_frequency_value, MatchConfig.SPECIAL_FREQUENCY_MAX)
-	assert_eq((lobby.get_node("%SpecialFreqMeter") as UiSegmentMeter).value, Lobby.FREQUENCY_CELLS)
-	assert_eq((lobby.get_node("%GoalFlagStepper") as UiStepper).value, MatchConfig.GOAL_FLAG_MIN)
+	assert_eq(int((lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value), MatchConfig.PLAYER_COUNT_MAX)
+	assert_almost_eq(_card_of(lobby).config().block_timer, MatchConfig.BLOCK_TIMER_MIN, 0.01)
+	assert_eq(_card_of(lobby).config().special_frequency, MatchConfig.SPECIAL_FREQUENCY_MAX)
+	assert_eq((lobby.find_child("SpecialFreqMeter", true, false) as UiSegmentMeter).value, LobbySettingsCard.FREQUENCY_CELLS)
+	assert_eq((lobby.find_child("GoalFlagStepper", true, false) as UiStepper).value, MatchConfig.GOAL_FLAG_MIN)
 
 
 func test_applying_remote_data_does_not_republish() -> void:
@@ -156,10 +160,10 @@ func test_applying_remote_data_does_not_republish() -> void:
 func test_client_controls_are_disabled_while_hosts_are_not() -> void:
 	var host_lobby: Lobby = _make_lobby(true)
 	var client_lobby: Lobby = _make_lobby(false)
-	assert_true((host_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
-	assert_false((client_lobby.get_node("%PlayerCountSpin") as SpinBox).editable)
-	assert_true((client_lobby.get_node("%GiftsCheck") as UiToggle).disabled)
-	assert_false((host_lobby.get_node("%GiftsCheck") as UiToggle).disabled)
+	assert_true((host_lobby.find_child("PlayerCountSpin", true, false) as SpinBox).editable)
+	assert_false((client_lobby.find_child("PlayerCountSpin", true, false) as SpinBox).editable)
+	assert_true((client_lobby.find_child("GiftsCheck", true, false) as UiToggle).disabled)
+	assert_false((host_lobby.find_child("GiftsCheck", true, false) as UiToggle).disabled)
 
 
 func test_start_pressed_emits_start_requested_only_when_ready() -> void:
@@ -206,8 +210,8 @@ func test_build_roster_appends_bot_rows_for_ai_count() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected peers
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 6
-	(lobby.get_node("%AiCountSpin") as SpinBox).value = 2
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = 6
+	(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = 2
 
 	var calls: Array[Dictionary] = fake.set_lobby_data_calls
 	var roster: Array = calls[calls.size() - 1].get("roster") as Array
@@ -234,8 +238,8 @@ func test_bot_count_clamps_to_seats_minus_connected_humans() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	var fake: FakeNet = _fake_of(lobby)
 	fake.slots_by_peer = {1: 0, 2: 1, 3: 2, 4: 3}  # 4 connected humans
-	var ai_spin: SpinBox = lobby.get_node("%AiCountSpin")
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 8
+	var ai_spin: SpinBox = lobby.find_child("AiCountSpin", true, false) as SpinBox
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = 8
 	ai_spin.value = 6  # only 4 empty seats exist (8 seats - 4 humans)
 
 	assert_eq(int(ai_spin.max_value), 4, "8 seats - 4 connected humans = 4 empty seats for bots")
@@ -260,16 +264,16 @@ func test_unchecking_one_special_and_publishing_removes_exactly_that_id() -> voi
 	if chips.size() < 2:
 		pass_test("fewer than 2 SpecialDef .tres on disk in this checkout; nothing to distinguish")
 		return
-	var unchecked_id: StringName = lobby._special_ids[0]
+	var unchecked_id: StringName = SpecialDef.load_selectable_specials()[0].id
 	chips[0].button_pressed = false
 
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	assert_eq(calls.size(), 1)
 	var published: Array = calls[0].get("enabled_specials") as Array
 	assert_false(published.has(unchecked_id), "the unchecked id must be gone")
-	for i: int in range(1, lobby._special_ids.size()):
-		assert_true(published.has(lobby._special_ids[i]), "every still-checked id must remain")
-	assert_eq(published.size(), lobby._special_ids.size() - 1)
+	for i: int in range(1, chips.size()):
+		assert_true(published.has(SpecialDef.load_selectable_specials()[i].id), "every still-checked id must remain")
+	assert_eq(published.size(), chips.size() - 1)
 
 
 func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -> void:
@@ -284,7 +288,7 @@ func test_unchecking_every_special_publishes_the_sentinel_not_an_empty_array() -
 	var calls: Array[Dictionary] = _fake_of(lobby).set_lobby_data_calls
 	var published: Array = calls[calls.size() - 1].get("enabled_specials") as Array
 	assert_eq(published.size(), 1)
-	assert_eq(published[0], Lobby.ALL_DISABLED_SENTINEL)
+	assert_eq(published[0], LobbySettingsCard.ALL_DISABLED_SENTINEL)
 
 
 ## S1b: ui_cancel backs out of the lobby (synthetic action through
@@ -320,14 +324,14 @@ func test_focus_chain_is_a_closed_loop_through_every_row() -> void:
 	# Lobby.tscn carries no static neighbours: the chain is built at runtime. The rule is that no
 	# row is a focus dead end and the loop closes, with the Advanced blocks shut and open.
 	var lobby: Lobby = _make_lobby(true)
-	var start_button: Control = lobby.get_node("%StartButton") as Control
+	var start_button: Control = lobby.find_child("StartButton", true, false) as Control
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "advanced closed")
-	(lobby.get_node("%GameSection") as UiSection).set_advanced_open(true)
-	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
+	(lobby.find_child("GameSection", true, false) as UiSection).set_advanced_open(true)
+	(lobby.find_child("GiftsSection", true, false) as UiSection).set_advanced_open(true)
 	# Experiments default off: nothing hidden or disabled traps focus, and the loop closes.
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments off")
 	# Switched on: every visible, enabled control is reachable with down and the loop still closes.
-	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
+	(lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = true
 	_assert_pad_loop_reaches_every_live_control(lobby, start_button, "experiments on")
 
 
@@ -338,7 +342,7 @@ func _assert_pad_loop_reaches_every_live_control(lobby: Lobby, start: Control, l
 	assert_true(FocusWalk.is_closed(stops, start, SIDE_BOTTOM), "%s: the down chain closes back on StartButton" % label)
 	for stop: Control in stops:
 		assert_true(stop == start or FocusWalk.is_live(stop), "%s: %s is a live control, not a trap" % [label, stop.name])
-	for control: Control in FocusWalk.live_focusable(lobby.get_node("%Settings") as Control):
+	for control: Control in FocusWalk.live_focusable(lobby.find_child("Settings", true, false) as Control):
 		assert_true(stops.has(control), "%s: %s is reachable with down" % [label, control.name])
 
 
@@ -352,12 +356,12 @@ func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 	_fake_of(host).all_peers_ready_value = true
 	host._update_host_only_state()
 	watch_signals(host)
-	var host_bots: SpinBox = host.get_node("%AiCountSpin") as SpinBox
+	var host_bots: SpinBox = host.find_child("AiCountSpin", true, false) as SpinBox
 	var before: int = int(host_bots.value)
 	host._unhandled_input(event)
 	assert_eq(int(host_bots.value), before + 1, "X adds a bot")
 	assert_signal_not_emitted(host, "start_requested", "X no longer starts the match")
-	(host.get_node("%PlayerCountSpin") as SpinBox).value = MatchConfig.PLAYER_COUNT_MAX
+	(host.find_child("PlayerCountSpin", true, false) as SpinBox).value = MatchConfig.PLAYER_COUNT_MAX
 	host_bots.value = host_bots.max_value
 	var full: int = int(host_bots.value)
 	assert_eq(full, MatchConfig.PLAYER_COUNT_MAX, "every seat is a bot")
@@ -365,7 +369,7 @@ func test_lobby_add_bot_shortcut_adds_a_bot_for_the_host_only() -> void:
 	host._unhandled_input(event)
 	assert_eq(int(host_bots.value), full, "a full lobby ignores X")
 	var client: Lobby = _make_lobby(false)
-	var client_bots: SpinBox = client.get_node("%AiCountSpin") as SpinBox
+	var client_bots: SpinBox = client.find_child("AiCountSpin", true, false) as SpinBox
 	var client_before: int = int(client_bots.value)
 	client._unhandled_input(event)
 	assert_eq(int(client_bots.value), client_before, "a client ignores X")
@@ -377,7 +381,7 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	fake.all_peers_ready_value = true
 	lobby._update_host_only_state()
 	watch_signals(lobby)
-	var game: UiSection = lobby.get_node("%GameSection") as UiSection
+	var game: UiSection = lobby.find_child("GameSection", true, false) as UiSection
 	var y_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_Y)
 	assert_true(y_event.is_action_pressed(&"lobby_quick_advanced"))
 	lobby._unhandled_input(y_event)
@@ -386,7 +390,7 @@ func test_real_gamepad_x_y_trigger_lobby_shortcuts() -> void:
 	assert_false(game.advanced.visible, "a second pad Y closes it")
 	var x_event: InputEventJoypadButton = _pad_press_release_action_event(JOY_BUTTON_X)
 	assert_true(x_event.is_action_pressed(&"lobby_add_bot"))
-	var bots: SpinBox = lobby.get_node("%AiCountSpin") as SpinBox
+	var bots: SpinBox = lobby.find_child("AiCountSpin", true, false) as SpinBox
 	var bots_before: int = int(bots.value)
 	lobby._unhandled_input(x_event)
 	assert_eq(int(bots.value), bots_before + 1, "pad X adds a bot")

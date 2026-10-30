@@ -49,7 +49,7 @@ func _options_of(lobby: Lobby) -> OptionsMenu:
 func test_options_button_opens_and_close_restores_focus_to_it() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_process_frames(2)
-	var button: Button = lobby.get_node("%OptionsButton") as Button
+	var button: Button = lobby.find_child("OptionsButton", true, false) as Button
 	button.pressed.emit()
 	await wait_process_frames(2)
 	assert_true(lobby._options_menu != null)

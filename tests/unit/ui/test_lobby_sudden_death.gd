@@ -30,7 +30,7 @@ func _fake_of(lobby: Lobby) -> FakeNet:
 ## The length stepper, found by type inside the sudden-death column (its node name is the
 ## implementer's choice; its place in the column is the contract).
 func _stepper(lobby: Lobby) -> UiStepper:
-	var column: Control = lobby.get_node("%SuddenDeathCol") as Control
+	var column: Control = lobby.find_child("SuddenDeathCol", true, false) as Control
 	for node: Node in column.find_children("*", "UiStepper", true, false):
 		return node as UiStepper
 	return null
@@ -38,7 +38,7 @@ func _stepper(lobby: Lobby) -> UiStepper:
 
 ## Turns sudden death on through the lobby's own toggle (the length stepper is hidden while it is off).
 func _enable_sudden_death(lobby: Lobby) -> void:
-	(lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed = true
+	(lobby.find_child("SuddenDeathCheck", true, false) as UiToggle).button_pressed = true
 
 
 func _published(lobby: Lobby) -> MatchConfig:
@@ -46,7 +46,7 @@ func _published(lobby: Lobby) -> MatchConfig:
 
 
 func _pick_mode(lobby: Lobby, mode: int) -> void:
-	var option: UiCycler = lobby.get_node("%GameModeOption") as UiCycler
+	var option: UiCycler = lobby.find_child("GameModeOption", true, false) as UiCycler
 	option.select(mode)
 	option.item_selected.emit(mode)
 
@@ -133,7 +133,7 @@ func test_host_edit_publishes_the_new_length() -> void:
 
 func test_unrelated_host_edit_publishes_the_default_length() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	(lobby.get_node("%SuddenDeathCheck") as UiToggle).button_pressed = true
+	(lobby.find_child("SuddenDeathCheck", true, false) as UiToggle).button_pressed = true
 	var config: MatchConfig = _published(lobby)
 	assert_true(config.sudden_death)
 	assert_eq(config.sudden_death_seconds, MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
@@ -200,7 +200,7 @@ func test_every_stop_round_trips_through_publish_and_apply() -> void:
 
 func test_hidden_outside_classic_and_back_with_value_kept() -> void:
 	var lobby: Lobby = _make_lobby(true)
-	var column: Control = lobby.get_node("%SuddenDeathCol") as Control
+	var column: Control = lobby.find_child("SuddenDeathCol", true, false) as Control
 	assert_true(column.visible, "Classic shows the sudden-death length")
 	_stepper(lobby).value = 180
 	for mode: int in [
@@ -219,7 +219,7 @@ func test_hidden_stepper_is_not_a_focus_stop_outside_classic() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	_pick_mode(lobby, MatchConfig.GameMode.ELIMINATION)
 	var stepper: UiStepper = _stepper(lobby)
-	assert_false(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "a hidden stepper is never a focus stop")
+	assert_false(FocusWalk.loop(lobby.find_child("StartButton", true, false) as Control).has(stepper), "a hidden stepper is never a focus stop")
 
 
 func test_client_stepper_is_read_only() -> void:
@@ -237,15 +237,15 @@ func test_host_stepper_follows_the_sudden_death_toggle() -> void:
 	assert_false(stepper.visible, "sudden death starts off, so the length is hidden")
 	assert_false(stepper.disabled, "the host stepper is editable even while hidden")
 	assert_eq(stepper.value, MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
-	var toggle: UiToggle = lobby.get_node("%SuddenDeathCheck") as UiToggle
+	var toggle: UiToggle = lobby.find_child("SuddenDeathCheck", true, false) as UiToggle
 	toggle.button_pressed = true
 	assert_true(stepper.visible, "the toggle on shows the length")
 	assert_false(stepper.disabled, "the toggle on makes the length editable")
 	toggle.button_pressed = false
 	assert_false(stepper.visible, "the toggle off hides it again")
-	assert_false(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "a hidden stepper is never a focus stop")
+	assert_false(FocusWalk.loop(lobby.find_child("StartButton", true, false) as Control).has(stepper), "a hidden stepper is never a focus stop")
 	toggle.button_pressed = true
-	assert_true(FocusWalk.loop(lobby.get_node("%StartButton") as Control).has(stepper), "shown again, it is a focus stop")
+	assert_true(FocusWalk.loop(lobby.find_child("StartButton", true, false) as Control).has(stepper), "shown again, it is a focus stop")
 
 
 func test_non_host_stepper_is_hidden_off_and_read_only_on() -> void:

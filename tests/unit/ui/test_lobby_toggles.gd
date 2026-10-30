@@ -19,7 +19,7 @@ func _make_lobby(is_host: bool = true) -> Lobby:
 
 
 func _start_of(lobby: Lobby) -> Control:
-	return lobby.get_node("%StartButton") as Control
+	return lobby.find_child("StartButton", true, false) as Control
 
 
 ## Every stop one focus-down loop visits from the footer's Start button.
@@ -63,8 +63,8 @@ func _walk_with_pad(lobby: Lobby) -> Array[Control]:
 func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(2)
-	var freq: Control = lobby.get_node("%SpecialFreqMeter")
-	var section: UiSection = lobby.get_node("%GiftsSection")
+	var freq: Control = lobby.find_child("SpecialFreqMeter", true, false) as Control
+	var section: UiSection = lobby.find_child("GiftsSection", true, false) as UiSection
 	var chips: Array[UiChipToggle] = LobbyProbe.gift_chips(lobby)
 	assert_true(freq.is_visible_in_tree(), "gifts default on: Frequency shown")
 	assert_true(section.advanced_button.visible)
@@ -72,7 +72,7 @@ func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 	await wait_frames(1)
 	assert_true(_stops(lobby).has(chips[0]), "open Advanced: chips are stops")
 
-	(lobby.get_node("%GiftsCheck") as UiToggle).button_pressed = false
+	(lobby.find_child("GiftsCheck", true, false) as UiToggle).button_pressed = false
 	await wait_frames(2)
 	assert_true(freq.is_visible_in_tree(), "gifts off: Frequency stays visible")
 	assert_false((freq as UiSegmentMeter).editable, "gifts off: Frequency is read-only")
@@ -84,9 +84,9 @@ func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 	assert_false(stops.has(freq) or stops.has(section.advanced_button) or stops.has(chips[0]), "no hidden stop in the chain")
 	var walked: Array[Control] = await _walk_with_pad(lobby)
 	assert_false(walked.has(freq) or walked.has(section.advanced_button) or walked.has(chips[0]), "pad focus never lands on them")
-	assert_true(walked.has(lobby.get_node("%GiftsCheck")), "the gifts switch itself stays a stop")
+	assert_true(walked.has(lobby.find_child("GiftsCheck", true, false)), "the gifts switch itself stays a stop")
 
-	(lobby.get_node("%GiftsCheck") as UiToggle).button_pressed = true
+	(lobby.find_child("GiftsCheck", true, false) as UiToggle).button_pressed = true
 	await wait_frames(2)
 	assert_true((freq as UiSegmentMeter).editable, "gifts on again: Frequency editable")
 	assert_false(section.advanced_button.disabled, "Advanced bar enabled again")
@@ -96,9 +96,9 @@ func test_gifts_off_greys_frequency_and_advanced_and_focus_skips_them() -> void:
 func test_experiments_off_hides_advanced_and_focus_skips_it_keyboard_and_pad() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(2)
-	var check: UiToggle = lobby.get_node("%ExperimentsCheck")
-	var section: UiSection = lobby.get_node("%ExperimentsSection")
-	var chip: UiChipToggle = lobby._qol_checks[0]
+	var check: UiToggle = lobby.find_child("ExperimentsCheck", true, false) as UiToggle
+	var section: UiSection = lobby.find_child("ExperimentsSection", true, false) as UiSection
+	var chip: UiChipToggle = lobby.find_child("QolTimerPauseCheck", true, false) as UiChipToggle
 	assert_false(check.button_pressed, "default OFF: no experiment runs until the host opts in")
 	assert_null(section.advanced_button, "experiments have no Advanced sub-section")
 	assert_false(chip.is_visible_in_tree(), "default off: options hidden")
@@ -136,15 +136,15 @@ func _any_toggle_on(qol: QolExperiments) -> bool:
 func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active() -> void:
 	var lobby: Lobby = _make_lobby()
 	await wait_frames(1)
-	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
-	(lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed = true
-	(lobby.get_node("%QolGoalRadiusCheck") as UiChipToggle).button_pressed = true
-	(lobby.get_node("%QolGiftLoadsNextCheck") as UiChipToggle).button_pressed = true
+	(lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = true
+	(lobby.find_child("QolBacklogCheck", true, false) as UiChipToggle).button_pressed = true
+	(lobby.find_child("QolGoalRadiusCheck", true, false) as UiChipToggle).button_pressed = true
+	(lobby.find_child("QolGiftLoadsNextCheck", true, false) as UiChipToggle).button_pressed = true
 	assert_true(_any_toggle_on(LobbyProbe.published_config(lobby).qol), "on: the chips apply")
-	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = false
+	(lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = false
 	var off_config: MatchConfig = LobbyProbe.published_config(lobby)
 	assert_false(off_config.experiments_enabled)
-	assert_true((lobby.get_node("%QolBacklogCheck") as UiChipToggle).button_pressed, "chip selection kept")
+	assert_true((lobby.find_child("QolBacklogCheck", true, false) as UiChipToggle).button_pressed, "chip selection kept")
 	# The round trip a real start takes: dict -> from_dict -> sanitize (MatchLifecycle.start_match).
 	var started: MatchConfig = MatchConfig.from_dict(off_config.to_dict())
 	started.sanitize()
@@ -152,7 +152,7 @@ func test_experiments_off_keeps_the_chip_selection_and_starts_with_none_active()
 	started.apply_experiments_switch()
 	assert_false(_any_toggle_on(started.qol), "off: no experiment active in the started match")
 	assert_true(started.qol.gift_after_next_in_force(), "off: the gift-loads-next chip falls back to the after-next rule")
-	(lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
+	(lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = true
 	var again: MatchConfig = LobbyProbe.published_config(lobby)
 	again.sanitize()
 	assert_true(again.qol.backlog_enabled and again.qol.goal_radius_enabled, "on again: the previous selection applies")
@@ -192,14 +192,14 @@ func test_over_enet_the_experiments_switch_replicates_and_a_client_cannot_change
 	client_lobby.net_provider = client
 	client_lobby._update_host_only_state()
 
-	(host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed = true
+	(host_lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed = true
 	assert_true(await _wait_for(func() -> bool:
 		return bool(client.lobby_data().get("experiments_enabled", false))
 	), "the host's setting reached the client over ENet")
-	var mirrored: UiToggle = client_lobby.get_node("%ExperimentsCheck") as UiToggle
+	var mirrored: UiToggle = client_lobby.find_child("ExperimentsCheck", true, false) as UiToggle
 	assert_true(await _wait_for(func() -> bool: return mirrored.button_pressed), "the client lobby mirrors it")
 	assert_true(mirrored.disabled, "a client cannot change it")
-	assert_true((client_lobby.get_node("%QolBacklogCheck") as Control).is_visible_in_tree(), "and its options show too")
+	assert_true((client_lobby.find_child("QolBacklogCheck", true, false) as Control).is_visible_in_tree(), "and its options show too")
 
 	# A client edit never publishes and the host keeps its value.
 	mirrored.button_pressed = false
@@ -207,4 +207,4 @@ func test_over_enet_the_experiments_switch_replicates_and_a_client_cannot_change
 	for _i: int in range(30):
 		await get_tree().process_frame
 	assert_true(bool(host.lobby_data().get("experiments_enabled", false)), "the host's value is unchanged")
-	assert_true((host_lobby.get_node("%ExperimentsCheck") as UiToggle).button_pressed)
+	assert_true((host_lobby.find_child("ExperimentsCheck", true, false) as UiToggle).button_pressed)

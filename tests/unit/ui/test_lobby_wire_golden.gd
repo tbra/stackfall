@@ -13,12 +13,12 @@ var _shared_before: Dictionary = {}
 
 
 func before_each() -> void:
-	_shared_before = Lobby.QOL_SHARED.to_dict()
+	_shared_before = LobbySettingsCard.QOL_SHARED.to_dict()
 
 
 func after_each() -> void:
 	for key: String in _shared_before:
-		Lobby.QOL_SHARED.set(key, _shared_before[key])
+		LobbySettingsCard.QOL_SHARED.set(key, _shared_before[key])
 
 
 func _colors() -> PackedColorArray:
@@ -200,7 +200,7 @@ func test_elimination() -> void:
 
 func test_all_specials_off_uses_the_none_sentinel() -> void:
 	var config: MatchConfig = _base()
-	config.enabled_specials = [Lobby.ALL_DISABLED_SENTINEL] as Array[StringName]
+	config.enabled_specials = [LobbySettingsCard.ALL_DISABLED_SENTINEL] as Array[StringName]
 	_run(config, {"enabled_specials": [&"__none__"] as Array[StringName]})
 
 

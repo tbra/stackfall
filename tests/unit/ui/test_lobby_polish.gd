@@ -18,8 +18,8 @@ func _make_lobby(bots: int) -> Lobby:
 	var lobby: Lobby = LOBBY_SCENE.instantiate() as Lobby
 	lobby.net_provider = fake
 	add_child_autofree(lobby)
-	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = 1 + bots
-	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
+	(lobby.find_child("PlayerCountSpin", true, false) as SpinBox).value = 1 + bots
+	(lobby.find_child("AiCountSpin", true, false) as SpinBox).value = bots
 	lobby._on_setting_changed()
 	return lobby
 
@@ -54,7 +54,7 @@ func test_seat_difficulty_is_a_cycler_stepped_by_pad_keyboard_and_mouse() -> voi
 
 func test_default_difficulty_is_a_cycler_and_keeps_its_config_round_trip() -> void:
 	var lobby: Lobby = _make_lobby(2)
-	var cycler: UiCycler = lobby.get_node("%AiDifficultyOption") as UiCycler
+	var cycler: UiCycler = lobby.find_child("AiDifficultyOption", true, false) as UiCycler
 	assert_not_null(cycler, "the default selector is a UiCycler")
 	cycler._gui_input(_action(&"ui_left"))
 	cycler._gui_input(_action(&"ui_left", false))
@@ -78,11 +78,11 @@ func _gravity(lobby: Lobby) -> float:
 
 func test_gravity_meter_steps_exactly_a_tenth_and_reaches_one() -> void:
 	var lobby: Lobby = _make_lobby(0)
-	var meter: UiSegmentMeter = lobby.get_node("%GravityMeter") as UiSegmentMeter
-	assert_eq(Lobby.GRAVITY_CELLS, roundi(MatchConfig.GRAVITY_MAX / MatchConfig.GRAVITY_STEP))
-	assert_eq(meter.step_count, Lobby.GRAVITY_CELLS)
+	var meter: UiSegmentMeter = lobby.find_child("GravityMeter", true, false) as UiSegmentMeter
+	assert_eq(LobbySettingsCard.GRAVITY_CELLS, roundi(MatchConfig.GRAVITY_MAX / MatchConfig.GRAVITY_STEP))
+	assert_eq(meter.step_count, LobbySettingsCard.GRAVITY_CELLS)
 	var previous: float = -1.0
-	for cells: int in range(1, Lobby.GRAVITY_CELLS + 1):
+	for cells: int in range(1, LobbySettingsCard.GRAVITY_CELLS + 1):
 		meter.value = cells
 		assert_almost_eq(_gravity(lobby), 0.1 * float(cells), STEP_TOLERANCE, "cell %d" % cells)
 		if previous >= 0.0:
@@ -92,7 +92,12 @@ func test_gravity_meter_steps_exactly_a_tenth_and_reaches_one() -> void:
 	assert_almost_eq(_gravity(lobby), 1.0, STEP_TOLERANCE, "1.0x is a cell")
 	meter.value = 0
 	assert_almost_eq(_gravity(lobby), MatchConfig.GRAVITY_MIN, STEP_TOLERANCE, "an empty meter is the minimum")
-	meter.value = Lobby.GRAVITY_CELLS
+	meter.value = LobbySettingsCard.GRAVITY_CELLS
 	assert_almost_eq(_gravity(lobby), MatchConfig.GRAVITY_MAX, STEP_TOLERANCE)
-	assert_eq(Lobby._gravity_cells_for(1.0), 10)
-	assert_eq(Lobby._gravity_cells_for(MatchConfig.GRAVITY_MIN), 1)
+	var inbound: MatchConfig = MatchConfig.new()
+	inbound.gravity_multiplier = 1.0
+	Events.net_lobby_data_changed.emit(inbound.to_dict())
+	assert_eq(meter.value, 10, "an inbound 1.0x lights ten cells")
+	inbound.gravity_multiplier = MatchConfig.GRAVITY_MIN
+	Events.net_lobby_data_changed.emit(inbound.to_dict())
+	assert_eq(meter.value, 1, "an inbound minimum lights one cell")

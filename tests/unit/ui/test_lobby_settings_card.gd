@@ -63,9 +63,22 @@ func _is_read_only(control: Control) -> bool:
 
 ## A setting control; a section's Advanced bar is not one (a read-only client may still open it).
 func _is_setting_control(control: Control, bars: Array[Button]) -> bool:
-	if bars.has(control):
+	if control is Button and bars.has(control as Button):
 		return false
+	# A stepper's own arrows dim at the range ends; the stepper itself is the control to gate.
+	for ancestor: Node in _ancestors_of(control):
+		if ancestor is UiStepper or ancestor is UiCycler or ancestor is UiSegmentMeter:
+			return false
 	return control is UiStepper or control is UiCycler or control is UiSegmentMeter or control is BaseButton
+
+
+func _ancestors_of(node: Node) -> Array[Node]:
+	var out: Array[Node] = []
+	var parent: Node = node.get_parent()
+	while parent != null:
+		out.append(parent)
+		parent = parent.get_parent()
+	return out
 
 
 # --- apply / config round trip -----------------------------------------------
@@ -259,6 +272,10 @@ func test_set_editable_false_leaves_every_setting_control_read_only() -> void:
 
 func test_set_editable_true_restores_the_setting_controls() -> void:
 	var card: LobbySettingsCard = _make_card(false)
+	# The Frequency meter is greyed while the gifts switch is off, so the gifts go on first.
+	var gifts_on: MatchConfig = MatchConfig.new()
+	gifts_on.gifts_enabled = true
+	card.apply(gifts_on)
 	card.set_editable(true)
 	var bars: Array[Button] = _section_bars(card)
 	var live: int = 0

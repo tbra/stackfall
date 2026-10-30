@@ -26,7 +26,7 @@ func test_a_seeded_vs_bots_bot_gets_a_themed_name_not_bot_n() -> void:
 	data["roster"] = [{"peer_id": 1, "slot_id": 0, "name": "Host", "ready": true}]
 	Events.net_lobby_data_changed.emit(data)
 	lobby._republish_roster_if_host()
-	var names: PackedStringArray = (lobby.get_node("%PlayersPanel") as LobbyPlayersPanel)._config.bot_names
+	var names: PackedStringArray = (lobby.find_child("PlayersPanel", true, false) as LobbyPlayersPanel)._config.bot_names
 	assert_eq(names.size(), 1)
 	assert_false(names[0].begins_with("Bot "), names[0])
 	assert_true(BotNames.all_names().has(names[0]))
@@ -37,7 +37,7 @@ func test_status_badge_names_the_session_kind() -> void:
 	assert_eq(Lobby.status_badge_text(true, false, false), "Hosting %s LAN" % char(0xB7))
 	assert_eq(Lobby.status_badge_text(false, true, false), "Joined %s Steam" % char(0xB7))
 	var lobby: Lobby = _make_lobby()
-	var badge: Label = lobby.get_node("%StatusBadgeLabel") as Label
+	var badge: Label = lobby.find_child("StatusBadgeLabel", true, false) as Label
 	lobby._update_status_badge()
 	var hosted_text: String = badge.text
 	(lobby.net_provider as FakeNet).is_private_session_value = true

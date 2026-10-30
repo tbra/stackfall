@@ -195,5 +195,5 @@ func test_cancelled_rebind_returns_focus_to_the_row_so_navigation_continues() ->
 
 func test_lobby_settings_scroll_follows_focus() -> void:
 	var lobby: Node = autofree(LOBBY_SCENE.instantiate())
-	var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
+	var scroll: ScrollContainer = lobby.find_child("SettingsScroll", true, false) as ScrollContainer
 	assert_true(scroll.follow_focus, "the lobby settings column follows focus")
