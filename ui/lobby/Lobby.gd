@@ -38,14 +38,9 @@ signal back_requested
 ## magic numbers here (CLAUDE.md "No magic numbers").
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## the settings column is composed of ui/components (UiSection, UiRow, UiToggle,
-## UiStepper, UiSegmentMeter, UiDropdown, UiChipToggle). Each UiRow node in Lobby.tscn carries its label
-## text as this metadata key (read once by _prepare_rows()); every VBox of rows is in STACK_GROUP and
-## gets the design-system row gap.
+## The two columns of the lobby; the settings form itself is the LobbySettingsCard.
 const CARD_SETTINGS: String = "SettingsCard"
 const CARD_PLAYERS: String = "PlayersCard"
-const ROW_LABEL_META: StringName = &"row_label"
-const STACK_GROUP: StringName = &"lobby_stack"
 
 ## Sizes and spacings new to the lobby (section spacing, seat colour box, row height,
 ## advanced indent); also handed to the players panel. Never touches the
@@ -60,25 +55,6 @@ const SEATS_KEY: String = "seats"
 ## Height counts this many times the sideways distance when a hop picks the stop across panels.
 const SPATIAL_HEIGHT_WEIGHT: float = 4.0
 
-## DECISION (ui/lobby/Lobby.gd): MatchConfig.enabled_specials already means
-## "empty = every special enabled" (config/match/MatchConfig.gd's own doc comment),
-## so unchecking every %SpecialsChecklist box can't publish an empty array --
-## that would mean the opposite of what the host asked for. This sentinel id
-## published as the sole entry instead means "spawn nothing"; it isn't a
-## MatchConfig constant and autoload/match/MatchGifts.gd can't import a ui/ script, so
-## its _ensure_special_drawer_installed() carries the identical literal with a
-## matching DECISION comment pointing back here.
-const ALL_DISABLED_SENTINEL: StringName = &"__none__"
-
-## Shared experiments:
-## resource the F4 panel edits. The four enable flags come from the lobby's
-## "Experiments" checkboxes; every numeric parameter (pause_event_s,
-## backlog_max, goal_radius_multiplier, ...) is copied from here, so those stay
-## F4-tunable. Never modified: QolExperiments.with_toggles() works on a copy.
-# a static var, not a const: GDScript folds `CONST.prop` reads of a const Resource
-# at compile time, which left every F4 edit of this tuning dead.
-static var QOL_SHARED: QolExperiments = preload("res://config/match/qol_experiments.tres")
-
 ## DECISION (ui/lobby/Lobby.gd): same `Variant` test seam as ui/menus/MainMenu.gd and
 ## ui/hud/HUD.gd's match_provider. The players panel reads the
 ## same seam (peer ids/info for the roster, local peer id for the "you" subtitle),
@@ -90,13 +66,8 @@ var net_provider: Variant = null:
 			_players_panel.net_provider = value
 
 ## %MapThumbnail is the (hidden) pictogram of the one map; it lives under %HiddenSources.
-## The disc size is the one visible map control, six steps into
-## config/match/disc_size_tuning.tres (tiny 50% .. enormous 175%): a UiSegmentMeter whose
-## value is the step + 1 (cells lit), never 0 (see _disc_size_step()).
-@onready var _disc_size_meter: UiSegmentMeter = %DiscSizeMeter
-## the settings column; _scroll_settings_to_top() resets it when the lobby opens.
-@onready var _settings_scroll: ScrollContainer = %SettingsScroll
-@onready var _help_line: UiHelpLine = %HelpLine
+## The settings form (every other setting control) is the LobbySettingsCard.
+@onready var _card: LobbySettingsCard = %LobbySettingsCard
 @onready var _map_thumbnail: PanelContainer = %MapThumbnail
 var _map_thumbnail_icon: TextureRect = null
 ## The Players/AI steppers, the default-difficulty dropdown and the
@@ -116,79 +87,6 @@ var _map_thumbnail_icon: TextureRect = null
 @onready var _ai_count_spin: SpinBox = %AiCountSpin
 @onready var _ai_difficulty_option: UiCycler = %AiDifficultyOption
 @onready var _team_mode_option: OptionButton = %TeamModeOption
-## the block timer (3.0 .. 12.0 s) and the goal flags are UiSteppers; the block
-## timer counts BLOCK_TIMER_STEP_S per stepper step.
-@onready var _block_timer_stepper: UiStepper = %BlockTimerStepper
-@onready var _goal_flag_stepper: UiStepper = %GoalFlagStepper
-## Gravity and gift frequency are UiSegmentMeters (cells). The exact stored values live here, so a
-## value that arrives from the wire (e.g. 1.0) is kept as is and read back unchanged; only a
-## player's own nudge snaps to the next cell (_on_gravity_cells_changed()).
-@onready var _gravity_meter: UiSegmentMeter = %GravityMeter
-@onready var _special_freq_meter: UiSegmentMeter = %SpecialFreqMeter
-var _gravity_value: float = MatchConfig.GRAVITY_DEFAULT
-var _special_frequency_value: int = 0
-@onready var _gifts_check: UiToggle = %GiftsCheck
-## the Frequency row, hidden with the gifts switch off (with the Advanced bar).
-@onready var _special_freq_group: Control = %SpecialFreqGroup
-## the Experiments master switch (host-editable, replicated as MatchConfig.experiments_enabled).
-@onready var _experiments_check: UiToggle = %ExperimentsCheck
-@onready var _tilt_mode_option: UiCycler = %TiltModeOption
-@onready var _hole_mode_option: UiCycler = %HoleModeOption
-@onready var _weather_option: UiCycler = %WeatherOption
-@onready var _game_mode_option: UiCycler = %GameModeOption
-## ONE timer control is shown. Classic shows the match-timer
-## row (+ sudden death); every other mode shows the round-length row.
-## both are UiSteppers in whole minutes (Off at 0 for the match timer); each
-## keeps mapping its own MatchConfig field.
-@onready var _match_timer_stepper: UiStepper = %MatchTimerStepper
-@onready var _round_timer_stepper: UiStepper = %RoundTimerStepper
-@onready var _match_timer_col: Control = %MatchTimerCol
-@onready var _round_timer_col: Control = %RoundTimerCol
-@onready var _sudden_death_col: Control = %SuddenDeathCol
-## Reach the Sky only: shown while that mode is selected.
-@onready var _sky_team_col: Control = %SkyTeamCol
-@onready var _sky_team_sum_check: UiToggle = %SkyTeamSumCheck
-## the "Map" time-of-day dropdown (MatchConfig.SkyThemeMode).
-@onready var _sky_theme_option: UiCycler = %SkyThemeOption
-@onready var _sudden_death_check: UiToggle = %SuddenDeathCheck
-## Sudden-death length in seconds (MatchConfig.SUDDEN_DEATH_*), shown beside the toggle.
-@onready var _sudden_death_seconds_stepper: UiStepper = %SuddenDeathSecondsStepper
-@onready var _turn_based_check: UiToggle = %TurnBasedCheck
-## host-only toggle for MatchConfig.allow_mid_match_join.
-@onready var _mid_join_check: UiToggle = %MidJoinCheck
-## The per-gift checklist is the GIFTS section's Advanced block, a grid of
-## UiChipToggles built by _build_specials_checklist().
-@onready var _specials_checklist: GridContainer = %SpecialsChecklist
-@onready var _experiments_checklist: GridContainer = %ExperimentsChecklist
-## the Experiments trials row, shown only while the Experiments switch is on.
-@onready var _experiments_group: Control = %ExperimentsGroup
-## the Experiments chips, in QolExperiments.with_toggles()
-## argument order (timer pause, backlog, goal radius, gift slot, gift loads next). They are the
-## EXPERIMENTS section's Advanced block. Host-editable,
-## read-only for a client (_settings_controls).
-@onready var _qol_timer_pause_check: UiChipToggle = %QolTimerPauseCheck
-@onready var _qol_backlog_check: UiChipToggle = %QolBacklogCheck
-@onready var _qol_goal_radius_check: UiChipToggle = %QolGoalRadiusCheck
-@onready var _qol_gift_slot_check: UiChipToggle = %QolGiftSlotCheck
-@onready var _qol_gift_loads_next_check: UiChipToggle = %QolGiftLoadsNextCheck
-@onready var _qol_checks: Array[UiChipToggle] = [
-	_qol_timer_pause_check, _qol_backlog_check, _qol_goal_radius_check, _qol_gift_slot_check,
-	_qol_gift_loads_next_check,
-]
-
-## The settings column is a stack of UiSections: GAME (mode, disc size,
-## time of day, weather; Advanced: gravity, tilt, holes, turn-based, mid-match join), ROUND (round
-## length / match timer, sudden death, block timer, goal flags, Reach the Sky team height), GIFTS
-## (on/off, frequency; Advanced: the per-gift checklist) and EXPERIMENTS (the opt-in
-## experiment chips, behind its header). %Settings is their column.
-@onready var _settings_column: VBoxContainer = %Settings
-@onready var _game_section: UiSection = %GameSection
-@onready var _round_section: UiSection = %RoundSection
-@onready var _gifts_section: UiSection = %GiftsSection
-@onready var _experiments_section: UiSection = %ExperimentsSection
-## Goal flags apply only to the modes MatchConfig.mode_uses_goal_flags() names.
-@onready var _goal_flag_col: Control = %GoalFlagCol
-
 ## The right-hand roster (title row, header text, seat rows) lives in
 ## ui/lobby/LobbyPlayersPanel.gd; this script keeps only the hooks
 ## (_publish_lobby_data/_apply_data/_on_roster_changed/_on_start_pressed/
@@ -219,62 +117,13 @@ const READY_COUNT_FORMAT: String = "%d OF %d READY"
 ## players panel rebuilds its rows (_on_roster_rendered()).
 @onready var _waiting_status_pill: UiStatusBadge = %WaitingStatusPill
 
-## Every control the round trip governs, so enabling/disabling them for a
-## non-host is one loop instead of fourteen repeated lines.
+## The hidden seat sources of truth, gated to the host (the settings card gates its own controls).
 var _settings_controls: Array[Control] = []
-
-## Built once by _build_specials_checklist(), in SpecialDef.load_selectable_specials()
-## order -- parallel arrays (the same convention the panel's rows pair with
-## roster entries by index) so _config_from_controls()/_apply_data() can walk
-## both together without a per-frame dictionary lookup.
-var _special_checkboxes: Array[UiChipToggle] = []
-var _special_ids: Array[StringName] = []
 
 ## True while _apply_data() is writing sanitized values back into the
 ## controls, so the value-changed signals that causes fire without
 ## re-publishing what was just received (an infinite echo).
 var _applying_remote_data: bool = false
-## The time-of-day dropdown. Index == MatchConfig.SkyThemeMode
-## (DAY, NIGHT, RANDOM, CYCLE, DAWN), so the stored ints and the wire format are
-## stable; DAY is labelled "Sunset" because it is the day/night cycle
-## locked at a sunset time, not a separate painted sky.
-## the help-line key the round-length row is explained under in Domination
-## (any other mode uses the row's own name); the sentences live in config/ui/option_help_table.tres.
-const ROUND_HELP_KEY_DOMINATION: String = "RoundTimerDominationCol"
-const SKY_THEME_LABELS: PackedStringArray = ["Sunset", "Night", "Random", "Cycle", "Dawn"]
-## the timer sliders' value text. DECISION: the leftmost stop of a
-## slider whose mode may switch its timer off (Classic, Elimination) reads "Off"
-## (Elimination reads "Off" too); every other value reads "<n> min".
-const TIMER_OFF_TEXT: String = "Off"
-const TIMER_VALUE_FORMAT: String = "%d min"
-## a stepper shows the bare number; the unit lives in the row label (the summary keeps its units).
-const TIMER_STEPPER_FORMAT: String = "%d"
-## one stepper step is half a second of block timer; gravity and gift
-## frequency meters have GRAVITY_CELLS / FREQUENCY_CELLS lit steps between their MatchConfig bounds.
-const BLOCK_TIMER_STEP_S: float = 0.5
-const GRAVITY_CELLS: int = 20  # = roundi(MatchConfig.GRAVITY_MAX / MatchConfig.GRAVITY_STEP), asserted in tests
-const FREQUENCY_CELLS: int = 10
-const GRAVITY_READOUT_FORMAT: String = "%.2fx"
-const FREQUENCY_READOUT_FORMAT: String = "%d"
-## The step a player-picked gravity snaps to.
-const GRAVITY_SNAP: float = MatchConfig.GRAVITY_STEP
-const DISC_SIZE_READOUT_FORMAT: String = "%d%%"
-## The one-line section summaries shown on each UiSection header.
-const SUMMARY_SEPARATOR: String = " · "
-const SUMMARY_BLOCK_TIMER_FORMAT: String = "Block %.1f s"
-const BLOCK_TIMER_VALUE_FORMAT: String = "%.1f"
-const SUMMARY_GOAL_FLAGS_FORMAT: String = "%d goal flags"
-const SUMMARY_GOAL_FLAG_FORMAT: String = "%d goal flag"
-const SUMMARY_GIFTS_ON_FORMAT: String = "On%sfrequency %d"
-## Appended to the GIFTS summary while some (not all) gifts are switched off in its Advanced
-## block -- the at-a-glance count of enabled gifts.
-const SUMMARY_GIFT_COUNT_FORMAT: String = "%d/%d gifts"
-const SUMMARY_GIFTS_OFF: String = "Off"
-const SUMMARY_EXPERIMENTS_FORMAT: String = "%d on"
-var _timer_mode: int = MatchConfig.GameMode.CLASSIC
-## Last minutes each timer stepper settled on, so a step through the 1-minute gap
-## knows which way it was moving (_on_timer_stepper_changed()).
-var _timer_previous_minutes: Dictionary[UiStepper, int] = {}
 var _last_config: MatchConfig = null
 ## The live OptionsMenu overlay while open, else null; and the callable that
 ## restores the focus modes UiFocusTrap cleared for it.
@@ -317,31 +166,9 @@ func _ready() -> void:
 		net_provider = Net
 	_configure_players_panel()
 	_arrange_header()
-	_prepare_rows()
 	_populate_options()
-	_settings_controls = [
-		_disc_size_meter, _player_count_spin, _ai_count_spin,
-		_ai_difficulty_option, _team_mode_option, _block_timer_stepper, _gravity_meter,
-		_goal_flag_stepper, _gifts_check, _experiments_check, _special_freq_meter, _tilt_mode_option,
-		_hole_mode_option, _match_timer_stepper, _sudden_death_check, _sudden_death_seconds_stepper,
-		_turn_based_check, _mid_join_check,
-	]
-	_settings_controls.append(_weather_option)
-	_settings_controls.append(_sky_theme_option)
-	_settings_controls.append(_game_mode_option)
-	_settings_controls.append(_round_timer_stepper)
-	_settings_controls.append(_sky_team_sum_check)
-	_settings_controls.append_array(_special_checkboxes)
-	_settings_controls.append_array(_qol_checks)
+	_settings_controls = [_player_count_spin, _ai_count_spin, _ai_difficulty_option, _team_mode_option]
 	_connect_control_signals()
-	for section: UiSection in _sections():
-		section.advanced_changed.connect(_on_section_toggled)
-	# each section header carries its UiArtTable symbol.
-	var art: UiArtTable = UiArtTable.shared()
-	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
-	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
-	_gifts_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GIFTS))
-	_experiments_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_EXPERIMENTS))
 	_start_button.pressed.connect(_on_start_pressed)
 	_ready_check.toggled.connect(_on_ready_toggled)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
@@ -370,7 +197,6 @@ func _ready() -> void:
 	# a client, whose _republish_roster_if_host() guard is already false) draws the host's
 	# own row on the very first frame.
 	_republish_roster_if_host()
-	# Every dynamic row already exists before the chain is built (_build_specials_checklist()).
 	_apply_visual_style()
 	_update_host_only_state()
 	(_start_button as UiBlockButton).hint_action = &"lobby_confirm"
@@ -378,22 +204,15 @@ func _ready() -> void:
 	_options_button.hint_action = &"lobby_options"
 	_back_button.hint_action = &"ui_cancel"
 	_wire_focus_chain()
-	_settings_scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _schedule_spatial_rewire())
-	_disc_size_meter.grab_focus()
+	_card.focus_entry()
 	# the first focus above may have scrolled the column; open at the top.
-	_scroll_settings_to_top()
+	_card.scroll_to_top()
 	visibility_changed.connect(_on_lobby_visibility_changed)
-
-
-## menus with scrollbars don't start at the top: deferred so it
-## lands after the layout pass and any focus-follow scroll that the opening focus triggered.
-func _scroll_settings_to_top() -> void:
-	_settings_scroll.set_deferred(&"scroll_vertical", 0)
 
 
 func _on_lobby_visibility_changed() -> void:
 	if is_visible_in_tree():
-		_scroll_settings_to_top()
+		_card.scroll_to_top()
 
 
 func _process(_delta: float) -> void:
@@ -428,72 +247,6 @@ func _configure_players_panel() -> void:
 
 # --- Building settings controls ----------------------------------------------
 
-## range and step of both timer steppers come from MatchConfig, so
-## the .tscn's authored numbers can never drift from the clamp the host applies.
-## The match stepper runs Off (0) to the maximum; the round stepper's minimum is
-## retargeted per mode by _refresh_timer_control().
-func _configure_timer_steppers() -> void:
-	for stepper: UiStepper in [_match_timer_stepper, _round_timer_stepper]:
-		stepper.max_value = MatchConfig.ROUND_TIMER_MAX_MINUTES
-	_match_timer_stepper.min_value = MatchConfig.ROUND_TIMER_OFF_MINUTES
-	_round_timer_stepper.min_value = MatchConfig.ROUND_TIMER_MIN_MINUTES
-	_match_timer_stepper.formatter = _timer_stepper_text
-	_round_timer_stepper.formatter = _timer_stepper_text
-	_match_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_OFF_MINUTES)
-	_round_timer_stepper.set_value_silent(MatchConfig.ROUND_TIMER_DEFAULT_MINUTES)
-	# An unchanged value emits no signal, so seed what _on_timer_stepper_changed() compares against.
-	_timer_previous_minutes[_match_timer_stepper] = _match_timer_stepper.value
-	_timer_previous_minutes[_round_timer_stepper] = _round_timer_stepper.value
-	_sudden_death_seconds_stepper.min_value = MatchConfig.SUDDEN_DEATH_MIN_SECONDS
-	_sudden_death_seconds_stepper.max_value = MatchConfig.SUDDEN_DEATH_MAX_SECONDS
-	_sudden_death_seconds_stepper.step = MatchConfig.SUDDEN_DEATH_STEP_SECONDS
-	_sudden_death_seconds_stepper.formatter = BeaconTimerText.clock
-	_sudden_death_seconds_stepper.set_value_silent(MatchConfig.SUDDEN_DEATH_DEFAULT_SECONDS)
-
-
-## block timer (half-second steps between MatchConfig's bounds), goal flags,
-## disc size, gravity and gift-frequency meters: ranges and readouts come from MatchConfig and
-## DiscSizeTuning, never from the scene's authored numbers.
-func _configure_value_controls() -> void:
-	_block_timer_stepper.min_value = roundi(MatchConfig.BLOCK_TIMER_MIN / BLOCK_TIMER_STEP_S)
-	_block_timer_stepper.max_value = roundi(MatchConfig.BLOCK_TIMER_MAX / BLOCK_TIMER_STEP_S)
-	_block_timer_stepper.formatter = func(steps: int) -> String: return BLOCK_TIMER_VALUE_FORMAT % _block_timer_seconds_for(steps)
-	_block_timer_stepper.set_value_silent(_block_timer_stepper.min_value)
-	_goal_flag_stepper.min_value = MatchConfig.GOAL_FLAG_MIN
-	_goal_flag_stepper.max_value = MatchConfig.GOAL_FLAG_MAX
-	_goal_flag_stepper.set_value_silent(MatchConfig.GOAL_FLAG_MIN)
-	var disc: DiscSizeTuning = DiscSizeTuning.shared()
-	_disc_size_meter.step_count = disc.step_count()
-	_disc_size_meter.formatter = func(cells: int) -> String: return DISC_SIZE_READOUT_FORMAT % roundi(disc.factor_for(cells - 1) * 100.0)
-	_disc_size_meter.set_value_silent(MatchConfig.DISC_SIZE_STEP_DEFAULT + 1)
-	_gravity_meter.step_count = GRAVITY_CELLS
-	_gravity_meter.formatter = func(_cells: int) -> String: return GRAVITY_READOUT_FORMAT % _gravity_value
-	_special_freq_meter.step_count = FREQUENCY_CELLS
-	_special_freq_meter.formatter = func(_cells: int) -> String: return FREQUENCY_READOUT_FORMAT % _special_frequency_value
-
-
-## Every UiRow gets its label from the scene's `row_label` metadata (Lobby.tscn authors the text next
-## to the control it names); a long caption wraps inside the fixed label column instead of widening it.
-## Every stack of rows gets the design-system row gap.
-func _prepare_rows() -> void:
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	for node: Node in _settings_column.find_children("*", "HBoxContainer", true, false):
-		var row: UiRow = node as UiRow
-		if row == null:
-			continue
-		row.label.text = str(row.get_meta(ROW_LABEL_META, ""))
-		row.label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		UiHelpLine.tag(row, String(row.name))
-	_help_line.bind(_settings_scroll)
-	for chip: UiChipToggle in _qol_checks:
-		UiHelpLine.tag(chip, String(chip.name))
-	for node: Node in _settings_column.find_children("*", "", true, false):
-		if node.is_in_group(STACK_GROUP):
-			node.add_theme_constant_override("separation", arcade.space_3_px)
-	for grid: GridContainer in [_specials_checklist, _experiments_checklist]:
-		grid.add_theme_constant_override("h_separation", arcade.space_2_px)
-		grid.add_theme_constant_override("v_separation", arcade.space_2_px)
-
 
 ## The title row: STACKFALL eyebrow, LOBBY and the status badge on the left, Back on the right, all
 ## centred on one line (UiTitleRow.add_trailing's rule), so the wordmark sits on the card's left edge
@@ -520,55 +273,12 @@ func _expose(node: Node, unique_name: String) -> void:
 	node.unique_name_in_owner = true
 
 
-## DECISION: the visible option rows
-## are UiCyclers ("<" value ">" blocks, wrapping, ui_left / ui_right step); each bot's difficulty in
-## LobbySeatRow is a UiCycler too; only its team pill is a popup UiDropdown.
-## %TeamModeOption is a hidden sources of truth that nobody
-## clicks, so they stay plain OptionButtons; %AiDifficultyOption (default difficulty) is a UiCycler.
+## The hidden sources of truth are plain OptionButtons nobody clicks; %AiDifficultyOption (default
+## difficulty) is a UiCycler. The visible option rows live in the settings card.
 func _populate_options() -> void:
-	_configure_timer_steppers()
-	_configure_value_controls()
 	_decorate_map_picker()
 	_fill_cycle(_ai_difficulty_option, ["Easy", "Normal", "Hard"])
 	_fill_option(_team_mode_option, ["Off", "2 teams", "3 teams", "4 teams"])
-	_fill_cycle(_tilt_mode_option, ["Specials only", "Physical balance"])
-	# "Off" must still be the option list's third item, at the same index as the enum
-	# value, or OptionButton.selected = 2 on a 2-item list is silently ignored and a
-	# config asking for OFF is stuck on the old holes. The lobby shows whatever
-	# config/match/match_defaults.tres stores (_ready()'s
-	# _apply_data(default_config.to_dict())), so no lobby-side default needs to move.
-	_fill_cycle(_hole_mode_option, ["Temporary", "Permanent", "Off"])
-	# order must match MatchConfig.WeatherMode.
-	# Labels come from the enum names, so a new weather type needs no edit here.
-	var weather_labels: Array = MatchWeather.mode_labels()
-	for weather_index: int in range(weather_labels.size()):
-		_weather_option.add_item(weather_labels[weather_index] as String)
-	# order must match MatchConfig.SkyThemeMode.
-	# The DAY entry is the cycle locked at sunset, so it
-	# reads "Sunset"; Cycle is the default through MatchConfig.sky_theme_mode.
-	_fill_cycle(_sky_theme_option, Array(SKY_THEME_LABELS))
-	# order must match MatchConfig.GameMode. Reserved modes are
-	# listed but disabled, so neither the mouse nor the gamepad popup can pick
-	# one; MatchConfig.resolve_game_mode() also rejects them on the wire.
-	# DECISION: one timer control per mode (_refresh_timer_control).
-	_fill_cycle(_game_mode_option, Array(MatchConfig.GAME_MODE_LABELS))
-	for mode_index: int in range(_game_mode_option.get_item_count()):
-		_game_mode_option.set_item_disabled(mode_index, not MatchConfig.is_game_mode_selectable(mode_index))
-	_align_cyclers()
-	_build_specials_checklist()
-
-
-## Every cycler of the GAME section (main rows and Advanced) shares the widest value area, so the
-## "<" / ">" blocks line up from row to row.
-func _align_cyclers() -> void:
-	var cyclers: Array[UiCycler] = [
-		_game_mode_option, _sky_theme_option, _weather_option, _tilt_mode_option, _hole_mode_option,
-	]
-	var widest: float = 0.0
-	for cycler: UiCycler in cyclers:
-		widest = maxf(widest, cycler.content_width())
-	for cycler: UiCycler in cyclers:
-		cycler.min_value_width = widest
 
 
 ## every map combo row shows its variant's pictogram (UiArtTable) and
@@ -605,82 +315,20 @@ func _fill_cycle(selector: UiCycler, labels: Array) -> void:
 		selector.add_item(label)
 
 
-## Enabled-specials checklist:
-## config/gifts/specials/*.tres with enabled_by_default (SpecialDef.load_selectable_specials()),
-## in id order (the same sorted, deterministic order every peer's own load produces, so the
-## checklist never shows two peers a differently-ordered list). Checked =
-## enabled, mirroring MatchConfig.enabled_specials's own "empty = all enabled"
-## default (every box starts checked here; _apply_data() below is the only
-## place that can later uncheck one, from a published config). Called once
-## from _populate_options(), before _ready() builds _settings_controls, the
-## same "every row already exists before the host/client gate runs" ordering
-## the players panel's row rebuild also depends on.
-func _build_specials_checklist() -> void:
-	for child: Node in _specials_checklist.get_children():
-		_specials_checklist.remove_child(child)
-		child.queue_free()
-	_special_checkboxes.clear()
-	_special_ids.clear()
-
-	# disabled gifts (Cat) are not listed at
-	# all -- the checklist walks the selectable roster, the same roster the match
-	# draws from (MatchGifts._ensure_special_drawer_installed). The full catalogue
-	# stays for find_by_id / icon / net id tables.
-	for special: SpecialDef in SpecialDef.load_selectable_specials():
-		var chip: UiChipToggle = UiChipToggle.new()
-		# SpecialDef has no display_name (config/gifts/specials/SpecialDef.gd) -- DisplayNames turns the id
-		# (e.g. &"jumping_bean") into the label.
-		chip.label = DisplayNames.special(special.id)
-		chip.chip_icon = GiftIconTable.shared().gift_pictogram(special.id)
-		chip.set_on_silent(true)
-		chip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		chip.toggled.connect(_on_toggled)
-		UiHelpLine.tag(chip, OptionHelpTable.gift_key(special.id))
-		_specials_checklist.add_child(chip)
-		_special_checkboxes.append(chip)
-		_special_ids.append(special.id)
-
-
-## DECISION (ui/lobby/Lobby.gd): ui/lobby/Lobby.tscn carries zero static
-## focus_neighbor_* NodePaths (unlike ui/menus/MainMenu.tscn's authored chain) --
-## the specials checklist is built dynamically by _build_specials_checklist()
-## and doesn't exist yet when the scene file is authored, so any chain
+## DECISION: ui/lobby/Lobby.tscn carries zero static focus_neighbor_* NodePaths -- the specials
+## checklist is built dynamically and doesn't exist yet when the scene file is authored, so any chain
 ## covering it has to be computed at runtime. Mirrors ui/menus/OptionsMenu.gd's own
-## _wire_focus_chain() (get_path_to()-based circular top/bottom wiring,
-## called once from _ready() after every dynamic row exists). Player rows
-## (rebuilt by the players panel on every roster change) enter the chain through
-## the panel's focus_entries().
+## _wire_focus_chain() (get_path_to()-based circular top/bottom wiring). Player rows (rebuilt by the
+## players panel on every roster change) enter the chain through the panel's focus_entries().
 ##
-## ONE closed loop in visual order. Each UiSection
-## contributes its main controls, its Advanced chip and (when open) its
-## Advanced controls -- GAME, ROUND, GIFTS (Advanced: the per-gift checklist), EXPERIMENTS
-## (chip opens its checks) -- then the players panel's entries and the footer. The
-## _visible_chain() drops whatever a
-## collapsed block or a mode hides, so there is never an invisible focus stop; every
-## section toggle and mode change rewires.
+## ONE closed loop in visual order: the settings card's stops (its sections, Advanced chips and open
+## Advanced controls), then the players panel's entries and the footer. The card drops whatever a
+## collapsed block, a mode or a master switch hides, and asks for a rebuild on every change
+## (layout_changed), so there is never an invisible focus stop.
 func _wire_focus_chain() -> void:
-	var chain: Array[Control] = []
-	var game_main: Array[Control] = [_game_mode_option, _disc_size_meter, _sky_theme_option, _weather_option]
-	var game_advanced: Array[Control] = [
-		_gravity_meter, _tilt_mode_option, _hole_mode_option, _turn_based_check, _mid_join_check,
-	]
-	chain.append_array(_section_chain(_game_section, game_main, game_advanced))
-	var round_main: Array[Control] = [
-		_round_timer_stepper, _match_timer_stepper, _sudden_death_check, _sudden_death_seconds_stepper, _block_timer_stepper,
-		_goal_flag_stepper,
-		_sky_team_sum_check,
-	]
-	chain.append_array(_section_chain(_round_section, round_main, []))
-	var gifts_main: Array[Control] = [_gifts_check, _special_freq_meter]
-	var gifts_advanced: Array[Control] = []
-	gifts_advanced.append_array(_special_checkboxes)
-	chain.append_array(_section_chain(_gifts_section, gifts_main, gifts_advanced))
-	var experiments_main: Array[Control] = [_experiments_check]
-	experiments_main.append_array(_qol_checks)
-	chain.append_array(_section_chain(_experiments_section, experiments_main, []))
-	# The players panel's own focusable controls sit between the
-	# settings and the footer, in visual order; the panel asks for a rewire through
-	# focus_entries_changed.
+	var chain: Array[Control] = _card.focus_stops()
+	# The players panel's own focusable controls sit between the settings and the footer, in visual
+	# order; the panel asks for a rewire through focus_entries_changed.
 	_settings_stops = chain.duplicate()
 	chain.append_array(_players_panel.focus_entries())
 	chain.append(_invite_friends_button)
@@ -691,19 +339,10 @@ func _wire_focus_chain() -> void:
 	_rewire_focus()
 
 
-## One section's focus stops in visual order: main controls, Advanced chip, Advanced
-## controls (the header is static and not a stop).
-func _section_chain(section: UiSection, main_controls: Array[Control], advanced_controls: Array[Control]) -> Array[Control]:
-	var out: Array[Control] = []
-	out.append_array(main_controls)
-	if section.advanced_button != null:
-		out.append(section.advanced_button)
-	out.append_array(advanced_controls)
-	return out
-
-
-func _sections() -> Array[UiSection]:
-	return [_game_section, _round_section, _gifts_section, _experiments_section]
+## The settings card showed or hid a row, section or Advanced block: its stops changed.
+func _on_card_layout_changed() -> void:
+	if not _main_chain.is_empty():
+		_wire_focus_chain()
 
 
 ## Rewires the main loop from the chain built by _wire_focus_chain(): called on every
@@ -733,17 +372,20 @@ func _wire_spatial() -> void:
 	var panel_left_edge: Array[Control] = []
 	if not panel.is_empty() and _all_laid_out(panel):
 		panel_left_edge = _wire_panel_spatial(panel, settings)
-	for grid: Array in [_special_checkboxes, _qol_checks]:
+	# The gift / experiment chips form grids (one per parent container) that move in 2D.
+	var grids: Dictionary[Node, Array] = {}
+	for control: Control in settings:
+		var chip: UiChipToggle = control as UiChipToggle
+		if chip != null:
+			grids.get_or_add(chip.get_parent(), [] as Array).append(chip)
+	for grid: Array in grids.values():
 		var chips: Array[Control] = []
-		for chip: Variant in grid:
-			if _is_shown(chip as Control):
-				chips.append(chip as Control)
+		chips.assign(grid)
 		if _all_laid_out(chips):
 			_wire_chip_grid(chips, panel_left_edge)
 	# Every other settings stop hops right into the panel (the chips handled theirs above).
 	for control: Control in settings:
-		var chip: UiChipToggle = control as UiChipToggle
-		if chip != null and (chip in _special_checkboxes or chip in _qol_checks):
+		if control is UiChipToggle:
 			continue
 		var target: Control = _nearest_by_height(control, panel_left_edge)
 		if target != null and control.size.y > 0.0:
@@ -861,11 +503,6 @@ func _run_spatial_rewire() -> void:
 		_wire_spatial()
 
 
-func _on_section_toggled(state: bool) -> void:
-	Events.lobby_ui_cue.emit(&"section_expanded" if state else &"section_collapsed")
-	_rewire_focus()
-
-
 ## Every control the focus loop may visit, in visual order (built by _wire_focus_chain());
 ## _visible_chain() filters it to what is shown right now.
 var _main_chain: Array[Control] = []
@@ -884,15 +521,9 @@ var _spatial_pending: bool = false
 func _visible_chain(chain: Array[Control]) -> Array[Control]:
 	var out: Array[Control] = []
 	for control: Control in chain:
-		if _is_shown(control) and not _is_gated_off(control):
+		if _is_shown(control):
 			out.append(control)
 	return out
-
-
-## True for a control a master switch has greyed out (gifts off: Frequency and the per-gift bar):
-## visible but not a focus stop, for every role.
-func _is_gated_off(control: Control) -> bool:
-	return not _gifts_check.button_pressed and (control == _special_freq_meter or control == _gifts_section.advanced_button)
 
 
 func _is_shown(control: Control) -> bool:
@@ -941,39 +572,17 @@ func _wire_back_button(chain: Array[Control]) -> void:
 
 
 func _connect_control_signals() -> void:
+	_card.changed.connect(_on_setting_changed)
+	_card.layout_changed.connect(_on_card_layout_changed)
+	_card.scrolled.connect(_schedule_spatial_rewire)
 	_ai_difficulty_option.item_selected.connect(_on_option_changed)
 	_team_mode_option.item_selected.connect(_on_option_changed)
-	_tilt_mode_option.item_selected.connect(_on_option_changed)
-	_hole_mode_option.item_selected.connect(_on_option_changed)
-	_weather_option.item_selected.connect(_on_option_changed)
-	# retarget the timer control before the publish below reads it.
-	_game_mode_option.item_selected.connect(_on_game_mode_picked)
-	_game_mode_option.item_selected.connect(_on_option_changed)
-	_round_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_round_timer_stepper))
-	_sky_team_sum_check.toggled.connect(_on_toggled)
-	_game_mode_option.item_selected.connect(_refresh_sky_controls)
-	_sky_theme_option.item_selected.connect(_on_option_changed)
 	_player_count_spin.value_changed.connect(_on_value_changed)
-	# A seat-count edit can shrink the room left for bots, so
-	# this recomputes %AiCountSpin's own max_value on every host edit too, not
-	# only on a roster event (_on_roster_changed already covers "a human
-	# joined/left"; this covers "the host changed the seat count").
+	# A seat-count edit can shrink the room left for bots, so this recomputes %AiCountSpin's own
+	# max_value on every host edit too, not only on a roster event (_on_roster_changed already covers
+	# "a human joined/left"; this covers "the host changed the seat count").
 	_player_count_spin.value_changed.connect(func(_v: float) -> void: _clamp_ai_count_to_seats())
 	_ai_count_spin.value_changed.connect(_on_value_changed)
-	_block_timer_stepper.value_changed.connect(_on_stepper_changed)
-	_goal_flag_stepper.value_changed.connect(_on_stepper_changed)
-	_gravity_meter.value_changed.connect(_on_gravity_cells_changed)
-	_special_freq_meter.value_changed.connect(_on_frequency_cells_changed)
-	_match_timer_stepper.value_changed.connect(_on_timer_stepper_changed.bind(_match_timer_stepper))
-	_disc_size_meter.value_changed.connect(_on_disc_size_changed)
-	_gifts_check.toggled.connect(_on_toggled)
-	_experiments_check.toggled.connect(_on_toggled)
-	_sudden_death_check.toggled.connect(_on_toggled)
-	_sudden_death_seconds_stepper.value_changed.connect(_on_stepper_changed)
-	_turn_based_check.toggled.connect(_on_toggled)
-	_mid_join_check.toggled.connect(_on_toggled)
-	for qol_check: UiChipToggle in _qol_checks:
-		qol_check.toggled.connect(_on_toggled)
 
 
 ## UI button press/hover has no Events signal of its
@@ -1019,15 +628,6 @@ func _on_sound_button_hovered() -> void:
 ## game/main/Main.gd" rule intact while giving Main.gd something to connect to.
 func _apply_visual_style() -> void:
 	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	# Hierarchy: the card heading, then sections one section_gap apart,
-	# then rows one space-3 apart (_prepare_rows); everything else is the component's own look.
-	_settings_column.add_theme_constant_override("separation", arcade.section_gap_px)
-	# each section header carries its UiArtTable symbol.
-	var art: UiArtTable = UiArtTable.shared()
-	_game_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GAME))
-	_round_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_ROUND))
-	_gifts_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_GIFTS))
-	_experiments_section.set_header_icon(art.lobby_icon(UiArtTable.KEY_SECTION_EXPERIMENTS))
 	# The Ready toggle (a client's footer control) keeps its chip look until the footer migrates.
 	MenuStyleFactory.apply_toggle_chip(
 		_ready_check, tuning.pill_cream_color, tuning.pill_cream_hover_color,
@@ -1060,7 +660,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"lobby_quick_advanced"):
-		toggle_focused_advanced()
+		_card.toggle_focused_advanced()
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_pressed(&"lobby_add_bot"):
@@ -1109,67 +709,6 @@ func _run_start_shortcut() -> void:
 		_on_start_pressed()
 
 
-## Y on the pad: toggles the Advanced block of the section that holds focus, falling back to
-## the first section that has one (GAME). Collapsing a block that holds focus hands focus
-## to its chip, so the loop never loses its place (UiSection.set_advanced_open()).
-func toggle_focused_advanced() -> void:
-	var target: UiSection = null
-	for section: UiSection in _sections():
-		if section.has_advanced() and section.has_focus_inside():
-			target = section
-			break
-	if target == null:
-		for section: UiSection in _sections():
-			if section.has_advanced():
-				target = section
-				break
-	if target != null:
-		target.toggle_advanced()
-
-
-## The one-line summary on each section header, read straight off
-## the same controls _config_from_controls() reads (and the timer value labels). Called
-## from _apply_data(), i.e. after every lobby-data apply, so a host edit and a remote
-## update both refresh it.
-func _update_section_summaries() -> void:
-	_game_section.set_summary(SUMMARY_SEPARATOR.join([
-		_cycle_text(_game_mode_option), _disc_size_text(),
-		_cycle_text(_sky_theme_option), _cycle_text(_weather_option),
-	]))
-	var timer_stepper: UiStepper = _timer_stepper_for(_timer_mode)
-	var round_parts: Array[String] = [
-		_timer_value_text(timer_stepper.value),
-		SUMMARY_BLOCK_TIMER_FORMAT % _block_timer_seconds(),
-	]
-	if _goal_flag_col.visible:
-		var flags: int = _goal_flag_stepper.value
-		round_parts.append((SUMMARY_GOAL_FLAG_FORMAT if flags == 1 else SUMMARY_GOAL_FLAGS_FORMAT) % flags)
-	_round_section.set_summary(SUMMARY_SEPARATOR.join(round_parts))
-	if _gifts_check.button_pressed:
-		var gifts_summary: String = SUMMARY_GIFTS_ON_FORMAT % [SUMMARY_SEPARATOR, _special_frequency_value]
-		var enabled_gifts: int = 0
-		for box: UiChipToggle in _special_checkboxes:
-			if box.button_pressed:
-				enabled_gifts += 1
-		if enabled_gifts != _special_checkboxes.size():
-			gifts_summary += SUMMARY_SEPARATOR + SUMMARY_GIFT_COUNT_FORMAT % [enabled_gifts, _special_checkboxes.size()]
-		_gifts_section.set_summary(gifts_summary)
-	else:
-		_gifts_section.set_summary(SUMMARY_GIFTS_OFF)
-	var experiments_on: int = 0
-	for qol_check: UiChipToggle in _qol_checks:
-		if qol_check.button_pressed:
-			experiments_on += 1
-	if _experiments_check.button_pressed:
-		_experiments_section.set_summary(SUMMARY_EXPERIMENTS_FORMAT % experiments_on)
-	else:
-		_experiments_section.set_summary(SUMMARY_GIFTS_OFF)
-
-
-func _cycle_text(selector: UiCycler) -> String:
-	return selector.selected_text()
-
-
 ## shows the Options screen over the lobby (same build/free pattern as MainMenu).
 ## Lobby networking keeps running (this node keeps processing); focus outside the overlay is
 ## suspended so pad / arrows never reach the lobby, and returns to the Options button on close.
@@ -1207,153 +746,8 @@ func _on_option_changed(_index: int) -> void:
 	_on_setting_changed()
 
 
-## the disc-size meter moved; republish like any host edit.
-## DECISION: the meter lights step + 1 cells (Tiny = one cell), so an empty meter
-## is not a size: a click on its far left edge (0 cells) settles on the smallest size.
-func _on_disc_size_changed(cells: int) -> void:
-	if cells < 1:
-		_disc_size_meter.set_value_silent(1)
-	_on_setting_changed()
-
-
-## The disc-size step (0 .. DiscSizeTuning.step_count() - 1) the meter shows.
-func _disc_size_step() -> int:
-	return maxi(_disc_size_meter.value, 1) - 1
-
-
-## "Medium - 100%" for the current disc size; the Game section's summary entry.
-func _disc_size_text() -> String:
-	return DiscSizeTuning.shared().value_text(_disc_size_step())
-
-
-## The block timer in seconds for [param steps] stepper steps.
-static func _block_timer_seconds_for(steps: int) -> float:
-	return float(steps) * BLOCK_TIMER_STEP_S
-
-
-func _block_timer_seconds() -> float:
-	return _block_timer_seconds_for(_block_timer_stepper.value)
-
-
-func _on_stepper_changed(_value: int) -> void:
-	_on_setting_changed()
-
-
-## A player moved the gravity meter: each lit cell is GRAVITY_SNAP (0.1x), so cell n reads n * 0.1
-## and 1.0 is cell 10; an empty meter settles on MatchConfig.GRAVITY_MIN.
-func _on_gravity_cells_changed(cells: int) -> void:
-	_gravity_value = clampf(snappedf(float(cells) * GRAVITY_SNAP, GRAVITY_SNAP), MatchConfig.GRAVITY_MIN, MatchConfig.GRAVITY_MAX)
-	_on_setting_changed()
-
-
-func _on_frequency_cells_changed(cells: int) -> void:
-	var span: int = MatchConfig.SPECIAL_FREQUENCY_MAX - MatchConfig.SPECIAL_FREQUENCY_MIN
-	_special_frequency_value = MatchConfig.SPECIAL_FREQUENCY_MIN + roundi(float(span) * float(cells) / float(FREQUENCY_CELLS))
-	_on_setting_changed()
-
-
-## The cell a gravity multiplier / gift frequency lights (nearest), for values applied from lobby data.
-static func _gravity_cells_for(gravity: float) -> int:
-	return clampi(roundi(gravity / GRAVITY_SNAP), 0, GRAVITY_CELLS)
-
-
-static func _frequency_cells_for(frequency: int) -> int:
-	var span: int = MatchConfig.SPECIAL_FREQUENCY_MAX - MatchConfig.SPECIAL_FREQUENCY_MIN
-	return clampi(roundi(float(frequency - MatchConfig.SPECIAL_FREQUENCY_MIN) / float(span) * float(FREQUENCY_CELLS)), 0, FREQUENCY_CELLS)
-
-
 func _on_value_changed(_value: float) -> void:
 	_on_setting_changed()
-
-
-## A host picked a mode. The team-aggregation toggle exists only for Reach the Sky. Moving between timer families (classic
-## <-> timed, Elimination <-> CTF/Sky) resets the control to the new mode's
-## default; CTF <-> Reach the Sky keeps the chosen length.
-func _on_game_mode_picked(index: int) -> void:
-	var old_mode: int = _timer_mode
-	var new_mode: int = MatchConfig.resolve_game_mode(index)
-	_refresh_timer_control(new_mode)
-	if old_mode != new_mode and (old_mode == MatchConfig.GameMode.ELIMINATION or new_mode == MatchConfig.GameMode.ELIMINATION):
-		_hole_mode_option.select(MatchConfig.default_hole_mode(new_mode))
-		_on_setting_changed()
-	if not MatchConfig.same_timer_family(old_mode, new_mode):
-		_timer_stepper_for(new_mode).value = MatchConfig.timer_default_minutes(new_mode)
-
-
-func _timer_stepper_for(mode: int) -> UiStepper:
-	return _match_timer_stepper if MatchConfig.timer_is_match_timer(mode) else _round_timer_stepper
-
-
-## Shows the one timer control `mode` uses, with its label and minimum, and
-## hides the sudden-death toggle outside classic (the only mode that has it).
-func _refresh_timer_control(mode: int) -> void:
-	_timer_mode = mode
-	var classic: bool = MatchConfig.timer_is_match_timer(mode)
-	_match_timer_col.visible = classic
-	_sudden_death_col.visible = classic
-	_round_timer_col.visible = not classic
-	_goal_flag_col.visible = MatchConfig.mode_uses_goal_flags(mode)
-	var was_applying: bool = _applying_remote_data
-	_applying_remote_data = true
-	_round_timer_stepper.min_value = MatchConfig.timer_min_minutes(mode) if not classic else MatchConfig.ROUND_TIMER_MIN_MINUTES
-	# A stepper does not re-clamp its value when its minimum moves (a Range did).
-	_round_timer_stepper.value = maxi(_round_timer_stepper.value, _round_timer_stepper.min_value)
-	_applying_remote_data = was_applying
-	UiHelpLine.tag(_round_timer_col, ROUND_HELP_KEY_DOMINATION if mode == MatchConfig.GameMode.DOMINATION else String(_round_timer_col.name))
-	_rewire_focus()
-
-
-## DECISION: the timer stepper reads a bare number; the match timer's lowest stop stays the word "Off".
-static func _timer_stepper_text(minutes: int) -> String:
-	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
-		return TIMER_OFF_TEXT
-	return TIMER_STEPPER_FORMAT % minutes
-
-
-static func _timer_value_text(minutes: int) -> String:
-	if minutes <= MatchConfig.ROUND_TIMER_OFF_MINUTES:
-		return TIMER_OFF_TEXT
-	return TIMER_VALUE_FORMAT % minutes
-
-
-## Either timer stepper moved (host click or hold, gamepad left/right, or a programmatic
-## write). Host edits skip the 1-minute gap so the stops read Off, 2, 3 ... 30:
-## stepping up from Off lands on 2 and stepping down from 2 lands on Off. A value
-## applied from lobby data is shown as-is (the host's sanitize() already decided).
-func _on_timer_stepper_changed(value: int, stepper: UiStepper) -> void:
-	var minutes: int = value
-	var previous: int = _timer_previous_minutes.get(stepper, minutes)
-	var in_gap: bool = minutes > MatchConfig.ROUND_TIMER_OFF_MINUTES and minutes < MatchConfig.ROUND_TIMER_MIN_MINUTES
-	if in_gap and not _applying_remote_data:
-		minutes = MatchConfig.ROUND_TIMER_MIN_MINUTES if minutes > previous else MatchConfig.ROUND_TIMER_OFF_MINUTES
-		stepper.set_value_silent(minutes)
-	_timer_previous_minutes[stepper] = minutes
-	_on_setting_changed()
-
-
-func _refresh_sky_controls(_index: int = 0) -> void:
-	_refresh_timer_control(MatchConfig.resolve_game_mode(_game_mode_option.selected()))
-	_sky_team_col.visible = _game_mode_option.selected() == MatchConfig.GameMode.REACH_THE_SKY
-	_rewire_focus()
-
-
-func _on_toggled(_pressed: bool) -> void:
-	_refresh_master_toggles()
-	_on_setting_changed()
-
-
-## A master switch that is off governs its section: gifts off -> the Frequency row and the GIFTS
-## Advanced bar stay visible but greyed (dimmed, read-only, not focus stops: _visible_chain drops
-## them); experiments off -> the trials row is hidden. Turning it back on restores them (the Advanced
-## bar closed); the selections themselves are untouched. Runs on a local toggle and after a remote apply.
-func _refresh_master_toggles() -> void:
-	var gifts_on: bool = _gifts_check.button_pressed
-	_special_freq_group.modulate.a = 1.0 if gifts_on else MenuStyleFactory.arcade_tuning().disabled_alpha
-	_special_freq_meter.focus_mode = Control.FOCUS_ALL if gifts_on else Control.FOCUS_NONE
-	_gifts_section.set_advanced_enabled(gifts_on)
-	_update_host_only_state()
-	_experiments_group.visible = _experiments_check.button_pressed
-	_rewire_focus()
 
 
 ## The one place a host's edit turns into a publish
@@ -1385,37 +779,11 @@ func _publish_lobby_data(config: MatchConfig) -> void:
 
 
 func _config_from_controls() -> MatchConfig:
-	var config: MatchConfig = MatchConfig.new()
-	# there is one map; the disc size is the choice.
-	config.disc_size_step = _disc_size_step()
+	var config: MatchConfig = _card.config()
 	config.player_count = int(_player_count_spin.value)
 	config.ai_count = int(_ai_count_spin.value)
 	config.ai_difficulty = _ai_difficulty_option.selected()
 	config.team_mode = _team_mode_option.selected
-	config.block_timer = _block_timer_seconds()
-	config.gravity_multiplier = _gravity_value
-	config.goal_flag_count = _goal_flag_stepper.value
-	config.gifts_enabled = _gifts_check.button_pressed
-	config.experiments_enabled = _experiments_check.button_pressed
-	config.special_frequency = _special_frequency_value
-	config.tilt_mode = _tilt_mode_option.selected()
-	config.hole_mode = _hole_mode_option.selected()
-	config.weather_mode = _weather_option.selected() as MatchConfig.WeatherMode
-	config.sky_theme_mode = _sky_theme_option.selected() as MatchConfig.SkyThemeMode
-	config.match_timer_minutes = _match_timer_stepper.value
-	config.game_mode = MatchConfig.resolve_game_mode(_game_mode_option.selected())
-	config.round_timer_minutes = _round_timer_stepper.value
-	config.sky_team_sum = _sky_team_sum_check.button_pressed
-	config.sudden_death = _sudden_death_check.button_pressed
-	config.sudden_death_seconds = _sudden_death_seconds_stepper.value
-	config.turn_based = _turn_based_check.button_pressed
-	config.allow_mid_match_join = _mid_join_check.button_pressed
-	config.enabled_specials = _enabled_specials_from_checkboxes()
-	# DECISION (ui/lobby/Lobby.gd): always publish an explicit qol
-	# (never null) so the four checkboxes are the single source of the enable
-	# flags -- a toggle left on in the F4 panel cannot leak into a lobby match
-	# the host sees as "all off". Numeric parameters stay in the shared resource.
-	config.qol = _qol_from_controls()
 	config.bot_names = _reconciled_bot_names(config.ai_count)
 	return config
 
@@ -1439,35 +807,6 @@ func _reconciled_bot_names(bot_count: int) -> PackedStringArray:
 	return _bot_names.duplicate()
 
 
-## The five Experiments checkboxes folded onto a copy of the shared F4 resource
-## (QolExperiments.with_toggles() never modifies QOL_SHARED).
-func _qol_from_controls() -> QolExperiments:
-	var qol: QolExperiments = QolExperiments.with_toggles(
-		QOL_SHARED, _qol_timer_pause_check.button_pressed, _qol_backlog_check.button_pressed,
-		_qol_goal_radius_check.button_pressed, _qol_gift_slot_check.button_pressed,
-		_qol_gift_loads_next_check.button_pressed
-	)
-	return qol
-
-
-## MatchConfig.enabled_specials's own doc: "Empty means every special enabled
-## by default" -- so "every box checked" (the default state _build_specials_
-## checklist() starts every box in) must publish an empty array, not the full
-## id list, to keep matching that convention exactly (and so a match started
-## before any SpecialDef.tres existed, or before this package landed, still
-## reads identically). Only "every box unchecked" gets the special-cased
-## ALL_DISABLED_SENTINEL; anything in between is the literal checked-id list.
-func _enabled_specials_from_checkboxes() -> Array[StringName]:
-	var checked: Array[StringName] = []
-	for i: int in range(_special_checkboxes.size()):
-		if _special_checkboxes[i].button_pressed:
-			checked.append(_special_ids[i])
-	if checked.is_empty() and not _special_ids.is_empty():
-		return [ALL_DISABLED_SENTINEL]
-	if checked.size() == _special_ids.size():
-		return []
-	return checked
-
 
 ## Applies a Dictionary from Events.net_lobby_data_changed (or the initial
 ## default) to every control. Always goes through MatchConfig.from_dict() and
@@ -1481,55 +820,17 @@ func _apply_data(data: Dictionary) -> void:
 	_bot_names = config.bot_names.duplicate()
 
 	_applying_remote_data = true
-	_disc_size_meter.set_value_silent(config.disc_size_step + 1)
 	_refresh_map_thumbnail()
 	_player_count_spin.value = config.player_count
 	_ai_count_spin.value = config.ai_count
 	_ai_difficulty_option.select(config.ai_difficulty)
 	_team_mode_option.selected = config.team_mode
-	_block_timer_stepper.set_value_silent(roundi(config.block_timer / BLOCK_TIMER_STEP_S))
-	_gravity_value = config.gravity_multiplier
-	_gravity_meter.set_value_silent(_gravity_cells_for(_gravity_value))
-	_gravity_meter.queue_redraw()
-	_goal_flag_stepper.set_value_silent(config.goal_flag_count)
-	_toggle_silent(_gifts_check, config.gifts_enabled)
-	_toggle_silent(_experiments_check, config.experiments_enabled)
-	_special_frequency_value = config.special_frequency
-	_special_freq_meter.set_value_silent(_frequency_cells_for(_special_frequency_value))
-	_special_freq_meter.queue_redraw()
-	_tilt_mode_option.select(config.tilt_mode)
-	_hole_mode_option.select(config.hole_mode)
-	_weather_option.select(config.weather_mode)
-	_sky_theme_option.select(config.sky_theme_mode)
-	# the timer control's minimum follows the mode, so it is
-	# retargeted before either value is written (Elimination may hold 0).
-	_game_mode_option.select(config.game_mode)
-	_refresh_timer_control(config.game_mode)
-	_match_timer_stepper.value = config.match_timer_minutes
-	_round_timer_stepper.value = config.round_timer_minutes
-	_toggle_silent(_sky_team_sum_check, config.sky_team_sum)
-	_refresh_sky_controls()
-	_toggle_silent(_sudden_death_check, config.sudden_death)
-	_sudden_death_seconds_stepper.set_value_silent(config.sudden_death_seconds)
-	_toggle_silent(_turn_based_check, config.turn_based)
-	_toggle_silent(_mid_join_check, config.allow_mid_match_join)
-	_apply_enabled_specials_to_checkboxes(config.enabled_specials)
-	# a null qol (an older host, or config/match/match_defaults.tres)
-	# reads as every experiment off. Inside the guard, so a client mirrors the
-	# host without re-publishing.
-	var qol: QolExperiments = config.qol
-	_chip_silent(_qol_timer_pause_check, qol != null and qol.timer_pause_enabled)
-	_chip_silent(_qol_backlog_check, qol != null and qol.backlog_enabled)
-	_chip_silent(_qol_goal_radius_check, qol != null and qol.goal_radius_enabled)
-	_chip_silent(_qol_gift_slot_check, qol != null and qol.gift_slot_enabled)
-	_chip_silent(_qol_gift_loads_next_check, qol != null and qol.gift_loads_next)
 	_applying_remote_data = false
-	_refresh_master_toggles()
-	_update_section_summaries()
-	# Re-bound %AiCountSpin's max after every value assignment above (player_count and
-	# ai_count both just moved, possibly from a wire value that predates this clamp); see
-	# _clamp_ai_count_to_seats()'s header for why this can't live in
-	# _mirror_player_count_to_peers().
+	_card.apply(config)
+	_update_host_only_state()
+	# Re-bound %AiCountSpin's max after every value assignment above (player_count and ai_count both
+	# just moved, possibly from a wire value that predates this clamp); see
+	# _clamp_ai_count_to_seats()'s header for why this can't live in _mirror_player_count_to_peers().
 	_clamp_ai_count_to_seats()
 
 	# The panel gets the applied config, the dict's roster (null
@@ -1538,37 +839,6 @@ func _apply_data(data: Dictionary) -> void:
 	var seats_variant: Variant = data.get(SEATS_KEY, {})
 	var seats: Dictionary = seats_variant as Dictionary if seats_variant is Dictionary else {}
 	_players_panel.apply(config, data["roster"] if data.has("roster") else null, seats)
-
-
-## DECISION: a remote apply runs 3-4 times per lobby open and every
-## set_on_silent() rebuilds the chip's five block styleboxes (~1 ms each, ~20 chips), even when the
-## state is already right. Writing only a changed state keeps the view identical and skips that.
-func _chip_silent(chip: UiChipToggle, on: bool) -> void:
-	if chip.is_on() != on:
-		chip.set_on_silent(on)
-
-
-func _toggle_silent(toggle: UiToggle, on: bool) -> void:
-	if toggle.is_on() != on:
-		toggle.set_on_silent(on)
-
-
-## _apply_data()'s round trip for the specials checklist: empty -> every box
-## checked (MatchConfig.enabled_specials's own "empty = all enabled"
-## convention), the ALL_DISABLED_SENTINEL alone -> every box unchecked,
-## otherwise check exactly the ids named. Runs inside _apply_data()'s existing
-## _applying_remote_data guard, so toggling a box here doesn't loop back into
-## _on_toggled() -> _on_setting_changed() -> another publish.
-func _apply_enabled_specials_to_checkboxes(enabled: Array[StringName]) -> void:
-	var all_enabled: bool = enabled.is_empty()
-	var all_disabled: bool = enabled.has(ALL_DISABLED_SENTINEL)
-	for i: int in range(_special_checkboxes.size()):
-		if all_enabled:
-			_chip_silent(_special_checkboxes[i], true)
-		elif all_disabled:
-			_chip_silent(_special_checkboxes[i], false)
-		else:
-			_chip_silent(_special_checkboxes[i], enabled.has(_special_ids[i]))
 
 
 func _on_lobby_data_changed(data: Dictionary) -> void:
@@ -1791,12 +1061,11 @@ func _on_start_pressed() -> void:
 	var config: MatchConfig = (
 		_last_config if _last_config != null else _config_from_controls()
 	).duplicate(true) as MatchConfig
-	# DECISION (ui/lobby/Lobby.gd): the numeric experiment parameters
-	# in _last_config.qol were copied at the last publish; re-fold the toggles onto
-	# the shared resource now so an F4 edit made while the lobby was open takes
-	# effect. The start config always carries a non-null qol, so
-	# MatchLifecycle keeps the lobby's choice instead of snapshotting F4.
-	config.qol = _qol_from_controls()
+	# DECISION: the numeric experiment parameters in _last_config.qol were copied at the last
+	# publish; re-fold the toggles onto the shared resource now so an F4 edit made while the lobby
+	# was open takes effect. The start config always carries a non-null qol, so MatchLifecycle
+	# keeps the lobby's choice instead of snapshotting F4.
+	config.qol = _card.config().qol
 	# DECISION (ui/lobby/Lobby.gd): the authoritative peer-count
 	# clamp lives here rather than in autoload/Match.gd's start_match() (the
 	# spec/plan's stated preference) because Match.start_match() is also the
@@ -1847,11 +1116,8 @@ func _build_join_code_row() -> void:
 func _update_host_only_state() -> void:
 	var is_host: bool = net_provider != null and bool(net_provider.is_host())
 	for control: Control in _settings_controls:
-		var governed_on: bool = control != _special_freq_meter or _gifts_check.button_pressed
-		_set_control_editable(control, is_host and governed_on)
-	# The sudden-death length only exists while the toggle is on (host and non-host; non-hosts read it);
-	# _visible_chain drops it from the focus loop while hidden.
-	_sudden_death_seconds_stepper.visible = _sudden_death_check.button_pressed
+		_set_control_editable(control, is_host)
+	_card.set_editable(is_host)
 	_players_panel.set_editable(is_host)
 	# A start blocker (e.g. teams on and every
 	# seat on one team) disables Start and is shown under the rows (LobbyPlayersPanel); "" when
@@ -1888,18 +1154,10 @@ const BADGE_VS_BOTS: String = "Vs bots"
 ## Host edits, client reads: each component family has its own switch (only written when it changes,
 ## because _process() calls this every frame and a stepper / meter repaints on every write).
 func _set_control_editable(control: Control, editable: bool) -> void:
-	if control is UiStepper:
-		var stepper: UiStepper = control as UiStepper
-		if stepper.disabled == editable:
-			stepper.disabled = not editable
-	elif control is UiCycler:
+	if control is UiCycler:
 		var cycler: UiCycler = control as UiCycler
 		if cycler.disabled == editable:
 			cycler.disabled = not editable
-	elif control is UiSegmentMeter:
-		var meter: UiSegmentMeter = control as UiSegmentMeter
-		if meter.editable != editable:
-			meter.editable = editable
 	elif control is Range:
 		control.set("editable", editable)
 	elif control is BaseButton:

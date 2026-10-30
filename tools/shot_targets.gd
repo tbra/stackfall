@@ -542,13 +542,13 @@ static func _lobby(host: Node, main: Node, shot: Dictionary) -> String:
 	if lobby == null:
 		return "the lobby did not appear"
 	if bool(shot["advanced"]):
-		for section: UiSection in lobby.call("_sections"):
-			section.set_advanced_open(true)
+		for node: Node in lobby.find_children("*", "UiSection", true, false):
+			(node as UiSection).set_advanced_open(true)
 	if bool(shot["gifts_off"]):
-		(lobby.get_node("%GiftsCheck") as BaseButton).button_pressed = false
+		(lobby.find_child("GiftsCheck", true, false) as BaseButton).button_pressed = false
 	await settle(host, LONG_SETTLE_FRAMES)
 	if bool(shot["scroll"]):
-		var scroll: ScrollContainer = lobby.get_node("%SettingsScroll") as ScrollContainer
+		var scroll: ScrollContainer = lobby.find_child("SettingsScroll", true, false) as ScrollContainer
 		scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value)
 		await settle(host, LONG_SETTLE_FRAMES)
 	return ""
