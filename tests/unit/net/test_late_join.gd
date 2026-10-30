@@ -193,7 +193,10 @@ func test_the_joiners_world_matches_the_host_after_the_replay() -> void:
 	assert_eq(Match.request_place(1, _home(1), 0, Quaternion.IDENTITY, false, Match.feed_seq(1)), PlacementRules.REASON_OK)
 	for _i: int in range(30):
 		Match._process(1.0 / 60.0)
-	Match._territory.flush_pending()
+	var settle_ticks: int = 0
+	while Match.territory_share(0) <= 0.0 and settle_ticks < 120:
+		Match._process(1.0 / 60.0)
+		settle_ticks += 1
 	var blocks_before: Dictionary = _live_blocks()
 	assert_eq(blocks_before.size(), 2, "fixture placed two blocks")
 	var converted: Block = blocks_before[blocks_before.keys().min()] as Block
