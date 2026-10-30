@@ -1,14 +1,14 @@
 class_name PerfOverlay
 extends CanvasLayer
-## debug-only performance overlay. `perf_overlay_toggle` (F1,
-## gamepad Back + right-stick click) cycles HIDDEN -> BASIC -> DETAILED ->
-## HIDDEN. Reads game/debug/PerfSampler.gd only; local, never networked, and never
-## writes game state.
+## F1 performance panel, available in every build. `perf_overlay_toggle` (F1, gamepad Back + right-stick
+## click) cycles HIDDEN -> BASIC -> DETAILED -> HIDDEN. Reads game/debug/PerfSampler.gd only; local, never
+## networked, and never writes game state. Hidden, it asks the sampler for nothing (PerfSampler.set_wanted),
+## so a demand-driven sampler does no work.
 ##
-## BASIC: fps, frame/physics ms, block counter (live, awake, sleeping).
-## DETAILED: adds process ms, physics-step split (our probes), draw calls,
-## objects/primitives, memory, node/object counts, active bodies, network, and a
-## rolling frame/physics/blocks graph.
+## BASIC: fps, frame and physics ms, physics steps, effects nodes, block counter (live, awake, sleeping).
+## DETAILED: adds the six per-tick probes, draw calls, objects/primitives, memory, node/object counts, the
+## match state with the network role, and a rolling frame/physics/blocks graph. Network numbers are F3's.
+## Until the first stats window closes after opening, every value reads "-".
 
 enum Mode { HIDDEN, BASIC, DETAILED }
 
@@ -16,13 +16,16 @@ enum Mode { HIDDEN, BASIC, DETAILED }
 ## it into Main's compile closure (tools/lint_layers.py).
 const LAYOUT_SCRIPT_PATH: String = "res://ui/debug/DebugOverlayLayout.gd"
 
+## Names for the sampler's `net_mode` (Net.Mode order).
+const ROLE_NAMES: PackedStringArray = ["offline", "host", "client"]
+const PROBE_KEYS: PackedStringArray = ["territory", "weather", "gifts", "registry", "block_effects", "snapshot"]
+
 var sampler: PerfSampler = null
 var config: DebugConfig = null
 
 var _mode: Mode = Mode.HIDDEN
-var _panel: PanelContainer = null
-var _label: Label = null
-var _graph: _PerfGraph = null
+var _panel: UiDebugPanel = null
+var _graph: UiDebugGraph = null
 var _layout: GDScript = null
 
 
@@ -46,13 +49,9 @@ static func next_mode(current: Mode) -> Mode:
 func cycle_mode() -> void:
 	_mode = next_mode(_mode)
 	_apply_mode()
-	if sampler != null and not sampler.latest.is_empty():
-		_on_sampled(sampler.latest)
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not DebugMode.is_enabled():
-		return
 	if not event.is_action_pressed(&"perf_overlay_toggle"):
 		return
 	# tools/bootstrap_project.gd's DECISION: the pad half is right-stick click,
@@ -64,32 +63,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _build() -> void:
-	_panel = PanelContainer.new()
-	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = config.overlay_background_color()
-	# DECISION: padding and corner come from the arcade tokens; the background
-	# colour stays DebugConfig.overlay_background_color() (tunable debug resource).
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	style.set_content_margin_all(float(arcade.space_2_px))
-	style.set_corner_radius_all(arcade.radius_chip_px)
-	_panel.add_theme_stylebox_override(&"panel", style)
+	_panel = UiDebugPanel.new()
+	_panel.heading = "Performance"
+	_panel.toggle_action = &"perf_overlay_toggle"
+	_panel.modifier_action = &"camera_snap_home"
 	add_child(_panel)
+	_graph = UiDebugGraph.new()
+	_panel.content().add_child(_graph)
 	_place()
-	var box: VBoxContainer = VBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.add_child(box)
-	_label = Label.new()
-	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_label.add_theme_font_size_override(&"font_size", config.overlay_font_size)
-	_label.add_theme_color_override(&"font_color", config.overlay_text_color())
-	box.add_child(_label)
-	_graph = _PerfGraph.new()
-	_graph.config = config
-	_graph.sampler = sampler
-	_graph.custom_minimum_size = config.graph_size
-	_graph.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(_graph)
 
 
 ## Top band, right of the HUD's timer ring (ui/debug/DebugOverlayLayout.gd); follows the HUD scale.
@@ -103,90 +84,83 @@ func _process(_delta: float) -> void:
 
 
 func _apply_mode() -> void:
+	if sampler != null:
+		sampler.set_wanted(_mode != Mode.HIDDEN)
 	if _panel == null:
 		return
 	_panel.visible = _mode != Mode.HIDDEN
 	_graph.visible = _mode == Mode.DETAILED
+	if _mode != Mode.HIDDEN:
+		_show(sampler.latest if sampler != null else {})
 
 
 func _on_sampled(m: Dictionary) -> void:
-	if _mode == Mode.HIDDEN:
-		return
-	_label.text = format_metrics(m, _mode)
-	var warn: bool = float(m.get("frame_ms_max", 0.0)) >= config.warn_frame_ms
-	_label.add_theme_color_override(&"font_color", config.overlay_warn_color() if warn else config.overlay_text_color())
-	if _mode == Mode.DETAILED:
-		_graph.queue_redraw()
+	if _mode != Mode.HIDDEN:
+		_show(m)
 
 
-## Pure text builder (unit-tested).
-static func format_metrics(m: Dictionary, mode_value: Mode) -> String:
-	var lines: PackedStringArray = PackedStringArray()
-	var window: String = "%.0f s" % float(m.get("window_s", 0.0))
-	lines.append("%.0f fps   frame %.1f ms avg / %.1f worst (%s)" % [
-		float(m.get("fps", 0.0)), float(m.get("frame_ms", 0.0)), float(m.get("frame_ms_max", 0.0)), window])
-	lines.append("physics tick %.2f ms avg / %.2f worst (%s)" % [
-		float(m.get("physics_ms", 0.0)), float(m.get("physics_ms_max", 0.0)), window])
-	lines.append("physics steps/frame %d now / %d peak, %.0f%% frames >1 (max %d)" % [
-		int(m.get("steps_current", 0)), int(m.get("steps_peak", 0)),
-		float(m.get("steps_multi_pct", 0.0)), int(m.get("steps_max_setting", 0))])
-	lines.append("effects nodes %d now / %d peak" % [
-		int(m.get("effects_current", 0)), int(m.get("effects_peak", 0))])
-	lines.append("blocks %d  (awake %d / asleep %d)" % [
-		int(m.get("blocks_total", 0)), int(m.get("blocks_awake", 0)), int(m.get("blocks_sleeping", 0))])
-	if mode_value != Mode.DETAILED:
-		return "\n".join(lines)
-	lines.append("-- our ticks (mean / worst ms, load %)")
-	for key: String in ["territory", "weather", "gifts", "registry", "block_effects", "snapshot"]:
-		lines.append("  %-13s %.2f / %.2f  %.1f%%" % [
-			key, float(m.get("%s_ms" % key, 0.0)), float(m.get("%s_peak_ms" % key, 0.0)),
-			float(m.get("%s_load_pct" % key, 0.0))])
-	lines.append("draw calls %d   objs %d   prims %d" % [
-		int(m.get("draw_calls", 0)), int(m.get("objects_in_frame", 0)), int(m.get("primitives", 0))])
-	lines.append("vram %.0f MB   static mem %.0f MB" % [
-		float(m.get("vram_mb", 0.0)), float(m.get("static_mem_mb", 0.0))])
-	lines.append("nodes %d   objects %d   orphans %d" % [
-		int(m.get("node_count", 0)), int(m.get("object_count", 0)), int(m.get("orphan_nodes", 0))])
+func _show(m: Dictionary) -> void:
+	_panel.set_note(&"window", "avg and worst over a %.0f s window" % config.stats_window_s)
+	_panel.set_section(&"frame", "", rows(m, _mode, config.warn_frame_ms))
+	_panel.set_table(&"probes", "our ticks", PackedStringArray(["", "mean", "worst", "load"]), probe_rows(m, _mode))
+	if _mode == Mode.DETAILED and sampler != null:
+		_graph.set_series(2, sampler.history_blocks, config.graph_blocks_max, config.graph_blocks_color())
+		_graph.set_series(1, sampler.history_physics_ms, config.graph_physics_ms_max, config.graph_physics_color())
+		_graph.set_series(0, sampler.history_frame_ms, config.graph_frame_ms_max, config.graph_frame_color())
+
+
+## The name/value rows for `mode`; an empty `m` (no stats window closed yet) reads "-". The frame row is a
+## warn row when the worst frame of the window is at or above `warn_frame_ms`.
+static func rows(m: Dictionary, mode: Mode, warn_frame_ms: float) -> Array[DebugRow]:
+	var out: Array[DebugRow] = []
+	if mode == Mode.HIDDEN:
+		return out
+	out.append(DebugRow.pair("fps", _num(m, "fps", "%.0f")))
+	out.append(DebugRow.pair("frame ms avg / worst",
+		"%s / %s" % [_num(m, "frame_ms", "%.1f"), _num(m, "frame_ms_max", "%.1f")],
+		float(m.get("frame_ms_max", 0.0)) >= warn_frame_ms))
+	out.append(DebugRow.pair("physics tick ms avg / worst",
+		"%s / %s" % [_num(m, "physics_ms", "%.2f"), _num(m, "physics_ms_max", "%.2f")]))
+	out.append(DebugRow.pair("physics steps/frame now / peak",
+		"%s / %s" % [_num(m, "steps_current", "%d"), _num(m, "steps_peak", "%d")]))
+	out.append(DebugRow.pair("frames with >1 step (max %s)" % _num(m, "steps_max_setting", "%d"),
+		_num(m, "steps_multi_pct", "%.0f%%")))
+	out.append(DebugRow.pair("effects nodes now / peak",
+		"%s / %s" % [_num(m, "effects_current", "%d"), _num(m, "effects_peak", "%d")]))
+	out.append(DebugRow.pair("blocks", _num(m, "blocks_total", "%d")))
+	out.append(DebugRow.pair("blocks awake / asleep",
+		"%s / %s" % [_num(m, "blocks_awake", "%d"), _num(m, "blocks_sleeping", "%d")]))
+	if mode != Mode.DETAILED:
+		return out
+	out.append(DebugRow.pair("draw calls", _num(m, "draw_calls", "%d")))
+	out.append(DebugRow.pair("objects / primitives in frame",
+		"%s / %s" % [_num(m, "objects_in_frame", "%d"), _num(m, "primitives", "%d")]))
+	out.append(DebugRow.pair("vram / static mem MB",
+		"%s / %s" % [_num(m, "vram_mb", "%.0f"), _num(m, "static_mem_mb", "%.0f")]))
+	out.append(DebugRow.pair("nodes / objects / orphans", "%s / %s / %s" % [
+		_num(m, "node_count", "%d"), _num(m, "object_count", "%d"), _num(m, "orphan_nodes", "%d")]))
+	out.append(DebugRow.pair("match state", str(m.get("match_state", "-"))))
+	out.append(DebugRow.pair("players", _num(m, "players", "%d")))
 	var weather_id: String = str(m.get("weather_id", ""))
-	lines.append("%s   players %d   weather %s %.2f" % [
-		str(m.get("match_state", "?")), int(m.get("players", 0)),
-		weather_id if weather_id != "" else "-", float(m.get("weather_intensity", 0.0))])
-	if int(m.get("net_mode", 0)) != 0:
-		lines.append("net peers %d  ping %.0f ms  snapshots %.0f B/s" % [
-			int(m.get("net_peers", 0)), float(m.get("net_ping_ms", 0.0)),
-			float(m.get("net_snapshot_bps", 0.0))])
-	return "\n".join(lines)
+	out.append(DebugRow.pair("weather", "-" if m.is_empty() or weather_id == "" else
+		"%s %.2f" % [weather_id, float(m.get("weather_intensity", 0.0))]))
+	out.append(DebugRow.pair("network role", ROLE_NAMES[clampi(int(m.get("net_mode", 0)), 0, ROLE_NAMES.size() - 1)]
+		if m.has("net_mode") else "-"))
+	return out
 
 
-## Lightweight rolling graph: frame ms (green), physics ms (orange) and block
-## count (blue), each scaled to its own ceiling from DebugConfig.
-class _PerfGraph:
-	extends Control
+## The six per-tick probes (mean ms, worst ms, load %) in DETAILED; empty otherwise, which hides the table.
+static func probe_rows(m: Dictionary, mode: Mode) -> Array[DebugRow]:
+	var out: Array[DebugRow] = []
+	if mode != Mode.DETAILED:
+		return out
+	for key: String in PROBE_KEYS:
+		var row: DebugRow = DebugRow.new()
+		row.cells = PackedStringArray([key, _num(m, "%s_ms" % key, "%.2f"),
+			_num(m, "%s_peak_ms" % key, "%.2f"), _num(m, "%s_load_pct" % key, "%.1f%%")])
+		out.append(row)
+	return out
 
-	var config: DebugConfig = null
-	var sampler: PerfSampler = null
 
-	func _draw() -> void:
-		if sampler == null or config == null:
-			return
-		# DECISION: the graph well is the arcade disc-950 token at the soft-shadow alpha.
-		var well: Color = MenuStyleFactory.arcade_tuning().disc_950_color
-		draw_rect(Rect2(Vector2.ZERO, size), Color(well.r, well.g, well.b, MenuStyleFactory.arcade_tuning().panel_shadow_alpha))
-		var budget_y: float = size.y * (1.0 - clampf(config.graph_budget_ms / config.graph_frame_ms_max, 0.0, 1.0))
-		draw_line(Vector2(0.0, budget_y), Vector2(size.x, budget_y), config.graph_budget_color(), 1.0)
-		_plot(sampler.history_blocks, config.graph_blocks_max, config.graph_blocks_color())
-		_plot(sampler.history_physics_ms, config.graph_physics_ms_max, config.graph_physics_color())
-		_plot(sampler.history_frame_ms, config.graph_frame_ms_max, config.graph_frame_color())
-
-	func _plot(values: PackedFloat32Array, ceiling: float, color: Color) -> void:
-		var count: int = values.size()
-		if count < 2:
-			return
-		var capacity: int = maxi(int(ceilf(config.graph_window_s / config.graph_interval_s)), 2)
-		var step: float = size.x / float(capacity - 1)
-		var start_x: float = size.x - step * float(count - 1)
-		var points: PackedVector2Array = PackedVector2Array()
-		for i: int in range(count):
-			var y: float = size.y * (1.0 - clampf(values[i] / ceiling, 0.0, 1.0))
-			points.append(Vector2(start_x + step * float(i), y))
-		draw_polyline(points, color, 1.5)
+static func _num(m: Dictionary, key: String, format: String) -> String:
+	return format % m[key] if m.has(key) else "-"

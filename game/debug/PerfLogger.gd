@@ -12,7 +12,7 @@ const COLUMNS: PackedStringArray = [
 	"registry_ms", "block_effects_ms", "snapshot_ms", "blocks_total", "blocks_awake",
 	"blocks_sleeping", "draw_calls", "objects_in_frame",
 	"primitives", "vram_mb", "static_mem_mb", "node_count", "object_count", "orphan_nodes",
-	"weather_id", "weather_intensity", "net_peers", "net_ping_ms", "net_snapshot_bps",
+	"weather_id", "weather_intensity",
 	"steps_current", "steps_peak", "steps_multi_pct", "steps_max_setting", "effects_current", "effects_peak",
 ]
 
