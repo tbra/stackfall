@@ -11,7 +11,7 @@ const NO_TEAM: int = ModeObjective.NO_TEAM
 const PAD_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
 const PAD_PHYSICS: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
 ## Padding blocks ring the home at this fraction of the field radius, floating this many radii up.
-const PAD_RING_RADII: float = 0.25
+const PAD_RINGS_RADII: Array[float] = [0.25, 0.8]
 const PAD_HEIGHT_RADII: float = 2.0
 const PAD_BLOCKS: int = 6
 const HOLD_SLACK_S: float = 0.5
@@ -121,10 +121,11 @@ func _pad(team: int, count: int) -> void:
 	while Match.team_of(seat) != team:
 		seat += 1
 	var radius: float = Match.config.map_def().field_radius
-	for i: int in range(count):
-		var angle: float = TAU * float(i) / float(count)
-		var at: Vector2 = Match.slot(seat).home_position + Vector2.from_angle(angle) * PAD_RING_RADII * radius
-		_float_block(seat, at, radius)
+	for ring: float in PAD_RINGS_RADII:
+		for i: int in range(count):
+			var angle: float = TAU * float(i) / float(count)
+			var at: Vector2 = Match.slot(seat).home_position + Vector2.from_angle(angle) * ring * radius
+			_float_block(seat, at, radius)
 
 
 func _float_block(seat: int, at: Vector2, radius: float) -> void:
@@ -352,18 +353,11 @@ func _almost_captured(team: int) -> void:
 func test_a_capture_beats_the_share_rule_in_a_same_step_wipe_out() -> void:
 	_short_hold()
 	_start(2, MatchConfig.GameMode.CLASSIC, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
-	_pad(0, PAD_BLOCKS)
+	_pad(0, PAD_BLOCKS * 2)
 	await _almost_captured(1)
+	assert_gt(_share(0), _share(1), "fixture: the share rule would pick team 0")
 	await _open_homes([0, 1])
 	assert_eq(_won, [1] as Array[int], "the capturing team wins, not the larger share")
-
-
-func test_a_capture_wins_a_same_step_wipe_out_through_the_home_trigger() -> void:
-	_short_hold()
-	_start(2)
-	await _almost_captured(1)
-	await _open_homes([0, 1])
-	assert_eq(_won, [1] as Array[int])
 
 
 func test_the_team_left_standing_beats_a_capture_in_the_same_step() -> void:

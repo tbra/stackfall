@@ -130,7 +130,6 @@ func _lose_homes(slots: Array[int]) -> void:
 
 func test_all_goal_hold_does_not_win_in_elimination() -> void:
 	_start(2)
-	_tuning.capture_hold = 2.0
 	assert_eq((Match.circle_render_arrays()["goal_positions"] as Array).size(), 0, "Elimination has no goals to hold")
 	TerritoryStage.tick(30.0)
 	assert_eq(Match.state(), Match.State.PLAYING)
