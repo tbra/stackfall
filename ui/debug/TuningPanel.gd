@@ -590,8 +590,7 @@ func _lock_if_read_only(control: Control) -> void:
 		(control as BaseButton).disabled = true
 	elif control is HBoxContainer:
 		for child: Node in control.get_children():
-			if child is OptionButton:
-				(child as OptionButton).disabled = true
+			_lock_if_read_only(child as Control)
 
 
 func _has_full_access() -> bool:
@@ -1123,6 +1122,7 @@ func _build_physics_preset_row() -> Control:
 	option.item_selected.connect(func(index: int) -> void:
 		apply_physics_preset(String(PHYSICS_PRESETS[index]["id"]))
 	)
+	_lock_if_read_only(option)
 	row.add_child(_in_control_column(option))
 
 	return row
@@ -1298,6 +1298,7 @@ func _build_time_of_day_row() -> Control:
 	slider.custom_minimum_size = Vector2(TIME_OF_DAY_SLIDER_MIN_WIDTH, 0.0)
 	slider.tooltip_text = "Cycle phase: 0 dawn, 0.25 noon, 0.5 sunset, 0.75 midnight. Editable with Custom."
 	holder.add_child(slider)
+	_lock_if_read_only(holder)
 
 	var value_label: Label = Label.new()
 	value_label.name = "TimeOfDayValue"

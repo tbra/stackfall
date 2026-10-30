@@ -5,10 +5,6 @@ extends ModeObjective
 ## all the logic; winner(), capture ring and hold behave exactly as before.
 ## Untimed: the match timer keeps its sudden-death meaning.
 
-## Mode-state keys carrying the latched owner of goal i ("l0", "l1", ...), -1 = none.
-## Same format as BeaconTimerText.LATCH_KEY_PREFIX (the views' reader); reconcile at integration.
-const LATCH_KEY_PREFIX: String = "l"
-
 var _checker: WinChecker = null
 
 
@@ -99,7 +95,7 @@ func extra_state() -> Dictionary:
 		return state
 	state["sd"] = 1
 	for i: int in range(_checker.goal_positions().size()):
-		state[LATCH_KEY_PREFIX + str(i)] = _checker.latched_team(i)
+		state[BeaconTimerText.LATCH_KEY_PREFIX + str(i)] = _checker.latched_team(i)
 	return state
 
 
@@ -109,7 +105,7 @@ func apply_extra_state(data: Dictionary) -> void:
 		return
 	var teams: PackedInt32Array = PackedInt32Array()
 	for i: int in range(_checker.goal_positions().size()):
-		teams.append(int(data.get(LATCH_KEY_PREFIX + str(i), NO_TEAM)))
+		teams.append(int(data.get(BeaconTimerText.LATCH_KEY_PREFIX + str(i), NO_TEAM)))
 	_checker.set_latched(teams)
 
 

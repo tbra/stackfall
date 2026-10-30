@@ -6,6 +6,24 @@ extends GutTest
 const EDIT_PROBE_SLIDERS: int = 6
 const SETTLE_FRAMES: int = 2
 
+const CUSTOM_LOCKED_PHASE: float = 0.123
+
+
+## A Skybox with a running cycle locked at a custom phase, so the Sky tab's time-of-day row is live.
+class CyclingSky extends Skybox:
+	func _ready() -> void:
+		add_to_group(Skybox.TUNING_GROUP)
+
+	func is_cycle_active() -> bool:
+		return true
+
+	func locked_phase() -> float:
+		return CUSTOM_LOCKED_PHASE
+
+	func current_cycle_phase() -> float:
+		return CUSTOM_LOCKED_PHASE
+
+
 var _panel: TuningPanel = null
 var _snapshot: Array[Dictionary] = []
 
@@ -150,3 +168,57 @@ func test_client_opens_the_panel_but_cannot_change_a_value() -> void:
 	assert_true(_panel.visible, "a client can open F4 to read it")
 	await _try_editing_sliders()
 	assert_eq(_changed_count(), 0, "a client's edit leaves every resource value unchanged")
+
+
+func _is_edit_control(node: Node) -> bool:
+	return node is Slider or node is SpinBox or node is OptionButton or node is CheckBox or node is CheckButton or node is ColorPickerButton
+
+
+func _is_disabled(node: Node) -> bool:
+	if node is Slider:
+		return not (node as Slider).editable
+	if node is SpinBox:
+		return not (node as SpinBox).editable
+	return (node as BaseButton).disabled
+
+
+func _label_with_text(text: String) -> Label:
+	for node: Node in _panel.find_children("*", "Label", true, false):
+		if (node as Label).text == text:
+			return node as Label
+	return null
+
+
+func test_client_finds_every_edit_control_disabled_on_every_visible_tab() -> void:
+	add_child_autofree(CyclingSky.new())
+	_panel.net_provider = FakeNet.client(0)
+	await _open_with_f4()
+	var tabs: TabContainer = _panel.find_children("*", "TabContainer", true, false)[0] as TabContainer
+	var checked: int = 0
+	var sky_seen: bool = false
+	for index: int in tabs.get_tab_count():
+		if tabs.is_tab_hidden(index):
+			continue
+		tabs.current_tab = index
+		await wait_physics_frames(SETTLE_FRAMES)
+		for node: Node in tabs.get_tab_control(index).find_children("*", "Control", true, false):
+			if not _is_edit_control(node):
+				continue
+			checked += 1
+			sky_seen = sky_seen or node.name == &"TimeOfDaySlider"
+			assert_true(_is_disabled(node), "client: %s on tab %s is disabled" % [node.name, tabs.get_tab_title(index)])
+	assert_gt(checked, 0, "fixture: client-visible tabs have edit controls")
+	assert_true(sky_seen, "fixture: the Sky tab's time-of-day slider was checked")
+
+
+func test_client_copy_still_works() -> void:
+	_panel.net_provider = FakeNet.client(0)
+	await _open_with_f4()
+	var copy: Button = null
+	for node: Node in _panel.find_children("*", "Button", true, false):
+		if (node as Button).text == "Copy":
+			copy = node as Button
+	assert_not_null(copy, "fixture: the panel has a Copy button")
+	assert_false(copy.disabled, "Copy stays enabled for a client")
+	copy.pressed.emit()
+	assert_not_null(_label_with_text("Copied."), "Copy reaches the clipboard path and reports Copied.")
