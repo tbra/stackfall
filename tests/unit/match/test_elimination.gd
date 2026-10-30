@@ -3,6 +3,8 @@ extends GutTest
 ## wipe-out goes to the larger territory share, plus its replication and bot/claim behaviour.
 
 const MatchNetScript := preload("res://net/MatchNet.gd")
+const NET: NetConfig = preload("res://config/net/net_config.tres")
+const TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 
 var _tiny_map: MapDef
 var _field: Field
@@ -10,9 +12,16 @@ var _registry: BlockRegistry
 var _blocks_root: Node3D
 var _fake_net: FakeNet
 var _net: MatchNetScript
+var _tuning: TerritoryTuning = TUNING
+var _saved_hold: float
+
+
+func before_each() -> void:
+	_saved_hold = _tuning.capture_hold
 
 
 func after_each() -> void:
+	_tuning.capture_hold = _saved_hold
 	_net = null
 	Match._net_provider = null
 	Match.set_replicator(null)
@@ -113,60 +122,41 @@ func _start(players: int, teams: MatchConfig.TeamMode = MatchConfig.TeamMode.OFF
 	_tick(Match.COUNTDOWN_SECONDS + 0.1)
 
 
-## The cell under a slot's home flag: opening it is the existing hole trigger.
-func _home_cell(slot: int) -> int:
-	var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(slot).home_position)
-	return Match.cell_grid().cell_index(coords.x, coords.y)
-
-
-## in Elimination a home is knocked out only after the claim
-## time, so this opens the holes and lets the whole claim time pass in one step.
+## Takes the slots out through real play (a rival's blocks cover their homes); in Elimination the whole
+## claim time passes too.
 func _lose_homes(slots: Array[int]) -> void:
-	var opened: PackedInt32Array = PackedInt32Array()
-	for slot: int in slots:
-		opened.append(_home_cell(slot))
-	if Match._territory._objective is EliminationObjective:
-		_open_holes(slots)
-		Match._territory._tick_home_claims(Match._territory_tuning.capture_hold)
-		return
-	Match._territory._check_home_flags(opened)
-
-
-func _open_holes(slots: Array[int], permanent: bool = true) -> void:
-	var grid: CellGrid = Match.cell_grid()
-	for slot: int in slots:
-		var coords: Vector2i = grid.world_to_cell(Match.slot(slot).home_position)
-		Match._territory._raster.force_hole_cell(coords.x, coords.y, 1.0, permanent)
+	await TerritoryStage.lose_homes(slots, _blocks_root)
 
 
 func test_all_goal_hold_does_not_win_in_elimination() -> void:
 	_start(2)
-	assert_null(Match._territory._win_checker)
-	_tick(30.0)
+	assert_eq((Match.circle_render_arrays()["goal_positions"] as Array).size(), 0, "Elimination has no goals to hold")
+	TerritoryStage.tick(30.0)
 	assert_eq(Match.state(), Match.State.PLAYING)
+	assert_eq(Match.winner_team(), ModeObjective.NO_TEAM)
 
 
 func test_teams_match_ends_when_a_whole_team_is_gone() -> void:
 	_start(4, MatchConfig.TeamMode.TEAMS_2)
-	_lose_homes([0])
+	await _lose_homes([0])
 	assert_eq(Match.state(), Match.State.PLAYING, "slot 2 still holds team 0 up")
-	_lose_homes([2])
+	await _lose_homes([2])
 	assert_eq(Match.state(), Match.State.END)
-	assert_eq(Match._territory.winner_team(), 1)
+	assert_eq(Match.winner_team(), 1)
 
 
 func test_disconnect_grace_elimination_goes_through_the_objective() -> void:
 	_start(2)
-	Match._lifecycle._disconnect_grace_left[1] = 0.01
-	Match._lifecycle._tick_disconnect_grace(0.1)
+	Match.on_peer_left(1)
+	TerritoryStage.tick(NET.disconnect_grace + 0.1)
 	assert_false(Match.slot(1).home_flag_alive)
 	assert_eq(Match.state(), Match.State.END)
-	assert_eq(Match._territory.winner_team(), 0)
+	assert_eq(Match.winner_team(), 0)
 
 
 func test_reconnecting_keeps_the_eliminated_and_alive_state() -> void:
 	_start(3)
-	_lose_homes([1])
+	await _lose_homes([1])
 	Match._lifecycle.on_peer_rejoined(1)
 	Match._lifecycle.on_peer_rejoined(0)
 	assert_false(Match.slot(1).home_flag_alive, "a rejoin never revives an eliminated slot")
@@ -209,9 +199,8 @@ func test_client_mirrors_host_state_for_display_only() -> void:
 	var shown: Array[Dictionary] = []
 	Events.mode_state_changed.connect(func(s: Dictionary) -> void: shown.append(s))
 	node.net_match_event(MatchWireEvents.MODE_STATE, [wire])
-	var objective: ModeObjective = Match._territory._objective
-	assert_eq(objective.scores()[1], 0.0)
-	assert_eq(objective.winner(), ModeObjective.NO_TEAM)
+	assert_eq((Match.mode_state_snapshot()["scores"] as Array)[1], 0.0)
+	assert_eq(Match.winner_team(), ModeObjective.NO_TEAM)
 	assert_false(Match.slot(1).home_flag_alive)
 	assert_ne(Match.state(), Match.State.END)
 	assert_eq(HUD.mode_score_text(shown[0]), "1: alive  2: out  3: alive")
@@ -274,7 +263,7 @@ func test_eliminated_player_holds_nothing_and_cannot_drop() -> void:
 	_start(3)
 	assert_not_null(Match.held_shape(1))
 	assert_not_null(Match.next_shape(1))
-	_lose_homes([1])
+	await _lose_homes([1])
 	assert_null(Match.held_shape(1), "held block cleared")
 	assert_null(Match.next_shape(1), "next block cleared")
 	assert_eq(Match.eliminated_by(1), -1, "no single attacker for a hole: fallback text")

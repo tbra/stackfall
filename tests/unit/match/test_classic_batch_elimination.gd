@@ -8,7 +8,16 @@ extends "res://tests/unit/match/match_world_test.gd"
 const TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 const NET: NetConfig = preload("res://config/net/net_config.tres")
 const NO_TEAM: int = ModeObjective.NO_TEAM
+const PAD_SHAPE: BlockShape = preload("res://config/blocks/cube.tres")
+const PAD_PHYSICS: PhysicsTuning = preload("res://config/physics/physics_tuning.tres")
+## Padding blocks ring the home at this fraction of the field radius, floating this many radii up.
+const PAD_RINGS_RADII: Array[float] = [0.25, 0.8]
+const PAD_HEIGHT_RADII: float = 2.0
+const PAD_BLOCKS: int = 6
+const HOLD_SLACK_S: float = 0.5
 
+var _tuning: TerritoryTuning = TUNING
+var _saved_hold: float
 var _won: Array[int] = []
 var _events: Array[String] = []
 var _eliminated: Array[int] = []
@@ -17,6 +26,7 @@ var _results: Array[Dictionary] = []
 
 func before_each() -> void:
 	super.before_each()
+	_saved_hold = TUNING.capture_hold
 	_won.clear()
 	_events.clear()
 	_eliminated.clear()
@@ -27,6 +37,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.capture_hold = _saved_hold
 	Events.match_won.disconnect(_on_won)
 	Events.match_results_ready.disconnect(_on_results)
 	Events.player_eliminated.disconnect(_on_eliminated)
@@ -48,12 +59,13 @@ func _on_eliminated(slot_id: int, _team_id: int) -> void:
 
 
 func _start(players: int, mode: MatchConfig.GameMode = MatchConfig.GameMode.CLASSIC,
-		teams: MatchConfig.TeamMode = MatchConfig.TeamMode.OFF) -> void:
+		teams: MatchConfig.TeamMode = MatchConfig.TeamMode.OFF,
+		holes: MatchConfig.HoleMode = MatchConfig.HoleMode.TEMPORARY) -> void:
 	var config: MatchConfig = _tiny_map_config()
 	config.player_count = players
 	config.team_mode = teams
 	config.game_mode = mode
-	config.hole_mode = MatchConfig.HoleMode.TEMPORARY
+	config.hole_mode = holes
 	config.block_timer = 6.0
 	config.rng_seed = 4242
 	config.sudden_death = false
@@ -96,12 +108,32 @@ func _home_index(slot_id: int) -> int:
 	return Match.cell_grid().cell_index(coords.x, coords.y)
 
 
-## The real home-loss trigger of the hole modes: these home cells just opened.
+## The real home-loss trigger of the hole modes: rivals' blocks cover these homes until the contest
+## ages into a hole under each (Elimination: until the claim hold completes too).
 func _open_homes(ids: Array[int]) -> void:
-	var opened: PackedInt32Array = PackedInt32Array()
-	for slot_id: int in ids:
-		opened.append(_home_index(slot_id))
-	Match._territory._check_home_flags(opened)
+	await TerritoryStage.lose_homes(ids, _blocks_root)
+
+
+## `count` extra frozen blocks of `team`'s first seat floating around its home, so its territory
+## (and so its share once the homes are contested) is the larger one.
+func _pad(team: int, count: int) -> void:
+	var seat: int = 0
+	while Match.team_of(seat) != team:
+		seat += 1
+	var radius: float = Match.config.map_def().field_radius
+	for ring: float in PAD_RINGS_RADII:
+		for i: int in range(count):
+			var angle: float = TAU * float(i) / float(count)
+			var at: Vector2 = Match.slot(seat).home_position + Vector2.from_angle(angle) * ring * radius
+			_float_block(seat, at, radius)
+
+
+func _float_block(seat: int, at: Vector2, radius: float) -> void:
+	var block: Block = BlockFactory.build(PAD_SHAPE, PAD_PHYSICS, seat)
+	block.position = Match.field().to_global(Vector3(at.x, PAD_HEIGHT_RADII * radius, at.y))
+	_blocks_root.add_child(block)
+	block.freeze = true
+	Events.block_placed.emit(block, PAD_SHAPE.id)
 
 
 func _share(team: int) -> float:
@@ -143,18 +175,18 @@ func test_the_order_of_the_batch_does_not_pick_the_winner() -> void:
 func test_home_trigger_with_two_homes_opened_at_once_ends_with_the_larger_share() -> void:
 	# The real hole-mode trigger, for both directions of share.
 	_start(2)
-	_paint({0: 6.0})
-	assert_gt(_share(0), _share(1))
-	_open_homes([0, 1])
+	_pad(0, PAD_BLOCKS)
+	await _open_homes([0, 1])
+	assert_gt(_share(0), _share(1), "the staged contest left team 0 the larger share")
 	assert_eq(Match.state(), Match.State.END)
 	assert_eq(_won, [0] as Array[int], "never the slot-order winner (team 1)")
 
 
 func test_home_trigger_with_two_homes_opened_at_once_larger_share_second_team() -> void:
 	_start(2)
-	_paint({1: 6.0})
-	assert_gt(_share(1), _share(0))
-	_open_homes([0, 1])
+	_pad(1, PAD_BLOCKS)
+	await _open_homes([0, 1])
+	assert_gt(_share(1), _share(0), "the staged contest left team 1 the larger share")
 	assert_eq(_won, [1] as Array[int])
 
 
@@ -216,8 +248,7 @@ func test_every_slot_of_the_batch_is_announced_in_id_order() -> void:
 
 func test_home_trigger_announces_each_lost_slot_in_id_order() -> void:
 	_start(3)
-	_paint()
-	_open_homes([2, 0])
+	await _open_homes([2, 0])
 	assert_eq(_eliminated, [0, 2] as Array[int])
 
 
@@ -235,8 +266,8 @@ func test_a_surviving_team_wins_when_two_others_are_lost_together() -> void:
 
 func test_home_trigger_with_two_of_three_homes_lost_ends_with_the_third() -> void:
 	_start(3)
-	_paint({0: 6.0})
-	_open_homes([0, 1])
+	_pad(0, PAD_BLOCKS)
+	await _open_homes([0, 1])
 	assert_eq(_won, [2] as Array[int])
 
 
@@ -307,57 +338,41 @@ func test_teams_mode_a_team_goes_out_only_when_its_last_slot_does() -> void:
 
 # --- A capture latched in the same step as a wipe-out -------------------------------
 
-## A Classic-style objective that has already latched `team` as the capturer.
-class _Captured:
-	extends ModeObjective
-
-	func capture(team: int) -> void:
-		_declare_winner(team)
+## A capture hold of one and a half solve steps (set before the match starts: the objective takes it then).
+func _short_hold() -> void:
+	_tuning.capture_hold = 1.5 / TUNING.solve_hz
 
 
-func _latch_capture(team: int) -> void:
-	var objective: _Captured = _Captured.new()
-	objective.reset(Match.config.team_count())
-	objective.capture(team)
-	Match._territory._objective = objective
+## Team `team` holds every goal with all but one solve step of the hold done (needs _short_hold before
+## _start): the next solve step latches its capture, so a home lost in that step is judged with it.
+func _almost_captured(team: int) -> void:
+	await TerritoryStage.hold_goals(team, _blocks_root)
+	assert_eq(Match.state(), Match.State.PLAYING, "fixture: the hold has not completed yet")
 
 
 func test_a_capture_beats_the_share_rule_in_a_same_step_wipe_out() -> void:
-	_start(2)
-	_paint({0: 6.0})
-	assert_gt(_share(0), _share(1))
-	_latch_capture(1)
-
-	Match._lifecycle.eliminate_slots(_slots([0, 1]))
-
+	_short_hold()
+	_start(2, MatchConfig.GameMode.CLASSIC, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
+	_pad(0, PAD_BLOCKS * 2)
+	await _almost_captured(1)
+	assert_gt(_share(0), _share(1), "fixture: the share rule would pick team 0")
+	await _open_homes([0, 1])
 	assert_eq(_won, [1] as Array[int], "the capturing team wins, not the larger share")
 
 
-func test_a_capture_wins_a_same_step_wipe_out_through_the_home_trigger() -> void:
-	_start(2)
-	_paint({0: 6.0})
-	_latch_capture(1)
-	_open_homes([0, 1])
-	assert_eq(_won, [1] as Array[int])
-
-
 func test_the_team_left_standing_beats_a_capture_in_the_same_step() -> void:
-	_start(3)
-	_paint()
-	_latch_capture(0)
-
-	Match._lifecycle.eliminate_slots(_slots([0, 1]))
-
+	_short_hold()
+	_start(3, MatchConfig.GameMode.CLASSIC, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
+	await _almost_captured(0)
+	await _open_homes([0, 1])
 	assert_eq(_won, [2] as Array[int])
 
 
 func test_a_capture_with_teams_still_alive_wins_after_an_empty_batch() -> void:
-	_start(3)
-	_paint()
-	_latch_capture(1)
-
-	Match._lifecycle.eliminate_slots(_slots([2]))
-
+	_short_hold()
+	_start(3, MatchConfig.GameMode.CLASSIC, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
+	await _almost_captured(1)
+	await _open_homes([2])
 	assert_eq(_won, [1] as Array[int], "no team stands alone, so the capturing team wins")
 
 
@@ -451,22 +466,14 @@ func test_a_single_grace_expiry_in_a_two_player_match_hands_the_win_over() -> vo
 
 # --- Elimination mode keeps its own outcome ----------------------------------------
 
-func _open_home_holes(ids: Array[int]) -> void:
-	for slot_id: int in ids:
-		var coords: Vector2i = Match.cell_grid().world_to_cell(Match.slot(slot_id).home_position)
-		Match.raster().force_hole_cell(coords.x, coords.y, 1.0, true)
-
-
-## Both homes under a hole, then the whole claim time passes in one step.
 func _lose_homes_by_claim(ids: Array[int]) -> void:
-	_open_home_holes(ids)
-	Match._territory._tick_home_claims(TUNING.capture_hold)
+	await TerritoryStage.lose_homes(ids, _blocks_root)
 
 
 func test_elimination_two_claims_completing_together_end_with_the_larger_share() -> void:
 	_start(2, MatchConfig.GameMode.ELIMINATION)
-	_paint({1: 6.0})
-	_lose_homes_by_claim([0, 1])
+	_pad(1, PAD_BLOCKS)
+	await _lose_homes_by_claim([0, 1])
 
 	assert_eq(Match.state(), Match.State.END)
 	assert_eq(_won, [1] as Array[int])
@@ -475,9 +482,11 @@ func test_elimination_two_claims_completing_together_end_with_the_larger_share()
 
 
 func test_elimination_equal_shares_are_a_shared_win() -> void:
-	_start(2, MatchConfig.GameMode.ELIMINATION)
+	_start(2, MatchConfig.GameMode.ELIMINATION, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
+	TerritoryStage.tick_solve()
 	_paint_nothing()
-	_lose_homes_by_claim([0, 1])
+	assert_eq(_share(0), _share(1), "fixture: an exact tie")
+	TerritoryStage.tick(TUNING.capture_hold + HOLD_SLACK_S)
 
 	assert_eq(_won, [0] as Array[int], "the lowest team id is announced")
 	assert_eq(_results.size(), 1, "a results payload was built")
@@ -490,8 +499,7 @@ func test_elimination_equal_shares_are_a_shared_win() -> void:
 
 func test_elimination_third_team_alive_wins_over_two_lost_together() -> void:
 	_start(3, MatchConfig.GameMode.ELIMINATION)
-	_paint({0: 6.0})
-	_lose_homes_by_claim([0, 1])
+	await _lose_homes_by_claim([0, 1])
 
 	assert_eq(_won, [2] as Array[int])
 	assert_eq(_results.size(), 1, "a results payload was built")
@@ -502,16 +510,17 @@ func test_elimination_third_team_alive_wins_over_two_lost_together() -> void:
 
 
 func test_elimination_a_claim_short_of_the_hold_time_eliminates_nobody() -> void:
-	_start(2, MatchConfig.GameMode.ELIMINATION)
-	_paint()
-	_open_home_holes([0, 1])
-
-	Match._territory._tick_home_claims(TUNING.capture_hold * 0.5)
+	_start(2, MatchConfig.GameMode.ELIMINATION, MatchConfig.TeamMode.OFF, MatchConfig.HoleMode.OFF)
+	TerritoryStage.tick_solve()
+	_paint_nothing()
+	TerritoryStage.tick(TUNING.capture_hold * 0.5)
 
 	assert_true(Match.slot(0).home_flag_alive)
 	assert_true(Match.slot(1).home_flag_alive)
 	assert_eq(Match.state(), Match.State.PLAYING)
 	assert_true(_eliminated.is_empty())
+	TerritoryStage.tick(TUNING.capture_hold * 0.5 + HOLD_SLACK_S)
+	assert_eq(_eliminated, [0, 1] as Array[int], "fixture: the claim was running and completes with the rest of the hold")
 
 
 func test_elimination_batch_through_eliminate_slots_keeps_attackers() -> void:
