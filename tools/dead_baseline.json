@@ -513,11 +513,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "config/match/DebugConfig.gd:graph_budget_color",
-   "reason": "the F1 graph moved onto UiDebugGraph, which draws no budget line; P12-Ilint deletes the dead graph_* keys"
-  },
-  {
-   "id": "test-only-func",
    "entry": "config/weather/SnowTuning.gd:melt_cap_after",
    "reason": "SnowEffect.gd:288 (SnowEffect via effect_script)"
   },
@@ -701,12 +696,6 @@
    "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "ui/components/UiDebugPanel.gd:content",
-   "reason": "P12 debug kit extension point for the F4 shell, which P12-Itune builds on it and then removes this entry",
-   "consumer": "P12-Itune"
   },
   {
    "id": "test-only-func",
