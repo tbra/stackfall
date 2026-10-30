@@ -166,6 +166,10 @@ func _fill(id: StringName, title: String, headers: PackedStringArray, rows: Arra
 	part.title.text = title
 	part.box.visible = not rows.is_empty()
 	if rows.is_empty():
+		part.signature = ""
+		for stale: Node in part.grid.get_children():
+			part.grid.remove_child(stale)
+			stale.queue_free()
 		return
 	var signature: String = _signature(headers, rows)
 	if signature == part.signature:

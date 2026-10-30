@@ -470,19 +470,6 @@ func intents_sent(slot_id: int) -> int:
 	return counters.sent_count(slot_id)
 
 
-func intents_accepted(slot_id: int) -> int:
-	return counters.accepted_count(slot_id)
-
-
-func intents_refused(slot_id: int) -> int:
-	return counters.refused_count(slot_id)
-
-
-## Cursor updates from `slot_id`'s peer the host dropped as malformed.
-func cursors_refused(slot_id: int) -> int:
-	return counters.cursors_refused_count(slot_id)
-
-
 ## Drops every counter and cursor. Called when a match starts or ends.
 ## Kept here: it sequences the reset of several collaborators, so no single one owns it.
 func reset_counters() -> void:

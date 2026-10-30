@@ -156,7 +156,7 @@ func test_submit_place_on_the_host_reaches_match_in_the_same_frame() -> void:
 
 	assert_eq(reason, PlacementRules.REASON_OK)
 	assert_eq(_block_count(), before + 1, "The host's own click must spawn inline, with no round trip.")
-	assert_eq(net.intents_accepted(0), 1)
+	assert_eq(net.counters.accepted_count(0), 1)
 	assert_eq(net.intents_sent(0), 1)
 
 
@@ -173,7 +173,7 @@ func test_submit_place_on_a_client_sends_without_touching_match() -> void:
 	)
 
 	assert_eq(_block_count(), before, "A client must never spawn a block itself (spec 2.6).")
-	assert_eq(net.intents_accepted(1), 0, "Only the host accepts.")
+	assert_eq(net.counters.accepted_count(1), 0, "Only the host accepts.")
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK, "With no peer there is nowhere to send it.")
 	assert_eq(
 		net.intents_sent(1),
@@ -201,8 +201,8 @@ func test_a_locked_release_over_the_wire_is_refused_not_dropped() -> void:
 	var reason: StringName = net.submit_place(0, where, 0, Quaternion.IDENTITY, false, Match.feed_seq(0))
 
 	assert_eq(reason, PlacementRules.REASON_NO_BLOCK)
-	assert_eq(net.intents_accepted(0), 1)
-	assert_eq(net.intents_refused(0), 1)
+	assert_eq(net.counters.accepted_count(0), 1)
+	assert_eq(net.counters.refused_count(0), 1)
 	assert_eq(net.intents_sent(0), 2)
 	assert_eq(_block_count(), 1)
 
@@ -742,12 +742,12 @@ func test_counter_forwarders_read_the_one_netcounters_object() -> void:
 	net.counters.count_auto_drop(0)
 	net.counters.count_cursor_refused(1)
 	assert_eq(net.intents_sent(1), 2)
-	assert_eq(net.intents_accepted(1), 1)
-	assert_eq(net.intents_refused(1), 1)
-	assert_eq(net.cursors_refused(1), 1)
+	assert_eq(net.counters.accepted_count(1), 1)
+	assert_eq(net.counters.refused_count(1), 1)
+	assert_eq(net.counters.cursors_refused_count(1), 1)
 	net.reset_counters()
 	assert_eq(net.intents_sent(1), 0, "reset_counters() drops the per-match counters")
-	assert_eq(net.cursors_refused(1), 0)
+	assert_eq(net.counters.cursors_refused_count(1), 0)
 
 
 func test_rebinding_the_session_port_changes_who_the_facade_acts_as() -> void:

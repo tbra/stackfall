@@ -44,8 +44,8 @@ extends CanvasLayer
 ## Toggled by the tuning_panel_toggle Input Map action (F4; gamepad pause_menu[Start] + X). While
 ## open: the mouse is released and gameplay input is suppressed (PlayerController.input_enabled).
 ##
-## Availability: open offline (sandbox or tutorial) and by the host in a networked match; a client
-## only sees the client-visible tabs. Net.is_host() is already true offline, so it is the one
+## Availability: open in every build. Offline and the host edit; an online client reads the
+## client-visible tabs with every edit row, Save and Reset disabled (Copy stays). Net.is_host() is already true offline, so it is the one
 ## predicate to gate on. Editing Physics/Territory/Feed on a client would be inert anyway (a
 ## client's bodies are frozen and moved by net/SnapshotSync.gd), not just hidden for tidiness.
 
@@ -64,7 +64,7 @@ const VALUE_WIDTH: float = 110.0
 ## viewport 1280x720 or wider), inset by DOCK_MARGIN_PX.
 const DOCK_HEIGHT_FRACTION: float = 0.42
 const DOCK_MARGIN_PX: float = 8.0
-const DOCK_PLATE_ALPHA: float = 0.9
+const HEADING: String = "Tuning panel"
 const DOCK_THEME: Theme = preload("res://ui/theme/stackfall_theme.tres")
 
 ## The selected-tab memory shares SAVE_PATH with every tuning resource's own override section (one
@@ -204,6 +204,8 @@ static var _fold_open: Dictionary = {}
 
 var _tab_container: TabContainer = null
 var _status_label: Label = null
+var _reset_button: Button = null
+var _save_button: Button = null
 
 ## The last tab index the owner picked, restored onto _tab_container every rebuild() (which
 ## replaces every tab page and would reset current_tab to 0) and persisted into SAVE_PATH's own
@@ -271,9 +273,6 @@ func set_field(field: Field) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed(&"tuning_panel_toggle"):
-		return
-	# the F4 panel is debug-only (game/debug/DebugMode.gd).
-	if not DebugMode.is_enabled():
 		return
 	# The gamepad half of this action is bound to X alone, which is also hover_lower, so a joypad
 	# press only counts as the toggle while pause_menu (Start) is also held (the Start+X chord). A
@@ -353,11 +352,14 @@ func _save_selected_tab_index() -> void:
 # --- Tab construction (reflection) -------------------------------------------
 
 func _build_ui() -> void:
-	var panel: PanelContainer = PanelContainer.new()
+	var panel: UiDebugPanel = UiDebugPanel.new()
 	panel.name = "Panel"
-	# A docked bottom plate (disc-900 plate, theme fonts) rather than a near-fullscreen sheet, so the
-	# arena above it stays visible while a value is dragged. The tab pages scroll inside the
-	# remaining height.
+	panel.heading = HEADING
+	panel.toggle_action = &"tuning_panel_toggle"
+	panel.modifier_action = &"pause_menu"
+	# A docked bottom plate (the debug kit's glass plate, theme fonts) rather than a near-fullscreen
+	# sheet, so the arena above it stays visible while a value is dragged. The tab pages scroll inside
+	# the remaining height.
 	panel.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	panel.anchor_top = 1.0 - DOCK_HEIGHT_FRACTION
 	panel.offset_left = DOCK_MARGIN_PX
@@ -365,24 +367,15 @@ func _build_ui() -> void:
 	panel.offset_right = -DOCK_MARGIN_PX
 	panel.offset_bottom = -DOCK_MARGIN_PX
 	panel.theme = DOCK_THEME
-	var arcade: ArcadeVisualTuning = MenuStyleFactory.arcade_tuning()
-	var backing: StyleBoxFlat = MenuStyleFactory.make_plate(Color(arcade.disc_900_color, DOCK_PLATE_ALPHA))
-	backing.set_corner_radius_all(arcade.radius_block_px)
-	backing.shadow_size = 0
-	backing.content_margin_left = float(arcade.space_4_px)
-	backing.content_margin_right = float(arcade.space_4_px)
-	backing.content_margin_top = float(arcade.space_1_px)
-	backing.content_margin_bottom = float(arcade.space_1_px)
-	panel.add_theme_stylebox_override("panel", backing)
+	# The kit plate ignores the mouse so a readout never eats clicks; this one holds controls.
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(panel)
 
 	var layout: VBoxContainer = VBoxContainer.new()
+	layout.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	layout.add_theme_constant_override("separation", 6)
-	panel.add_child(layout)
-
-	var title: Label = Label.new()
-	title.text = "Tuning panel (F4 / gamepad Start+X)"
-	layout.add_child(title)
+	panel.content().add_child(layout)
+	panel.content().size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	_tab_container = TabContainer.new()
 	_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -396,15 +389,15 @@ func _build_ui() -> void:
 	button_row.add_theme_constant_override("separation", 8)
 	layout.add_child(button_row)
 
-	var reset_button: Button = Button.new()
-	reset_button.text = "Reset"
-	reset_button.pressed.connect(_on_reset_pressed)
-	button_row.add_child(reset_button)
+	_reset_button = Button.new()
+	_reset_button.text = "Reset"
+	_reset_button.pressed.connect(_on_reset_pressed)
+	button_row.add_child(_reset_button)
 
-	var save_button: Button = Button.new()
-	save_button.text = "Save override"
-	save_button.pressed.connect(_on_save_pressed)
-	button_row.add_child(save_button)
+	_save_button = Button.new()
+	_save_button.text = "Save override"
+	_save_button.pressed.connect(_on_save_pressed)
+	button_row.add_child(_save_button)
 
 	var copy_button: Button = Button.new()
 	copy_button.text = "Copy"
@@ -433,6 +426,8 @@ func _free_ui() -> void:
 		panel.queue_free()
 	_tab_container = null
 	_status_label = null
+	_reset_button = null
+	_save_button = null
 	_rows.clear()
 	_pending_tabs.clear()
 
@@ -458,6 +453,7 @@ func rebuild() -> void:
 		_add_tab(String(entry["name"]), entry["resources"] as Array)
 
 	_apply_availability()
+	_apply_read_only()
 
 	# rebuild() just replaced every tab page (a fresh TabContainer would land on tab 0): restore the
 	# owner's last tab, clamped in case a stale saved index no longer fits (e.g. a client's
@@ -570,6 +566,32 @@ func _apply_availability() -> void:
 	var first_hidden: int = CLIENT_HIDDEN_TAB_FIRST + (1 if _field != null and arena_side_style != null else 0)
 	for index: int in range(first_hidden, _tab_container.get_tab_count()):
 		_tab_container.set_tab_hidden(index, not full_access)
+
+
+## DECISION: an online client reads the panel but cannot edit it (edits to the host's simulation
+## would be inert, and the look tabs are local-only dev tuning); Copy stays. Evaluated on every
+## rebuild() and when a tab page's rows are built.
+func _apply_read_only() -> void:
+	var editable: bool = _has_full_access()
+	for button: Button in [_reset_button, _save_button]:
+		if button != null:
+			button.disabled = not editable
+
+
+## Disables the edit control of a row built while the session is an online client.
+func _lock_if_read_only(control: Control) -> void:
+	if _has_full_access():
+		return
+	if control is Slider:
+		(control as Slider).editable = false
+	elif control is SpinBox:
+		(control as SpinBox).editable = false
+	elif control is BaseButton:
+		(control as BaseButton).disabled = true
+	elif control is HBoxContainer:
+		for child: Node in control.get_children():
+			if child is OptionButton:
+				(child as OptionButton).disabled = true
 
 
 func _has_full_access() -> bool:
@@ -977,6 +999,7 @@ func _build_color_row(resource: Resource, prop_name: String, class_label: String
 
 
 func _register_row(frame: Dictionary, resource: Resource, prop_name: String, control: Control, default_value: Variant, type: int, unit: String, decimals: int) -> void:
+	_lock_if_read_only(control)
 	_rows.append({
 		"resource": resource, "property": prop_name, "control": control,
 		"name_label": frame["name_label"], "default_label": frame["default_label"],

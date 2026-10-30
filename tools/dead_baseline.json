@@ -115,24 +115,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/net/NetRateMeter.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires NetStatsLive, its only reader; P12-Inetui removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/NetStats.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "core/net/NetStatsSource.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
    "entry": "core/rules/LobbySeatBudget.gd",
    "reason": "unwired stub; the Lobby seat budget wiring package consumes it",
    "consumer": "P9-Ibudget"
@@ -157,12 +139,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "net/NetStatsLive.gd",
-   "reason": "P12-Snet interface stub (docs/plans/P12_PLAN.md R1.3 (2)): unwired until P12-Inetui wires it; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/components/ComponentGallery.gd",
    "reason": "designer gallery; ComponentGallery.tscn ext_resource (designer tool)"
   },
@@ -170,24 +146,6 @@
    "id": "dead-file",
    "entry": "ui/components/ComponentGallery.tscn",
    "reason": "designer gallery scene (stackfall-designer tool)"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/DebugRow.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugGraph.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Ipb"
-  },
-  {
-   "id": "dead-file",
-   "entry": "ui/components/UiDebugPanel.gd",
-   "reason": "P12 debug kit stub, callerless until its consumer wires it; the consumer removes this row",
-   "consumer": "P12-Iperf"
   },
   {
    "id": "dead-file",
@@ -247,24 +205,6 @@
    "id": "test-only-func",
    "entry": "autoload/Match.gd:bot_mode_goal",
    "reason": "live: game/bots/BotController.gd:938 (untyped or dynamic call)"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:peer_rtt_jitter_ms",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:simulated_lag_ms",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "autoload/Net.gd:simulated_loss",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
   },
   {
    "id": "test-only-func",
@@ -688,12 +628,6 @@
   },
   {
    "id": "test-only-func",
-   "entry": "game/debug/PerfSampler.gd:set_wanted",
-   "reason": "P12-Sdbg2 interface stub (docs/plans/P12_PLAN.md 2.3): no caller until P12-Iperf wires it; that package removes this entry",
-   "consumer": "P12-Iperf"
-  },
-  {
-   "id": "test-only-func",
    "entry": "game/gifts/specials/BombEffect.gd:effect_radius_m",
    "reason": "P6-Iquake override (docs/plans/P6_PLAN.md): callerless until P11-Ibotswap replaces the BotController radius scan; that bead removes this entry",
    "consumer": "P11-Ibotswap"
@@ -760,56 +694,8 @@
   },
   {
    "id": "test-only-func",
-   "entry": "net/Interpolator.gd:jitter_ms",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
    "entry": "net/MatchEventApplier.gd:bind",
    "reason": "net/MatchNet.gd _bind_applier calls it by name on the untyped applier node"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:arrival_jitter_ms",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:dropped_unknown",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:last_snapshot_bodies",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:last_snapshot_bytes",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:last_snapshot_fragments",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/SnapshotSync.gd:snapshots_total",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
-  },
-  {
-   "id": "test-only-func",
-   "entry": "net/session/NetPing.gd:jitter_ms",
-   "reason": "P12-Inet getter read by NetStatsLive, which no game code instantiates until P12-Inetui; that package removes this entry",
-   "consumer": "P12-Inetui"
   },
   {
    "id": "test-only-func",
@@ -835,12 +721,6 @@
    "id": "test-only-func",
    "entry": "ui/theme/UiScale.gd:make_viewport",
    "reason": "AgentProbe.gd:168 (AgentProbe.make_viewport via tools/shot.gd:86)"
-  },
-  {
-   "id": "test-only-var",
-   "entry": "game/debug/PerfSampler.gd:demand_driven",
-   "reason": "P12-Sdbg2 interface stub (docs/plans/P12_PLAN.md 2.3): read only once P12-Iperf lands; that package removes this entry",
-   "consumer": "P12-Iperf"
   }
  ]
 }

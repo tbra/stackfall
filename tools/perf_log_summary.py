@@ -25,7 +25,7 @@ METRICS = [
     "block_effects_ms", "snapshot_ms",
     "blocks_total", "blocks_awake",
     "draw_calls", "primitives", "vram_mb", "static_mem_mb",
-    "node_count", "object_count", "orphan_nodes", "net_ping_ms", "net_snapshot_bps",
+    "node_count", "object_count", "orphan_nodes",
     "steps_peak", "steps_multi_pct", "effects_current", "effects_peak",
 ]
 # Metrics whose growth over the session suggests a leak.
