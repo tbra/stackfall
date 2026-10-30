@@ -1,7 +1,7 @@
 extends GutTest
 ## F1 performance overlay and its demand-driven PerfSampler, through what a caller sees: the Labels the overlay
 ## shows for a canned metrics snapshot, the F1 key and pad chord, and the sampler's `sampled` signal.
-## Never a child index, alignment or tint. The row warn flag lives on DebugRow data and has no public reader yet.
+## Never a child index, alignment or tint. The frame warn flag is read from the public PerfOverlay.rows builder.
 
 const WINDOW_S: float = 0.1
 const STEP_WAIT_S: float = 0.5
@@ -297,3 +297,50 @@ func test_logger_columns_drop_the_net_keys() -> void:
 	for dropped: String in ["net_peers", "net_ping_ms", "net_snapshot_bps"]:
 		assert_false(PerfLogger.COLUMNS.has(dropped), "%s column" % dropped)
 	assert_true(PerfLogger.COLUMNS.has("fps"))
+
+
+# --- rows builder: frame warn rule ----------------------------------------------
+
+const WARN_MS: float = 40.0
+
+
+func _any_warn(rows: Array[DebugRow]) -> bool:
+	for row: DebugRow in rows:
+		if row.warn:
+			return true
+	return false
+
+
+func test_rows_hidden_is_empty() -> void:
+	assert_eq(PerfOverlay.rows(_canned(), PerfOverlay.Mode.HIDDEN, WARN_MS).size(), 0)
+
+
+func test_rows_empty_metrics_read_dash_and_do_not_warn() -> void:
+	for mode: PerfOverlay.Mode in [PerfOverlay.Mode.BASIC, PerfOverlay.Mode.DETAILED]:
+		var rows: Array[DebugRow] = PerfOverlay.rows({}, mode, WARN_MS)
+		assert_gt(rows.size(), 0)
+		for row: DebugRow in rows:
+			assert_true(row.cells[1].contains("-"), "%s reads -" % row.cells[0])
+		assert_false(_any_warn(rows), "no reading, no warning")
+
+
+func test_rows_below_threshold_has_no_warn_row() -> void:
+	var rows: Array[DebugRow] = PerfOverlay.rows(_canned({"frame_ms_max": WARN_MS - 0.5}), PerfOverlay.Mode.BASIC, WARN_MS)
+	assert_false(_any_warn(rows))
+
+
+func test_rows_exactly_at_threshold_warns() -> void:
+	var rows: Array[DebugRow] = PerfOverlay.rows(_canned({"frame_ms_max": WARN_MS}), PerfOverlay.Mode.BASIC, WARN_MS)
+	assert_true(_any_warn(rows))
+
+
+func test_rows_above_threshold_warns_in_both_modes() -> void:
+	for mode: PerfOverlay.Mode in [PerfOverlay.Mode.BASIC, PerfOverlay.Mode.DETAILED]:
+		var rows: Array[DebugRow] = PerfOverlay.rows(_canned({"frame_ms_max": WARN_MS + 10.0}), mode, WARN_MS)
+		assert_true(_any_warn(rows))
+
+
+func test_rows_warn_follows_the_threshold_argument() -> void:
+	var m: Dictionary = _canned({"frame_ms_max": 30.0})
+	assert_false(_any_warn(PerfOverlay.rows(m, PerfOverlay.Mode.BASIC, 31.0)))
+	assert_true(_any_warn(PerfOverlay.rows(m, PerfOverlay.Mode.BASIC, 29.0)))

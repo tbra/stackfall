@@ -1,12 +1,12 @@
 class_name PerfProbe
 extends RefCounted
-## Additive microsecond probes for the F1 detailed overlay and the perf CSV. Wrap an existing call:
+## Additive microsecond probes for the F1 detailed panel and the perf CSV. Wrap an existing call:
 ##   var t: int = PerfProbe.start()
 ##   thing.tick(delta)
 ##   PerfProbe.stop(&"weather", t)
-## start() returns 0 (and stop() returns immediately) unless debug mode
-## enabled probing (DebugMode), so the cost for players is one static read and
-## one integer compare per site. game/debug/PerfSampler.gd drains the totals.
+## start() returns 0 (and stop() returns immediately) unless a sampler wanted
+## probing (PerfSampler.set_wanted, or the debug-session sampler), so a hidden
+## F1 costs one static read and one integer compare per site. game/debug/PerfSampler.gd drains the totals.
 
 static var enabled: bool = false
 
