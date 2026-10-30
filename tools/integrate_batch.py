@@ -57,6 +57,9 @@ The same check flags an added *.gd/*.gdshader/*.gdshaderinc without its sibling 
 Main moved during the gate: if the delta since the gated base touches ONLY docs/** or
 *.md files and none the batch changed, it is merged into the gated result (one line names the
 absorbed commits) and the ff proceeds without re-gating; any other delta fails step ff as before.
+Watchers (a status pane) read <log-dir>/status.json, replaced whole on each change: pid, branches,
+beads, mode, the step whose log is being written now, the compact lines printed so far, the temp
+worktree, and at the end state ok|failed|crashed with the failed step and its detail.
 """
 
 import argparse
@@ -68,6 +71,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import probe_lint  # noqa: E402
@@ -86,6 +90,8 @@ MAX_ISSUE_LINES = 8
 VERDICT_RE = re.compile(r"^FULL GATE (GREEN|RED|ERROR)\b", re.M)
 ISSUE_RE = re.compile(r"(ERROR|WARNING|Parse Error)", re.I)
 OUT_PATH_RE = re.compile(r"; out=(\S+)(?:\s|$)")
+STATUS_FILE = "status.json"
+STATUS_MAX_LINES = 200
 
 
 class StepFailed(Exception):
@@ -95,13 +101,54 @@ class StepFailed(Exception):
         self.detail = detail
 
 
+class Status:
+    """The batch as one JSON file in its log dir for watchers. Writing never fails the batch."""
+
+    def __init__(self, log_dir, args, now=time.time):
+        self.path = os.path.join(log_dir, STATUS_FILE)
+        self.now = now
+        mode = ("merge-only" if getattr(args, "merge_only", False) else "dry-run" if args.dry_run
+                else "no-push" if args.no_push else "full")
+        self.data = {"schema": 1, "pid": os.getpid(), "started": now(), "updated": now(), "log_dir": log_dir,
+                     "branches": list(args.branches), "beads": list(args.beads), "mode": mode,
+                     "game_code": bool(args.game_code), "state": "running", "step": "", "lines": [],
+                     "worktree": ""}
+        self.write()
+
+    def step(self, name):
+        self.data["step"] = name
+        self.write()
+
+    def line(self, text):
+        self.data["lines"] = (self.data["lines"] + [text])[-STATUS_MAX_LINES:]
+        self.write()
+
+    def end(self, state, res, **fields):
+        self.data.update(fields, state=state, worktree=res.get("worktree") or "",
+                         result=res.get("result") or "", verdict=res.get("verdict") or "")
+        self.write()
+
+    def write(self):
+        self.data["updated"] = self.now()
+        tmp = self.path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(self.data, fh)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+
 class Ctx:
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, status=None):
         self.log_dir = log_dir
         self.n = 0
+        self.status = status
 
     def log_path(self, name):
         self.n += 1
+        if self.status:
+            self.status.step(name)
         return os.path.join(self.log_dir, "%02d_%s.log" % (self.n, name))
 
 
@@ -875,15 +922,18 @@ def main(argv):
     log_dir = args.log_dir or os.path.join(repo_paths.scratch_root(), "_orchestrator", "integrate",
                                            datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f"))
     os.makedirs(log_dir, exist_ok=True)
-    ctx = Ctx(log_dir)
+    status = Status(log_dir, args)
+    ctx = Ctx(log_dir, status)
     res = {}
 
     def say(line):
         print(line, flush=True)
+        status.line(line)
 
     try:
         integrate(args, ctx, say, res)
     except StepFailed as e:
+        status.end("failed", res, failed_step=e.step, detail=e.detail[:500])
         say("FAILED step=%s: %s" % (e.step, e.detail[:500]))
         say("INTEGRATE FAILED at %s; worktree kept: %s; logs: %s" % (e.step, res.get("worktree"), log_dir))
         if res.get("worktree"):
@@ -891,10 +941,14 @@ def main(argv):
             say("cleanup after diagnosis: git -C %s worktree remove --force %s && git -C %s branch -D %s" % (
                 args.repo, res["worktree"], args.repo, res["branch"]))
         return 1
+    except BaseException as e:
+        status.end("crashed", res, detail=("%s: %s" % (type(e).__name__, e))[:500])
+        raise
     cleanup(args, ctx, res)  # success (dry-run, --no-push or full): drop temp worktree + branch
     say("INTEGRATE OK%s commit=%s gate=%s logs=%s" % (
         " (dry-run)" if args.dry_run else (" (no-push, main ff only)" if args.no_push else ""),
         res.get("result", "?")[:9], res.get("verdict"), log_dir))
+    status.end("ok", res)
     return 0
 
 

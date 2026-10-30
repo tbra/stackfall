@@ -193,6 +193,22 @@ func test_add_bot_grows_the_seat_count_to_humans_plus_bots_and_publishes() -> vo
 	assert_eq(_rows_of(lobby).size(), 3)
 
 
+func test_open_seat_add_bot_works_in_the_tile_grid() -> void:
+	DebugMode.set_override_for_test(true)
+	LobbySeatVariants.chosen = LobbySeatVariants.Style.TILES
+	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).slots_by_peer = {1: 0}
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	panel._render()
+	var button: Button = _add_bot_button(lobby)
+	assert_true(button.is_visible_in_tree(), "the open seat card shows the host's Add bot")
+	assert_true(panel.focus_entries().has(button), "FocusWalk reaches it")
+	button.pressed.emit()
+	assert_eq(int(_last_published(lobby).get("ai_count")), 1)
+	assert_true(_add_bot_button(lobby).is_inside_tree(), "and it survives the re-render")
+	LobbySeatVariants.chosen = LobbySeatVariants.Style.CLASSIC
+
+
 func test_remove_bot_shrinks_bots_and_seats_together() -> void:
 	var lobby: Lobby = _make_lobby(true)
 	_fake_of(lobby).slots_by_peer = {1: 0}

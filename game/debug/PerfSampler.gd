@@ -22,6 +22,10 @@ var history_frame_ms: PackedFloat32Array = PackedFloat32Array()
 var history_physics_ms: PackedFloat32Array = PackedFloat32Array()
 var history_blocks: PackedFloat32Array = PackedFloat32Array()
 
+## False = sample continuously (debug builds, logger and soak need that);
+## true = sample only while set_wanted(true).
+var demand_driven: bool = false
+
 var _window_s: float = 0.0
 var _frames: int = 0
 var _frame_sum_ms: float = 0.0
@@ -53,6 +57,11 @@ func _ready() -> void:
 		config = DebugConfig.new()
 	_session_start_msec = Time.get_ticks_msec()
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+## Turns sampling on or off for a demand-driven sampler. Stub: does nothing yet.
+func set_wanted(_wanted: bool) -> void:
+	pass
 
 
 func _process(delta: float) -> void:
