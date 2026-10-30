@@ -417,6 +417,7 @@
   "game/blocks/StableBlockManager.gd",
   "game/debug/AgentProbe.gd",
   "game/debug/DebugMode.gd",
+  "game/debug/DebugTools.gd",
   "game/debug/PerfLogger.gd",
   "game/debug/PerfProbe.gd",
   "game/debug/PerfSampler.gd",
