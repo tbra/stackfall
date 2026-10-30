@@ -451,7 +451,7 @@ static func _capture_net(out: Dictionary) -> void:
 		out["net.cursors"] = cursor_slots
 		var intents: Array = []
 		for slot_id: int in Match.slot_count():
-			intents.append([MatchNet.intents_sent(slot_id), MatchNet.intents_accepted(slot_id), MatchNet.intents_refused(slot_id)])
+			intents.append([MatchNet.intents_sent(slot_id), MatchNet.counters.accepted_count(slot_id), MatchNet.counters.refused_count(slot_id)])
 		out["net.intents"] = intents
 		# The claim progress is not fingerprinted: it is only broadcast (Events.goal_capture_progress)
 		# and no public member holds it between emissions.

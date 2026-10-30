@@ -2,8 +2,7 @@ class_name NetCounters
 extends RefCounted
 ## Every instrumentation counter MatchNet keeps, in one object: the per-slot intent identities
 ## the acceptance harness asserts on and the debug overlay shows.
-## MatchNet owns one instance and keeps the public accessors (intents_sent(slot), ...) as
-## forwarders, so NetDebugOverlay and MatchFingerprint read the same names as before.
+## MatchNet owns one instance (MatchNet.counters); readers use its *_count(slot) accessors.
 
 # --- Per-slot intent identities (host) ----------------------------------------
 
