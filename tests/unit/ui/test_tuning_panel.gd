@@ -567,6 +567,18 @@ func test_editing_a_sky_field_reaches_the_resource_and_refreshes_the_skybox() ->
 			break
 	assert_true(refreshed, "a sky slider edit refreshes the live Skybox")
 	assert_ne(_sky_values(_panel), before, "the edit reached a sky resource")
+	_restore_sky_values(_panel, before)
+
+
+## Writes a `_sky_values` snapshot back: the Sky tab edits the shared preloaded sky resources,
+## which every later script in the process (Skybox's default sky_def) reads.
+func _restore_sky_values(panel: TuningPanel, values: Dictionary) -> void:
+	var resources: Array[Resource] = [panel.sky_cycle, panel.sky_cycle.night, panel.storm_overlay]
+	resources.append_array(panel.sky_cycle.day_keyframes)
+	for resource: Resource in resources:
+		for key: String in values:
+			if key.begins_with("%d:" % resource.get_instance_id()):
+				resource.set(key.get_slice(":", 1), values[key])
 
 
 func _sky_values(panel: TuningPanel) -> Dictionary:
