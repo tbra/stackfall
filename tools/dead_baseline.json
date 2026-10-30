@@ -704,6 +704,12 @@
   },
   {
    "id": "test-only-func",
+   "entry": "ui/components/UiDebugPanel.gd:content",
+   "reason": "P12 debug kit extension point for the F4 shell, which P12-Itune builds on it and then removes this entry",
+   "consumer": "P12-Itune"
+  },
+  {
+   "id": "test-only-func",
    "entry": "ui/menus/LoadingScreen.gd:ready_gate_armed",
    "reason": "tools/shot_targets.gd:518"
   },
