@@ -133,15 +133,15 @@ func test_backlog_queues_until_full_then_forces() -> void:
 func test_goal_radius_toggle_leaves_no_build_disc_and_scales_claim_radius() -> void:
 	var base: float = (load("res://config/territory/territory_tuning.tres") as TerritoryTuning).goal_zone_radius
 	_start(QolExperiments.new())
-	assert_eq(Match._territory._goal_radii[0], base)
-	assert_eq(Match._territory._claim_radius(), 0.0, "OFF: flag cell only")
+	assert_eq((Match.circle_render_arrays()["goal_radii"] as PackedFloat32Array)[0], base)
+	assert_eq(Match.qol_claim_radius(), 0.0, "OFF: flag cell only")
 	Match.abort_match()
 	var on: QolExperiments = QolExperiments.new()
 	on.goal_radius_enabled = true
 	on.goal_radius_multiplier = 2.0
 	_start(on)
-	assert_eq(Match._territory._goal_radii[0], base, "no-build disc and drawn circle unchanged")
-	assert_almost_eq(Match._territory._claim_radius(), base * 2.0, 0.001)
+	assert_eq((Match.circle_render_arrays()["goal_radii"] as PackedFloat32Array)[0], base, "no-build disc and drawn circle unchanged")
+	assert_almost_eq(Match.qol_claim_radius(), base * 2.0, 0.001)
 
 
 ## Team 0 home whose edge stops short of the flag cell but reaches inside the claim radius.

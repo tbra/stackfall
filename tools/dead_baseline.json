@@ -127,6 +127,12 @@
   },
   {
    "id": "dead-file",
+   "entry": "core/territory/SolveClock.gd",
+   "reason": "interface stub: unwired until the solve-clock writer package makes MatchTerritory own it; that package removes this entry",
+   "consumer": "W-CLOCK"
+  },
+  {
+   "id": "dead-file",
    "entry": "game/debug/RoundDebugPanels.gd",
    "reason": "P12-Sdbg interface stub (docs/plans/P12_PLAN.md 2.4): unwired until P12-Iround wires it; that package removes this entry",
    "consumer": "P12-Iround"

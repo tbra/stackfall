@@ -41,7 +41,7 @@ func _assert_punch_spares_home(hole_mode: MatchConfig.HoleMode) -> void:
 	var neighbour: Vector2i = home_cell + Vector2i(1, 0)
 	assert_true(Match.raster().is_hole(neighbour.x, neighbour.y), "The hole still opens around the home cell.")
 	for _step: int in range(3):
-		Match._territory._tick_territory(0.5)
+		Match._process(0.5)
 	assert_true(Match.slot(0).home_flag_alive, "A gift hole never eliminates a home beacon.")
 	assert_signal_not_emitted(Events, "player_eliminated")
 

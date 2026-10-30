@@ -1,4 +1,9 @@
 extends GutTest
+
+var _tuning: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
+
+var _saved_async_min_circles: int = 0
+var _saved_defer_max_s: float = 0.0
 ## MatchGifts.set_special_drawer(): a drawer installed before a match's first
 ## crate claim (the sandbox's forced special) is what the claim draws, not
 ## replaced by the lazy weighted install; restoring brings the weighted draw back.
@@ -12,6 +17,11 @@ var _tiny_map: MapDef
 
 
 func before_each() -> void:
+	# Match._process solves synchronously and without deferral under these knobs; after_each restores them.
+	_saved_async_min_circles = _tuning.async_solve_min_circles
+	_saved_defer_max_s = _tuning.solve_defer_max_s
+	_tuning.async_solve_min_circles = 0
+	_tuning.solve_defer_max_s = 0.0
 	Match.set_process(false)
 	Match.abort_match()
 	_tiny_map = (load("res://config/match/maps/round.tres") as MapDef).duplicate(true)
@@ -27,6 +37,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_tuning.async_solve_min_circles = _saved_async_min_circles
+	_tuning.solve_defer_max_s = _saved_defer_max_s
 	Match.restore_default_special_drawer()
 	Match.abort_match()
 	Match.set_process(true)
@@ -51,8 +63,8 @@ func _claim_drawn_id(gift_id: int) -> StringName:
 		drawn.append(special_id)
 	Events.gift_claimed.connect(on_claim)
 	Match._gifts.apply_replicated_spawn(gift_id, Match.slot(0).home_position)
-	var step: float = 1.0 / Match._territory_tuning.solve_hz
-	Match._territory._run_territory_step(step)
+	var step: float = 1.0 / _tuning.solve_hz
+	Match._process(step)
 	Match._gifts.tick_host(step)
 	Events.gift_claimed.disconnect(on_claim)
 	return drawn[0] if not drawn.is_empty() else &""
