@@ -155,12 +155,6 @@
   },
   {
    "id": "dead-file",
-   "entry": "ui/hud/HudPlayerLookup.gd",
-   "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ilook",
-   "consumer": "P8-Ilook"
-  },
-  {
-   "id": "dead-file",
    "entry": "ui/hud/HudShares.gd",
    "reason": "P8 extraction stub, unwired until its filler moves the HUD code in; removed by P8-Ishares",
    "consumer": "P8-Ishares"

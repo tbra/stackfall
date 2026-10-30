@@ -289,7 +289,7 @@ func _on_gift_claimed(claimed_gift_id: int, slot_id: int, _special_id: StringNam
 	_spawn_claim_pop(parent as Node3D, global_position, _claim_color(slot_id), gift_config)
 
 
-## HUD._color_for_slot()'s own fallback shape: a real PlayerSlot's own colour
+## HudPlayerLookup.color_for_slot()'s own fallback shape: a real PlayerSlot's own colour
 ## when Match can name one, otherwise MatchConfig.player_colors[slot_id], and
 ## white if neither resolves. Kept as its own copy rather than a shared
 ## helper -- ui/hud/HUD.gd is a different node with its own match_provider test

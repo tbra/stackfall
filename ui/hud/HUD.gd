@@ -62,8 +62,12 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 var match_context: MatchContext = MatchContext.new():
 	set(value):
 		match_context = value
+		_lookup.context = value
 		if is_node_ready():
 			_catch_up_pregame()
+
+## Slot and team colour, name, team and elimination answers over match_context.
+var _lookup: HudPlayerLookup = HudPlayerLookup.new(match_context, default_palette.player_colors, _roster_name)
 
 @onready var _timer_ring: Control = %TimerRing
 ## The match clock in the top-right corner (UiRoundTimer).
@@ -441,7 +445,7 @@ func timer_ring_bottom_px() -> float:
 ## its debug hotkey cycles which slot it is driving.
 func set_local_slot(slot_id: int) -> void:
 	_active_slot = slot_id
-	_active_color = _color_for_slot(slot_id)
+	_active_color = _lookup.color_for_slot(slot_id)
 	_minimap.set_local_slot(slot_id)
 	_refresh_you_markers()
 	_pull_current_shapes(slot_id)
@@ -449,6 +453,12 @@ func set_local_slot(slot_id: int) -> void:
 	_timer_ring.queue_redraw()
 	_shape_preview.queue_redraw()
 	_next_shape_preview.queue_redraw()
+
+
+## The replicated roster name for a slot. DECISION: it still comes from the Net autoload; MatchContext
+## has no roster read.
+func _roster_name(slot_id: int) -> String:
+	return String(Net.name_for_slot(slot_id))
 
 
 ## Pulls whatever `match_context` holds for `slot_id` right now. Events.feed_block_issued
@@ -609,7 +619,7 @@ func show_relocated() -> void:
 ## Events.match_won -> _on_match_won() -> show_winner() still fires with no on-screen
 ## effect. %WinnerLabel stays in ui/hud/HUD.tscn so reviving the banner needs no new node.
 func show_winner(team_id: int, color: Color) -> void:
-	_winner_label.text = PlayerNames.winner_text(ResultsScreen.team_number_in(_resolved_team_numbers(), team_id))
+	_winner_label.text = PlayerNames.winner_text(ResultsScreen.team_number_in(_lookup.resolved_team_numbers(), team_id))
 	_winner_label.modulate = color
 	_winner_label.visible = false
 
@@ -736,7 +746,7 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 	_mode_state = state
 	_minimap.set_mode_state(state)
 	set_territory_shares(_last_shares)
-	var text: String = mode_status_text(state, _resolved_team_numbers())
+	var text: String = mode_status_text(state, _lookup.resolved_team_numbers())
 	if _mode_score_label == null:
 		if text.is_empty():
 			return
@@ -750,7 +760,7 @@ func _on_mode_state_changed(state: Dictionary) -> void:
 func _on_goal_capture_progress(team_id: int, progress: float) -> void:
 	_capture_ext.snap(team_id, progress)
 	_minimap.set_capture(team_id, progress)
-	set_capture(team_id, progress, _color_for_team(team_id) if team_id >= 0 else Color.WHITE)
+	set_capture(team_id, progress, _lookup.color_for_team(team_id) if team_id >= 0 else Color.WHITE)
 
 
 ## A client gets capture progress only when the territory raster changes, so on
@@ -762,7 +772,7 @@ func extrapolate_capture(delta: float, hold_seconds: float) -> void:
 		return
 	var team_id: int = _capture_ext.team()
 	_minimap.set_capture(team_id, _capture_ext.progress())
-	set_capture(team_id, _capture_ext.progress(), _color_for_team(team_id))
+	set_capture(team_id, _capture_ext.progress(), _lookup.color_for_team(team_id))
 
 
 ## A shared win (CTF tie) replaces the sole-winner text, from the payload's
@@ -771,14 +781,14 @@ func _on_match_results_ready(results: Dictionary) -> void:
 	# The results screen owns the end of a match; the whole HUD (previews, stats, timer
 	# ring, countdown, minimap) steps aside so nothing draws over its card.
 	visible = false
-	var shared: String = ResultsScreen.shared_winners_text(results, _resolved_team_numbers())
+	var shared: String = ResultsScreen.shared_winners_text(results, _lookup.resolved_team_numbers())
 	if not shared.is_empty():
 		_winner_label.text = shared
 
 
 func _on_match_won(team_id: int) -> void:
 	_capture_ext.clear()
-	show_winner(team_id, _color_for_team(team_id))
+	show_winner(team_id, _lookup.color_for_team(team_id))
 
 
 ## The status label already reads home_flag_alive, but it is only rebuilt on
@@ -803,7 +813,7 @@ func show_eliminated_banner(slot_id: int) -> void:
 	var by_slot: int = -1
 	by_slot = match_context.eliminated_by(slot_id)
 	if by_slot >= 0:
-		_eliminated_label.text = hud_visual_tuning.eliminated_by_text % _name_for_slot(by_slot)
+		_eliminated_label.text = hud_visual_tuning.eliminated_by_text % _lookup.name_for_slot(by_slot)
 	else:
 		_eliminated_label.text = hud_visual_tuning.eliminated_text
 	_eliminated_label.visible = true
@@ -817,12 +827,12 @@ func show_eliminated_banner(slot_id: int) -> void:
 ## Events.gift_claimed's second argument is the RESOLVED RECIPIENT slot -- the one
 ## teammate nearest the crate, not every teammate. This toast is still a team-wide
 ## notification (a teammate should see "your team claimed a special" even on the frame
-## they don't hold it), so both sides of the comparison go through _team_of_slot().
+## they don't hold it), so both sides of the comparison go through _lookup.team_of_slot().
 func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_update_gift_markers()
 	if slot_id == _active_slot:
 		set_next_shape(match_context.next_shape(slot_id))
-	if _team_of_slot(_active_slot) != _team_of_slot(slot_id):
+	if _lookup.team_of_slot(_active_slot) != _lookup.team_of_slot(slot_id):
 		return
 	_refresh_special_indicator()
 	show_gift_toast(special_id)
@@ -845,7 +855,7 @@ func _update_gift_markers() -> void:
 # --- Helpers -----------------------------------------------------------------
 
 ## Forwards the running match's MapDef to the minimap. Null-safe like
-## _team_of_slot(): no config yet
+## _lookup.team_of_slot(): no config yet
 ## (pre-match, or the null-object context) leaves the minimap in its initial
 ## hidden/disabled state. Only pushes set_map_def() when the map actually changed, so
 ## a placement's territory-share tick doesn't re-frame the minimap.
@@ -1077,102 +1087,6 @@ func _set_callout(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 		tile.glyph = glyph
 
 
-## No dedicated Events signal exists for "home flag lost", so, like PlayerController,
-## the HUD reads the already-documented PlayerSlot.home_flag_alive straight off
-## Match.slot().
-func _is_slot_eliminated(slot_id: int) -> bool:
-	var slot: PlayerSlot = match_context.slot(slot_id)
-	return slot != null and not slot.home_flag_alive
-
-
-## null-safe mirror of config/match/MatchConfig.gd's team_of_slot()
-## for _on_gift_claimed()'s team-membership check -- config == null (no match
-## built yet, or a bare HUD-only test with no FakeMatch.config set) falls back
-## to "every slot is its own team", the same TeamMode.OFF behaviour
-## team_of_slot() itself returns.
-func _team_of_slot(slot_id: int) -> int:
-	var running_config: MatchConfig = match_context.config()
-	if running_config == null:
-		return slot_id
-	return running_config.team_of_slot(slot_id)
-
-
-## MatchConfig.team_numbers when the lobby teams are host-resolved, else empty
-## (labels fall back to team id + 1). For the static score formatters above.
-func _resolved_team_numbers() -> PackedInt32Array:
-	var running_config: MatchConfig = match_context.config()
-	if running_config == null or not running_config.teams_resolved():
-		return PackedInt32Array()
-	return running_config.team_numbers
-
-
-## Colour of TEAM `team_id` (goal capture ring, winner banner, share bars). With
-## host-resolved lobby teams a team shows territory_colors()[team] (its lowest
-## slot's colour); otherwise team id t is slot t, so _color_for_slot(team_id).
-func _color_for_team(team_id: int) -> Color:
-	var running_config: MatchConfig = match_context.config()
-	if running_config != null and running_config.teams_resolved():
-		var colors: PackedColorArray = running_config.territory_colors()
-		if team_id >= 0 and team_id < colors.size():
-			return colors[team_id]
-	return _color_for_slot(team_id)
-
-
-## Whether team `team_id` is out. Resolved lobby teams: every slot of the team has
-## lost its home flag (team ids no longer equal slot ids); otherwise "slot t is team t".
-func _is_team_eliminated(team_id: int) -> bool:
-	var running_config: MatchConfig = match_context.config()
-	if running_config == null or not running_config.teams_resolved():
-		return _is_slot_eliminated(team_id)
-	var found: bool = false
-	for slot_id: int in range(running_config.player_count):
-		if running_config.team_of_slot(slot_id) != team_id:
-			continue
-		found = true
-		if not _is_slot_eliminated(slot_id):
-			return false
-	return found
-
-
-func _color_for_slot(slot_id: int) -> Color:
-	var live_color: Variant = null
-	var slot: PlayerSlot = match_context.slot(slot_id)
-	if slot != null:
-		live_color = slot.color
-	return SlotColors.resolve(slot_id, live_color, default_palette.player_colors)
-
-
-## PlayerSlot.display_name when Match has built one, otherwise the "Player N" fallback
-## (pre-match, and in a bare HUD-only test with no FakeMatch.slots_by_id entry).
-##
-## A human seat's replicated roster name wins over the slot's own label (the host never
-## copies roster names onto its PlayerSlots, so its slots still read "Player N"); bots
-## keep their slot label.
-func _name_for_slot(slot_id: int) -> String:
-	# DECISION: the replicated roster name still comes from the Net autoload; MatchContext has no
-	# roster read, and a HUD collaborator for one is not worth it for a single call.
-	var peer_name: String = String(Net.name_for_slot(slot_id))
-	var slot: PlayerSlot = match_context.slot(slot_id)
-	if slot != null:
-		return PlayerNames.label_for_slot(slot_id, slot.display_name, slot.is_bot, peer_name)
-	return PlayerNames.label_for_slot(slot_id, "", false, peer_name)
-
-
-## the display name of the row for team `team_id`: the roster name of
-## its slot, or every member's name joined with " & " in a team match. Falls back
-## to the slot of the same number with no config (team t is slot t).
-func _name_for_team(team_id: int) -> String:
-	var running_config: MatchConfig = match_context.config()
-	if running_config != null:
-		var members: PackedStringArray = PackedStringArray()
-		for slot_id: int in range(running_config.player_count):
-			if running_config.team_of_slot(slot_id) == team_id:
-				members.append(_name_for_slot(slot_id))
-		if not members.is_empty():
-			return " & ".join(members)
-	return _name_for_slot(team_id)
-
-
 ## The pending-special queue indicator, next to the next-shape preview. Reads
 ## `_active_slot` the same way the previews do (the local
 ## slot) rather than tracking a slot of its own. No dedicated "a
@@ -1318,22 +1232,22 @@ func _ensure_share_row_count(count: int) -> void:
 ## Shows the "· YOU" marker on the row of the active slot's team only.
 func _refresh_you_markers() -> void:
 	for i: int in range(_share_you_labels.size()):
-		(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i
+		(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _lookup.team_of_slot(_active_slot) == i
 
 
 func _update_share_row(i: int, share: float) -> void:
-	var eliminated: bool = _is_team_eliminated(i)
-	var color: Color = ELIMINATED_COLOR if eliminated else _color_for_team(i)
+	var eliminated: bool = _lookup.is_team_eliminated(i)
+	var color: Color = ELIMINATED_COLOR if eliminated else _lookup.color_for_team(i)
 	var bar: ShareBar = _share_bars[i]
 	bar.fill_color = color
 	bar.fraction = share
 	var label: Label = _share_labels[i]
 	label.text = "%s%s" % [row_value_text(_mode_state, i, share), "  (out)" if eliminated else ""]
 	var name_label: Label = _share_name_labels[i]
-	name_label.text = _name_for_team(i)
+	name_label.text = _lookup.name_for_team(i)
 	var glyph: SlotDiamond = _share_glyphs[i]
 	glyph.set_color(color)
-	(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _team_of_slot(_active_slot) == i
+	(_share_you_labels[i] as Label).visible = _active_slot >= 0 and _lookup.team_of_slot(_active_slot) == i
 	var chip: String = BeaconTimerText.multiplier_text_in_state(_mode_state, i)
 	var mult_label: Label = _share_mult_labels[i]
 	mult_label.text = chip
