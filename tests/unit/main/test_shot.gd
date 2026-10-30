@@ -179,3 +179,11 @@ func test_show_loading_raises_the_screen_and_freezes_the_backdrop_fade() -> void
 	error = await ShotTargets.show_loading(screen, screen, MatchConfig.new(), slots, 1.0)
 	assert_almost_eq(backdrop.modulate.a, 1.0, 0.001, "fully shown")
 	screen.cancel()
+
+
+func test_multi_seat_match_shot_keeps_seats_bots_and_seed() -> void:
+	var shot: Dictionary = ShotTargets.normalize_shot({"target": "match", "seats": 4, "bots": 3, "rng_seed": 1})
+	assert_eq(str(shot["error"]), "")
+	assert_eq(shot["seats"], 4)
+	assert_eq(shot["bots"], 3)
+	assert_eq(shot["rng_seed"], 1)
