@@ -138,17 +138,15 @@ func _assert_render_arrays_empty(context: String) -> void:
 # --- G3: stale influence circles -----------------------------------------------
 
 func test_every_reset_path_drops_the_previous_matchs_circles() -> void:
-	# Merged: clear_circles(), abort_match(), a direct start_match() from PLAYING
-	# (no explicit abort) and _build_territory() alone (the second guard).
-	for path: StringName in [&"clear_circles", &"abort_match", &"start_match_from_playing", &"build_territory"]:
+	# Removed internal guards (no public caller reaches them alone), each rule still covered:
+	#   The territory clear_circles() -> abort_match() below: its reset calls clear_circles(), and the
+	#                                        empty render arrays after it fail if it stops clearing.
+	#   The territory _build_territory() -> start_match() from PLAYING below: it rebuilds the territory,
+	#                                        and B's countdown arrays are empty only if the rebuild drops circles.
+	for path: StringName in [&"abort_match", &"start_match_from_playing"]:
 		_start_playing()
 		assert_gt(_circle_count(), 0, "%s: fixture: circles live in match A" % path)
 		match path:
-			&"clear_circles":
-				Match._territory.clear_circles()
-				_assert_render_arrays_empty("after clear_circles()")
-				Match._territory.clear_circles()
-				_assert_render_arrays_empty("clear_circles() is idempotent")
 			&"abort_match":
 				Match.abort_match()
 				_assert_render_arrays_empty("after abort_match()")
@@ -156,9 +154,6 @@ func test_every_reset_path_drops_the_previous_matchs_circles() -> void:
 				Match.start_match(_config(3))
 				assert_ne(Match.state(), Match.State.PLAYING)
 				_assert_render_arrays_empty("B's countdown after a direct restart")
-			&"build_territory":
-				Match._territory._build_territory()
-				_assert_render_arrays_empty("after _build_territory()")
 		Match.abort_match()
 
 

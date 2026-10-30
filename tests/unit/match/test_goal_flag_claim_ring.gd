@@ -4,6 +4,7 @@ extends GutTest
 ## at goal_zone_radius while it is off. With the toggle on the radius must be the value the
 ## host uses for capture (Match.qol_claim_radius() -> MatchTerritory._claim_radius()).
 
+const TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 const MAP_RADIUS: float = 20.0
 const RING_NODE_NAME: StringName = &"ClaimRadiusRing"
 const MULTIPLIER: float = 2.5
@@ -65,7 +66,7 @@ func _place(qol: QolExperiments, goals: int = 1) -> Array[GoalFlag]:
 
 
 func _base_radius() -> float:
-	return Match._territory_tuning.goal_zone_radius
+	return TUNING.goal_zone_radius
 
 
 func _ring_node(flag: GoalFlag) -> MeshInstance3D:
@@ -100,7 +101,7 @@ func test_toggle_on_draws_one_ring_per_goal_at_the_host_capture_radius() -> void
 	assert_eq(flags.size(), 3)
 	var expected: float = _base_radius() * MULTIPLIER
 	assert_almost_eq(Match.qol_claim_radius(), expected, 0.0001)
-	assert_eq(Match.qol_claim_radius(), Match._territory._claim_radius(), "the exact helper capture uses")
+	assert_eq(Match.qol_claim_radius(), Match.goal_zone_visual_radius(), "the drawn ring is the capture radius")
 	assert_eq(Match.qol_claim_radius(), Match.config.qol.effective_goal_radius(_base_radius()))
 	for flag: GoalFlag in flags:
 		assert_not_null(_ring_node(flag))
