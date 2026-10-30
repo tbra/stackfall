@@ -6,37 +6,3 @@
 process_mode = 3
 layer = 100
 script = ExtResource("1_pose")
-
-[node name="Panel" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-visible = false
-mouse_filter = 2
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 0
-grow_vertical = 0
-
-[node name="Lines" type="VBoxContainer" parent="Panel"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="HeldLabel" type="Label" parent="Panel/Lines"]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"CaptionLabel"
-
-[node name="CameraLabel" type="Label" parent="Panel/Lines"]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"CaptionLabel"
-
-[node name="TiltLabel" type="Label" parent="Panel/Lines"]
-unique_name_in_owner = true
-layout_mode = 2
-mouse_filter = 2
-theme_type_variation = &"CaptionLabel"
