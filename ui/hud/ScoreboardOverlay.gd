@@ -5,7 +5,7 @@ extends CanvasLayer
 ##
 ## Shown while the `show_scores` action is held during a live round, hidden on
 ## release, focus loss, pause, a non-live state or a sandbox. It draws the same
-## table as the results screen (ui/menus/ScoreTable.gd) from MatchStats.live_payload():
+## table as the results screen (ui/menus/ScoreTable.gd) from the context's stats().live_payload():
 ## the host's own counters, or on a client the snapshot the host replicates
 ## (MatchWireEvents.LIVE_SCORES via net/MatchEventApplier.gd). Display only; no input is consumed.
 
@@ -14,10 +14,7 @@ const SCOREBOARD_LAYER: int = 20
 
 @export var tuning: MenuVisualTuning = preload("res://config/ui/menu_visual_tuning.tres")
 
-## Test seam (Variant): defaults to the Match autoload; needs state(), stats()
-## (with live_payload()) and `config`.
-var match_provider: Variant = null
-## The match port the scoreboard reads once match_provider is gone.
+## The match port the scoreboard reads (state, config, live stats); the builder assigns it.
 var match_context: MatchContext = MatchContext.new()
 ## game/main/Main.gd sets this true while a sandbox is running: there Tab keeps its
 ## sandbox_next_slot meaning and no scoreboard exists (DECISION).
@@ -46,8 +43,6 @@ const MUTE_NAME_MAX_CHARS: int = 14
 
 func _ready() -> void:
 	layer = SCOREBOARD_LAYER
-	if match_provider == null:
-		match_provider = Match
 	_apply_visual_style()
 	_root.visible = false
 	_refresh_layout()
@@ -146,9 +141,9 @@ func _on_match_state_changed(_from_state: int, _to_state: int) -> void:
 
 
 func _can_show() -> bool:
-	if suppressed or _paused or not _holding or match_provider == null:
+	if suppressed or _paused or not _holding:
 		return false
-	return MatchAutoload.is_live(match_provider.state())
+	return MatchAutoload.is_live(match_context.state())
 
 
 func _update_visibility() -> void:
@@ -167,7 +162,10 @@ func _update_visibility() -> void:
 ## Rebuilds the table only when the snapshot's rows or mode block changed
 ## (the match clock alone changes every frame).
 func _refresh_table() -> void:
-	var payload: Dictionary = match_provider.stats().live_payload()
+	var stats: RefCounted = match_context.stats()
+	if stats == null:
+		return
+	var payload: Dictionary = stats.live_payload()
 	if payload.is_empty():
 		return
 	var rows: Array = ResultsPayload.rows(payload)
@@ -176,12 +174,14 @@ func _refresh_table() -> void:
 		return
 	_last_rows = rows.duplicate(true)
 	_last_mode = mode
-	var config: MatchConfig = match_provider.config as MatchConfig
+	var config: MatchConfig = match_context.config()
 	var team_numbers: PackedInt32Array = PackedInt32Array()
 	if config != null and config.teams_resolved():
 		team_numbers = config.team_numbers
 	_mode_title.text = ResultsScreen.mode_title(payload).to_upper()
-	ScoreTable.populate(_rows_list, payload, tuning, team_numbers, match_provider)
+	# DECISION: null makes ScoreTable read the Match autoload for tier labels and slot colours (its provider
+	# reads `config` as a field, which MatchContext answers as a method); it takes the context once it is typed.
+	ScoreTable.populate(_rows_list, payload, tuning, team_numbers, null)
 	var outcome: String = ResultsScreen.mode_outcome_text(payload, team_numbers).strip_edges()
 	_mode_outcome.text = outcome
 	_mode_outcome.visible = not outcome.is_empty()

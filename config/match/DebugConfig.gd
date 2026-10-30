@@ -54,34 +54,16 @@ extends Resource
 @export var bot_cost_column_gap_px: int = 12
 ## Pose overlay (ui/debug/PoseOverlay.gd, F2): decimals shown for positions, degrees and axes.
 @export_range(0, 6, 1) var pose_decimals: int = 2
-## Overlay colours: by default sourced from the ArcadeVisualTuning tokens so the
-## dev overlay follows the Stackfall Arcade palette. Each *_override colour with alpha > 0 replaces
+## Graph colours: by default sourced from the ArcadeVisualTuning tokens so the
+## dev graph follows the Stackfall Arcade palette. Each graph_*_override colour with alpha > 0 replaces
 ## its token (tunable); leave it fully transparent to follow the token. Read them through the
 ## *_color() getters below, never the raw overrides.
-@export var overlay_background_override: Color = Color(0.0, 0.0, 0.0, 0.0)
-@export var overlay_text_override: Color = Color(0.0, 0.0, 0.0, 0.0)
-@export var overlay_warn_override: Color = Color(0.0, 0.0, 0.0, 0.0)
 @export var graph_frame_override: Color = Color(0.0, 0.0, 0.0, 0.0)
 @export var graph_physics_override: Color = Color(0.0, 0.0, 0.0, 0.0)
 @export var graph_blocks_override: Color = Color(0.0, 0.0, 0.0, 0.0)
-@export var graph_budget_override: Color = Color(0.0, 0.0, 0.0, 0.0)
 
-## Alpha applied to the token colours that sit over the scene or under the graph lines.
-@export_range(0.0, 1.0, 0.01) var overlay_background_alpha: float = 0.72
+## Alpha applied to the blocks graph token colour.
 @export_range(0.0, 1.0, 0.01) var graph_blocks_alpha: float = 0.9
-@export_range(0.0, 1.0, 0.01) var graph_budget_alpha: float = 0.25
-
-
-func overlay_background_color() -> Color:
-	return _resolve(overlay_background_override, _arcade().disc_950_color, overlay_background_alpha)
-
-
-func overlay_text_color() -> Color:
-	return _resolve(overlay_text_override, _arcade().cream_color, 1.0)
-
-
-func overlay_warn_color() -> Color:
-	return _resolve(overlay_warn_override, _arcade().rim_color, 1.0)
 
 
 func graph_frame_color() -> Color:
@@ -94,10 +76,6 @@ func graph_physics_color() -> Color:
 
 func graph_blocks_color() -> Color:
 	return _resolve(graph_blocks_override, _arcade().player_2_color, graph_blocks_alpha)
-
-
-func graph_budget_color() -> Color:
-	return _resolve(graph_budget_override, _arcade().cream_color, graph_budget_alpha)
 
 
 ## DECISION: config/ must not depend on ui/, so this loads the same

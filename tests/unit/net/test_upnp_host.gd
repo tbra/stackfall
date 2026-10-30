@@ -161,7 +161,7 @@ func test_join_by_code_connects_over_loopback() -> void:
 	var port: int = AgentProbe.free_udp_port()
 	assert_eq(host.host_game(port, "Hostie"), OK)
 	var code: String = JoinCode.encode("127.0.0.1", port)
-	var resolved: Dictionary = MainMenu.resolve_join_text(code)
+	var resolved: Dictionary = JoinCode.resolve_text(code)
 	assert_true(bool(resolved["valid"]))
 	assert_eq(client.join_game(str(resolved["address"]), int(resolved["port"]), "Clienty"), OK)
 	assert_true(await _wait_for(func() -> bool: return host.peer_ids().size() == 2 and client.local_slot() == 1))

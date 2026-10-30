@@ -13,6 +13,10 @@ working; the last line is the verdict:
   python tools/full_gate.py --path <checkout> --shards 4
 Exit status: 0 green, 1 failures, 2 harness error. Logs and result.json go to
 --out (default: <checkout>/tests/.gut_targeted/gate_<time>/).
+Watchers (a status pane) read live progress from one JSON file per run in a machine-wide
+folder: <tools root>/scratch/full_gate/<time>_<pid>.json (env STACKFALL_GATE_PROGRESS_DIR).
+It holds the phase, shards, tests run/passed/failed so far and, at the end, the verdict line and
+`not_run`: every pending or risky (no asserts) test by name, which the totals only count.
 """
 
 import argparse
@@ -28,6 +32,7 @@ import xml.etree.ElementTree as ET
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import godot_exe as godot_exe_mod  # noqa: E402
 import godot_slots  # noqa: E402
+import repo_paths  # noqa: E402
 import lint_magic_numbers  # noqa: E402
 import lint_single_source  # noqa: E402
 import lint_layers  # noqa: E402
@@ -38,7 +43,8 @@ import lint_public  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMINGS = os.path.join(ROOT, "tests", ".gut_targeted", "gate_timings.json")
-TOTAL_RE = re.compile(r"^(Scripts|Tests|Passing Tests|Failing Tests|Pending|Risky)\s+(\d+)", re.M)
+# GUT prints one "Risky/Pending" total.
+TOTAL_RE = re.compile(r"^(Scripts|Tests|Passing Tests|Failing Tests|Risky/Pending|Pending|Risky)\s+(\d+)", re.M)
 SCRIPT_RE = re.compile(r"^(?:\x1b\[[0-9;]*m)*(res://tests/\S+\.gd)", re.M)
 FAILED_RE = re.compile(r"\[Failed\]")
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -53,6 +59,12 @@ DEFAULT_TIMEOUT_S = 1200
 LOAD_FAIL_RE = re.compile(r'Failed to load script "(res://tests/\S+?\.gd)" with error "([^"]*)"')
 IGNORED_RE = re.compile(r"Ignoring script (res://tests/\S+?\.gd) because")
 MISSING_ERROR = "no results in GUT output (script dropped, load error or shard died)"
+SUMMARY_RE = re.compile(r"=\s*Run Summary")
+# JUnit testcase statuses that reached a verdict; any other (pending, "no asserts") did not.
+JUNIT_RAN = ("pass", "fail")
+PROGRESS_ENV = "STACKFALL_GATE_PROGRESS_DIR"
+PROGRESS_KEEP = 20
+PROGRESS_EVERY_S = 2.0
 
 
 # --fixed-fps disables wall-clock pacing, so physics ticks
@@ -217,6 +229,145 @@ def find_unloadable(scheduled, log_path):
     return out
 
 
+def junit_not_run(out_dir, name):
+    """Tests GUT counted that neither passed nor failed (pending, risky "no asserts"), named, from
+    the shard's JUnit export: [{script, test, status, reason}]. The totals only count them."""
+    try:
+        root = ET.parse(os.path.join(out_dir, name + ".xml")).getroot()
+    except (OSError, ET.ParseError):
+        return []
+    out = []
+    for case in root.iter("testcase"):
+        status = case.get("status") or ""
+        if status in JUNIT_RAN:
+            continue
+        skipped = case.find("skipped")
+        reason = (skipped.text or "").strip() if skipped is not None else ""
+        script = case.get("classname") or ""
+        out.append({"script": script if script.startswith("res://") else "res://" + script.lstrip("/"),
+                    "test": case.get("name") or "", "status": status, "reason": reason[:DETAIL_MAX_CHARS]})
+    return out
+
+
+def progress_dir():
+    return os.environ.get(PROGRESS_ENV) or os.path.join(repo_paths.scratch_root(), "full_gate")
+
+
+class LiveCounts(object):
+    """Tests started and failed so far in a shard log that is still being written, read on from
+    where the last call stopped."""
+
+    def __init__(self, log_path):
+        self.log_path = log_path
+        self.offset = 0
+        self.rest = ""
+        self.script = ""
+        self.current = ""
+        self.started = 0
+        self.failed = set()
+        self.in_summary = False
+
+    def read(self):
+        if self.in_summary:
+            return
+        try:
+            with open(self.log_path, "rb") as fh:
+                fh.seek(self.offset)
+                data = fh.read()
+        except OSError:
+            return
+        self.offset += len(data)
+        lines = (self.rest + data.decode("utf-8", "replace")).split("\n")
+        self.rest = lines.pop()
+        for line in lines:
+            m = SCRIPT_RE.match(line)
+            if m:
+                self.script = m.group(1)
+                continue
+            plain = ANSI_RE.sub("", line).strip()
+            if SUMMARY_RE.search(plain):
+                # The summary repeats the failures, which were counted as they ran.
+                self.in_summary = True
+                return
+            if TEST_RE.match(plain):
+                self.started += 1
+                self.current = self.script + " " + plain
+            elif self.current and FAILED_RE.search(line):
+                self.failed.add(self.current)
+
+
+class Progress(object):
+    """The run's live state as one JSON file a watcher polls, replaced whole on each write.
+    Writing never fails the gate: an unwritable folder just leaves no progress file."""
+
+    def __init__(self, path, out_dir, directory=None, now=time.time):
+        self.now = now
+        self.dir = directory or progress_dir()
+        self.file = os.path.join(self.dir, "%s_%d.json" % (time.strftime("%Y%m%d_%H%M%S"), os.getpid()))
+        self.counts = {}
+        self.finished = set()
+        self.last = 0.0
+        self.data = {"schema": 1, "pid": os.getpid(), "path": path, "out": out_dir, "started": now(),
+                     "updated": now(), "phase": "lint", "shards": 0, "expected": 0, "run": 0, "passed": 0,
+                     "failed": 0, "shard_state": {}}
+        try:
+            os.makedirs(self.dir, exist_ok=True)
+            old = sorted(n for n in os.listdir(self.dir) if n.endswith(".json"))
+            for n in old[:max(0, len(old) - (PROGRESS_KEEP - 1))]:
+                os.remove(os.path.join(self.dir, n))
+        except OSError:
+            pass
+        self.write()
+
+    def update(self, **fields):
+        self.data.update(fields)
+        self.write()
+
+    def shard(self, name, state, log_path=None):
+        if log_path:
+            self.counts[name] = LiveCounts(log_path)
+        if state != "running":
+            self.finished.add(name)
+        self.data["shard_state"][name] = state
+        self.tick(force=True)
+
+    def tick(self, force=False):
+        if not force and self.now() - self.last < PROGRESS_EVERY_S:
+            return
+        run = passed = failed = 0
+        for name, c in self.counts.items():
+            c.read()
+            # A running shard's newest test has started but not finished.
+            done = c.started if name in self.finished else max(0, c.started - 1)
+            run += done
+            failed += len(c.failed)
+            passed += max(0, done - len(c.failed))
+        self.update(run=run, passed=passed, failed=failed)
+
+    def write(self):
+        self.last = self.now()
+        self.data["updated"] = self.last
+        tmp = self.file + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(self.data, fh)
+            os.replace(tmp, self.file)
+        except OSError:
+            pass
+
+
+def expected_tests(path, tests):
+    """`func test_` count over the scheduled scripts: what a full run should reach."""
+    n = 0
+    for res_path in tests:
+        try:
+            with open(os.path.join(path, res_path[len("res://"):]), encoding="utf-8", errors="replace") as fh:
+                n += len(re.findall(r"^func test_", fh.read(), re.M))
+        except OSError:
+            pass
+    return n
+
+
 def suite_times(out_dir, name):
     """Per-script seconds from GUT's JUnit export (testsuite name = res path)."""
     times = {}
@@ -253,7 +404,7 @@ def _kill_tree(proc):
     proc.kill()
 
 
-def run_batch(path, out_dir, batches, timeout_s):
+def run_batch(path, out_dir, batches, timeout_s, progress=None):
     # Each shard takes a machine-wide Godot slot (tools/godot_slots.py); shards beyond the free
     # slots wait here and their timeout clock starts when they launch.
     pending = list(batches)
@@ -263,6 +414,9 @@ def run_batch(path, out_dir, batches, timeout_s):
     finished = {}
     announced = False
     total = len(batches)
+    if progress:
+        for name, _tests in batches:
+            progress.data["shard_state"][name] = "waiting"
     while len(finished) < total:
         while pending:
             slot = godot_slots.try_acquire("full_gate:" + pending[0][0])
@@ -275,6 +429,8 @@ def run_batch(path, out_dir, batches, timeout_s):
             procs[name] = start(path, out_dir, name, tests)
             slots[name] = slot
             t_start[name] = time.time()
+            if progress:
+                progress.shard(name, "running", procs[name][2])
         for name, (proc, log, log_path) in procs.items():
             if name in finished:
                 continue
@@ -287,6 +443,10 @@ def run_batch(path, out_dir, batches, timeout_s):
             if code is not None:
                 finished[name] = (code, round(time.time() - t_start[name], 1))
                 godot_slots.release(slots[name])
+                if progress:
+                    progress.shard(name, "timeout" if code == "timeout" else "done")
+        if progress:
+            progress.tick()
         time.sleep(0.5)
     results = {}
     for name, (proc, log, log_path) in procs.items():
@@ -315,6 +475,7 @@ def main(argv):
             timings = json.load(fh)
     except (OSError, ValueError):
         timings = {}
+    progress = Progress(path, out_dir)
 
     # Magic-number ratchet: <2 s, runs before the shards.
     lint_code = run_lint(path, "lint_magic_numbers", lint_magic_numbers)
@@ -344,15 +505,19 @@ def main(argv):
     tests = collect(path)
     if not tests:
         print("FULL GATE ERROR: no tests found under", path)
+        progress.update(phase="done", verdict="ERROR", summary="FULL GATE ERROR: no tests found")
         return 2
     t0 = time.time()
     serial = load_serial_list(SERIAL_LIST, tests)
     shards = make_shards(path, [t for t in tests if t not in serial], count, timings)
-    results = run_batch(path, out_dir, [("shard%d" % i, s) for i, s in enumerate(shards)], args.timeout) if shards else {}
+    progress.update(phase="shards", started=t0, shards=len(shards), serial_scripts=len(serial),
+                    expected=expected_tests(path, tests))
+    results = run_batch(path, out_dir, [("shard%d" % i, s) for i, s in enumerate(shards)], args.timeout, progress) if shards else {}
     serial_seconds = 0.0
     if serial:
         # One process, nothing else running: the heavy scripts get the whole CPU.
-        results.update(run_batch(path, out_dir, [("serial", serial)], args.timeout))
+        progress.update(phase="serial")
+        results.update(run_batch(path, out_dir, [("serial", serial)], args.timeout, progress))
         serial_seconds = results["serial"]["seconds"]
     by_name = {"shard%d" % i: s for i, s in enumerate(shards)}
     if serial:
@@ -390,6 +555,7 @@ def main(argv):
     confirmed, flaky = [], []
     retry_results = {}
     if failing:
+        progress.update(phase="retry", retrying=sorted(failing))
         retry = retry_results = run_batch(path, out_dir, [("retry_%d" % i, [t]) for i, t in enumerate(sorted(failing))], args.timeout)
         for (name, r), t in zip(sorted(retry.items(), key=lambda kv: int(kv[0].split("_")[1])), sorted(failing)):
             # GUT omits the "Failing Tests" line when everything passed.
@@ -405,13 +571,17 @@ def main(argv):
               "dead_lint": "green" if dead_code == 0 else "red",
               "instructions_lint": "green" if instr_code == 0 else "red",
               "public_lint": "green" if public_code == 0 else "red",
-              "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir}
+              "shard_seconds": {n: r["seconds"] for n, r in sorted(results.items())}, "out": out_dir,
+              "not_run": [t for n in sorted(results) for t in junit_not_run(out_dir, n)]}
     with open(os.path.join(out_dir, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, indent=1)
     sys.stdout.flush()
-    print("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s dead_lint=%s instructions_lint=%s public_lint=%s; out=%s" % (
+    line = ("FULL GATE %s: %s/%s passing, %d shards, %.0fs, serial=%d scripts %.0fs; failing=%s parallel_flaky=%s harness=%s magic_lint=%s single_source_lint=%s layer_lint=%s ui_component_lint=%s dead_lint=%s instructions_lint=%s public_lint=%s; out=%s" % (
         verdict, sums.get("Passing Tests", 0), sums.get("Tests", 0), result["shards"], result["seconds"], len(serial), serial_seconds,
-        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", "green" if dead_code == 0 else "RED", "green" if instr_code == 0 else "RED", "green" if public_code == 0 else "RED", out_dir), flush=True)
+        confirmed or "none", flaky or "none", harness or "none", "green" if lint_code == 0 else "RED", "green" if ss_code == 0 else "RED", "green" if layer_code == 0 else "RED", "green" if ui_code == 0 else "RED", "green" if dead_code == 0 else "RED", "green" if instr_code == 0 else "RED", "green" if public_code == 0 else "RED", out_dir))
+    print(line, flush=True)
+    progress.update(phase="done", verdict=verdict, summary=line, seconds=result["seconds"], totals=sums,
+                    failing=confirmed, parallel_flaky=flaky, harness=harness, not_run=result["not_run"])
     if harness:
         return 2
     return 0 if verdict == "GREEN" else 1

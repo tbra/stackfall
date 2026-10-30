@@ -59,9 +59,9 @@ const LAYOUT_SIZE: Vector2 = Vector2(1280.0, 720.0)
 
 func _make_laid_out_lobby(bots: int) -> Lobby:
 	var lobby: Lobby = _make_lobby()
-	lobby._set_bot_count(bots)
+	(lobby.get_node("%PlayerCountSpin") as SpinBox).value = maxi(MatchConfig.PLAYER_COUNT_MIN, bots)
+	(lobby.get_node("%AiCountSpin") as SpinBox).value = bots
 	await wait_frames(3)
-	lobby._wire_spatial()
 	return lobby
 
 
@@ -69,23 +69,40 @@ func _target(control: Control, side: Side) -> Control:
 	return control.get_node_or_null(control.get_focus_neighbor(side)) as Control
 
 
+func _pad_press(button: JoyButton) -> void:
+	for pressed: bool in [true, false]:
+		var event: InputEventJoypadButton = InputEventJoypadButton.new()
+		event.button_index = button
+		event.pressed = pressed
+		Input.parse_input_event(event)
+	Input.flush_buffered_events()
+
+
+## One real D-pad press from `from`; returns the control that holds focus afterwards.
+func _pad_move(lobby: Lobby, from: Control, button: JoyButton) -> Control:
+	from.grab_focus()
+	_pad_press(button)
+	await wait_frames(1)
+	return lobby.get_viewport().gui_get_focus_owner()
+
+
 func test_gift_chip_grid_moves_in_two_dimensions() -> void:
 	var lobby: Lobby = await _make_laid_out_lobby(1)
-	lobby._gifts_section.set_advanced_open(true)
+	(lobby.get_node("%GiftsSection") as UiSection).set_advanced_open(true)
 	await wait_frames(3)
-	lobby._wire_spatial()
 	var chips: Array[Control] = []
-	for chip: UiChipToggle in lobby._special_checkboxes:
-		if lobby._is_shown(chip):
+	for chip: UiChipToggle in LobbyProbe.gift_chips(lobby):
+		if chip.is_visible_in_tree():
 			chips.append(chip)
 	assert_gt(chips.size(), 3, "gift chips are shown under Advanced")
 	var first: Control = chips[0]
-	var right: Control = _target(first, SIDE_RIGHT)
+	var right: Control = await _pad_move(lobby, first, JOY_BUTTON_DPAD_RIGHT)
 	assert_true(chips.has(right), "right moves to another chip")
-	assert_eq(_target(right, SIDE_LEFT), first, "left comes back")
-	var down: Control = _target(first, SIDE_BOTTOM)
+	assert_ne(right, first)
+	assert_eq(await _pad_move(lobby, right, JOY_BUTTON_DPAD_LEFT), first, "left comes back")
+	var down: Control = await _pad_move(lobby, first, JOY_BUTTON_DPAD_DOWN)
 	assert_true(chips.has(down), "down moves to another chip")
-	assert_eq(_target(down, SIDE_TOP), first, "up comes back")
+	assert_eq(await _pad_move(lobby, down, JOY_BUTTON_DPAD_UP), first, "up comes back")
 	assert_ne(down, right, "the grid has two dimensions")
 	for chip: Control in chips:
 		assert_true(FocusWalk.live_focusable(lobby).has(chip), "%s is live" % chip.name)

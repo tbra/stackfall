@@ -134,3 +134,48 @@ func test_sky_ids_are_cycle_or_a_locked_id_and_rng_seed_is_a_non_negative_int() 
 	assert_eq(seeded["rng_seed"], 42)
 	assert_ne(str(ShotTargets.normalize_shot({"target": "match", "rng_seed": "-3"})["error"]), "")
 	assert_eq(ShotTargets.normalize_shot({"target": "match"})["rng_seed"], ShotTargets.NO_VALUE)
+
+
+func test_backdrop_seed_pins_the_global_rng_and_rejects_a_negative_seed() -> void:
+	var args: PackedStringArray = PackedStringArray(["--out=x", "--shots=[{\"target\":\"match\",\"backdrop_seed\":7}]"])
+	assert_eq(str(ShotTargets.parse_args(args)["error"]), "")
+	var first: float = randf()
+	ShotTargets.parse_args(args)
+	assert_eq(randf(), first)
+	assert_ne(str(ShotTargets.normalize_shot({"target": "match", "backdrop_seed": "-1"})["error"]), "")
+
+
+func test_loading_shot_parses_its_fade_fraction() -> void:
+	var shot: Dictionary = ShotTargets.normalize_shot({"target": "loading"})
+	assert_eq(shot["error"], "")
+	assert_eq(shot["fade"], 1.0, "fully shown by default")
+	assert_eq(ShotTargets.normalize_shot({"target": "loading", "fade": "0.5"})["fade"], 0.5)
+	assert_eq(ShotTargets.normalize_shot({"target": "loading", "fade": 0})["error"], "", "0 is a valid fraction")
+	assert_ne(ShotTargets.normalize_shot({"target": "loading", "fade": 1.5})["error"], "")
+	assert_ne(ShotTargets.normalize_shot({"target": "loading", "fade": "x"})["error"], "")
+
+
+func test_loading_target_without_a_loading_screen_fails_fast() -> void:
+	var host: Node = autofree(Node.new())
+	add_child(host)
+	var vp: SubViewport = autofree(SubViewport.new())
+	host.add_child(vp)
+	var main: Node = autofree(Node.new())
+	host.add_child(main)
+	var error: String = await ShotTargets.setup(host, vp, main, ShotTargets.normalize_shot({"target": "loading"}))
+	assert_string_contains(error, "no loading screen")
+
+
+func test_show_loading_raises_the_screen_and_freezes_the_backdrop_fade() -> void:
+	var screen: LoadingScreen = autofree(load("res://ui/menus/LoadingScreen.tscn").instantiate() as LoadingScreen)
+	add_child(screen)
+	var slots: Array[PlayerSlot] = [PlayerSlot.new(0, 0, "A", Color.WHITE)]
+	var error: String = await ShotTargets.show_loading(screen, screen, MatchConfig.new(), slots, 0.4)
+	assert_eq(error, "")
+	assert_true(screen.visible, "the loading screen is up")
+	var backdrop: LoadingBackdrop = screen.find_child("Backdrop", true, false) as LoadingBackdrop
+	assert_not_null(backdrop.texture)
+	assert_almost_eq(backdrop.modulate.a, 0.4, 0.001, "mid-fade is held, not left to the tween")
+	error = await ShotTargets.show_loading(screen, screen, MatchConfig.new(), slots, 1.0)
+	assert_almost_eq(backdrop.modulate.a, 1.0, 0.001, "fully shown")
+	screen.cancel()

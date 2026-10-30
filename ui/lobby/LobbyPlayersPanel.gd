@@ -629,6 +629,10 @@ func _render() -> void:
 	_player_count_label.text = format_roster_header(_humans.size(), bot_total, seat_count)
 
 	var focus_memory: Dictionary = _remember_focus()
+	var add_had_focus: bool = _add_bot_button.has_focus()
+	if _open_seat_row.get_parent() != _player_list:
+		# the open-seat card survives the old tile grid being freed
+		_open_seat_row.get_parent().remove_child(_open_seat_row)
 	for row: Node in _player_rows:
 		# Out of the tree at once (not only queued): the redraw can run inside a
 		# button's own `pressed` signal, and the new rows must be the only ones.
@@ -657,11 +661,27 @@ func _render() -> void:
 		ready_count += 1
 		built.append(_build_bot_row(ordinal))
 	_place_rows(built)
-	_player_list.move_child(_open_seat_row, -1)
+	if not LobbySeatVariants.is_tiles(LobbySeatVariants.current()):
+		_seat_open_row(_player_list, false)
+		_player_list.move_child(_open_seat_row, -1)
 	_refresh_header()
 	_restore_focus(focus_memory)
+	if add_had_focus and _add_bot_button.focus_mode != Control.FOCUS_NONE:
+		_add_bot_button.grab_focus()
 	roster_rendered.emit(ready_count, _player_rows.size())
 	focus_entries_changed.emit()
+
+
+## Seats the open-seat row under `parent` as a list row or a grid card, rebuilding it only when its look changes.
+func _seat_open_row(parent: Node, card: bool) -> void:
+	if _open_seat_row.card != card:
+		_open_seat_row.build(layout_tuning, _add_bot_button, card)
+	if _open_seat_row.get_parent() != parent:
+		if _open_seat_row.get_parent() != null:
+			_open_seat_row.get_parent().remove_child(_open_seat_row)
+		parent.add_child(_open_seat_row)
+	# remove_child() cleared the owner: restore it so %AddBotButton keeps resolving.
+	_add_bot_button.owner = self
 
 
 func _connect_row(row: LobbySeatRow) -> void:
@@ -739,6 +759,7 @@ func _place_tiles(built: Array[LobbySeatRow], style: int) -> void:
 		if (index + 1) % grid.columns != 0:
 			hops.append([built[index], built[index + 1]])
 	_wire_hops(hops)
+	_seat_open_row(grid, true)
 
 
 ## BOARD: one lane per team (a lane for every team of the lobby, so a seat can be sent to an empty one), the

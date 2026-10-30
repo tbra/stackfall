@@ -44,9 +44,6 @@ extends Node3D
 @export var sandbox_config: SandboxConfig = preload("res://config/match/sandbox.tres")
 
 const MAIN_MENU_SCENE: PackedScene = preload("res://ui/menus/MainMenu.tscn")
-const SOAK_MONITOR_PATH: String = "res://game/debug/SoakMonitor.gd"
-const SOAK_FUZZER_PATH: String = "res://game/debug/SoakIntentFuzzer.gd"
-const SOAK_CONFIG_PATH: String = "res://config/soak/soak_config.tres"
 ## DECISION: Field, CameraRig and BlockRegistry are NOT dormant: they settle reset state (Field
 ## tilt basis, camera follow/origin/target) that a results->lobby leave starts, and pausing them
 ## left the next match differing from a fresh launch (test_match_reset_fingerprint). Only the
@@ -404,6 +401,7 @@ func _ensure_results_screen() -> ResultsScreen:
 func _ensure_scoreboard() -> ScoreboardOverlay:
 	if _scoreboard_node == null:
 		_scoreboard_node = _loader.load_scene(SCOREBOARD_SCENE_PATH).instantiate() as ScoreboardOverlay
+		_scoreboard_node.match_context = MatchContext.current()
 		add_child(_scoreboard_node)
 		# Created while a sandbox is live (the sandbox flow only suppresses an existing one).
 		_scoreboard_node.suppressed = _main_world().sandbox != null and is_instance_valid(_main_world().sandbox)
@@ -706,53 +704,16 @@ func _match_flow_port() -> MainMatchFlowPort:
 
 # --- Debug tools ---------------------------------------------
 
-## Debug mode only (game/debug/DebugMode.gd): the F1 perf overlay, its sampler and
-## the per-session CSV logger (the round overlays F2/F3/F9 are built per match by game/main/MainMatchFlow.gd). Lives under Main for the whole session, so it
-## covers menus, lobby, matches and the sandbox alike. Not built (and PerfProbe
-## stays disabled) for players.
+## The F1 perf overlay and its sampler are built in every build; debug mode adds the CSV logger
+## and the soak flags (the round panels F2/F3/F9 are built per match by game/main/MainMatchFlow.gd).
+## Lives under Main for the whole session, so it covers menus, lobby, matches and the sandbox alike.
 func _build_debug_tools() -> void:
-	PerfProbe.enabled = DebugMode.is_enabled()
-	if not DebugMode.is_enabled():
-		return
-	var debug_config: DebugConfig = DebugMode.config()
-	var sampler: PerfSampler = PerfSampler.new()
-	sampler.config = debug_config
-	add_child(sampler)
-	var overlay: PerfOverlay = PerfOverlay.new()
-	overlay.config = debug_config
-	overlay.sampler = sampler
-	add_child(overlay)
-	var logger: PerfLogger = PerfLogger.new()
-	logger.config = debug_config
-	logger.sampler = sampler
-	add_child(logger)
-	if _has_cmdline_flag("soak"):
-		# Loaded by path like the bot overlay: the soak code stays out of Main's compile closure.
-		var soak_script: GDScript = load(SOAK_MONITOR_PATH) as GDScript
-		var soak: Node = soak_script.new() as Node
-		soak.set(&"config", load(SOAK_CONFIG_PATH))
-		# DECISION: Net.apply_command_line() runs after this, so Net.is_host() would read the
-		# offline default; the role comes from the same parser Net uses.
-		var joining: bool = NetCommandLine.parse(OS.get_cmdline_user_args()).has_join
-		soak.set(&"role", &"client" if joining else &"host")
-		soak.set(&"sampler", sampler)
-		add_child(soak)
-		# DECISION: the plan does not say client-only; the launcher passes --soak-fuzz to the client
-		# alone and the fuzzer does nothing without a seat, so no role check is added here.
-		if _has_cmdline_flag("soak-fuzz"):
-			var fuzzer_script: GDScript = load(SOAK_FUZZER_PATH) as GDScript
-			var fuzzer: Node = fuzzer_script.new() as Node
-			fuzzer.set(&"config", load(SOAK_CONFIG_PATH))
-			var seams_script: GDScript = fuzzer_script.get_script_constant_map()[&"Seams"] as GDScript
-			var seams: RefCounted = seams_script.new() as RefCounted
-			seams.set(&"playing", func() -> bool: return Match.state() == Match.State.PLAYING)
-			seams.set(&"local_slot", Net.local_slot)
-			seams.set(&"feed_seq", Match.feed_seq)
-			seams.set(&"field_radius", func() -> float: return Match.config.map_def().field_radius)
-			seams.set(&"submit_place", MatchNet.submit_place)
-			seams.set(&"line", func(text: String) -> void: print(text))
-			fuzzer.set(&"seams", seams)
-			add_child(fuzzer)
+	var tools: DebugTools = DebugTools.new()
+	tools.config = DebugMode.config()
+	tools.session_extras = DebugMode.is_enabled()
+	tools.soak_enabled = _has_cmdline_flag("soak")
+	tools.soak_fuzz_enabled = _has_cmdline_flag("soak-fuzz")
+	add_child(tools)
 
 
 # --- Helpers -----------------------------------------------------------------

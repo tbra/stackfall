@@ -444,7 +444,7 @@ func test_the_auto_drop_falls_from_the_last_cursor_the_seat_sent() -> void:
 	assert_lt(landed.distance_to(sent_from_local), CURSOR_TOLERANCE_M,
 		"over the cursor the seat last sent, not over its home flag")
 	assert_gt(landed.distance_to(home), CURSOR_OFFSET_M * 0.5, "which is not where a seat with no cursor drops")
-	assert_eq(MatchNet.intents_accepted(slot), 0, "an auto-drop is not an accepted intent")
+	assert_eq(MatchNet.counters.accepted_count(slot), 0, "an auto-drop is not an accepted intent")
 
 
 func test_a_new_match_forgets_every_stored_cursor() -> void:

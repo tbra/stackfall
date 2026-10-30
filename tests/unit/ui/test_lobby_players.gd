@@ -2,7 +2,7 @@ extends GutTest
 ## The roster extracted from ui/lobby/Lobby.gd into ui/lobby/LobbyPlayersPanel behaves
 ## exactly as it did inside the Lobby, the narrow Lobby <-> panel hooks are installed
 ## (seats_data() merged into a host publish, apply(config, roster, seats) from
-## _apply_data, on_roster_changed, finalize_start_config() after the peer clamp,
+## the applied lobby data, on_roster_changed, finalize_start_config() after the peer clamp,
 ## start_blocker() in Start and the button gate, the request signals, focus entries),
 ## and (PL1a) the rows are ui/lobby/LobbySeatRow views over the panel's seat table:
 ## the host cycles a colour (swap on a clash) / team pick (1..cap, Random) with a
@@ -104,10 +104,7 @@ func _row_badge_name(row: Node) -> String:
 
 
 func _rows_of(lobby: Lobby) -> Array[LobbySeatRow]:
-	var rows: Array[LobbySeatRow] = []
-	for node: Node in _panel_of(lobby)._player_rows:
-		rows.append(node as LobbySeatRow)
-	return rows
+	return LobbyProbe.seat_rows(lobby)
 
 
 func _two_humans_data(ready_guest: bool) -> Dictionary:
@@ -124,7 +121,7 @@ func _two_humans_data(ready_guest: bool) -> Dictionary:
 func test_human_rows_name_subtitle_and_ready_badge() -> void:
 	var lobby: Lobby = _make_lobby(false)
 	Events.net_lobby_data_changed.emit(_two_humans_data(false))
-	var rows: Array[Node] = _panel_of(lobby)._player_rows
+	var rows: Array[LobbySeatRow] = _rows_of(lobby)
 	assert_eq(rows.size(), 2)
 	assert_eq(_row_name(rows[0]), "Host")
 	assert_eq(_row_subtitle(rows[0]), "Host · you", "the local peer is peer 1 on a FakeNet")
@@ -193,7 +190,23 @@ func test_add_bot_grows_the_seat_count_to_humans_plus_bots_and_publishes() -> vo
 	assert_eq(int(_last_published(lobby).get("ai_count")), 2)
 	assert_eq(int(_last_published(lobby).get("player_count")), 3)
 	assert_eq(_header_of(lobby).text, "1 player · 2 bots · 3/8 seats")
-	assert_eq(_panel_of(lobby)._player_rows.size(), 3)
+	assert_eq(_rows_of(lobby).size(), 3)
+
+
+func test_open_seat_add_bot_works_in_the_tile_grid() -> void:
+	DebugMode.set_override_for_test(true)
+	LobbySeatVariants.chosen = LobbySeatVariants.Style.TILES
+	var lobby: Lobby = _make_lobby(true)
+	_fake_of(lobby).slots_by_peer = {1: 0}
+	var panel: LobbyPlayersPanel = _panel_of(lobby)
+	panel._render()
+	var button: Button = _add_bot_button(lobby)
+	assert_true(button.is_visible_in_tree(), "the open seat card shows the host's Add bot")
+	assert_true(panel.focus_entries().has(button), "FocusWalk reaches it")
+	button.pressed.emit()
+	assert_eq(int(_last_published(lobby).get("ai_count")), 1)
+	assert_true(_add_bot_button(lobby).is_inside_tree(), "and it survives the re-render")
+	LobbySeatVariants.chosen = LobbySeatVariants.Style.CLASSIC
 
 
 func test_remove_bot_shrinks_bots_and_seats_together() -> void:
@@ -333,7 +346,7 @@ func test_remove_bot_drops_the_seat_compacts_the_rest_and_asks_the_lobby_for_one
 	var seats: Dictionary = _seat_table(lobby)
 	assert_eq(LobbySeats.bot_count(seats), 1)
 	assert_eq(LobbySeats.color_of(seats, LobbySeats.bot_key(0)), second_color, "the later bot moved down with its picks")
-	assert_eq(_panel_of(lobby)._player_rows.size(), 2, "one human + one bot row left")
+	assert_eq(_rows_of(lobby).size(), 2, "one human + one bot row left")
 	assert_eq(_header_of(lobby).text, "1 player · 1 bot · 2/8 seats")
 
 

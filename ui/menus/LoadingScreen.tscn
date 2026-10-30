@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/menus/LoadingScreen.gd" id="1_loading"]
+[ext_resource type="Script" path="res://ui/menus/LoadingBackdrop.gd" id="3_backdrop"]
 [ext_resource type="Theme" path="res://ui/theme/stackfall_theme.tres" id="2_theme"]
 
 [node name="LoadingScreen" type="Control"]
@@ -54,6 +55,7 @@ grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 6
+script = ExtResource("3_backdrop")
 
 [node name="Dim" type="ColorRect" parent="Layer/Content/Backdrop"]
 unique_name_in_owner = true

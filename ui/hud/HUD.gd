@@ -57,14 +57,7 @@ const GIFT_CARD_ICON_GLYPH_GAP_PX: float = 2.0
 ## The minimap's camera framing and the panels' colours; see config/ui/HUDVisualTuning.gd's
 ## class doc. Pure screen-space geometry stays inline (DECISION above).
 @export var hud_visual_tuning: HUDVisualTuning = preload("res://config/ui/hud_visual_tuning.tres")
-## DECISION (ui/hud/HUD.gd): a Variant test seam for the same reason
-## PlayerController has one: GUT can't double a plain autoload. Defaults to the real
-## autoload; tests overwrite it with a fake after add_child().
-var match_provider: Variant = null
-## where a human seat's replicated name comes from, anything
-## answering name_for_slot(slot_id) -> String. Null means the real Net autoload.
-var name_provider: Variant = null
-## The match port the HUD reads once the provider seams are gone. A late assignment catches up on
+## The match port every HUD read goes through; the builder assigns it. A late assignment catches up on
 ## a match already in its pre-game states.
 var match_context: MatchContext = MatchContext.new():
 	set(value):
@@ -222,7 +215,6 @@ var _hud_pad_pending: bool = false
 
 func _ready() -> void:
 	_build_scale_root()
-	match_provider = Match
 	_shapes_by_id = _load_shapes_by_id()
 	_timer_ring.draw.connect(_on_timer_ring_draw)
 	_build_round_timer()
@@ -295,8 +287,7 @@ func _ready() -> void:
 	Events.input_device_changed.connect(_on_input_device_changed)
 	# the world build awaits frames, so the HUD can be created after
 	# the LOADING/COUNTDOWN state emits it would otherwise prime on. Catch up now.
-	if Match.is_in_progress(Match.state()):
-		prime_pregame_widgets()
+	_catch_up_pregame()
 
 
 func _build_countdown_label() -> void:
@@ -331,12 +322,9 @@ func _make_countdown_style_label(label_name: String, font_size: int, color: Colo
 	return label
 
 
-## Whole seconds of the host's countdown left, or 0 outside it. A provider
-## without the method (tests' FakeMatch) means no countdown.
+## Whole seconds of the host's countdown left, or 0 outside it.
 func _countdown_seconds_left() -> int:
-	if match_provider == null or not match_provider.has_method(&"countdown_remaining"):
-		return 0
-	return int(ceil(float(match_provider.countdown_remaining())))
+	return int(ceil(match_context.countdown_remaining()))
 
 
 func _update_countdown_label(delta: float) -> void:
@@ -351,7 +339,7 @@ func _update_countdown_label(delta: float) -> void:
 	if _countdown_was_active:
 		_countdown_was_active = false
 		# Only a countdown that ran into PLAYING says Go; an abort just hides.
-		if match_provider.has_method(&"state") and int(match_provider.state()) != MatchAutoload.State.PLAYING:
+		if match_context.state() != MatchPhase.State.PLAYING:
 			_countdown_label.visible = false
 			return
 		_go_left_s = hud_visual_tuning.countdown_go_hold_s
@@ -367,8 +355,8 @@ func _update_countdown_label(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_update_countdown_label(delta)
-	if Net.is_client() and Match.is_live(Match.state()):
-		extrapolate_capture(delta, Match._territory_tuning.capture_hold)
+	if match_context.net_is_client() and MatchPhase.is_live(match_context.state()):
+		extrapolate_capture(delta, match_context.capture_hold_seconds())
 	# DECISION (ui/hud/HUD.gd): the minimap rotates with the camera yaw, read from Viewport.get_camera_3d() rather
 	# than a node path into the camera rig or a new Events signal: a generic engine query
 	# does not reintroduce the deep-node-path pattern the class doc warns against. Runs
@@ -383,27 +371,22 @@ func _process(delta: float) -> void:
 		_minimap.set_camera_basis(Vector2(right.x, right.z), Vector2(forward.x, forward.z))
 	_update_gift_markers()
 	_update_round_timer(delta)
-	if match_provider == null or _active_slot < 0:
+	if _active_slot < 0:
 		return
-	set_feed_progress(match_provider.feed_progress(_active_slot))
-	if match_provider.has_method(&"qol_backlog_count"):
-		var paused_now: bool = bool(match_provider.qol_timer_paused(_active_slot))
-		if paused_now != _qol_paused:
-			_qol_paused = paused_now
-			_timer_ring.queue_redraw()
-		_qol_backlog = int(match_provider.qol_backlog_count(_active_slot))
-	# The timer ring's numeral. Guarded by has_method() like _update_minimap()'s raster()
-	# read: Variant doubles (FakeMatch) have no feed_time_left(), and a bare HUD-only
-	# instance should draw no numeral rather than error.
-	if match_provider.has_method(&"feed_time_left"):
-		set_feed_seconds(float(match_provider.feed_time_left(_active_slot)))
-	var tower_m: float = match_provider.max_height_for_slot(_active_slot)
-	var held: LocalHeldView = MatchContext.current().local_held()
+	set_feed_progress(match_context.feed_progress(_active_slot))
+	var paused_now: bool = match_context.qol_timer_paused(_active_slot)
+	if paused_now != _qol_paused:
+		_qol_paused = paused_now
+		_timer_ring.queue_redraw()
+	_qol_backlog = match_context.qol_backlog_count(_active_slot)
+	set_feed_seconds(match_context.feed_time_left(_active_slot))
+	var tower_m: float = match_context.max_height_for_slot(_active_slot)
+	var held: LocalHeldView = match_context.local_held()
 	if held.shape != null:
 		set_tower_and_block_height(tower_m, held.height_above_surface)
 	else:
 		set_height(tower_m)
-	set_locked(bool(match_provider.is_release_locked(_active_slot)))
+	set_locked(match_context.is_release_locked(_active_slot))
 	_refresh_special_indicator()
 
 
@@ -429,22 +412,20 @@ func _build_round_timer() -> void:
 	slot.add_child(_round_timer)
 
 
-## Feeds the round clock from the Match autoload (the host's clock on a client too). Hidden outside
+## Feeds the round clock from the match context (the host's clock on a client too). Hidden outside
 ## live play and in the sandbox.
 func _update_round_timer(delta: float) -> void:
 	if _round_timer == null:
 		return
-	var live: bool = match_provider != null and match_provider.has_method(&"match_timer_left") 		and Match.is_live(Match.state())
-	# get() so a provider without a config (e.g. a countdown-only test double) reads as null.
-	var running_config: Variant = match_provider.get(&"config") if match_provider != null else null
-	if not live or running_config == null or bool(running_config.sandbox):
+	var running_config: MatchConfig = match_context.config()
+	if not MatchPhase.is_live(match_context.state()) or running_config == null or running_config.sandbox:
 		_round_played_s = 0.0
 		_round_timer.clear()
 		return
 	_round_played_s += delta
 	_round_timer.show_match(
-		UiRoundTimer.limit_minutes_for(running_config as MatchConfig),
-		float(match_provider.match_timer_left()), bool(match_provider.sudden_death_active()), _round_played_s)
+		UiRoundTimer.limit_minutes_for(running_config),
+		match_context.match_timer_left(), match_context.sudden_death_active(), _round_played_s)
 
 
 ## Bottom edge of the timer ring in HUD pixels: the Tutorial's tip banner sits just under it.
@@ -470,16 +451,14 @@ func set_local_slot(slot_id: int) -> void:
 	_next_shape_preview.queue_redraw()
 
 
-## Pulls whatever `match_provider` holds for `slot_id` right now. Events.feed_block_issued
+## Pulls whatever `match_context` holds for `slot_id` right now. Events.feed_block_issued
 ## fires once, when Match first feeds a slot, usually before set_local_slot
 ## runs (the sandbox and MatchNet wire the local slot in after
 ## Match.start_match()), so the held/next previews would otherwise stay null for the
 ## whole match. Later feed_block_issued ticks keep it current.
 func _pull_current_shapes(slot_id: int) -> void:
-	if match_provider == null:
-		return
-	set_held_shape(match_provider.held_shape(slot_id))
-	set_next_shape(match_provider.next_shape(slot_id))
+	set_held_shape(match_context.held_shape(slot_id))
+	set_next_shape(match_context.next_shape(slot_id))
 
 
 func set_held_shape(shape: BlockShape) -> void:
@@ -822,8 +801,7 @@ func show_eliminated_banner(slot_id: int) -> void:
 	if _eliminated_label == null:
 		return
 	var by_slot: int = -1
-	if match_provider != null and match_provider.has_method(&"eliminated_by"):
-		by_slot = int(match_provider.eliminated_by(slot_id))
+	by_slot = match_context.eliminated_by(slot_id)
 	if by_slot >= 0:
 		_eliminated_label.text = hud_visual_tuning.eliminated_by_text % _name_for_slot(by_slot)
 	else:
@@ -842,8 +820,8 @@ func show_eliminated_banner(slot_id: int) -> void:
 ## they don't hold it), so both sides of the comparison go through _team_of_slot().
 func _on_gift_claimed(_gift_id: int, slot_id: int, special_id: StringName) -> void:
 	_update_gift_markers()
-	if slot_id == _active_slot and match_provider != null:
-		set_next_shape(match_provider.next_shape(slot_id))
+	if slot_id == _active_slot:
+		set_next_shape(match_context.next_shape(slot_id))
 	if _team_of_slot(_active_slot) != _team_of_slot(slot_id):
 		return
 	_refresh_special_indicator()
@@ -855,46 +833,38 @@ func _on_gift_state_changed(_gift_id: int, _position: Variant = null, _landing: 
 
 
 func _update_gift_markers() -> void:
-	if match_provider != null and match_provider.has_method(&"gift_states"):
-		# _process() polls this every frame; skip the
-		# minimap's duplicate + redraw unless a crate actually changed.
-		var states: Array[Dictionary] = match_provider.gift_states()
-		if states == _last_gift_states:
-			return
-		_last_gift_states = states.duplicate(true)
-		_minimap.set_gift_states(states)
+	# _process() polls this every frame; skip the
+	# minimap's duplicate + redraw unless a crate actually changed.
+	var states: Array[Dictionary] = match_context.gift_states()
+	if states == _last_gift_states:
+		return
+	_last_gift_states = states.duplicate(true)
+	_minimap.set_gift_states(states)
 
 
 # --- Helpers -----------------------------------------------------------------
 
 ## Forwards the running match's MapDef to the minimap. Null-safe like
-## _team_of_slot(): match_provider == null or no config yet
-## (pre-match, or a bare HUD-only test) leaves the minimap in its initial
+## _team_of_slot(): no config yet
+## (pre-match, or the null-object context) leaves the minimap in its initial
 ## hidden/disabled state. Only pushes set_map_def() when the map actually changed, so
 ## a placement's territory-share tick doesn't re-frame the minimap.
 ##
 ## Also forwards the live TerritoryRaster/player colors/home positions every tick
-## (Minimap.set_match_state(), cheap reference stores), guarded by has_method(&"raster")
-## like set_feed_seconds()'s feed_time_left() read: the real Match autoload has
-## raster(), tests/support/FakeMatch.gd does not, and a bare HUD-only instance should
-## leave the minimap as it was rather than error.
+## (Minimap.set_match_state(), cheap reference stores).
 func _update_minimap() -> void:
-	if match_provider == null:
-		return
-	var running_config: Variant = match_provider.config
+	var running_config: MatchConfig = match_context.config()
 	if running_config == null:
 		return
 	var map_def: MapDef = running_config.map_def()
 	if map_def != _last_map_def:
 		_last_map_def = map_def
 		_minimap.set_map_def(map_def)
-	if not match_provider.has_method(&"raster"):
-		return
-	var raster: TerritoryRaster = match_provider.raster()
+	var raster: TerritoryRaster = match_context.raster()
 	var homes: PackedVector2Array = PackedVector2Array()
-	var count: int = int(running_config.player_count)
+	var count: int = running_config.player_count
 	for i: int in range(count):
-		var slot: PlayerSlot = match_provider.slot(i)
+		var slot: PlayerSlot = match_context.slot(i)
 		homes.append(slot.home_position if slot != null else Vector2.ZERO)
 	_minimap.set_goal_positions(PlayerSlot.goal_positions_for(running_config.effective_goal_flag_count(), map_def))
 	# Lobby rework: territory and goal colours are per TEAM
@@ -1111,9 +1081,7 @@ func _set_callout(label: Label, face: Color, glyph: HudCallout.Glyph) -> void:
 ## the HUD reads the already-documented PlayerSlot.home_flag_alive straight off
 ## Match.slot().
 func _is_slot_eliminated(slot_id: int) -> bool:
-	if match_provider == null:
-		return false
-	var slot: PlayerSlot = match_provider.slot(slot_id)
+	var slot: PlayerSlot = match_context.slot(slot_id)
 	return slot != null and not slot.home_flag_alive
 
 
@@ -1123,21 +1091,17 @@ func _is_slot_eliminated(slot_id: int) -> bool:
 ## to "every slot is its own team", the same TeamMode.OFF behaviour
 ## team_of_slot() itself returns.
 func _team_of_slot(slot_id: int) -> int:
-	if match_provider == null:
-		return slot_id
-	var running_config: Variant = match_provider.config
+	var running_config: MatchConfig = match_context.config()
 	if running_config == null:
 		return slot_id
-	return int(running_config.team_of_slot(slot_id))
+	return running_config.team_of_slot(slot_id)
 
 
 ## MatchConfig.team_numbers when the lobby teams are host-resolved, else empty
 ## (labels fall back to team id + 1). For the static score formatters above.
 func _resolved_team_numbers() -> PackedInt32Array:
-	if match_provider == null:
-		return PackedInt32Array()
-	var running_config: Variant = match_provider.config
-	if running_config == null or not bool(running_config.teams_resolved()):
+	var running_config: MatchConfig = match_context.config()
+	if running_config == null or not running_config.teams_resolved():
 		return PackedInt32Array()
 	return running_config.team_numbers
 
@@ -1146,26 +1110,23 @@ func _resolved_team_numbers() -> PackedInt32Array:
 ## host-resolved lobby teams a team shows territory_colors()[team] (its lowest
 ## slot's colour); otherwise team id t is slot t, so _color_for_slot(team_id).
 func _color_for_team(team_id: int) -> Color:
-	if match_provider != null:
-		var running_config: Variant = match_provider.config
-		if running_config != null and bool(running_config.teams_resolved()):
-			var colors: PackedColorArray = running_config.territory_colors()
-			if team_id >= 0 and team_id < colors.size():
-				return colors[team_id]
+	var running_config: MatchConfig = match_context.config()
+	if running_config != null and running_config.teams_resolved():
+		var colors: PackedColorArray = running_config.territory_colors()
+		if team_id >= 0 and team_id < colors.size():
+			return colors[team_id]
 	return _color_for_slot(team_id)
 
 
 ## Whether team `team_id` is out. Resolved lobby teams: every slot of the team has
 ## lost its home flag (team ids no longer equal slot ids); otherwise "slot t is team t".
 func _is_team_eliminated(team_id: int) -> bool:
-	if match_provider == null:
-		return false
-	var running_config: Variant = match_provider.config
-	if running_config == null or not bool(running_config.teams_resolved()):
+	var running_config: MatchConfig = match_context.config()
+	if running_config == null or not running_config.teams_resolved():
 		return _is_slot_eliminated(team_id)
 	var found: bool = false
-	for slot_id: int in range(int(running_config.player_count)):
-		if int(running_config.team_of_slot(slot_id)) != team_id:
+	for slot_id: int in range(running_config.player_count):
+		if running_config.team_of_slot(slot_id) != team_id:
 			continue
 		found = true
 		if not _is_slot_eliminated(slot_id):
@@ -1175,10 +1136,9 @@ func _is_team_eliminated(team_id: int) -> bool:
 
 func _color_for_slot(slot_id: int) -> Color:
 	var live_color: Variant = null
-	if match_provider != null:
-		var slot: PlayerSlot = match_provider.slot(slot_id)
-		if slot != null:
-			live_color = slot.color
+	var slot: PlayerSlot = match_context.slot(slot_id)
+	if slot != null:
+		live_color = slot.color
 	return SlotColors.resolve(slot_id, live_color, default_palette.player_colors)
 
 
@@ -1189,11 +1149,12 @@ func _color_for_slot(slot_id: int) -> Color:
 ## copies roster names onto its PlayerSlots, so its slots still read "Player N"); bots
 ## keep their slot label.
 func _name_for_slot(slot_id: int) -> String:
-	var peer_name: String = String(_names().name_for_slot(slot_id))
-	if match_provider != null:
-		var slot: PlayerSlot = match_provider.slot(slot_id)
-		if slot != null:
-			return PlayerNames.label_for_slot(slot_id, slot.display_name, slot.is_bot, peer_name)
+	# DECISION: the replicated roster name still comes from the Net autoload; MatchContext has no
+	# roster read, and a HUD collaborator for one is not worth it for a single call.
+	var peer_name: String = String(Net.name_for_slot(slot_id))
+	var slot: PlayerSlot = match_context.slot(slot_id)
+	if slot != null:
+		return PlayerNames.label_for_slot(slot_id, slot.display_name, slot.is_bot, peer_name)
 	return PlayerNames.label_for_slot(slot_id, "", false, peer_name)
 
 
@@ -1201,20 +1162,15 @@ func _name_for_slot(slot_id: int) -> String:
 ## its slot, or every member's name joined with " & " in a team match. Falls back
 ## to the slot of the same number with no config (team t is slot t).
 func _name_for_team(team_id: int) -> String:
-	if match_provider != null:
-		var running_config: Variant = match_provider.config
-		if running_config != null:
-			var members: PackedStringArray = PackedStringArray()
-			for slot_id: int in range(int(running_config.player_count)):
-				if int(running_config.team_of_slot(slot_id)) == team_id:
-					members.append(_name_for_slot(slot_id))
-			if not members.is_empty():
-				return " & ".join(members)
+	var running_config: MatchConfig = match_context.config()
+	if running_config != null:
+		var members: PackedStringArray = PackedStringArray()
+		for slot_id: int in range(running_config.player_count):
+			if running_config.team_of_slot(slot_id) == team_id:
+				members.append(_name_for_slot(slot_id))
+		if not members.is_empty():
+			return " & ".join(members)
 	return _name_for_slot(team_id)
-
-
-func _names() -> Variant:
-	return name_provider if name_provider != null else Net
 
 
 ## The pending-special queue indicator, next to the next-shape preview. Reads
@@ -1225,7 +1181,7 @@ func _names() -> Variant:
 ## shortcuts the wait for the specific claim case.
 func _refresh_special_indicator() -> void:
 	_refresh_gift_slot()
-	if match_provider == null or _active_slot < 0:
+	if _active_slot < 0:
 		_last_special_signature = []
 		_set_glue_active(false)
 		_special_indicator.visible = false
@@ -1234,15 +1190,13 @@ func _refresh_special_indicator() -> void:
 		_next_label.text = "NEXT"
 		_next_label.add_theme_color_override("font_color", _arcade.dust_color)
 		return
-	var count: int = int(match_provider.pending_special_count(_active_slot))
-	var head_id: StringName = match_provider.held_special(_active_slot)
-	var glue_charges: int = 0
-	if match_provider.has_method(&"glue_drops_left"):
-		glue_charges = int(match_provider.glue_drops_left(_active_slot))
+	var count: int = match_context.pending_special_count(_active_slot)
+	var head_id: StringName = match_context.held_special(_active_slot)
+	var glue_charges: int = match_context.glue_drops_left(_active_slot)
 	# nothing below depends on anything but these inputs.
 	# a claimed gift staged as the block AFTER next is not the next piece;
 	# the NEXT preview keeps the ordinary block and the label marks the queued gift.
-	var staged_id: StringName = StringName(match_provider.after_next_special(_active_slot)) if match_provider.has_method(&"after_next_special") else &""
+	var staged_id: StringName = match_context.after_next_special(_active_slot)
 	var staged_count: int = 1 if staged_id != &"" else 0
 	var next_id: StringName = _next_gift_id_for(count - staged_count, head_id)
 	var signature: Array = [_active_slot, _active_color, count, head_id, next_id, glue_charges, _qol_backlog, staged_id]
@@ -1471,9 +1425,7 @@ var _next_gift_id: StringName = &""
 func _next_gift_id_for(count: int, head_id: StringName) -> StringName:
 	if count <= (1 if head_id != &"" else 0):
 		return &""
-	var next_id: StringName = &""
-	if match_provider.has_method(&"next_special"):
-		next_id = match_provider.next_special(_active_slot)
+	var next_id: StringName = match_context.next_special(_active_slot)
 	return next_id if next_id != &"" else GENERIC_GIFT_ID
 
 
@@ -1488,19 +1440,19 @@ var glue_overlay: GlueOverlayState = GlueOverlayState.new()
 ## leaving a match (lobby/end) drops the overlay at once and
 ## forces the next refresh to re-read the charges.
 func _on_match_state_changed_glue(_from_state: int, to_state: int) -> void:
-	if _eliminated_label != null and (Match.is_lobby_or_end(to_state) or Match.is_pregame(to_state)):
+	if _eliminated_label != null and (MatchPhase.is_lobby_or_end(to_state) or MatchPhase.is_pregame(to_state)):
 		_eliminated_label.visible = false
-	if to_state != Match.State.END:
+	if to_state != MatchPhase.State.END:
 		visible = true
-	if Match.is_pregame(to_state):
+	if MatchPhase.is_pregame(to_state):
 		prime_pregame_widgets()
-	if Match.is_lobby_or_end(to_state):
+	if MatchPhase.is_lobby_or_end(to_state):
 		_last_special_signature = []
 		_set_glue_active(false)
 
 
 func _catch_up_pregame() -> void:
-	if Match.is_in_progress(Match.state()):
+	if MatchPhase.is_in_progress(match_context.state()):
 		prime_pregame_widgets()
 
 
@@ -1510,13 +1462,11 @@ func _catch_up_pregame() -> void:
 ## HUD is loaded behind the Ready screen): builds one zero-share row per team and
 ## pushes the map/raster/homes to the minimap.
 func prime_pregame_widgets() -> void:
-	if match_provider == null:
-		return
-	var running_config: Variant = match_provider.config
+	var running_config: MatchConfig = match_context.config()
 	if running_config == null:
 		return
 	var shares: PackedFloat32Array = PackedFloat32Array()
-	shares.resize(int(running_config.team_count()))
+	shares.resize(running_config.team_count())
 	set_territory_shares(shares)
 	_update_minimap()
 
@@ -1587,9 +1537,9 @@ func _refresh_gift_slot() -> void:
 		return
 	var head_id: StringName = &""
 	var count: int = 0
-	if match_provider != null and _active_slot >= 0 and match_provider.has_method(&"gift_slot_head"):
-		head_id = match_provider.gift_slot_head(_active_slot)
-		count = int(match_provider.gift_slot_count(_active_slot))
+	if _active_slot >= 0:
+		head_id = match_context.gift_slot_head(_active_slot)
+		count = match_context.gift_slot_count(_active_slot)
 	var show_card: bool = head_id != &""
 	if _gift_slot_column.visible != show_card:
 		_gift_slot_column.visible = show_card

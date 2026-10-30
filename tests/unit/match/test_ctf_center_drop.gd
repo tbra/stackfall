@@ -2,6 +2,7 @@ extends "res://tests/unit/match/match_world_test.gd"
 ## SPEC 1.5 goal no-build zones: only a disc around each ACTUAL goal beacon blocks building;
 ## with one beacon that is the map centre, with 2..5 beacons the centre is ordinary ground.
 
+const TUNING: TerritoryTuning = preload("res://config/territory/territory_tuning.tres")
 const CENTRE: Vector2 = Vector2.ZERO
 ## Tiny-map home flags sit at 0.85 * 20 m on the x axis (slot 0 at +x, slot 1 at -x).
 const BLOCK_CIRCLE_X: float = 7.0
@@ -44,7 +45,7 @@ func _beacons() -> PackedVector2Array:
 
 func _home_circle(slot_id: int) -> InfluenceCircle:
 	return InfluenceCircle.new(
-		Match.slot(slot_id).home_position, Match._territory_tuning.home_radius, slot_id, slot_id, true, -1
+		Match.slot(slot_id).home_position, TUNING.home_radius, slot_id, slot_id, true, -1
 	)
 
 
@@ -72,7 +73,7 @@ func _team0_owns_centre_and_beacons() -> void:
 
 
 func _feed_raster(circles: Array[InfluenceCircle], delta: float) -> void:
-	var tuning: TerritoryTuning = Match._territory_tuning
+	var tuning: TerritoryTuning = TUNING
 	Match.raster().fill_ownership(circles, TerritorySolver.new(tuning).solve(circles), true)
 	Match.raster().adopt_fill(Match.raster(), delta, true, false)
 
@@ -118,7 +119,7 @@ func test_default_ctf_has_one_centre_beacon_with_a_four_metre_no_build_disc() ->
 	var beacons: PackedVector2Array = _beacons()
 	assert_eq(beacons.size(), 1, "default goal_flag_count 1: a single beacon")
 	assert_eq(beacons[0], CENTRE, "...and it stands on the exact middle of the map")
-	var tuning: TerritoryTuning = Match._territory_tuning
+	var tuning: TerritoryTuning = TUNING
 	assert_eq(tuning.goal_zone_radius, 4.0, "SPEC.md 2.2 provisional goal_zone_radius")
 
 	var raster: TerritoryRaster = Match.raster()
@@ -136,8 +137,8 @@ func test_default_ctf_has_one_centre_beacon_with_a_four_metre_no_build_disc() ->
 		var cell: Vector2i = raster.grid().world_to_cell(outside)
 		assert_false(raster.is_goal_zone(cell.x, cell.y), "outside the disc: %s" % outside)
 
-	assert_eq(Match._territory._goal_radii.size(), 1)
-	assert_eq(Match._territory._goal_radii[0], 4.0, "the replicated/drawn circle is the same 4 m")
+	assert_eq((Match.circle_render_arrays()["goal_radii"] as PackedFloat32Array).size(), 1)
+	assert_eq((Match.circle_render_arrays()["goal_radii"] as PackedFloat32Array)[0], 4.0, "the replicated/drawn circle is the same 4 m")
 
 
 # --- The refusal at the middle (one beacon: by design) --------------------------
@@ -173,12 +174,12 @@ func test_every_goal_count_zones_only_the_actual_beacons_in_ctf_and_classic() ->
 		for count: int in GOAL_COUNTS:
 			_start(mode, count)
 			var beacons: PackedVector2Array = _beacons()
-			var radius: float = Match._territory_tuning.goal_zone_radius
+			var radius: float = TUNING.goal_zone_radius
 			var label: String = "mode %d, %d goal flags" % [mode, count]
 			assert_eq(Match.config.goal_flag_count, count, "the lobby's goal count reaches the running config: %s" % label)
 			assert_eq(beacons.size(), count, "one beacon per requested goal flag: %s" % label)
-			assert_eq(Match._territory._goal_positions, beacons, "the drawn/replicated beacons are the actual ones: %s" % label)
-			assert_eq(Match._territory._goal_radii.size(), count, "one drawn circle per beacon: %s" % label)
+			assert_eq(Match.circle_render_arrays()["goal_positions"], beacons, "the drawn/replicated beacons are the actual ones: %s" % label)
+			assert_eq((Match.circle_render_arrays()["goal_radii"] as PackedFloat32Array).size(), count, "one drawn circle per beacon: %s" % label)
 			_assert_zone_cells_are_exactly_the_beacon_discs(beacons, radius, label)
 			var centre_cell: Vector2i = Match.raster().grid().world_to_cell(CENTRE)
 			assert_eq(
