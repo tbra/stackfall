@@ -121,15 +121,15 @@
   },
   {
    "id": "dead-file",
-   "entry": "core/territory/SolveClock.gd",
-   "reason": "interface stub: unwired until the solve-clock writer package makes MatchTerritory own it; that package removes this entry",
-   "consumer": "W-CLOCK"
-  },
-  {
-   "id": "dead-file",
    "entry": "core/rules/ResultsText.gd",
    "reason": "unwired stub; the results formatting package moves ResultsScreen statics here",
    "consumer": "P9-Ires"
+  },
+  {
+   "id": "dead-file",
+   "entry": "core/territory/SolveClock.gd",
+   "reason": "interface stub: unwired until the solve-clock writer package makes MatchTerritory own it; that package removes this entry",
+   "consumer": "W-CLOCK"
   },
   {
    "id": "dead-file",
