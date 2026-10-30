@@ -126,6 +126,17 @@ func test_hidden_section_returns_when_rows_come_back() -> void:
 	assert_true(_any_contains("60"))
 
 
+func test_emptied_section_keeps_no_stale_text_and_refills() -> void:
+	_panel.set_section(&"a", "Alpha", _rows([["fps", "60"]]))
+	_panel.set_section(&"a", "Alpha", _rows([]))
+	for node: Node in _panel.find_children("*", "Label", true, false):
+		assert_ne((node as Label).text, "fps", "an emptied section keeps no old row text")
+		assert_ne((node as Label).text, "60", "an emptied section keeps no old row text")
+	_panel.set_section(&"a", "Alpha", _rows([["fps", "60"]]))
+	await wait_process_frames(1)
+	assert_eq(_count_exact("fps"), 1, "the same rows refill after being emptied")
+
+
 func test_sections_are_independent() -> void:
 	_panel.set_section(&"a", "Alpha", _rows([["fps", "60"]]))
 	_panel.set_section(&"b", "Beta", _rows([["bots", "3"]]))
